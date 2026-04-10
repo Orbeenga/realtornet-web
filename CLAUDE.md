@@ -34,4 +34,4 @@ Type generation: pnpm gen:types
 - Seed property data needed before D.5 listing feed is meaningful
 
 ## Current phase
-D.4 - UI system (shared primitives)
+D.5 Part 2 - Property detail page
