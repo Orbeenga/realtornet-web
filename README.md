@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RealtorNet Frontend
 
-## Getting Started
+Frontend for the RealtorNet property marketplace. The app is built with Next.js 16, React 19, TypeScript, Tailwind CSS v4, TanStack Query, Supabase auth helpers, and Sentry.
 
-First, run the development server:
+## Current Phase Status
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Phase D frontend work is substantially complete through D.7.4:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- D.7.1 Property image upload UI: closed
+- D.7.2 Saved searches: closed and browser-verified
+- D.7.3 Sentry integration: wired and verified
+- D.7.4 Lighthouse audit: run and documented
+- Amenities selector: implemented and rendering
+- Frontend API calls: routed through the Next.js proxy rewrite and centralized `apiClient` URL building
+- UI standards: system font stack applied, form-field standards documented, account page layout standards applied globally
+- Image handling: feed and My Listings image display aligned with property-images endpoints
+- Storage integration notes: MIME type, admin client, and upsert-safe expectations captured in docs
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+D.7.5 is still blocked locally on Windows because `next build` can fail with `spawn EPERM` during page data collection. That issue is environmental rather than a frontend code bug. D.7.6 and D.7.7 remain pending the build unblock.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Setup
 
-## Learn More
+1. Install dependencies with `pnpm install`.
+2. Create the environment files required for local development.
+3. Start the dev server with `pnpm dev`.
+4. Open `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+The frontend expects these environment values:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SENTRY_DSN` for runtime error reporting when enabled
+- `SENTRY_AUTH_TOKEN` for CI source-map upload when enabled
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Additional environment notes live in [docs/env.md](/c:/Users/Apine/realtornet-web/docs/env.md).
 
-## Deploy on Vercel
+## Quality Checks
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Type check: `pnpm tsc --noEmit`
+- Lint: `pnpm lint`
+- Production build: `pnpm build`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The GitHub Actions workflow already runs the same typecheck, lint, and build commands used locally.
+
+## Frontend Notes
+
+- Browser API calls use frontend-origin `/api/v1/*` routes and are rewritten to the backend origin in `next.config.ts`.
+- The shared API client owns URL construction and auth-aware request handling.
+- Listing cards, detail pages, and My Listings fetch property images from the property-images endpoints instead of assuming image URLs on property payloads.
+- The app uses a system font stack instead of hosted Google Fonts.
+
+## Documentation
+
+- [CHANGELOG.md](/c:/Users/Apine/realtornet-web/CHANGELOG.md)
+- [docs/DEFERRED.md](/c:/Users/Apine/realtornet-web/docs/DEFERRED.md)
+- [docs/env.md](/c:/Users/Apine/realtornet-web/docs/env.md)
+- [docs/ui-specs/form-field-standards.md](/c:/Users/Apine/realtornet-web/docs/ui-specs/form-field-standards.md)
