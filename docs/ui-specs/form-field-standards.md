@@ -1,5 +1,10 @@
 # Form Field Standards - RealtorNet UI Spec
 
+## Global Typography
+- Use the shared system font stack defined in `src/app/globals.css`
+- Do not reintroduce hosted Google Fonts for dashboard or form surfaces
+- All account and listing flows inherit the same `font-sans` base treatment
+
 ## Text Inputs (single line)
 - Max width: 600px, full width on mobile (< 640px breakpoint)
 - Height: 44px
@@ -31,6 +36,11 @@
 - Saved properties, saved searches, inquiries, and listing management pages follow the same centered dashboard width
 - Consistent vertical spacing between rows: gap-4
 - Use /account/listings as the visual reference standard
+
+## Saved Searches Page
+- Saved search cards stay within the same centered 800px dashboard column
+- Card actions align with the shared account action row treatment
+- Empty, loading, and error states should preserve the same page width and heading rhythm as other account pages
 
 ## Property Detail Page
 - Remove outer paper/card backgrounds from the main detail sections
@@ -85,5 +95,10 @@
 - Edit listing page uses a dashboard-style page heading outside the cards
 - Edit listing page removes the outer paper/card background behind its sections
 - Listing details, images, and amenities render as plain stacked sections within the same 800px centered column
+
+## Amenities Selector
+- Amenity selection appears on both create and edit listing flows
+- Selected amenities sync through the property-amenities API using the centralized frontend API client
+- Loading and error states render inline within the listing form column without changing page width
 
 This file is the repeatable reference. Any future form field implementation must conform to it before PR.
