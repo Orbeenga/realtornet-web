@@ -7,84 +7,205 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { buildApiUrl, setUnauthorizedHandler } from "@/lib/api/client";
+import type { UserProfile } from "@/types";
+
+const TOKEN_STORAGE_KEY = "rn_token";
+
+type RegisterRole = "buyer" | "agent" | "admin";
+
+class AuthBootstrapError extends Error {
+  constructor(public status?: number) {
+    super("Unable to load current user");
+    this.name = "AuthBootstrapError";
+  }
+}
 
 interface AuthContextValue {
-  session: Session | null;
-  user: User | null;
+  user: UserProfile | null;
+  token: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (input: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role: RegisterRole;
+  }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function getStoredToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+function persistToken(token: string) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  }
+}
+
+function clearStoredToken() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
+}
+
+async function fetchCurrentUser(token: string) {
+  let res: Response;
+
+  try {
+    res = await fetch(buildApiUrl("/api/v1/auth/me"), {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new AuthBootstrapError();
+  }
+
+  if (!res.ok) {
+    throw new AuthBootstrapError(res.status);
+  }
+
+  return (await res.json()) as UserProfile;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    const bootstrap = async () => {
+      const storedToken = getStoredToken();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setLoading(false);
-    });
+      if (!storedToken) {
+        setLoading(false);
+        return;
+      }
 
-    return () => subscription.unsubscribe();
+      try {
+        const me = await fetchCurrentUser(storedToken);
+        setToken(storedToken);
+        setUser(me);
+      } catch (error) {
+        if (error instanceof AuthBootstrapError && error.status === 401) {
+          clearStoredToken();
+          setToken(null);
+          setUser(null);
+        } else {
+          setToken(storedToken);
+          setUser(null);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void bootstrap();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (!isSupabaseConfigured) {
-      throw new Error("Supabase environment variables are not configured.");
+    const body = new URLSearchParams({
+      username: email,
+      password,
+      scope: "",
+    });
+
+    const res = await fetch(buildApiUrl("/api/v1/auth/login"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+
+    const payload = await res.json().catch(() => null);
+
+    if (!res.ok || !payload?.access_token) {
+      throw new Error(
+        payload?.detail ?? payload?.message ?? "Login failed. Please try again.",
+      );
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      throw error;
-    }
+    persistToken(payload.access_token);
+    setToken(payload.access_token);
+
+    const me = await fetchCurrentUser(payload.access_token);
+    setUser(me);
   };
 
-  const signUp = async (email: string, password: string) => {
-    if (!isSupabaseConfigured) {
-      throw new Error("Supabase environment variables are not configured.");
+  const signUp = async ({
+    email,
+    password,
+    firstName,
+    lastName,
+    role,
+  }: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role: RegisterRole;
+  }) => {
+    const backendRole = role === "buyer" ? "seeker" : role;
+
+    const res = await fetch(buildApiUrl("/api/v1/auth/register"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        first_name: firstName,
+        last_name: lastName,
+        user_role: backendRole,
+      }),
+    });
+
+    const payload = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(
+        payload?.detail ??
+          payload?.message ??
+          "Registration failed. Please try again.",
+      );
     }
 
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      throw error;
-    }
+    await signIn(email, password);
   };
 
   const signOut = async () => {
-    if (!isSupabaseConfigured) {
-      throw new Error("Supabase environment variables are not configured.");
-    }
+    clearStoredToken();
+    setToken(null);
+    setUser(null);
 
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw error;
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
     }
   };
 
+  useEffect(() => {
+    setUnauthorizedHandler(() => signOut());
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user: session?.user ?? null,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-      }}
-    >
+    <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

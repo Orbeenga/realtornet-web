@@ -3,3 +3,5 @@ export {
   useAddFavorite,
   useRemoveFavorite,
 } from "./useFavorites";
+export { useFavoriteToggle } from "./useFavoriteToggle";
+export { useFavoriteProperties } from "./useFavoriteProperties";
