@@ -10,23 +10,6 @@ function buildPropertyQuery(filters: PropertyFilters) {
       return;
     }
 
-    if (key === "page_size") {
-      params.set("limit", String(value));
-      return;
-    }
-
-    if (key === "page") {
-      const page = Number(value);
-      const pageSize = Number(filters.page_size ?? 20);
-      params.set("skip", String(Math.max(0, page - 1) * pageSize));
-      return;
-    }
-
-    if (key === "property_type") {
-      params.set("listing_type", String(value));
-      return;
-    }
-
     params.set(key, String(value));
   });
 

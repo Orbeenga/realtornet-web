@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -12,9 +12,15 @@ import {
 } from "@/features/auth/schemas";
 
 export default function RegisterPage() {
-  const { signUp, loading } = useAuth();
+  const { signUp, user, loading } = useAuth();
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/properties");
+    }
+  }, [loading, router, user]);
 
   const {
     register,
@@ -22,13 +28,22 @@ export default function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
+    defaultValues: {
+      user_role: "buyer",
+    },
   });
 
   const onSubmit = async (values: RegisterFormValues) => {
     try {
       setServerError(null);
-      await signUp(values.email, values.password);
-      router.push("/login?registered=true");
+      await signUp({
+        email: values.email,
+        password: values.password,
+        firstName: values.first_name,
+        lastName: values.last_name,
+        role: values.user_role,
+      });
+      router.push("/properties");
     } catch (err: unknown) {
       setServerError(
         err instanceof Error
@@ -54,6 +69,40 @@ export default function RegisterPage() {
           noValidate
           className="space-y-5"
         >
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              First name
+            </label>
+            <input
+              type="text"
+              {...register("first_name")}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="Apine"
+            />
+            {errors.first_name ? (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.first_name.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Last name
+            </label>
+            <input
+              type="text"
+              {...register("last_name")}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="Orbeenga"
+            />
+            {errors.last_name ? (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.last_name.message}
+              </p>
+            ) : null}
+          </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Email
@@ -86,6 +135,8 @@ export default function RegisterPage() {
             ) : null}
           </div>
 
+          <input type="hidden" {...register("user_role")} value="buyer" />
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Confirm password
@@ -111,7 +162,7 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting || loading}
+            disabled={isSubmitting}
             className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
           >
             {isSubmitting ? "Creating account..." : "Create account"}

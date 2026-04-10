@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -9,6 +7,35 @@ export class ApiError extends Error {
     super(`API error ${status}`);
     this.name = "ApiError";
   }
+}
+
+let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+
+function getApiBasePath() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!apiUrl) {
+    return "";
+  }
+
+  try {
+    const normalizedUrl = new URL(apiUrl);
+    const pathname = normalizedUrl.pathname.replace(/\/$/, "");
+
+    return pathname === "/" ? "" : pathname;
+  } catch {
+    return apiUrl.replace(/\/$/, "");
+  }
+}
+
+export function buildApiUrl(path: string) {
+  return `${getApiBasePath()}${path}`;
+}
+
+export function setUnauthorizedHandler(
+  handler: (() => void | Promise<void>) | null,
+) {
+  unauthorizedHandler = handler;
 }
 
 function extractFieldErrors(
@@ -48,21 +75,24 @@ export async function apiClient<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  const token =
+    typeof window !== "undefined" ? window.localStorage.getItem("rn_token") : null;
+  const isFormData = options?.body instanceof FormData;
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
 
   if (!res.ok) {
+    if (res.status === 401 && unauthorizedHandler) {
+      await unauthorizedHandler();
+    }
+
     const body = await res.json().catch(() => ({ detail: "Unknown error" }));
 
     throw new ApiError(
