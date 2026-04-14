@@ -1,10 +1,9 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
-const backendOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(
-  /\/$/,
-  "",
-);
+const backendOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
+  .replace(/^http:\/\//, "https://")
+  .replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
   typescript: {
