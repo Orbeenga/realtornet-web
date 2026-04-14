@@ -4,19 +4,12 @@ Frontend for the RealtorNet property marketplace. The app is built with Next.js 
 
 ## Current Phase Status
 
-Phase D frontend work is substantially complete through D.7.4:
-
-- D.7.1 Property image upload UI: closed
-- D.7.2 Saved searches: closed and browser-verified
-- D.7.3 Sentry integration: wired and verified
-- D.7.4 Lighthouse audit: run and documented
-- Amenities selector: implemented and rendering
-- Frontend API calls: routed through the Next.js proxy rewrite and centralized `apiClient` URL building
-- UI standards: system font stack applied, form-field standards documented, account page layout standards applied globally
-- Image handling: feed and My Listings image display aligned with property-images endpoints
-- Storage integration notes: MIME type, admin client, and upsert-safe expectations captured in docs
-
-D.7.5 is still blocked locally on Windows because `next build` can fail with `spawn EPERM` during page data collection. That issue is environmental rather than a frontend code bug. D.7.6 and D.7.7 remain pending the build unblock.
+- Phase E in progress - staging validation and first deploy
+- E.1 closed: Supabase prod live (project `umhtnqxdvffpifqbdtjs`, EU West, 54 RLS policies)
+- E.2 closed: Railway backend live at `https://realtornet-production.up.railway.app`
+- E.3 closed: Vercel frontend deployed at `https://realtornet-web.vercel.app`
+- E.4 closed: GitHub Actions CI green on PRs to `main`
+- E.5 in progress: Lighthouse audit - desktop all green, mobile LCP fix deployed
 
 ## Setup
 

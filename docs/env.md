@@ -19,3 +19,17 @@ For CI, add secrets in GitHub under `Settings -> Secrets and variables -> Action
 - Keep real production values in `.env.production` locally or in your deployment platform secrets.
 - Commit `.env.production.example`, not `.env.production`.
 - GitHub Actions secrets should mirror the values needed by the workflow build step.
+
+## pnpm Operational Rules
+
+- This is a single-package repo. Do not create `pnpm-workspace.yaml`.
+- `ignoredBuiltDependencies` must be declared in the `pnpm` block inside `package.json`.
+- `packageManager` must be pinned to the exact installed version: `pnpm@10.33.0`.
+- CI workflow pnpm version must match local exactly - check with `pnpm --version` before updating.
+- If Vercel build logs show `Ignored build scripts: @sentry/cli, esbuild, msw` - this is expected and harmless. Run `pnpm approve-builds` locally if native binaries need updating.
+
+## HTTPS Enforcement
+
+- `NEXT_PUBLIC_API_URL` must always be `https://` - never `http://`.
+- The API client (`src/lib/api/client.ts`) and Next.js config (`next.config.ts`) both enforce HTTPS via `.replace(/^http:\/\//, 'https://')`. Do not remove these guards.
+- Mixed content (`http://` requests from an `https://` page) is blocked by browsers and will silently break API calls.
