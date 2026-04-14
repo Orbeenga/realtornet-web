@@ -17,13 +17,15 @@ const navLinks = [
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const payload = getStoredJwtPayload();
   const role = typeof payload?.role === "string" ? payload.role : null;
   const visibleNavLinks =
-    role === "agent"
-      ? [...navLinks, { href: "/account/listings", label: "My Listings" }]
-      : navLinks;
+    !user
+      ? [{ href: "/properties", label: "Properties" }]
+      : role === "agent"
+        ? [...navLinks, { href: "/account/listings", label: "My Listings" }]
+        : navLinks;
 
   const handleSignOut = async () => {
     await signOut();
@@ -60,12 +62,31 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="hidden max-w-[180px] truncate text-sm text-gray-500 dark:text-gray-400 md:block">
-              {user?.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              Sign out
-            </Button>
+            {user ? (
+              <>
+                <span className="hidden max-w-[180px] truncate text-sm text-gray-500 dark:text-gray-400 md:block">
+                  {user.email}
+                </span>
+                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                  Sign out
+                </Button>
+              </>
+            ) : !loading ? (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                >
+                  Create account
+                </Link>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
