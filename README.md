@@ -5,7 +5,7 @@ Frontend for the RealtorNet property marketplace. The app is built with Next.js 
 ## Current Phase Status
 
 - Phase E in progress - staging validation and first deploy
-- E.1 closed: Supabase prod live (project `umhtnqxdvffpifqbdtjs`, EU West, 54 RLS policies)
+- E.1 closed: Supabase prod live (project `avkhpachzsbgmbnkfnhu`, EU West, 54 RLS policies)
 - E.2 closed: Railway backend live at `https://realtornet-production.up.railway.app`
 - E.3 closed: Vercel frontend deployed at `https://realtornet-web.vercel.app`
 - E.4 closed: GitHub Actions CI green on PRs to `main`
