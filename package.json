@@ -13,6 +13,11 @@
         "ignoredBuiltDependencies": [
             "sharp",
             "unrs-resolver"
+        ],
+        "onlyBuiltDependencies": [
+            "@sentry/cli",
+            "esbuild",
+            "msw"
         ]
     },
     "scripts": {
