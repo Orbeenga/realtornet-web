@@ -1,8 +1,7 @@
 # RealtorNet Frontend - Deferred Implementations
 
-Logged during D.6 integration validation and refreshed after Phase D.7 record
-updates. These are the remaining deferred or blocked items after the completed
-frontend work captured in this session.
+This file is the single source of truth for intentionally deferred frontend work.
+It consolidates the former root `DEFERRED.md` and `docs/DEFERRED.md`.
 
 ---
 
@@ -87,3 +86,32 @@ environment.
 handover to unblock local builds, then proceed with D.7.6 and D.7.7.
 **Priority:** High.
 **Phase:** D.7.5 unblock
+
+---
+
+## Phase E Deferrals
+
+### DEF-FE-001 - Mobile LCP (Phase F)
+LCP element was a `<p>` CTA tag. Fixed in E.5 by server-first rendering of
+`/properties`. Remaining: unused JS bundle splitting needed to get mobile LCP
+consistently under 2.5s without network variance.
+
+### DEF-FE-002 - Unused JS bundle (Phase F)
+233 KiB of unused JavaScript on initial load. `PropertiesExplorer` client
+bundle needs dynamic imports and deeper code splitting.
+
+### DEF-FE-003 - Render-blocking CSS chunk (Phase F)
+12.5 KiB CSS chunk on critical path. Consider inlining critical CSS or
+splitting the chunk.
+
+### DEF-FE-004 - Legacy JS polyfills (Phase F)
+`Array.prototype.at`, `Object.hasOwn` etc being shipped as polyfills. Tighten
+`browserslist` target to modern browsers only.
+
+### DEF-FE-005 - Filter select accessibility (Phase F)
+Three `<select>` elements in the property filter UI missing associated
+`<label>` elements. Drops Accessibility score from 100 to 94 on desktop.
+
+### DEF-FE-006 - CSP / security headers (Phase F)
+No Content-Security-Policy, COOP, or X-Frame-Options headers. Noted by
+Lighthouse Best Practices audit. Implement via `next.config.ts` headers config.
