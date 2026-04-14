@@ -43,12 +43,15 @@ export default function LoginForm() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-2 text-2xl font-bold text-gray-900">Sign in</h1>
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">
+          Welcome Back
+        </p>
+        <h1 className="mb-2 text-4xl font-bold tracking-tight text-gray-900">
+          Sign in to manage your search
+        </h1>
         <p className="mb-8 text-sm text-gray-500">
-          New here?{" "}
-          <Link href="/register" className="text-blue-600 hover:underline">
-            Create an account
-          </Link>
+          Access saved searches, favorites, inquiries, and listing tools from one
+          dashboard.
         </p>
         {searchParams.get("registered") === "true" ? (
           <p className="mb-5 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -99,6 +102,12 @@ export default function LoginForm() {
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
+        <p className="mt-6 text-sm text-gray-500">
+          New here?{" "}
+          <Link href="/register" className="font-medium text-blue-600 hover:underline">
+            Create an account
+          </Link>
+        </p>
       </div>
     </main>
   );

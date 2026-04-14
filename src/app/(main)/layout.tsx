@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/features/auth/AuthContext";
+import { usePathname, useRouter } from "next/navigation";
 import { LoadingState } from "@/components";
+import { useAuth } from "@/features/auth/AuthContext";
 import { Navbar } from "@/components/Navbar";
 
 export default function MainLayout({
@@ -11,20 +11,22 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
+  const pathname = usePathname();
   const router = useRouter();
+  const { user, loading } = useAuth();
+  const isProtectedRoute = pathname.startsWith("/account");
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
+    if (isProtectedRoute && !loading && !user) {
+      router.replace("/login");
     }
-  }, [loading, router, user]);
+  }, [isProtectedRoute, loading, router, user]);
 
-  if (loading) {
+  if (isProtectedRoute && loading) {
     return <LoadingState fullPage />;
   }
 
-  if (!user) {
+  if (isProtectedRoute && !user) {
     return null;
   }
 
