@@ -2,6 +2,13 @@
     "name": "realtornet-web",
     "version": "0.2.0",
     "private": true,
+    "packageManager": "pnpm@10.x",
+    "pnpm": {
+        "ignoredBuiltDependencies": [
+            "sharp",
+            "unrs-resolver"
+        ]
+    },
     "scripts": {
         "dev": "next dev",
         "build": "next build",
