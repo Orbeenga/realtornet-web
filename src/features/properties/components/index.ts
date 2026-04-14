@@ -1,5 +1,6 @@
 export { PropertyCard } from "./PropertyCard";
 export { PropertyFilters } from "./PropertyFilters";
+export { PropertiesExplorer } from "./PropertiesExplorer";
 export { SearchBar } from "./SearchBar";
 export { PropertyDetailClient } from "./PropertyDetailClient";
 export { PropertyImageGallery } from "./PropertyImageGallery";
