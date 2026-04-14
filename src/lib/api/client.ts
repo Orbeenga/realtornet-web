@@ -12,7 +12,10 @@ export class ApiError extends Error {
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
 function getApiBasePath() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(
+    /^http:\/\//,
+    "https://",
+  );
 
   if (!apiUrl) {
     return "";
