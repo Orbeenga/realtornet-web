@@ -8,7 +8,7 @@ const backendOrigin = (process.env.API_URL ?? "http://localhost:8000")
 const backendBaseUrl = new URL(backendOrigin);
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
-  const url = new URL(`/api/v1/${path.join("/")}`, backendOrigin);
+  const url = new URL(`/api/v1/${path.join("/")}/`, backendOrigin);
   url.search = request.nextUrl.search;
   return url;
 }
