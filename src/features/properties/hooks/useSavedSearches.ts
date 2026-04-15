@@ -1,14 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import type { Property, SavedSearch, SavedSearchCreateInput } from "@/types";
 
 const SAVED_SEARCHES_QUERY_KEY = ["saved-searches"] as const;
 
 export function useSavedSearches() {
+  const { data: profile } = useUserProfile();
+
   return useQuery({
     queryKey: SAVED_SEARCHES_QUERY_KEY,
     queryFn: () => apiClient<SavedSearch[]>("/api/v1/saved-searches/"),
     staleTime: 60_000,
+    enabled: typeof profile?.user_id === "number",
   });
 }
 
