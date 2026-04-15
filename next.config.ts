@@ -1,11 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
-const backendOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
-  .replace(/^http:\/\//, "https://")
-  .replace(/\/$/, "");
-
 const nextConfig: NextConfig = {
+  trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -13,11 +10,22 @@ const nextConfig: NextConfig = {
     workerThreads: false,
     cpus: 1,
   },
-  async rewrites() {
+  async headers() {
+    if (process.env.NODE_ENV !== "production") {
+      return [];
+    }
+
     return [
       {
-        source: "/api/v1/:path*",
-        destination: `${backendOrigin}/api/v1/:path*`,
+        source: "/:path*",
+        headers: [
+          {
+            // Upgrade any stray insecure browser requests that may still be
+            // serialized outside our source bundle.
+            key: "Content-Security-Policy",
+            value: "upgrade-insecure-requests",
+          },
+        ],
       },
     ];
   },
