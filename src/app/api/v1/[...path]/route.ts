@@ -22,16 +22,16 @@ function buildHeaders(request: NextRequest) {
   return headers;
 }
 
-function normalizeRedirectLocation(location: string) {
+function normalizeRedirectLocation(location: string, requestUrl: URL) {
   try {
-    const target = new URL(location, backendOrigin);
+    const target = new URL(location, requestUrl);
 
-    if (target.host !== backendBaseUrl.host) {
-      return null;
+    if (target.host === backendBaseUrl.host) {
+      target.protocol = backendBaseUrl.protocol;
+      return target;
     }
 
-    target.protocol = backendBaseUrl.protocol;
-    return target;
+    return null;
   } catch {
     return null;
   }
@@ -46,7 +46,7 @@ async function proxyRequest(
   const requestBody =
     request.method === "GET" || request.method === "HEAD"
       ? undefined
-      : await request.arrayBuffer();
+      : new Uint8Array(await request.arrayBuffer());
 
   const sendRequest = (url: URL) =>
     fetch(url, {
@@ -70,7 +70,7 @@ async function proxyRequest(
       break;
     }
 
-    const normalizedLocation = normalizeRedirectLocation(location);
+    const normalizedLocation = normalizeRedirectLocation(location, targetUrl);
 
     if (!normalizedLocation) {
       break;
