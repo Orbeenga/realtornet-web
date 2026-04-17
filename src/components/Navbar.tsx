@@ -60,9 +60,13 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             {user ? (
               <>
-                <span className="hidden max-w-[180px] truncate text-sm text-gray-500 dark:text-gray-400 md:block">
+                <Link
+                  href="/account/profile"
+                  prefetch={false}
+                  className="hidden max-w-[180px] truncate text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white md:block"
+                >
                   {user.email}
-                </span>
+                </Link>
                 <Button variant="ghost" size="sm" onClick={handleSignOut}>
                   Sign out
                 </Button>
