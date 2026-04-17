@@ -3,12 +3,6 @@
     "version": "0.2.0",
     "private": true,
     "packageManager": "pnpm@10.33.0",
-    "browserslist": [
-        "> 0.5%",
-        "last 2 versions",
-        "not dead",
-        "not ie 11"
-    ],
     "pnpm": {
         "ignoredBuiltDependencies": [
             "sharp",
@@ -31,6 +25,7 @@
     "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@hookform/resolvers": "^5.2.2",
+        "@sentry/browser": "^10.48.0",
         "@sentry/nextjs": "^10.47.0",
         "@supabase/auth-helpers-nextjs": "^0.15.0",
         "@supabase/ssr": "^0.10.2",
@@ -55,6 +50,8 @@
         "zustand": "^5.0.12"
     },
     "devDependencies": {
+        "@next/bundle-analyzer": "^16.2.4",
+        "@playwright/test": "^1.59.1",
         "@tailwindcss/postcss": "^4",
         "@types/leaflet": "^1.9.21",
         "@types/node": "^20",
