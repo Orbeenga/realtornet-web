@@ -39,6 +39,7 @@ export function Navbar() {
           <div className="flex items-center gap-8">
             <Link
               href="/properties"
+              prefetch={false}
               className="text-lg font-bold tracking-tight text-gray-900 dark:text-white"
             >
               RealtorNet
@@ -48,6 +49,7 @@ export function Navbar() {
                 <Link
                   key={href}
                   href={href}
+                  prefetch={false}
                   className={cn(
                     "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     pathname.startsWith(href)
@@ -75,12 +77,14 @@ export function Navbar() {
               <>
                 <Link
                   href="/login"
+                  prefetch={false}
                   className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                 >
                   Sign in
                 </Link>
                 <Link
                   href="/register"
+                  prefetch={false}
                   className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
                   Create account

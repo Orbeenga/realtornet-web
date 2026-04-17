@@ -16,12 +16,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="font-sans">
-      <head>
-        <link
-          rel="preconnect"
-          href="https://o4511180528091136.ingest.us.sentry.io"
-        />
-      </head>
       <body>
         <Providers>{children}</Providers>
         <Toaster />

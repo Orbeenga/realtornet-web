@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -14,8 +15,10 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useAgentListings } from "@/features/agents/hooks";
 import {
   useAgentProfileByUser,
+  useAdminProperties,
   useDeleteProperty,
   usePropertyImages,
+  useVerifyProperty,
 } from "@/features/properties/hooks";
 import { notify } from "@/lib/toast";
 import type { Property } from "@/types";
@@ -43,14 +46,17 @@ function ListingRowsSkeleton() {
 export function AgentListingsManagerClient() {
   const router = useRouter();
   const deleteProperty = useDeleteProperty();
+  const verifyProperty = useVerifyProperty();
   const gate = useAgentRoleGate();
-  const profileQuery = useUserProfile(gate.isAllowed);
+  const profileQuery = useUserProfile(gate.isAllowed && !gate.isAdmin);
   const agentProfileQuery = useAgentProfileByUser(
-    gate.isAllowed ? profileQuery.data?.user_id : undefined,
+    gate.isAllowed && !gate.isAdmin ? profileQuery.data?.user_id : undefined,
   );
-  const listingsQuery = useAgentListings(
+  const agentListingsQuery = useAgentListings(
     gate.isAllowed && agentProfileQuery.data ? agentProfileQuery.data.profile_id : "",
   );
+  const adminListingsQuery = useAdminProperties(gate.isAllowed && gate.isAdmin);
+  const listingsQuery = gate.isAdmin ? adminListingsQuery : agentListingsQuery;
 
   if (gate.isChecking) {
     return <LoadingState fullPage message="Checking agent access..." />;
@@ -60,16 +66,31 @@ export function AgentListingsManagerClient() {
     return null;
   }
 
-  if (profileQuery.isLoading || agentProfileQuery.isLoading) {
+  if (
+    (!gate.isAdmin && (profileQuery.isLoading || agentProfileQuery.isLoading)) ||
+    (gate.isAdmin && adminListingsQuery.isLoading)
+  ) {
     return <LoadingState message="Loading your listings..." fullPage />;
   }
 
-  if (profileQuery.isError || agentProfileQuery.isError) {
+  if (
+    (!gate.isAdmin && (profileQuery.isError || agentProfileQuery.isError)) ||
+    (gate.isAdmin && adminListingsQuery.isError)
+  ) {
     return (
       <ErrorState
         title="Could not load your listing dashboard"
-        message="There was a problem confirming your agent profile."
+        message={
+          gate.isAdmin
+            ? "There was a problem loading the admin property moderation feed."
+            : "There was a problem confirming your agent profile."
+        }
         onRetry={() => {
+          if (gate.isAdmin) {
+            void adminListingsQuery.refetch();
+            return;
+          }
+
           void profileQuery.refetch();
           void agentProfileQuery.refetch();
         }}
@@ -87,6 +108,32 @@ export function AgentListingsManagerClient() {
       notify.success("Listing deleted");
     } catch {
       notify.error("Could not delete listing");
+    }
+  };
+
+  const handleToggleVerification = async (
+    propertyId: number,
+    isVerified: boolean,
+  ) => {
+    try {
+      await verifyProperty.mutateAsync({
+        propertyId,
+        isVerified,
+        actor: gate.isAdmin ? "admin" : "agent",
+      });
+      notify.success(
+        isVerified ? "Listing marked as verified" : "Listing marked as pending",
+      );
+    } catch (error) {
+      const detail =
+        typeof error === "object" &&
+        error !== null &&
+        "detail" in error &&
+        typeof error.detail === "string"
+          ? error.detail
+          : null;
+
+      notify.error(detail ?? "Could not update verification status");
     }
   };
 
@@ -111,15 +158,19 @@ export function AgentListingsManagerClient() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-              My listings
+              {gate.isAdmin ? "Property moderation" : "My listings"}
             </h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Manage the properties you have published on RealtorNet.
+              {gate.isAdmin
+                ? "Review every property, including pending listings, from one moderation queue."
+                : "Manage the properties you have published on RealtorNet."}
             </p>
           </div>
-          <Button onClick={() => router.push("/account/listings/new")}>
-            New Listing
-          </Button>
+          {!gate.isAdmin ? (
+            <Button onClick={() => router.push("/account/listings/new")}>
+              New Listing
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -139,11 +190,19 @@ export function AgentListingsManagerClient() {
       !listingsQuery.isError &&
       (listingsQuery.data ?? []).length === 0 ? (
         <EmptyState
-          title="You have no listings yet. Create your first one."
-          action={{
-            label: "New Listing",
-            onClick: () => router.push("/account/listings/new"),
-          }}
+          title={
+            gate.isAdmin
+              ? "There are no properties available for moderation right now."
+              : "You have no listings yet. Create your first one."
+          }
+          action={
+            !gate.isAdmin
+              ? {
+                  label: "New Listing",
+                  onClick: () => router.push("/account/listings/new"),
+                }
+              : undefined
+          }
         />
       ) : null}
 
@@ -156,8 +215,19 @@ export function AgentListingsManagerClient() {
               key={property.property_id}
               property={property}
               deleting={deleteProperty.isPending}
+              verifying={
+                verifyProperty.isPending &&
+                verifyProperty.variables?.propertyId === property.property_id
+              }
+              canManage={!gate.isAdmin}
               onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
               onDelete={() => void handleDelete(property.property_id)}
+              onToggleVerification={() =>
+                void handleToggleVerification(
+                  property.property_id,
+                  !property.is_verified,
+                )
+              }
             />
           ))}
         </div>
@@ -169,11 +239,22 @@ export function AgentListingsManagerClient() {
 interface ListingRowProps {
   property: Property;
   deleting: boolean;
+  verifying: boolean;
+  canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleVerification: () => void;
 }
 
-function ListingRow({ property, deleting, onEdit, onDelete }: ListingRowProps) {
+function ListingRow({
+  property,
+  deleting,
+  verifying,
+  canManage,
+  onEdit,
+  onDelete,
+  onToggleVerification,
+}: ListingRowProps) {
   const imagesQuery = usePropertyImages(property.property_id);
   const displayImage = imagesQuery.data?.[0] ?? null;
 
@@ -212,6 +293,9 @@ function ListingRow({ property, deleting, onEdit, onDelete }: ListingRowProps) {
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                 {property.listing_status}
               </span>
+              <Badge variant={property.is_verified ? "success" : "warning"}>
+                {property.is_verified ? "Verified" : "Pending"}
+              </Badge>
               <span>{property.listing_type}</span>
             </div>
           </div>
@@ -219,12 +303,19 @@ function ListingRow({ property, deleting, onEdit, onDelete }: ListingRowProps) {
       </div>
 
       <div className="flex flex-wrap gap-2 sm:ml-auto">
-        <Button variant="secondary" size="sm" onClick={onEdit}>
-          Edit
+        <Button variant="secondary" size="sm" loading={verifying} onClick={onToggleVerification}>
+          {property.is_verified ? "Mark Pending" : "Verify"}
         </Button>
-        <Button variant="destructive" size="sm" loading={deleting} onClick={onDelete}>
-          Delete
-        </Button>
+        {canManage ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={onEdit}>
+              Edit
+            </Button>
+            <Button variant="destructive" size="sm" loading={deleting} onClick={onDelete}>
+              Delete
+            </Button>
+          </>
+        ) : null}
       </div>
     </div>
   );

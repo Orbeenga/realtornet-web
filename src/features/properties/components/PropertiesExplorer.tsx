@@ -1,8 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { PropertyCard } from "@/features/properties/components/PropertyCard";
-import { PropertyFilters } from "@/features/properties/components/PropertyFilters";
 import { SearchBar } from "@/features/properties/components/SearchBar";
 import { useProperties } from "@/features/properties/hooks";
 import { PropertyCardSkeleton } from "@/components/Skeleton";
@@ -13,9 +14,32 @@ import type { Property } from "@/types";
 
 const PAGE_SIZE = 12;
 
+const PropertyFilters = dynamic(
+  () =>
+    import("@/features/properties/components/PropertyFilters").then(
+      (module) => module.PropertyFilters,
+    ),
+  {
+    loading: () => <PropertyFiltersFallback />,
+  },
+);
+
+function PropertyFiltersFallback() {
+  return (
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+      <div className="h-4 w-20 rounded bg-gray-100 dark:bg-gray-800" />
+      <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
+      <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
+      <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
+    </div>
+  );
+}
+
 export function PropertiesExplorer() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [hydrateDesktopFilters, setHydrateDesktopFilters] = useState(false);
 
   const currentPage = Number(searchParams.get("page") ?? 1);
 
@@ -41,14 +65,37 @@ export function PropertiesExplorer() {
   const properties: Property[] = data ?? [];
   const total = properties.length;
 
+  useEffect(() => {
+    // The sidebar is useful, but it is not required for the first paint of the
+    // public listings feed. Hydrating it after mount trims work from the
+    // initial route bundle without removing the desktop experience.
+    setHydrateDesktopFilters(true);
+  }, []);
+
   return (
     <div>
       <SearchBar />
 
+      <div className="mb-4 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setShowMobileFilters((current) => !current)}
+          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500/40 dark:hover:text-blue-300"
+        >
+          {showMobileFilters ? "Hide filters" : "Show filters"}
+        </button>
+      </div>
+
+      {showMobileFilters ? (
+        <div className="mb-6 lg:hidden">
+          <PropertyFilters />
+        </div>
+      ) : null}
+
       <div className="flex gap-8">
         <aside className="hidden w-64 flex-shrink-0 lg:block">
           <div className="sticky top-24">
-            <PropertyFilters />
+            {hydrateDesktopFilters ? <PropertyFilters /> : <PropertyFiltersFallback />}
           </div>
         </aside>
 

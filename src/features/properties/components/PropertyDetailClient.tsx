@@ -1,11 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useFavorites, useFavoriteToggle } from "@/features/favorites/hooks";
-import { InquiryForm } from "@/features/inquiries/components/InquiryForm";
 import {
   useAgentProfileByUser,
   useLocationDetail,
@@ -31,6 +31,16 @@ import { notify } from "@/lib/toast";
 interface PropertyDetailClientProps {
   id: string;
 }
+
+const InquiryForm = dynamic(
+  () =>
+    import("@/features/inquiries/components/InquiryForm").then(
+      (module) => module.InquiryForm,
+    ),
+  {
+    loading: () => <InquiryFormFallback />,
+  },
+);
 
 function formatPrice(price: string, currency: string | null) {
   const numericPrice = Number(price);
@@ -62,6 +72,19 @@ function PropertyDetailSkeleton() {
       <Skeleton className="h-80 w-full rounded-2xl" />
       <Skeleton className="h-72 w-full rounded-2xl" />
     </div>
+  );
+}
+
+function InquiryFormFallback() {
+  return (
+    <section className="space-y-4">
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-36" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <Skeleton className="h-36 w-full rounded-xl" />
+      <Skeleton className="h-10 w-32 rounded-xl" />
+    </section>
   );
 }
 
@@ -160,6 +183,7 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
     <div className="space-y-8">
       <Link
         href="/properties"
+        prefetch={false}
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -224,6 +248,12 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
 
       <PropertyStaticMap location={locationQuery.data} />
 
+      {/*
+        The inquiry form brings validation and auth form code that the detail
+        page does not need for its first paint. Loading it on demand keeps the
+        route readable while trimming the amount of JavaScript the listings flow
+        has to parse up front.
+      */}
       <InquiryForm propertyId={propertyId} />
 
       {(locationQuery.isError || propertyTypeQuery.isError || imagesQuery.isError) ? (
