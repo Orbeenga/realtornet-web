@@ -59,7 +59,12 @@ export function AgentListingsManagerClient() {
   const listingsQuery = gate.isAdmin ? adminListingsQuery : agentListingsQuery;
 
   if (gate.isChecking) {
-    return <LoadingState fullPage message="Checking agent access..." />;
+    return (
+      <LoadingState
+        fullPage
+        message={gate.role === "admin" ? "Checking admin access..." : "Checking agent access..."}
+      />
+    );
   }
 
   if (!gate.isAllowed) {
@@ -70,7 +75,12 @@ export function AgentListingsManagerClient() {
     (!gate.isAdmin && (profileQuery.isLoading || agentProfileQuery.isLoading)) ||
     (gate.isAdmin && adminListingsQuery.isLoading)
   ) {
-    return <LoadingState message="Loading your listings..." fullPage />;
+    return (
+      <LoadingState
+        message={gate.isAdmin ? "Loading property moderation..." : "Loading your listings..."}
+        fullPage
+      />
+    );
   }
 
   if (
@@ -152,7 +162,7 @@ export function AgentListingsManagerClient() {
               d="M15.75 19.5L8.25 12l7.5-7.5"
             />
           </svg>
-          Back to listings
+          Back to properties
         </Link>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

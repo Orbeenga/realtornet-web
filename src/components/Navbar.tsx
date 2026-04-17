@@ -14,17 +14,35 @@ const navLinks = [
   { href: "/account/inquiries", label: "Inquiries" },
 ];
 
+function getDashboardLink(role: string | null) {
+  if (role === "admin") {
+    return { href: "/account/listings", label: "Property moderation" };
+  }
+
+  if (role === "agent") {
+    return { href: "/account/listings", label: "My Listings" };
+  }
+
+  return null;
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, signOut } = useAuth();
   const payload = getStoredJwtPayload();
-  const role = typeof payload?.role === "string" ? payload.role : null;
+  const role =
+    typeof payload?.user_role === "string"
+      ? payload.user_role
+      : typeof payload?.role === "string"
+        ? payload.role
+        : user?.user_role ?? null;
+  const dashboardLink = getDashboardLink(role);
   const visibleNavLinks =
     !user
       ? [{ href: "/properties", label: "Properties" }]
-      : role === "agent"
-        ? [...navLinks, { href: "/account/listings", label: "My Listings" }]
+      : dashboardLink
+        ? [...navLinks, dashboardLink]
         : navLinks;
 
   const handleSignOut = async () => {
