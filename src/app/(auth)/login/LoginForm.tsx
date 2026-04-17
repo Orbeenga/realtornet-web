@@ -6,15 +6,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getPostLoginPath } from "@/features/auth/navigation";
 import { loginSchema, type LoginFormValues } from "@/features/auth/schemas";
-
-function getPostLoginPath(userRole: string | null | undefined) {
-  if (userRole === "admin" || userRole === "agent") {
-    return "/account/listings";
-  }
-
-  return "/properties";
-}
 
 export default function LoginForm() {
   const { signIn, user, loading } = useAuth();

@@ -3,28 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getRoleNavLinks, normalizeAppRole } from "@/features/auth/navigation";
 import { Button } from "@/components/Button";
 import { getStoredJwtPayload } from "@/lib/jwt";
 import { cn } from "@/lib/utils";
-
-const navLinks = [
-  { href: "/properties", label: "Properties" },
-  { href: "/account/favorites", label: "Favorites" },
-  { href: "/account/saved-searches", label: "Saved searches" },
-  { href: "/account/inquiries", label: "Inquiries" },
-];
-
-function getDashboardLink(role: string | null) {
-  if (role === "admin") {
-    return { href: "/account/listings", label: "Property moderation" };
-  }
-
-  if (role === "agent") {
-    return { href: "/account/listings", label: "My Listings" };
-  }
-
-  return null;
-}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -37,13 +19,7 @@ export function Navbar() {
       : typeof payload?.role === "string"
         ? payload.role
         : user?.user_role ?? null;
-  const dashboardLink = getDashboardLink(role);
-  const visibleNavLinks =
-    !user
-      ? [{ href: "/properties", label: "Properties" }]
-      : dashboardLink
-        ? [...navLinks, dashboardLink]
-        : navLinks;
+  const visibleNavLinks = getRoleNavLinks(user ? normalizeAppRole(role) : null);
 
   const handleSignOut = async () => {
     await signOut();
