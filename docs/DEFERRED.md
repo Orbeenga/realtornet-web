@@ -7,27 +7,23 @@ It consolidates the former root `DEFERRED.md` and `docs/DEFERRED.md`.
 
 ## Resolved in D.7
 
-## DEF-004 - Agent listing management UI
-**Status:** Resolved in D.7.
-**Delivered:** `/account/listings`, `/account/listings/new`,
-`/account/listings/[id]/edit`, role-gated listing management actions, and the
-shared account dashboard layout standard.
-
----
-
-## DEF-005 - Listing verification visibility gap
-**Status:** Resolved in D.7.
-**Delivered:** Listing management flows now support the current agent
-experience expected for Phase D, including image handling and listing edit
-surfaces required to operate on owned listings.
-
----
-
 ## DEF-008 - Listing media and amenities management gap
 **Status:** Resolved in D.7.
 **Delivered:** Property image upload UI, image rendering in feed and My
 Listings, amenity selection, centralized API routing, and the related form/page
 standards are now in place.
+
+---
+
+## Resolved in E.7
+
+## Source Maps - Production Browser Bundle
+**Status:** Resolved in E.7.
+**Delivered:** Production Vercel builds are uploading Sentry source maps.
+Frontend test errors reach Sentry ingest successfully, and Vercel build logs
+show source map upload for the production release.
+**Follow-up:** Keep `SENTRY_AUTH_TOKEN` configured on Vercel so release uploads
+continue on future deployments.
 
 ---
 
@@ -63,6 +59,27 @@ is intentionally allowed.
 
 ---
 
+## DEF-004 - Listing verification and moderation workflow
+**Observed:** Production listing visibility still depends on manually setting
+`properties.is_verified = true` in SQL.
+**Expected:** Admin or moderation tooling should support reviewing and approving
+new listings without direct database intervention.
+**Current workaround:** Manual SQL in production.
+**Priority:** High.
+**Phase:** F
+
+---
+
+## DEF-005 - `is_verified` visibility in agent dashboard
+**Observed:** Agents do not have a clear dashboard-level indicator or filter for
+whether a listing is verified and publicly visible.
+**Expected:** Listing management views should expose verification state and make
+it easy to filter on verified vs pending listings.
+**Priority:** Medium.
+**Phase:** F
+
+---
+
 ## DEF-006 - Silent JWT refresh on 401
 **Observed:** Authenticated requests can intermittently return `401` when a JWT
 expires mid-session. Auth eventually recovers, but the failed request is not
@@ -89,7 +106,7 @@ handover to unblock local builds, then proceed with D.7.6 and D.7.7.
 
 ---
 
-## Phase E Deferrals
+## Phase F Deferrals
 
 ### DEF-FE-001 - Mobile LCP (Phase F)
 LCP element was a `<p>` CTA tag. Fixed in E.5 by server-first rendering of

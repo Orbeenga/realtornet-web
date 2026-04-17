@@ -83,7 +83,14 @@ export function PropertyCard({ property }: PropertyCardProps) {
     : "Price on request";
 
   return (
-    <Link href={`/properties/${property.property_id}`} className="block group">
+    <Link
+      href={`/properties/${property.property_id}`}
+      prefetch={false}
+      // The list page renders many cards at once. Warming every detail route on
+      // first paint front-loads code the visitor has not asked for yet, which
+      // showed up as extra TBT during the F.4 audits.
+      className="block group"
+    >
       <Card hoverable className="h-full">
         <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-800">
           {displayImage ? (

@@ -10,27 +10,31 @@ export function useAgentRoleGate() {
   const token = !isChecking ? getStoredToken() : null;
   const payload = !isChecking ? getStoredJwtPayload() : null;
   const role = !isChecking ? getStoredJwtRole() : null;
-  const isAllowed = !isChecking && Boolean(token) && role === "agent";
+  const isAdmin = role === "admin";
+  const isAgent = role === "agent";
+  const isAllowed = !isChecking && Boolean(token) && (isAgent || isAdmin);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    console.log("useAgentRoleGate JWT payload", payload);
-
     if (!token) {
       router.replace("/login");
       return;
     }
 
-    if (role !== "agent") {
+    // Listings moderation is shared between agents and admins, so both roles
+    // are allowed through this guard even though the hook name is historical.
+    if (!isAgent && !isAdmin) {
       router.replace("/");
     }
-  }, [payload, role, router, token]);
+  }, [isAdmin, isAgent, payload, router, token]);
 
   return {
     isChecking,
     isAllowed,
+    isAdmin,
+    role,
   };
 }

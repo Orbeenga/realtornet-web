@@ -16,6 +16,8 @@ export { usePropertyTypes } from "./usePropertyTypes";
 export { useCreateProperty } from "./useCreateProperty";
 export { useUpdateProperty } from "./useUpdateProperty";
 export { useDeleteProperty } from "./useDeleteProperty";
+export { useAdminProperties } from "./useAdminProperties";
+export { useVerifyProperty } from "./useVerifyProperty";
 export {
   useAmenities,
   usePropertyAmenities,

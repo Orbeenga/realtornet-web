@@ -1,7 +1,16 @@
+import bundleAnalyzer from "@next/bundle-analyzer";
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+const withBundleAnalyzer = bundleAnalyzer({
+  // The analyzer is opt-in so normal builds stay fast. F.4 can turn it on with
+  // `ANALYZE=true` whenever we need to inspect the production bundle.
+  enabled: process.env.ANALYZE === "true",
+});
+
 const nextConfig: NextConfig = {
+  // Keep the trailing slash so Vercel serves the same canonical route shape
+  // the API proxy and earlier Lighthouse baselines were measured against.
   trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
@@ -76,4 +85,4 @@ const sentryConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, sentryConfig);
+export default withBundleAnalyzer(withSentryConfig(nextConfig, sentryConfig));
