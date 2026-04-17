@@ -16,12 +16,14 @@ const PropertyFiltersSavedSearch = dynamic(
 );
 
 interface DeferredNumberFilterInputProps {
+  id: string;
   initialValue: string;
   placeholder: string;
   onCommit: (value: string) => void;
 }
 
 function DeferredNumberFilterInput({
+  id,
   initialValue,
   placeholder,
   onCommit,
@@ -30,6 +32,7 @@ function DeferredNumberFilterInput({
 
   return (
     <Input
+      id={id}
       type="number"
       placeholder={placeholder}
       value={value}
@@ -74,6 +77,7 @@ export function PropertyFilters() {
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Filters</h2>
         {hasFilters ? (
           <button
+            type="button"
             onClick={clearAll}
             className="text-xs text-blue-600 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
@@ -83,10 +87,14 @@ export function PropertyFilters() {
       </div>
 
       <div>
-        <label className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <label
+          htmlFor="listing-type"
+          className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
+        >
           Listing type
         </label>
         <select
+          id="listing-type"
           value={searchParams.get("listing_type") ?? ""}
           onChange={(event) => updateFilter("listing_type", event.target.value)}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
@@ -99,10 +107,14 @@ export function PropertyFilters() {
       </div>
 
       <div>
-        <label className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <label
+          htmlFor="listing-status"
+          className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
+        >
           Status
         </label>
         <select
+          id="listing-status"
           value={searchParams.get("listing_status") ?? ""}
           onChange={(event) => updateFilter("listing_status", event.target.value)}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
@@ -116,10 +128,14 @@ export function PropertyFilters() {
       </div>
 
       <div>
-        <label className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <label
+          htmlFor="min-price"
+          className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
+        >
           Min price
         </label>
         <DeferredNumberFilterInput
+          id="min-price"
           key={searchParams.get("min_price") ?? ""}
           initialValue={searchParams.get("min_price") ?? ""}
           placeholder="0"
@@ -128,10 +144,14 @@ export function PropertyFilters() {
       </div>
 
       <div>
-        <label className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <label
+          htmlFor="max-price"
+          className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
+        >
           Max price
         </label>
         <DeferredNumberFilterInput
+          id="max-price"
           key={searchParams.get("max_price") ?? ""}
           initialValue={searchParams.get("max_price") ?? ""}
           placeholder="Any"
@@ -140,10 +160,14 @@ export function PropertyFilters() {
       </div>
 
       <div>
-        <label className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <label
+          htmlFor="bedrooms"
+          className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
+        >
           Bedrooms
         </label>
         <select
+          id="bedrooms"
           value={searchParams.get("bedrooms") ?? ""}
           onChange={(event) => updateFilter("bedrooms", event.target.value)}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
