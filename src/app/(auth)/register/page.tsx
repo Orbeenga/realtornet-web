@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getPostLoginPath } from "@/features/auth/navigation";
 import {
   registerSchema,
   type RegisterFormValues,
@@ -18,7 +19,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push("/properties");
+      router.push(getPostLoginPath(user.user_role));
     }
   }, [loading, router, user]);
 
@@ -43,7 +44,6 @@ export default function RegisterPage() {
         lastName: values.last_name,
         role: values.user_role,
       });
-      router.push("/properties");
     } catch (err: unknown) {
       setServerError(
         err instanceof Error
