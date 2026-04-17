@@ -8,6 +8,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
 import { loginSchema, type LoginFormValues } from "@/features/auth/schemas";
 
+function getPostLoginPath(userRole: string | null | undefined) {
+  if (userRole === "admin" || userRole === "agent") {
+    return "/account/listings";
+  }
+
+  return "/properties";
+}
+
 export default function LoginForm() {
   const { signIn, user, loading } = useAuth();
   const router = useRouter();
@@ -16,7 +24,7 @@ export default function LoginForm() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push("/properties");
+      router.push(getPostLoginPath(user.user_role));
     }
   }, [loading, router, user]);
 
@@ -32,7 +40,6 @@ export default function LoginForm() {
     try {
       setServerError(null);
       await signIn(values.email, values.password);
-      router.push("/properties");
     } catch (err: unknown) {
       setServerError(
         err instanceof Error ? err.message : "Login failed. Please try again.",
@@ -60,37 +67,47 @@ export default function LoginForm() {
         ) : null}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
               Email
             </label>
             <input
+              id="email"
               type="email"
               {...register("email")}
+              aria-invalid={errors.email ? "true" : "false"}
+              aria-describedby={errors.email ? "email-error" : undefined}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="you@example.com"
+              autoComplete="email"
             />
             {errors.email ? (
-              <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
+              <p id="email-error" className="mt-1 text-xs text-red-600" role="alert">
+                {errors.email.message}
+              </p>
             ) : null}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
               Password
             </label>
             <input
+              id="password"
               type="password"
               {...register("password")}
+              aria-invalid={errors.password ? "true" : "false"}
+              aria-describedby={errors.password ? "password-error" : undefined}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="********"
+              autoComplete="current-password"
             />
             {errors.password ? (
-              <p className="mt-1 text-xs text-red-600">
+              <p id="password-error" className="mt-1 text-xs text-red-600" role="alert">
                 {errors.password.message}
               </p>
             ) : null}
           </div>
           {serverError ? (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
               {serverError}
             </p>
           ) : null}
