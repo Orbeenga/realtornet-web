@@ -1,22 +1,5 @@
 import Image from "next/image";
-import { Suspense } from "react";
-import { PropertyCardSkeleton } from "@/components/Skeleton";
-import { PropertiesExplorer } from "@/features/properties/components/PropertiesExplorer";
-
-function PropertiesExplorerFallback() {
-  return (
-    <div className="space-y-6">
-      <div className="mx-auto w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
-      </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <PropertyCardSkeleton key={index} />
-        ))}
-      </div>
-    </div>
-  );
-}
+import { PropertiesExplorerShell } from "./PropertiesExplorerShell";
 
 export default function PropertiesPage() {
   return (
@@ -72,10 +55,7 @@ export default function PropertiesPage() {
           />
         </div>
       </section>
-
-      <Suspense fallback={<PropertiesExplorerFallback />}>
-        <PropertiesExplorer />
-      </Suspense>
+      <PropertiesExplorerShell />
     </div>
   );
 }
