@@ -12,10 +12,12 @@ import {
   useSyncPropertyAmenities,
 } from "@/features/properties/hooks";
 import { ListingForm, type ListingFormValues } from "@/features/properties/components/ListingForm";
+import { PropertyImageManager } from "@/features/properties/components/PropertyImageManager";
 import type { PropertyCreate } from "@/types";
 import { notify } from "@/lib/toast";
 import { AmenityCheckboxGrid } from "@/features/properties/components/AmenitySelector";
 import { ApiError } from "@/lib/api/client";
+import type { Property } from "@/types";
 
 export function CreateListingClient() {
   const router = useRouter();
@@ -28,6 +30,7 @@ export function CreateListingClient() {
   const amenitiesQuery = useAmenities();
   const syncAmenities = useSyncPropertyAmenities();
   const [selectedAmenityIds, setSelectedAmenityIds] = useState<number[]>([]);
+  const [createdProperty, setCreatedProperty] = useState<Property | null>(null);
   const hasAgentProfileError = agentProfileQuery.isError;
 
   if (gate.isChecking) {
@@ -89,8 +92,8 @@ export function CreateListingClient() {
       }
     }
 
-    notify.success("Listing created");
-    router.push(`/account/listings/${property.property_id}/edit?created=true`);
+    setCreatedProperty(property);
+    notify.success("Listing created. Add photos below to complete the listing.");
   };
 
   return (
@@ -114,31 +117,62 @@ export function CreateListingClient() {
         />
       ) : null}
 
-      <ListingForm
-        title="Create new listing"
-        description="Publish a new property using your live backend account."
-        submitLabel="Create listing"
-        onSubmit={handleSubmit}
-        submitting={createProperty.isPending || syncAmenities.isPending}
-        secondaryActionLabel="Back to my listings"
-        onSecondaryAction={() => router.push("/account/listings")}
-        variant="plain"
-      >
-        <AmenitySelectionSection
-          selectedAmenityIds={selectedAmenityIds}
-          onToggle={(amenityId) => {
-            setSelectedAmenityIds((current) =>
-              current.includes(amenityId)
-                ? current.filter((id) => id !== amenityId)
-                : [...current, amenityId],
-            );
-          }}
-          loading={amenitiesQuery.isLoading}
-          error={amenitiesQuery.isError}
-          disabled={createProperty.isPending || syncAmenities.isPending}
-          amenities={amenitiesQuery.data ?? []}
-        />
-      </ListingForm>
+      {createdProperty ? (
+        <section className="space-y-6">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+            Your listing has been created. Upload at least one image now, or continue to the edit page for more changes.
+          </div>
+
+          <PropertyImageManager propertyId={createdProperty.property_id} variant="plain" />
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/account/listings/${createdProperty.property_id}/edit?created=true`,
+                )
+              }
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+            >
+              Continue editing
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/account/listings")}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
+            >
+              Back to my listings
+            </button>
+          </div>
+        </section>
+      ) : (
+        <ListingForm
+          title="Create new listing"
+          description="Publish a new property using your live backend account."
+          submitLabel="Create listing"
+          onSubmit={handleSubmit}
+          submitting={createProperty.isPending || syncAmenities.isPending}
+          secondaryActionLabel="Back to my listings"
+          onSecondaryAction={() => router.push("/account/listings")}
+          variant="plain"
+        >
+          <AmenitySelectionSection
+            selectedAmenityIds={selectedAmenityIds}
+            onToggle={(amenityId) => {
+              setSelectedAmenityIds((current) =>
+                current.includes(amenityId)
+                  ? current.filter((id) => id !== amenityId)
+                  : [...current, amenityId],
+              );
+            }}
+            loading={amenitiesQuery.isLoading}
+            error={amenitiesQuery.isError}
+            disabled={createProperty.isPending || syncAmenities.isPending}
+            amenities={amenitiesQuery.data ?? []}
+          />
+        </ListingForm>
+      )}
     </div>
   );
 }
