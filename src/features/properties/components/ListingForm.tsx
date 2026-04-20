@@ -5,7 +5,15 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@/lib/api/client";
-import { Button, Card, CardBody, CardHeader, Input, LoadingState } from "@/components";
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  ErrorState,
+  Input,
+  LoadingState,
+} from "@/components";
 import { useLocations, usePropertyTypes } from "@/features/properties/hooks";
 
 const listingFormSchema = z.object({
@@ -121,6 +129,19 @@ export function ListingForm({
 
   if (propertyTypesQuery.isLoading || locationsQuery.isLoading) {
     return <LoadingState message="Loading listing form..." />;
+  }
+
+  if (propertyTypesQuery.isError || locationsQuery.isError) {
+    return (
+      <ErrorState
+        title="Could not load listing options"
+        message="Property types and locations come from the live backend catalogue. Please try again."
+        onRetry={() => {
+          void propertyTypesQuery.refetch();
+          void locationsQuery.refetch();
+        }}
+      />
+    );
   }
 
   const form = (
