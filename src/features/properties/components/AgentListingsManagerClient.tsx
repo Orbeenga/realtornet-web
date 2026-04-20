@@ -57,6 +57,8 @@ export function AgentListingsManagerClient() {
   );
   const adminListingsQuery = useAdminProperties(gate.isAllowed && gate.isAdmin);
   const listingsQuery = gate.isAdmin ? adminListingsQuery : agentListingsQuery;
+  const hasAgentProfileError = !gate.isAdmin && agentProfileQuery.isError;
+  const hasUserProfileError = !gate.isAdmin && profileQuery.isError;
 
   if (gate.isChecking) {
     return (
@@ -84,7 +86,7 @@ export function AgentListingsManagerClient() {
   }
 
   if (
-    (!gate.isAdmin && (profileQuery.isError || agentProfileQuery.isError)) ||
+    (!gate.isAdmin && hasUserProfileError) ||
     (gate.isAdmin && adminListingsQuery.isError)
   ) {
     return (
@@ -186,6 +188,16 @@ export function AgentListingsManagerClient() {
 
       {listingsQuery.isLoading ? <ListingRowsSkeleton /> : null}
 
+      {hasAgentProfileError ? (
+        <ErrorState
+          title="Could not load your existing listings"
+          message="Your agent profile lookup failed, so the dashboard could not fetch your current listings. You can still create a new listing."
+          onRetry={() => {
+            void agentProfileQuery.refetch();
+          }}
+        />
+      ) : null}
+
       {!listingsQuery.isLoading && listingsQuery.isError ? (
         <ErrorState
           title="Could not load listings"
@@ -196,7 +208,8 @@ export function AgentListingsManagerClient() {
         />
       ) : null}
 
-      {!listingsQuery.isLoading &&
+      {!hasAgentProfileError &&
+      !listingsQuery.isLoading &&
       !listingsQuery.isError &&
       (listingsQuery.data ?? []).length === 0 ? (
         <EmptyState
@@ -216,7 +229,8 @@ export function AgentListingsManagerClient() {
         />
       ) : null}
 
-      {!listingsQuery.isLoading &&
+      {!hasAgentProfileError &&
+      !listingsQuery.isLoading &&
       !listingsQuery.isError &&
       (listingsQuery.data ?? []).length > 0 ? (
         <div className="space-y-4">
