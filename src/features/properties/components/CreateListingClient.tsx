@@ -28,6 +28,7 @@ export function CreateListingClient() {
   const amenitiesQuery = useAmenities();
   const syncAmenities = useSyncPropertyAmenities();
   const [selectedAmenityIds, setSelectedAmenityIds] = useState<number[]>([]);
+  const hasAgentProfileError = agentProfileQuery.isError;
 
   if (gate.isChecking) {
     return <LoadingState fullPage message="Checking agent access..." />;
@@ -41,7 +42,7 @@ export function CreateListingClient() {
     return <LoadingState fullPage message="Preparing listing form..." />;
   }
 
-  if (profileQuery.isError || agentProfileQuery.isError || !profileQuery.data) {
+  if (profileQuery.isError || !profileQuery.data) {
     return (
       <ErrorState
         title="Could not load listing form"
@@ -102,6 +103,17 @@ export function CreateListingClient() {
           Publish a new property using your live backend account.
         </p>
       </div>
+
+      {hasAgentProfileError ? (
+        <ErrorState
+          title="Could not confirm your existing agent profile"
+          message="The agent profile lookup failed, but you can still complete the listing form and try to submit it. If submit fails too, share the browser Network response for the create-property request."
+          onRetry={() => {
+            void agentProfileQuery.refetch();
+          }}
+        />
+      ) : null}
+
       <ListingForm
         title="Create new listing"
         description="Publish a new property using your live backend account."
