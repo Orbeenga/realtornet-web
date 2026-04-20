@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LoadingState } from "@/components";
 import { useAuth } from "@/features/auth/AuthContext";
+import { DeferredToaster } from "@/components/DeferredToaster";
 import { Navbar } from "@/components/Navbar";
 
 export default function MainLayout({
@@ -36,6 +37,7 @@ export default function MainLayout({
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {children}
       </main>
+      <DeferredToaster />
     </div>
   );
 }
