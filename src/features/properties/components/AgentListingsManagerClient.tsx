@@ -131,7 +131,6 @@ export function AgentListingsManagerClient() {
       await verifyProperty.mutateAsync({
         propertyId,
         isVerified,
-        actor: gate.isAdmin ? "admin" : "agent",
       });
       notify.success(
         isVerified ? "Listing marked as verified" : "Listing marked as pending",
@@ -246,11 +245,14 @@ export function AgentListingsManagerClient() {
               canManage={!gate.isAdmin}
               onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
               onDelete={() => void handleDelete(property.property_id)}
-              onToggleVerification={() =>
-                void handleToggleVerification(
-                  property.property_id,
-                  !property.is_verified,
-                )
+              onToggleVerification={
+                gate.isAdmin
+                  ? () =>
+                      void handleToggleVerification(
+                        property.property_id,
+                        !property.is_verified,
+                      )
+                  : undefined
               }
             />
           ))}
@@ -267,7 +269,7 @@ interface ListingRowProps {
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onToggleVerification: () => void;
+  onToggleVerification?: () => void;
 }
 
 function ListingRow({
@@ -327,9 +329,16 @@ function ListingRow({
       </div>
 
       <div className="flex flex-wrap gap-2 sm:ml-auto">
-        <Button variant="secondary" size="sm" loading={verifying} onClick={onToggleVerification}>
-          {property.is_verified ? "Mark Pending" : "Verify"}
-        </Button>
+        {onToggleVerification ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={verifying}
+            onClick={onToggleVerification}
+          >
+            {property.is_verified ? "Reject" : "Verify"}
+          </Button>
+        ) : null}
         {canManage ? (
           <>
             <Button variant="secondary" size="sm" onClick={onEdit}>
