@@ -62,7 +62,7 @@ export function PropertiesExplorer() {
 
   const { data, isLoading, isError, refetch } = useProperties(filters);
 
-  const properties: Property[] = data ?? [];
+  const properties: Property[] = (data ?? []).filter((property) => property.is_verified);
   const total = properties.length;
 
   useEffect(() => {

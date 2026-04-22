@@ -12,6 +12,7 @@ export function useDeleteProperty() {
     onSuccess: (_data, propertyId) => {
       queryClient.invalidateQueries({ queryKey: ["properties"] });
       queryClient.invalidateQueries({ queryKey: ["agentListings"] });
+      queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
       queryClient.removeQueries({ queryKey: ["property", propertyId] });
     },
   });
