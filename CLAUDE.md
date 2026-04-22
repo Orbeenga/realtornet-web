@@ -2,7 +2,9 @@
 
 ## Load order contract
 - Claude Code should auto-load this root file first.
-- Then load the area-specific file, for frontend work: `/frontend/CLAUDE.md`.
+- Then load the area-specific file for the relevant surface:
+  - frontend work: `/frontend/CLAUDE.md`
+  - backend work: `/backend/CLAUDE.md` when that file exists
 - The root file owns shared phase state, locked contracts, open bugs, and session handoff notes.
 - The area file owns stack rules and implementation-specific guidance.
 

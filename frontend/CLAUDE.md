@@ -1,60 +1,101 @@
-# RealtorNet - Frontend Agent Context
+# RealtorNet — Frontend CLAUDE.md
+<!-- Place at: /frontend/CLAUDE.md -->
+<!-- Loaded after root CLAUDE.md. Frontend agent only. -->
 
-## Scope and load order
-- This file supplements the root `/CLAUDE.md`.
-- Claude Code should load the root file first, then this frontend file.
-- Shared phase state, locked contracts, open bugs, and session handoff live in the root file.
-- Frontend-specific stack rules and implementation constraints live here.
+## Entry State
 
-## Stack (locked)
-Next.js 14 App Router · TypeScript strict · Tailwind CSS · shadcn/ui
-TanStack Query v5 · Supabase Auth JS SDK · Zustand · React Hook Form + Zod
-openapi-typescript for type generation · pnpm
+Next.js 16.2.1 deployed on Vercel. Phase D + E closed. Phase F in progress.
 
-## Core rules (never break)
-- No fetch() calls inside components - all API calls via hooks in /lib/api
-- No manual TypeScript interfaces for API responses - use src/types/api.generated.ts
-- No inline styles - Tailwind classes only
-- No business logic in UI components
-- Backend is source of truth - frontend is a consumer only
-- URL state owns filters and pagination (searchParams)
-- Zustand owns modals and global UI only
-- Zod schemas must mirror backend Pydantic models exactly
+## Navigation Contract (Locked — Do Not Modify Without Referencing navigation.ts)
 
-## Deployment & Safety Rules
-- Always force HTTPS on API base URLs. The guard lives in `src/lib/api/client.ts` and `next.config.ts` - never remove it.
-- Public routes (`/properties`, `/agents`, `/agencies`) must render server-first without client auth redirects. Only `/account/*` paths are auth-gated.
-- Sentry must be initialised via deferred async import, never blocking the initial render. Pattern lives in `src/app/SentryDeferredInit.tsx`.
-- Never add `pnpm-workspace.yaml` to this repo - it is a single-package app. If one appears, delete it.
-- `ignoredBuiltDependencies` belongs in the `pnpm` block inside `package.json`, not in workspace config.
-- `packageManager` in `package.json` must be pinned to the exact installed version (for example `pnpm@10.33.0`), not a range.
-- CI pnpm version in `.github/workflows/ci.yml` must match the local installed version exactly.
+| Role | Navbar items | Post-login redirect |
+|---|---|---|
+| Seeker | Properties, Favorites, Saved searches, Inquiries | `/properties` |
+| Agent | Properties, My listings, Inquiries, Favorites | `/account/listings` |
+| Admin | Properties, Property moderation | `/account/listings` |
 
-## Performance Baselines (E.5 audit - April 2026)
-Achieved on production Vercel deploy:
-- Desktop: LCP 0.4s, CLS 0.005, TBT 80ms, TTFB ~0ms
-- Mobile: LCP ~1.4s (target <2.5s), TBT 60ms, CLS 0
-- Accessibility: 100, Best Practices: 100 (after HTTPS fix), SEO: 100
-Remaining Phase F work: unused JS bundle splitting (233 KiB), render-blocking CSS chunk, legacy polyfills.
+- `/account/listings` gate: `role === 'agent' || role === 'admin'`
+- Admin data source: `GET /api/v1/admin/properties` (all listings)
+- Agent data source: own listings only
 
-## Folder contract
-/src/app              -> Next.js App Router pages
-/src/components       -> stateless UI atoms and molecules
-/src/features         -> domain modules (properties, auth, agents, inquiries, favorites)
-/src/lib/api          -> central apiClient - all network calls live here
-/src/hooks            -> shared hooks across features
-/src/types            -> api.generated.ts + extensions
-/src/styles           -> global CSS and Tailwind base
+## API Layer Rules
 
-## Backend
-Running locally at http://localhost:8000
-Health check: GET /health -> {"status": "ok"}
-OpenAPI schema: http://localhost:8000/api/v1/openapi.json
-Type generation: pnpm gen:types
+- No `fetch()` calls inside components — always use hooks
+- All API calls via TanStack Query hooks in `/features/*/hooks/`
+- API types from `src/types/api.generated.ts` only — no manual interfaces
+- `apiClient` injects Bearer token from Supabase session on every request
+- `ApiError` class normalises error shape (status, detail, field errors)
 
-## Deferred items
-- Seed property data needed before D.5 listing feed is meaningful
+## Auth Rules
 
-## Current phase
-Phase E - Staging validation and first deploy. E.1-E.4 closed. E.5 Lighthouse audit in progress.
-Backend production API: `https://realtornet-production.up.railway.app`
+- Supabase Auth JS SDK manages session — no custom auth server
+- Silent JWT refresh on 401: intercept → refresh → retry once → logout (DEF-FE-D006, open)
+- Logout: `supabase.auth.signOut()` + `router.push('/login')` + `queryClient.clear()`
+- Registration hardcoded to seeker role — do not accept role from payload
+
+## Code Rules
+
+- TypeScript strict mode — `tsc --noEmit` must pass on every commit
+- No `any` without explicit comment justification
+- No inline styles — Tailwind classes only
+- No hardcoded strings for labels, routes, messages — use constants files
+- Zod schemas mirror Pydantic models — field names and types must match
+
+## Open Bugs (as of April 22 2026)
+
+| Bug | Status |
+|---|---|
+| Agent dashboard — new listing not appearing in My Listings | 🔴 Open |
+| Agent profile details not displaying | 🔴 Open |
+| Agency profile details not displaying | 🔴 Open |
+| Amenities hardcoded — should fetch from API | 🔴 Open |
+| Property type dropdown hardcoded — should fetch from `/api/v1/property-types/` | 🟡 Open |
+| Location dropdown hardcoded — seeded list MVP, Nominatim Phase G | 🟡 Open |
+
+## Phase F Open Items (Frontend)
+
+| ID | Item | Status |
+|---|---|---|
+| F.4 | TBT < 100ms — revised to 200–300ms, deferred to Phase G | Revised |
+| F.5 | Listing verification toggle on agent dashboard | 🔴 Open |
+| F.5 | is_verified filter display on agent dashboard | 🔴 Open |
+| F.6 | Silent JWT refresh on 401 | 🔴 Open |
+| F.6 | Lighthouse accessibility audit — zero critical violations | 🔴 Open |
+| F.6 | Admin role promotion UI (seeker → agent) | 🔴 Open |
+| F.6 | Back navigation stack from property detail | 🟡 Open |
+| F.6 | Agent favouriting UX labels | 🟢 Open |
+
+## Bundle Notes
+
+- PropertiesExplorer: dynamic import via client shell — deployed
+- Toast: deferred initialisation — deployed
+- React Query Devtools: removed from production — deployed
+- `.browserslistrc` updated to modern targets — pushed at ed7a615
+- Residual core-js polyfills from third-party deps — full elimination Phase G
+
+## Lighthouse Targets
+
+| Metric | Target | Status |
+|---|---|---|
+| Mobile LCP | < 2.5s | ✅ 2.0s confirmed |
+| Desktop TBT | < 300ms (revised) | 🔴 ~800ms median |
+| Mobile TBT | < 300ms (revised) | 🔴 ~800ms median |
+| CLS | < 0.1 | ✅ Green |
+| Accessibility | 0 critical violations | 🔴 Not yet audited |
+
+## Type Generation
+
+```bash
+pnpm gen:types
+# Runs: openapi-typescript http://localhost:8000/api/v1/openapi.json -o src/types/api.generated.ts
+# Run whenever backend schemas change
+```
+
+## Local Lighthouse
+
+```bash
+pnpm lighthouse
+# Runs: lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html
+# Point at Vercel URL for production audits
+# Requires Chrome installed
+```
