@@ -18,6 +18,7 @@ export { useUpdateProperty } from "./useUpdateProperty";
 export { useDeleteProperty } from "./useDeleteProperty";
 export { useAdminProperties } from "./useAdminProperties";
 export { useVerifyProperty } from "./useVerifyProperty";
+export { useOwnerListings } from "./useOwnerListings";
 export {
   useAmenities,
   usePropertyAmenities,
