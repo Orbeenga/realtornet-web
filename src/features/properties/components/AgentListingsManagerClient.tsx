@@ -123,18 +123,17 @@ export function AgentListingsManagerClient() {
     }
   };
 
-  const handleToggleVerification = async (
+  const handleSetVerification = async (
     propertyId: number,
     isVerified: boolean,
+    successMessage: string,
   ) => {
     try {
       await verifyProperty.mutateAsync({
         propertyId,
         isVerified,
       });
-      notify.success(
-        isVerified ? "Listing marked as verified" : "Listing marked as pending",
-      );
+      notify.success(successMessage);
     } catch (error) {
       const detail =
         typeof error === "object" &&
@@ -245,12 +244,33 @@ export function AgentListingsManagerClient() {
               canManage={!gate.isAdmin}
               onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
               onDelete={() => void handleDelete(property.property_id)}
-              onToggleVerification={
-                gate.isAdmin
+              onVerify={
+                gate.isAdmin && !property.is_verified
                   ? () =>
-                      void handleToggleVerification(
+                      void handleSetVerification(
                         property.property_id,
-                        !property.is_verified,
+                        true,
+                        "Listing marked as verified",
+                      )
+                  : undefined
+              }
+              onReject={
+                gate.isAdmin && !property.is_verified
+                  ? () =>
+                      void handleSetVerification(
+                        property.property_id,
+                        false,
+                        "Listing rejected",
+                      )
+                  : undefined
+              }
+              onUnverify={
+                gate.isAdmin && property.is_verified
+                  ? () =>
+                      void handleSetVerification(
+                        property.property_id,
+                        false,
+                        "Listing marked as pending",
                       )
                   : undefined
               }
@@ -269,7 +289,9 @@ interface ListingRowProps {
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onToggleVerification?: () => void;
+  onVerify?: () => void;
+  onReject?: () => void;
+  onUnverify?: () => void;
 }
 
 function ListingRow({
@@ -279,7 +301,9 @@ function ListingRow({
   canManage,
   onEdit,
   onDelete,
-  onToggleVerification,
+  onVerify,
+  onReject,
+  onUnverify,
 }: ListingRowProps) {
   const imagesQuery = usePropertyImages(property.property_id);
   const displayImage = imagesQuery.data?.[0] ?? null;
@@ -329,14 +353,34 @@ function ListingRow({
       </div>
 
       <div className="flex flex-wrap gap-2 sm:ml-auto">
-        {onToggleVerification ? (
+        {onReject ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            loading={verifying}
+            onClick={onReject}
+          >
+            Reject
+          </Button>
+        ) : null}
+        {onVerify ? (
           <Button
             variant="secondary"
             size="sm"
             loading={verifying}
-            onClick={onToggleVerification}
+            onClick={onVerify}
           >
-            {property.is_verified ? "Reject" : "Verify"}
+            Verify
+          </Button>
+        ) : null}
+        {onUnverify ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={verifying}
+            onClick={onUnverify}
+          >
+            Unverify
           </Button>
         ) : null}
         {canManage ? (
