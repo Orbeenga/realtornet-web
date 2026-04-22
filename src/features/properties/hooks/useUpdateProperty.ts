@@ -22,6 +22,7 @@ export function useUpdateProperty() {
         queryClient.invalidateQueries({ queryKey: ["properties", variables.propertyId] }),
         queryClient.invalidateQueries({ queryKey: ["property", variables.propertyId] }),
         queryClient.invalidateQueries({ queryKey: ["agentListings"] }),
+        queryClient.invalidateQueries({ queryKey: ["ownerListings"] }),
       ]);
     },
   });

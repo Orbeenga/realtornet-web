@@ -12,11 +12,11 @@ import {
 } from "@/components";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { useAgentListings } from "@/features/agents/hooks";
 import {
   useAgentProfileByUser,
   useAdminProperties,
   useDeleteProperty,
+  useOwnerListings,
   usePropertyImages,
   useVerifyProperty,
 } from "@/features/properties/hooks";
@@ -52,8 +52,8 @@ export function AgentListingsManagerClient() {
   const agentProfileQuery = useAgentProfileByUser(
     gate.isAllowed && !gate.isAdmin ? profileQuery.data?.user_id : undefined,
   );
-  const agentListingsQuery = useAgentListings(
-    gate.isAllowed && agentProfileQuery.data ? agentProfileQuery.data.profile_id : "",
+  const agentListingsQuery = useOwnerListings(
+    gate.isAllowed && !gate.isAdmin ? profileQuery.data?.user_id : undefined,
   );
   const adminListingsQuery = useAdminProperties(gate.isAllowed && gate.isAdmin);
   const listingsQuery = gate.isAdmin ? adminListingsQuery : agentListingsQuery;
