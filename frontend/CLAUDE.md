@@ -1,5 +1,11 @@
 # RealtorNet - Frontend Agent Context
 
+## Scope and load order
+- This file supplements the root `/CLAUDE.md`.
+- Claude Code should load the root file first, then this frontend file.
+- Shared phase state, locked contracts, open bugs, and session handoff live in the root file.
+- Frontend-specific stack rules and implementation constraints live here.
+
 ## Stack (locked)
 Next.js 14 App Router · TypeScript strict · Tailwind CSS · shadcn/ui
 TanStack Query v5 · Supabase Auth JS SDK · Zustand · React Hook Form + Zod
