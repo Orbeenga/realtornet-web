@@ -19,6 +19,7 @@
         "build": "next build",
         "start": "next start",
         "lint": "eslint",
+        "lighthouse": "lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html --chrome-flags='--headless'",
         "gen:types": "openapi-typescript http://localhost:8000/api/v1/openapi.json -o src/types/api.generated.ts",
         "seed": "tsx scripts/seed.ts"
     },
@@ -59,6 +60,7 @@
         "@types/react-dom": "^19",
         "eslint": "^9",
         "eslint-config-next": "16.2.1",
+        "lighthouse": "^13.1.0",
         "openapi-typescript": "^7.13.0",
         "tailwindcss": "^4",
         "tsx": "^4.21.0",
