@@ -1,4 +1,4 @@
-﻿# RealtorNet - Frontend Agent Context
+# RealtorNet - Frontend Agent Context
 
 ## Stack (locked)
 Next.js 14 App Router · TypeScript strict · Tailwind CSS · shadcn/ui
