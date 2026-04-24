@@ -17,3 +17,9 @@ DEF-002 - Audit log retention
 Deferred to Phase G. No real traffic data to size policy against.
 Revisit after 60 days of production usage. Decision at that point:
 rolling window (e.g. 90 days) or archive-to-cold-storage strategy.
+
+DEF-G-AG-001 - Property card agency branding
+Deferred to Phase G. Property cards should display agency name, but the current
+PropertyResponse contract does not include agency branding fields such as
+agency_name. Do not introduce per-card agency fetches. Add agency branding to
+the property list response first, then wire the card UI.
