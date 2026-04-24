@@ -244,7 +244,7 @@ export function ReceivedInquiriesList({
     );
   }
 
-  if (inquiryDirectory.items.length === 0) {
+  if (inquiryDirectory.hasLoadedEmpty || inquiryDirectory.items.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
 

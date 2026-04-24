@@ -145,6 +145,8 @@ export function useInquiryDirectory(
   }));
 
   const relatedQueries = [...propertyQueries, ...propertyImageQueries, ...contactQueries];
+  const hasInquiries = (inquiriesQuery.data?.length ?? 0) > 0;
+  const hasLoadedEmpty = inquiriesQuery.isSuccess && !hasInquiries;
 
   return {
     items,
@@ -153,7 +155,8 @@ export function useInquiryDirectory(
       relatedQueries.some((query) => query.isLoading),
     isError:
       inquiriesQuery.isError ||
-      relatedQueries.some((query) => query.isError),
+      (hasInquiries && relatedQueries.some((query) => query.isError)),
+    hasLoadedEmpty,
     error:
       inquiriesQuery.error ??
       relatedQueries.find((query) => query.error)?.error ??
