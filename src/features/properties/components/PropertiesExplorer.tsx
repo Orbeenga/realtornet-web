@@ -1,11 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { PropertyCard } from "@/features/properties/components/PropertyCard";
 import { SearchBar } from "@/features/properties/components/SearchBar";
 import { useProperties } from "@/features/properties/hooks";
+import {
+  restorePropertiesScrollPosition,
+  savePropertiesScrollPosition,
+} from "@/features/properties/lib/scrollRestoration";
 import { PropertyCardSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -36,12 +40,17 @@ function PropertyFiltersFallback() {
 }
 
 export function PropertiesExplorer() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [hydrateDesktopFilters, setHydrateDesktopFilters] = useState(false);
+  const hasAttemptedScrollRestoreRef = useRef(false);
 
   const currentPage = Number(searchParams.get("page") ?? 1);
+  const currentListUrl = searchParams.toString()
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
 
   const filters = {
     skip: (currentPage - 1) * PAGE_SIZE,
@@ -71,6 +80,23 @@ export function PropertiesExplorer() {
     // initial route bundle without removing the desktop experience.
     setHydrateDesktopFilters(true);
   }, []);
+
+  useEffect(() => {
+    hasAttemptedScrollRestoreRef.current = false;
+  }, [currentListUrl]);
+
+  useEffect(() => {
+    if (isLoading || hasAttemptedScrollRestoreRef.current) {
+      return;
+    }
+
+    restorePropertiesScrollPosition(currentListUrl);
+    hasAttemptedScrollRestoreRef.current = true;
+  }, [currentListUrl, isLoading]);
+
+  const handleNavigateToDetail = () => {
+    savePropertiesScrollPosition(currentListUrl);
+  };
 
   return (
     <div>
@@ -144,7 +170,11 @@ export function PropertiesExplorer() {
             <>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {properties.map((property: Property) => (
-                  <PropertyCard key={property.property_id} property={property} />
+                  <PropertyCard
+                    key={property.property_id}
+                    property={property}
+                    onNavigateToDetail={handleNavigateToDetail}
+                  />
                 ))}
               </div>
               {total > PAGE_SIZE ? (

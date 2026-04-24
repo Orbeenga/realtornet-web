@@ -1,6 +1,20 @@
 "use client";
 
 export type AppRole = "seeker" | "agent" | "admin";
+export type InquiryAccountMode = "sent" | "received" | "admin";
+
+interface InquiryNavigationConfig {
+  mode: InquiryAccountMode;
+  navLabel: string;
+  canSendInquiry: boolean;
+}
+
+interface FavoritesPageCopy {
+  savedTitle: string;
+  savedDescription: string;
+  emptyTitle: string;
+  emptyDescription: string;
+}
 
 export function normalizeAppRole(role: string | null | undefined): AppRole | null {
   if (role === "buyer") {
@@ -24,13 +38,43 @@ export function getPostLoginPath(role: string | null | undefined) {
   return "/properties";
 }
 
+export function getInquiryNavigationConfig(
+  role: string | null | undefined,
+): InquiryNavigationConfig {
+  const normalizedRole = normalizeAppRole(role);
+
+  if (normalizedRole === "agent") {
+    return {
+      mode: "received",
+      navLabel: "Inquiries",
+      canSendInquiry: false,
+    };
+  }
+
+  if (normalizedRole === "admin") {
+    return {
+      mode: "admin",
+      navLabel: "Inquiries",
+      canSendInquiry: false,
+    };
+  }
+
+  return {
+    mode: "sent",
+    navLabel: "My Inquiries",
+    canSendInquiry: normalizedRole === "seeker",
+  };
+}
+
 export function getRoleNavLinks(role: string | null | undefined) {
   const normalizedRole = normalizeAppRole(role);
+  const inquiryConfig = getInquiryNavigationConfig(normalizedRole);
 
   if (normalizedRole === "admin") {
     return [
       { href: "/properties", label: "Properties" },
       { href: "/account/listings", label: "Property moderation" },
+      { href: "/account/inquiries", label: inquiryConfig.navLabel },
     ];
   }
 
@@ -38,7 +82,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
     return [
       { href: "/properties", label: "Properties" },
       { href: "/account/listings", label: "My Listings" },
-      { href: "/account/inquiries", label: "Inquiries" },
+      { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "Favorites" },
     ];
   }
@@ -48,9 +92,34 @@ export function getRoleNavLinks(role: string | null | undefined) {
       { href: "/properties", label: "Properties" },
       { href: "/account/favorites", label: "Favorites" },
       { href: "/account/saved-searches", label: "Saved searches" },
-      { href: "/account/inquiries", label: "Inquiries" },
+      { href: "/account/inquiries", label: inquiryConfig.navLabel },
     ];
   }
 
   return [{ href: "/properties", label: "Properties" }];
+}
+
+export function getFavoritesPageCopy(
+  role: string | null | undefined,
+): FavoritesPageCopy {
+  const normalizedRole = normalizeAppRole(role);
+
+  if (normalizedRole === "agent") {
+    return {
+      savedTitle: "Saved listings",
+      savedDescription: "Keep track of listings you want to revisit or share later.",
+      emptyTitle: "You haven't saved any listings yet",
+      emptyDescription:
+        "Browse listings and use the heart button to keep the ones you want to revisit.",
+    };
+  }
+
+  return {
+    savedTitle: "Saved properties",
+    savedDescription:
+      "Your saved listings stay here. Use the heart button on any card to remove it.",
+    emptyTitle: "You haven't saved any properties yet",
+    emptyDescription:
+      "Browse listings and tap the heart icon to save properties here.",
+  };
 }

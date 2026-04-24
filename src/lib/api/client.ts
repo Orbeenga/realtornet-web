@@ -9,7 +9,18 @@ export class ApiError extends Error {
   }
 }
 
+export class AuthError extends Error {
+  constructor(message = "Session expired") {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
+const ACCESS_TOKEN_STORAGE_KEY = "rn_token";
+const REFRESH_TOKEN_STORAGE_KEY = "rn_refresh_token";
+
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+let refreshPromise: Promise<string> | null = null;
 
 function getApiBasePath() {
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(
@@ -39,6 +50,77 @@ export function setUnauthorizedHandler(
   handler: (() => void | Promise<void>) | null,
 ) {
   unauthorizedHandler = handler;
+}
+
+export function getStoredAccessToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+}
+
+export function getStoredRefreshToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+export function persistAuthTokens(accessToken: string, refreshToken?: string | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+
+  if (refreshToken) {
+    window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+  }
+}
+
+export function clearStoredAuthTokens() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+export async function refreshAccessToken(): Promise<string> {
+  const refreshToken = getStoredRefreshToken();
+
+  if (!refreshToken) {
+    throw new AuthError("Missing refresh token");
+  }
+
+  const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  const payload = await res.json().catch(() => null);
+
+  if (!res.ok || !payload?.access_token) {
+    clearStoredAuthTokens();
+    throw new AuthError("Refresh failed");
+  }
+
+  persistAuthTokens(payload.access_token, payload.refresh_token ?? refreshToken);
+  return payload.access_token as string;
+}
+
+async function handleUnauthorized() {
+  clearStoredAuthTokens();
+
+  if (unauthorizedHandler) {
+    await unauthorizedHandler();
+  }
 }
 
 function extractFieldErrors(
@@ -77,9 +159,9 @@ function extractFieldErrors(
 export async function apiClient<T>(
   path: string,
   options?: RequestInit,
+  isRetry = false,
 ): Promise<T> {
-  const token =
-    typeof window !== "undefined" ? window.localStorage.getItem("rn_token") : null;
+  const token = getStoredAccessToken();
   const isFormData = options?.body instanceof FormData;
 
   const res = await fetch(buildApiUrl(path), {
@@ -92,8 +174,30 @@ export async function apiClient<T>(
   });
 
   if (!res.ok) {
-    if (res.status === 401 && unauthorizedHandler) {
-      await unauthorizedHandler();
+    if (
+      res.status === 401 &&
+      !isRetry &&
+      path !== "/api/v1/auth/refresh" &&
+      path !== "/api/v1/auth/login" &&
+      getStoredRefreshToken()
+    ) {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+
+        await refreshPromise;
+        return apiClient<T>(path, options, true);
+      } catch {
+        await handleUnauthorized();
+        throw new AuthError();
+      }
+    }
+
+    if (res.status === 401) {
+      await handleUnauthorized();
     }
 
     const body = await res.json().catch(() => ({ detail: "Unknown error" }));

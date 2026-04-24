@@ -129,9 +129,11 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
         propertyId: property.property_id,
         isFavorited,
       });
-      notify.success(isFavorited ? "Removed from saved" : "Saved to favorites");
+      notify.success(
+        isFavorited ? "Removed from saved listings" : "Listing saved",
+      );
     } catch {
-      notify.error("Could not update favorites");
+      notify.error("Could not update saved listings");
     }
   };
 
