@@ -21,6 +21,30 @@ function InquiryListSkeleton() {
   );
 }
 
+function getSentInquiryStatusLabel(status: string) {
+  if (status === "responded") {
+    return "Agent responded";
+  }
+
+  if (status === "viewed") {
+    return "Viewed by agent";
+  }
+
+  return "Awaiting response";
+}
+
+function getSentInquiryStatusClasses(status: string) {
+  if (status === "responded") {
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300";
+  }
+
+  if (status === "viewed") {
+    return "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300";
+  }
+
+  return "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300";
+}
+
 export function SentInquiriesList() {
   const inquiryDirectory = useInquiryDirectory("sent");
 
@@ -68,8 +92,12 @@ export function SentInquiriesList() {
                   <h2 className="truncate text-lg font-semibold text-gray-900 dark:text-white">
                     {property?.title ?? "Property listing"}
                   </h2>
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                    {inquiry.inquiry_status}
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${getSentInquiryStatusClasses(
+                      inquiry.inquiry_status,
+                    )}`}
+                  >
+                    {getSentInquiryStatusLabel(inquiry.inquiry_status)}
                   </span>
                 </div>
                 <p className="line-clamp-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
