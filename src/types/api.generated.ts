@@ -70,6 +70,7 @@ export interface paths {
          *     Validates:
          *     - Email not already registered (including soft-deleted users)
          *     - User data meets schema requirements
+         *     - Supabase Auth identity is created before local domain records
          */
         post: operations["register_user_api_v1_auth_register_post"];
         delete?: never;
@@ -229,6 +230,11 @@ export interface paths {
          *
          *     Returns only non-deleted properties (deleted_at IS NULL).
          *     CRUD layer enforces soft delete filtering.
+         *
+         *     The admin dashboard only needs the schema-backed listing fields, so we
+         *     serialize through `PropertyResponse` instead of exposing the raw ORM model.
+         *     That avoids production-only encoding failures from the database geometry
+         *     column while keeping the response shape stable for the frontend.
          */
         get: operations["get_properties_api_v1_admin_properties_get"];
         put?: never;
@@ -323,6 +329,29 @@ export interface paths {
         get: operations["read_all_inquiries_api_v1_admin_inquiries_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bootstrap/demo-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bootstrap Demo Data
+         * @description Idempotently bootstrap the minimum production data needed for journey smoke tests.
+         *
+         *     Requires an existing agent user so the seeded property chain is attached to a
+         *     real account rather than a hidden synthetic seed user.
+         */
+        post: operations["bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1148,6 +1177,34 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Verify Property
+         * @description Update the public-verification state of a property listing.
+         *
+         *     Permissions:
+         *     - Admins can verify or unverify any listing
+         *     - The owning agent can verify or unverify their own listing
+         *
+         *     This endpoint exists separately from the general update endpoint so the UI
+         *     can expose a clear "verification" action without asking operators to edit
+         *     raw listing fields or fall back to manual SQL.
+         */
+        patch: operations["verify_property_api_v1_properties__property_id__verify_patch"];
         trace?: never;
     };
     "/api/v1/properties/by-LocationResponse/{location_id}": {
@@ -2592,6 +2649,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Health Simple */
+        get: operations["health_simple_healthz_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -2601,7 +2675,7 @@ export interface paths {
         };
         /**
          * Health Check Full
-         * @description Readiness probe — checks DB connectivity. Used by deployment health checks.
+         * @description Readiness probe - checks DB connectivity. Used by deployment health checks.
          */
         get: operations["health_check_full_health_get"];
         put?: never;
@@ -2862,7 +2936,7 @@ export interface components {
             /** User Id */
             user_id: number;
             /** Agency Id */
-            agency_id: number;
+            agency_id?: number | null;
             /** License Number */
             license_number?: string | null;
             /** Years Experience */
@@ -3004,6 +3078,11 @@ export interface components {
             /** Description */
             description?: string | null;
         };
+        /** Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post */
+        Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post: {
+            /** Agent User Id */
+            agent_user_id: number;
+        };
         /** Body_login_access_token_api_v1_auth_login_post */
         Body_login_access_token_api_v1_auth_login_post: {
             /** Grant Type */
@@ -3030,26 +3109,17 @@ export interface components {
         };
         /** Body_upload_avatar_api_v1_profiles_me_avatar_post */
         Body_upload_avatar_api_v1_profiles_me_avatar_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_property_image_endpoint_api_v1_property_images_property__property_id__upload_post */
         Body_upload_property_image_endpoint_api_v1_property_images_property__property_id__upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_user_profile_image_api_v1_users__user_id__upload_profile_image_post */
         Body_upload_user_profile_image_api_v1_users__user_id__upload_profile_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /**
@@ -3145,6 +3215,41 @@ export interface components {
             message: string;
         };
         /**
+         * InquiryExtendedResponse
+         * @description Extended response with related data
+         */
+        InquiryExtendedResponse: {
+            /** Property Id */
+            property_id?: number | null;
+            /** Message */
+            message?: string | null;
+            /** Inquiry Id */
+            inquiry_id: number;
+            /** User Id */
+            user_id?: number | null;
+            /** Inquiry Status */
+            inquiry_status: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Deleted By */
+            deleted_by?: string | null;
+            user?: components["schemas"]["InquiryUserSummary"] | null;
+            /** Property */
+            property?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
          * InquiryResponse
          * @description Schema for inquiry responses (includes DB-generated fields)
          */
@@ -3212,22 +3317,21 @@ export interface components {
             inquiry_status?: components["schemas"]["InquiryStatus"] | null;
         };
         /**
-         * ListingStatus
-         * @enum {string}
+         * InquiryUserSummary
+         * @description Minimal seeker contact details exposed to listing owners.
          */
-        ListingStatus: "available" | "active" | "pending" | "sold" | "rented" | "unavailable";
+        InquiryUserSummary: {
+            /** Full Name */
+            full_name: string;
+            /** Email */
+            email: string;
+        };
         /**
          * ListingStatus
          * @description Schema enum - lowercase values match DB
          * @enum {string}
          */
         "ListingStatus-Output": "available" | "active" | "pending" | "sold" | "rented" | "unavailable";
-        /**
-         * ListingType
-         * @description Schema enum - values match DB exactly
-         * @enum {string}
-         */
-        ListingType: "sale" | "rent" | "lease";
         /**
          * ListingType
          * @description Schema enum - values match DB exactly
@@ -3422,7 +3526,7 @@ export interface components {
             bathrooms?: number | null;
             /** Property Size */
             property_size?: number | string | null;
-            listing_type: components["schemas"]["ListingType"];
+            listing_type: components["schemas"]["app__schemas__properties__ListingType"];
             /** Year Built */
             year_built?: number | null;
             /** Parking Spaces */
@@ -3787,7 +3891,7 @@ export interface components {
             bathrooms?: number | null;
             /** Property Size */
             property_size?: number | string | null;
-            listing_type?: components["schemas"]["ListingType"] | null;
+            listing_type?: components["schemas"]["app__schemas__properties__ListingType"] | null;
             listing_status?: components["schemas"]["app__schemas__properties__ListingStatus"] | null;
             /** Is Featured */
             is_featured?: boolean | null;
@@ -3807,6 +3911,21 @@ export interface components {
             latitude?: number | null;
             /** Longitude */
             longitude?: number | null;
+        };
+        /**
+         * PropertyVerificationUpdate
+         * @description Schema for the publish-review step of the listing workflow.
+         *
+         *     This is separate from PropertyUpdate on purpose: keeping verification in its
+         *     own payload makes it obvious in the code and in the API that "editing a
+         *     listing" and "making a listing public" are different actions.
+         */
+        PropertyVerificationUpdate: {
+            /**
+             * Is Verified
+             * @default true
+             */
+            is_verified: boolean;
         };
         /**
          * ReviewUpdate
@@ -4092,6 +4211,7 @@ export interface components {
             phone_number?: string | null;
             /** Profile Image Url */
             profile_image_url?: string | null;
+            user_role?: components["schemas"]["UserRole"] | null;
             /** Password */
             password?: string | null;
         };
@@ -4103,7 +4223,16 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
+        /**
+         * ListingStatus
+         * @enum {string}
+         */
+        app__models__properties__ListingStatus: "available" | "active" | "pending" | "sold" | "rented" | "unavailable";
         /**
          * ListingType
          * @enum {string}
@@ -4115,6 +4244,12 @@ export interface components {
          * @enum {string}
          */
         app__schemas__properties__ListingStatus: "available" | "active" | "pending" | "sold" | "rented" | "unavailable";
+        /**
+         * ListingType
+         * @description Schema enum - values match DB exactly
+         * @enum {string}
+         */
+        app__schemas__properties__ListingType: "sale" | "rent" | "lease";
     };
     responses: never;
     parameters: never;
@@ -4636,6 +4771,41 @@ export interface operations {
             };
         };
     };
+    bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_system_stats_api_v1_admin_stats_get: {
         parameters: {
             query?: never;
@@ -5097,9 +5267,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["AgentProfileResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -5135,9 +5303,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["PropertyResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -5400,9 +5566,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["PropertyResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -5438,9 +5602,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["AgentReviewResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -5948,13 +6110,14 @@ export interface operations {
     read_properties_api_v1_properties__get: {
         parameters: {
             query?: {
+                search?: string | null;
                 location_id?: number | null;
                 min_price?: number | null;
                 max_price?: number | null;
                 bedrooms?: number | null;
                 bathrooms?: number | null;
                 listing_type?: components["schemas"]["app__models__properties__ListingType"] | null;
-                listing_status?: components["schemas"]["ListingStatus"] | null;
+                listing_status?: components["schemas"]["app__models__properties__ListingStatus"] | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
@@ -6116,6 +6279,41 @@ export interface operations {
             };
         };
     };
+    verify_property_api_v1_properties__property_id__verify_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyVerificationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_properties_by_LocationResponse_api_v1_properties_by_LocationResponse__location_id__get: {
         parameters: {
             query?: {
@@ -6202,7 +6400,7 @@ export interface operations {
                 bedrooms?: number | null;
                 bathrooms?: number | null;
                 listing_type?: components["schemas"]["app__models__properties__ListingType"] | null;
-                listing_status?: components["schemas"]["ListingStatus"] | null;
+                listing_status?: components["schemas"]["app__models__properties__ListingStatus"] | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
@@ -7508,9 +7706,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["PropertyResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -7611,7 +7807,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InquiryResponse"][];
+                    "application/json": components["schemas"]["InquiryExtendedResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -8826,6 +9022,26 @@ export interface operations {
         };
     };
     health_check__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    health_simple_healthz_get: {
         parameters: {
             query?: never;
             header?: never;
