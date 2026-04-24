@@ -190,3 +190,20 @@ export function useUpdateInquiryStatus() {
     },
   });
 }
+
+export function useMarkInquiryViewed() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (inquiryId: number) =>
+      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/mark-viewed`, {
+        method: "POST",
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inquiries"] }),
+        queryClient.invalidateQueries({ queryKey: ["inquiryDirectory"] }),
+      ]);
+    },
+  });
+}
