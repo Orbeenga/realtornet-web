@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Agent } from "@/types";
 import { Badge } from "@/components";
+import { useAgencyProfile } from "@/features/agencies/hooks";
 
 interface PropertyAgentPanelProps {
   agent?: Agent | null;
@@ -23,6 +24,9 @@ export function PropertyAgentPanel({
   const displayName = agent?.company_name ?? "Listing agent";
   const subtitle = agent?.specialization ?? "Property specialist";
   const initials = getInitials(displayName || "Agent");
+  const agencyQuery = useAgencyProfile(agent?.agency_id ?? "");
+  const agency = agencyQuery.data;
+  const agencyInitials = agency ? getInitials(agency.name) : "";
 
   return (
     <section className="space-y-5">
@@ -84,6 +88,36 @@ export function PropertyAgentPanel({
         {agent?.company_name ? <Badge variant="outline">{agent.company_name}</Badge> : null}
         {agent?.specialization ? <Badge>{agent.specialization}</Badge> : null}
       </div>
+
+      {agency ? (
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-gray-800">
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+            {agency.logo_url ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={agency.logo_url}
+                  alt={agency.name}
+                  className="h-full w-full object-cover"
+                />
+              </>
+            ) : (
+              agencyInitials || "AG"
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Agency
+            </p>
+            <Link
+              href={`/agencies/${agency.agency_id}`}
+              className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+            >
+              {agency.name}
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <Link
         href={agent ? `/agents/${agent.profile_id}` : `/agents/${ownerUserId}`}
