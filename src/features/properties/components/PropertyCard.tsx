@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 interface PropertyCardProps {
   property: Property;
+  onNavigateToDetail?: () => void;
 }
 
 const statusVariant: Record<
@@ -37,7 +38,7 @@ const statusLabel: Record<string, string> = {
   pending: "Pending",
 };
 
-export function PropertyCard({ property }: PropertyCardProps) {
+export function PropertyCard({ property, onNavigateToDetail }: PropertyCardProps) {
   const lastFavoriteToggleAtRef = useRef(0);
   const { data: favorites } = useFavorites();
   const addFavorite = useAddFavorite();
@@ -68,13 +69,13 @@ export function PropertyCard({ property }: PropertyCardProps) {
     try {
       if (isFavorited) {
         await removeFavorite.mutateAsync(property.property_id);
-        notify.success("Removed from saved");
+        notify.success("Removed from saved listings");
       } else {
         await addFavorite.mutateAsync(property.property_id);
-        notify.success("Saved to favorites");
+        notify.success("Listing saved");
       }
     } catch {
-      notify.error("Could not update favorites");
+      notify.error("Could not update saved listings");
     }
   };
 
@@ -86,6 +87,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
     <Link
       href={`/properties/${property.property_id}`}
       prefetch={false}
+      onNavigate={onNavigateToDetail}
       // The list page renders many cards at once. Warming every detail route on
       // first paint front-loads code the visitor has not asked for yet, which
       // showed up as extra TBT during the F.4 audits.
@@ -122,7 +124,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
 
           <button
             onClick={toggleFavorite}
-            aria-label={isFavorited ? "Remove from saved" : "Save property"}
+            aria-label={isFavorited ? "Remove saved listing" : "Save listing"}
             disabled={addFavorite.isPending || removeFavorite.isPending}
             className={cn(
               "absolute top-2 right-2 rounded-full p-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70",

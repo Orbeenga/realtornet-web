@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getInquiryNavigationConfig } from "@/features/auth/navigation";
 import { useSubmitInquiry } from "@/features/inquiries/hooks";
 import { Button } from "@/components";
 import { notify } from "@/lib/toast";
@@ -22,6 +23,7 @@ interface InquiryFormProps {
 
 export function InquiryForm({ propertyId }: InquiryFormProps) {
   const { user } = useAuth();
+  const inquiryConfig = getInquiryNavigationConfig(user?.user_role);
   const submitInquiry = useSubmitInquiry();
 
   const {
@@ -84,6 +86,10 @@ export function InquiryForm({ propertyId }: InquiryFormProps) {
         </Link>
       </section>
     );
+  }
+
+  if (!inquiryConfig.canSendInquiry) {
+    return null;
   }
 
   return (

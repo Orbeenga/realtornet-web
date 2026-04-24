@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { EmptyState, ErrorState, PropertyCardSkeleton } from "@/components";
+import { useAuth } from "@/features/auth/AuthContext";
 import { useFavoriteProperties } from "@/features/favorites/hooks";
+import { getFavoritesPageCopy } from "@/features/auth/navigation";
 import { PropertyCard } from "@/features/properties/components";
 
 export default function FavoritesPage() {
+  const { user } = useAuth();
   const favoritesQuery = useFavoriteProperties();
+  const { savedTitle, savedDescription, emptyTitle, emptyDescription } =
+    getFavoritesPageCopy(user?.user_role);
 
   return (
     <div className="mx-auto max-w-[800px] space-y-8">
@@ -27,10 +32,10 @@ export default function FavoritesPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-            Saved properties
+            {savedTitle}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Your saved listings stay here. Use the heart button on any card to remove it.
+            {savedDescription}
           </p>
         </div>
       </div>
@@ -57,8 +62,8 @@ export default function FavoritesPage() {
       !favoritesQuery.isError &&
       favoritesQuery.properties.length === 0 ? (
         <EmptyState
-          title="You haven't saved any properties yet"
-          description="Browse listings and tap the heart icon to save properties here."
+          title={emptyTitle}
+          description={emptyDescription}
         />
       ) : null}
 

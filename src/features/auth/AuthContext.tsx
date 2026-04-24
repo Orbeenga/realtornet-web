@@ -7,10 +7,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { buildApiUrl, setUnauthorizedHandler } from "@/lib/api/client";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  buildApiUrl,
+  clearStoredAuthTokens,
+  getStoredAccessToken,
+  getStoredRefreshToken,
+  persistAuthTokens,
+  refreshAccessToken,
+  setUnauthorizedHandler,
+} from "@/lib/api/client";
 import type { UserProfile } from "@/types";
-
-const TOKEN_STORAGE_KEY = "rn_token";
 
 type RegisterRole = "buyer" | "agent" | "admin";
 
@@ -39,23 +46,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function getStoredToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
-}
-
-function persistToken(token: string) {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  }
-}
-
-function clearStoredToken() {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-  }
+  return getStoredAccessToken();
 }
 
 async function fetchCurrentUser(token: string) {
@@ -80,6 +71,7 @@ async function fetchCurrentUser(token: string) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,9 +91,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(me);
       } catch (error) {
         if (error instanceof AuthBootstrapError && error.status === 401) {
-          clearStoredToken();
-          setToken(null);
-          setUser(null);
+          const storedRefreshToken = getStoredRefreshToken();
+
+          if (storedRefreshToken) {
+            try {
+              const refreshedToken = await refreshAccessToken();
+              const me = await fetchCurrentUser(refreshedToken);
+              setToken(refreshedToken);
+              setUser(me);
+            } catch {
+              clearStoredAuthTokens();
+              setToken(null);
+              setUser(null);
+            }
+          } else {
+            clearStoredAuthTokens();
+            setToken(null);
+            setUser(null);
+          }
         } else {
           setToken(storedToken);
           setUser(null);
@@ -137,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
     }
 
-    persistToken(payload.access_token);
+    persistAuthTokens(payload.access_token, payload.refresh_token);
     setToken(payload.access_token);
 
     const me = await fetchCurrentUser(payload.access_token);
@@ -187,7 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    clearStoredToken();
+    clearStoredAuthTokens();
+    queryClient.clear();
     setToken(null);
     setUser(null);
 
@@ -202,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       setUnauthorizedHandler(null);
     };
-  }, []);
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut }}>
