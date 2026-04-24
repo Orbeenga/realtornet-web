@@ -20,7 +20,7 @@
         "start": "next start",
         "lint": "eslint",
         "lighthouse": "lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html --chrome-flags='--headless'",
-        "gen:types": "openapi-typescript http://localhost:8000/api/v1/openapi.json -o src/types/api.generated.ts",
+        "gen:types": "node scripts/gen-types.mjs",
         "seed": "tsx scripts/seed.ts"
     },
     "dependencies": {

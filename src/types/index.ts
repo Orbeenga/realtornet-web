@@ -19,6 +19,7 @@ export type FavoriteCreate = components["schemas"]["FavoriteCreate"];
 export type SavedSearch = components["schemas"]["SavedSearchResponse"];
 export type SavedSearchCreateInput = components["schemas"]["SavedSearchCreate"];
 export type UserProfile = components["schemas"]["UserResponse"];
+export type UserRole = components["schemas"]["UserRole"];
 export type Location = components["schemas"]["LocationResponse"];
 export type PaginatedProperties = components["schemas"]["PropertyResponse"][];
 

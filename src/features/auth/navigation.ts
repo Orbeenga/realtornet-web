@@ -74,6 +74,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
     return [
       { href: "/properties", label: "Properties" },
       { href: "/account/listings", label: "Property moderation" },
+      { href: "/account/users", label: "Users" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
     ];
   }
