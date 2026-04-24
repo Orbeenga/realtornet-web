@@ -13,6 +13,7 @@ export type Agent = components["schemas"]["AgentProfileResponse"];
 export type Agency = components["schemas"]["AgencyResponse"];
 export type Inquiry = components["schemas"]["InquiryResponse"];
 export type InquiryCreate = components["schemas"]["InquiryCreate"];
+export type InquiryStatus = components["schemas"]["InquiryStatus"];
 export type Favorite = components["schemas"]["FavoriteResponse"];
 export type FavoriteCreate = components["schemas"]["FavoriteCreate"];
 export type SavedSearch = components["schemas"]["SavedSearchResponse"];

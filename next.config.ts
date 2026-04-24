@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
   experimental: {
     workerThreads: false,
     cpus: 1,
+    scrollRestoration: true,
   },
   async headers() {
     if (process.env.NODE_ENV !== "production") {
