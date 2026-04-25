@@ -39,11 +39,11 @@ async function fetchInquiryCollection(
   }
 
   if (source === "received") {
-    return apiClient<Inquiry[]>("/api/v1/inquiries/received");
+    return apiClient<Inquiry[]>("/api/v1/inquiries/received/");
   }
 
   const payload = await apiClient<Inquiry[] | Record<string, unknown>>(
-    "/api/v1/admin/inquiries",
+    "/api/v1/admin/inquiries/",
   );
 
   return extractInquiryCollection(payload);
