@@ -42,8 +42,24 @@ function getApiBasePath() {
   }
 }
 
+function normalizeApiPath(path: string) {
+  const match = path.match(/^([^?#]*)(.*)$/);
+
+  if (!match) {
+    return path;
+  }
+
+  const [, pathname, suffix] = match;
+
+  if (!pathname || pathname.endsWith("/")) {
+    return path;
+  }
+
+  return `${pathname}/${suffix}`;
+}
+
 export function buildApiUrl(path: string) {
-  return `${getApiBasePath()}${path}`;
+  return `${getApiBasePath()}${normalizeApiPath(path)}`;
 }
 
 export function setUnauthorizedHandler(
@@ -161,10 +177,11 @@ export async function apiClient<T>(
   options?: RequestInit,
   isRetry = false,
 ): Promise<T> {
+  const normalizedPath = normalizeApiPath(path);
   const token = getStoredAccessToken();
   const isFormData = options?.body instanceof FormData;
 
-  const res = await fetch(buildApiUrl(path), {
+  const res = await fetch(buildApiUrl(normalizedPath), {
     ...options,
     headers: {
       ...(!isFormData ? { "Content-Type": "application/json" } : {}),
@@ -177,8 +194,8 @@ export async function apiClient<T>(
     if (
       res.status === 401 &&
       !isRetry &&
-      path !== "/api/v1/auth/refresh" &&
-      path !== "/api/v1/auth/login" &&
+      normalizedPath !== "/api/v1/auth/refresh/" &&
+      normalizedPath !== "/api/v1/auth/login/" &&
       getStoredRefreshToken()
     ) {
       try {
@@ -189,7 +206,7 @@ export async function apiClient<T>(
         }
 
         await refreshPromise;
-        return apiClient<T>(path, options, true);
+        return apiClient<T>(normalizedPath, options, true);
       } catch {
         await handleUnauthorized();
         throw new AuthError();
