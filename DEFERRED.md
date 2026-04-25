@@ -23,3 +23,5 @@ Deferred to Phase G. Property cards should display agency name, but the current
 PropertyResponse contract does not include agency branding fields such as
 agency_name. Do not introduce per-card agency fetches. Add agency branding to
 the property list response first, then wire the card UI.
+
+DEF-G-INQ-002 - Inquiry cards on agent /account/inquiries show seeker contact but no property title/link. Secondary fetch for GET /api/v1/properties/{id}/ returns 204 with no body - origin unknown (backend rules it out, frontend normalization is clean, suspected Vercel to Railway proxy layer). Needs live Network tab inspection with auth headers visible. Backend gap also exists: /received does not join property data, relying on frontend N+1 hydration from property_id.
