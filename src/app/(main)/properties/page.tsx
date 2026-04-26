@@ -1,9 +1,17 @@
 import Image from "next/image";
+import Link from "next/link";
 import { PropertiesExplorerShell } from "./PropertiesExplorerShell";
 
 export default function PropertiesPage() {
   return (
     <div className="space-y-8">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+      >
+        Home
+      </Link>
+
       <section className="grid gap-5 overflow-hidden rounded-[2rem] border border-sky-100 bg-linear-to-br from-white via-sky-50 to-blue-100 px-5 py-6 shadow-sm sm:px-8 sm:py-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center dark:border-sky-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950">
         <div className="space-y-4">
           <div className="flex items-center gap-3">

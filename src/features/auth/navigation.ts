@@ -1,6 +1,6 @@
 "use client";
 
-export type AppRole = "seeker" | "agent" | "admin";
+export type AppRole = "seeker" | "agent" | "agency_owner" | "admin";
 export type InquiryAccountMode = "sent" | "received" | "admin";
 
 interface InquiryNavigationConfig {
@@ -21,7 +21,12 @@ export function normalizeAppRole(role: string | null | undefined): AppRole | nul
     return "seeker";
   }
 
-  if (role === "seeker" || role === "agent" || role === "admin") {
+  if (
+    role === "seeker" ||
+    role === "agent" ||
+    role === "agency_owner" ||
+    role === "admin"
+  ) {
     return role;
   }
 
@@ -30,6 +35,10 @@ export function normalizeAppRole(role: string | null | undefined): AppRole | nul
 
 export function getPostLoginPath(role: string | null | undefined) {
   const normalizedRole = normalizeAppRole(role);
+
+  if (normalizedRole === "agency_owner") {
+    return "/account/agency";
+  }
 
   if (normalizedRole === "agent" || normalizedRole === "admin") {
     return "/account/listings";
@@ -43,7 +52,7 @@ export function getInquiryNavigationConfig(
 ): InquiryNavigationConfig {
   const normalizedRole = normalizeAppRole(role);
 
-  if (normalizedRole === "agent") {
+  if (normalizedRole === "agent" || normalizedRole === "agency_owner") {
     return {
       mode: "received",
       navLabel: "Inquiries",
@@ -73,14 +82,28 @@ export function getRoleNavLinks(role: string | null | undefined) {
   if (normalizedRole === "admin") {
     return [
       { href: "/properties", label: "Properties" },
+      { href: "/agencies", label: "Agencies" },
       { href: "/account/listings", label: "Property moderation" },
       { href: "/account/users", label: "Users" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
+      { href: "/account/admin/agencies", label: "Agencies admin" },
+    ];
+  }
+
+  if (normalizedRole === "agency_owner") {
+    return [
+      { href: "/agencies", label: "Agencies" },
+      { href: "/properties", label: "Properties" },
+      { href: "/account/listings", label: "My Listings" },
+      { href: "/account/inquiries", label: inquiryConfig.navLabel },
+      { href: "/account/favorites", label: "Favorites" },
+      { href: "/account/agency", label: "Agency dashboard" },
     ];
   }
 
   if (normalizedRole === "agent") {
     return [
+      { href: "/agencies", label: "Agencies" },
       { href: "/properties", label: "Properties" },
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
@@ -90,14 +113,19 @@ export function getRoleNavLinks(role: string | null | undefined) {
 
   if (normalizedRole === "seeker") {
     return [
+      { href: "/agencies", label: "Agencies" },
       { href: "/properties", label: "Properties" },
+      { href: "/account/join-requests", label: "My Requests" },
       { href: "/account/favorites", label: "Favorites" },
       { href: "/account/saved-searches", label: "Saved searches" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
     ];
   }
 
-  return [{ href: "/properties", label: "Properties" }];
+  return [
+    { href: "/agencies", label: "Agencies" },
+    { href: "/properties", label: "Properties" },
+  ];
 }
 
 export function getFavoritesPageCopy(
@@ -105,7 +133,7 @@ export function getFavoritesPageCopy(
 ): FavoritesPageCopy {
   const normalizedRole = normalizeAppRole(role);
 
-  if (normalizedRole === "agent") {
+  if (normalizedRole === "agent" || normalizedRole === "agency_owner") {
     return {
       savedTitle: "Saved listings",
       savedDescription: "Keep track of listings you want to revisit or share later.",

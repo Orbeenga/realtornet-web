@@ -104,6 +104,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/agencies/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Agencies
+         * @description List agencies for admin review, optionally filtered by status.
+         */
+        get: operations["get_admin_agencies_api_v1_admin_agencies__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agencies/{agency_id}/approve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Approve Agency Application
+         * @description Approve a pending agency and promote the applicant atomically.
+         *
+         *     The applicant is resolved by agencies.owner_email. If Supabase Auth metadata
+         *     sync fails, the transaction is rolled back so local DB role and external JWT
+         *     claims cannot drift.
+         */
+        patch: operations["approve_agency_application_api_v1_admin_agencies__agency_id__approve__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/agencies/{agency_id}/reject/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reject Agency Application
+         * @description Reject a pending agency application with an optional reason.
+         */
+        patch: operations["reject_agency_application_api_v1_admin_agencies__agency_id__reject__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/agencies/{agency_id}/revoke/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Revoke Agency Approval
+         * @description Revoke an approved agency back to pending review.
+         */
+        patch: operations["revoke_agency_approval_api_v1_admin_agencies__agency_id__revoke__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/agencies/{agency_id}/suspend/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Suspend Agency
+         * @description Suspend an agency without soft-deleting its data.
+         */
+        patch: operations["suspend_agency_api_v1_admin_agencies__agency_id__suspend__patch"];
+        trace?: never;
+    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -565,6 +669,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agencies/apply/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply For Agency
+         * @description Public agency application.
+         *
+         *     Applications start pending. Admin approval later promotes the owner account
+         *     attached to owner_email.
+         */
+        post: operations["apply_for_agency_api_v1_agencies_apply__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/accept-invite/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept Agency Invite */
+        post: operations["accept_agency_invite_api_v1_agencies_accept_invite__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}": {
         parameters: {
             query?: never;
@@ -650,6 +794,109 @@ export interface paths {
         get: operations["read_agency_properties_api_v1_agencies__agency_id__properties_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/join-request/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Agency Join Request
+         * @description Create a pending seeker-to-agent request for an approved agency.
+         */
+        post: operations["create_agency_join_request_api_v1_agencies__agency_id__join_request__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/join-requests/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agency Join Requests
+         * @description Return pending join requests for the authenticated agency owner.
+         */
+        get: operations["read_agency_join_requests_api_v1_agencies__agency_id__join_requests__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/join-requests/{request_id}/approve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Approve Agency Join Request
+         * @description Approve a seeker join request and promote the seeker to agent.
+         */
+        patch: operations["approve_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__approve__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/join-requests/{request_id}/reject/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reject Agency Join Request
+         * @description Reject a pending agency join request.
+         */
+        patch: operations["reject_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reject__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/invite/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite Agency Agent
+         * @description Create a signed agency invite token.
+         *
+         *     Email delivery is intentionally deferred; Phase G returns the token directly
+         *     so the accept-invite flow can be exercised end to end.
+         */
+        post: operations["invite_agency_agent_api_v1_agencies__agency_id__invite__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1197,8 +1444,8 @@ export interface paths {
          * @description Update the public-verification state of a property listing.
          *
          *     Permissions:
-         *     - Admins can verify or unverify any listing
-         *     - The owning agent can verify or unverify their own listing
+         *     - Admins can set any moderation status
+         *     - The owning agent can verify or return their own listing to pending review
          *
          *     This endpoint exists separately from the general update endpoint so the UI
          *     can expose a clear "verification" action without asking operators to edit
@@ -1901,6 +2148,26 @@ export interface paths {
          *     - Returns count of successfully deleted favorites
          */
         delete: operations["bulk_delete_favorites_api_v1_favorites_bulk_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join-requests/mine/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Join Requests
+         * @description Return agency join requests submitted by the authenticated seeker.
+         */
+        get: operations["read_my_join_requests_api_v1_join_requests_mine__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2779,6 +3046,39 @@ export interface components {
             created_at: string;
         };
         /**
+         * AgencyApplicationCreate
+         * @description Public agency application payload.
+         */
+        AgencyApplicationCreate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Website Url */
+            website_url?: string | null;
+            /**
+             * Owner Email
+             * Format: email
+             */
+            owner_email: string;
+            /** Owner Name */
+            owner_name: string;
+            /** Owner Phone Number */
+            owner_phone_number?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone Number */
+            phone_number?: string | null;
+        };
+        /** AgencyApplicationResponse */
+        AgencyApplicationResponse: {
+            /** Agency Id */
+            agency_id: number;
+            status: components["schemas"]["AgencyStatus"];
+        };
+        /**
          * AgencyCreate
          * @description Schema for creating a new agency
          */
@@ -2802,6 +3102,106 @@ export interface components {
              * @default false
              */
             is_verified: boolean;
+            /** @default approved */
+            status: components["schemas"]["AgencyStatus"];
+            /** Owner Email */
+            owner_email?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Owner Phone Number */
+            owner_phone_number?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+        };
+        /** AgencyInviteAcceptRequest */
+        AgencyInviteAcceptRequest: {
+            /** Invite Token */
+            invite_token: string;
+        };
+        /** AgencyInviteAcceptResponse */
+        AgencyInviteAcceptResponse: {
+            /** Status */
+            status: string;
+            /** Agency Id */
+            agency_id?: number | null;
+            /** User Id */
+            user_id?: number | null;
+            /** Redirect Url */
+            redirect_url?: string | null;
+            /** Email */
+            email?: string | null;
+        };
+        /** AgencyInviteCreate */
+        AgencyInviteCreate: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /** AgencyInviteResponse */
+        AgencyInviteResponse: {
+            /** Invite Token */
+            invite_token: string;
+            /** Agency Id */
+            agency_id: number;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /** AgencyJoinRequestCreate */
+        AgencyJoinRequestCreate: {
+            /** Cover Note */
+            cover_note?: string | null;
+            /** Portfolio Details */
+            portfolio_details?: string | null;
+        };
+        /** AgencyJoinRequestRejectRequest */
+        AgencyJoinRequestRejectRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** AgencyJoinRequestResponse */
+        AgencyJoinRequestResponse: {
+            /** Join Request Id */
+            join_request_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** User Id */
+            user_id: number;
+            status: components["schemas"]["AgencyJoinRequestStatus"];
+            /** Cover Note */
+            cover_note?: string | null;
+            /** Portfolio Details */
+            portfolio_details?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+            /** Seeker Email */
+            seeker_email?: string | null;
+            /** Seeker Name */
+            seeker_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * AgencyJoinRequestStatus
+         * @enum {string}
+         */
+        AgencyJoinRequestStatus: "pending" | "approved" | "rejected";
+        /** AgencyRejectRequest */
+        AgencyRejectRequest: {
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * AgencyResponse
@@ -2827,6 +3227,16 @@ export interface components {
              * @default false
              */
             is_verified: boolean;
+            /** @default approved */
+            status: components["schemas"]["AgencyStatus"];
+            /** Owner Email */
+            owner_email?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Owner Phone Number */
+            owner_phone_number?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
             /** Agency Id */
             agency_id: number;
             /**
@@ -2849,6 +3259,11 @@ export interface components {
             deleted_by?: string | null;
         };
         /**
+         * AgencyStatus
+         * @enum {string}
+         */
+        AgencyStatus: "pending" | "approved" | "rejected" | "suspended";
+        /**
          * AgencyUpdate
          * @description Schema for updating an agency
          */
@@ -2869,6 +3284,15 @@ export interface components {
             website_url?: string | null;
             /** Is Verified */
             is_verified?: boolean | null;
+            status?: components["schemas"]["AgencyStatus"] | null;
+            /** Owner Email */
+            owner_email?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Owner Phone Number */
+            owner_phone_number?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
         };
         /**
          * AgentPerformanceResponse
@@ -3405,6 +3829,29 @@ export interface components {
             longitude?: number | null;
         };
         /**
+         * ModerationStatus
+         * @description Schema enum - values match moderation_status_enum exactly
+         * @enum {string}
+         */
+        ModerationStatus: "pending_review" | "verified" | "rejected" | "revoked";
+        /** MyAgencyJoinRequestResponse */
+        MyAgencyJoinRequestResponse: {
+            /** Join Request Id */
+            join_request_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name: string;
+            status: components["schemas"]["AgencyJoinRequestStatus"];
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+        };
+        /**
          * ProfileCreate
          * @description Schema for creating a new profile
          */
@@ -3715,11 +4162,19 @@ export interface components {
             property_id: number;
             /** User Id */
             user_id: number;
+            /** Agency Id */
+            agency_id?: number | null;
+            /** Agency Name */
+            agency_name?: string | null;
             /** Is Featured */
             is_featured: boolean;
             listing_status: components["schemas"]["ListingStatus-Output"];
             /** Is Verified */
             is_verified: boolean;
+            /** @default pending_review */
+            moderation_status: components["schemas"]["ModerationStatus"];
+            /** Moderation Reason */
+            moderation_reason?: string | null;
             /** Verification Date */
             verification_date?: string | null;
             /**
@@ -3921,11 +4376,11 @@ export interface components {
          *     listing" and "making a listing public" are different actions.
          */
         PropertyVerificationUpdate: {
-            /**
-             * Is Verified
-             * @default true
-             */
-            is_verified: boolean;
+            /** Is Verified */
+            is_verified?: boolean | null;
+            moderation_status?: components["schemas"]["ModerationStatus"] | null;
+            /** Moderation Reason */
+            moderation_reason?: string | null;
         };
         /**
          * ReviewUpdate
@@ -4112,6 +4567,8 @@ export interface components {
             /** Phone Number */
             phone_number?: string | null;
             user_role: components["schemas"]["UserRole"];
+            /** Agency Id */
+            agency_id?: number | null;
             /** Profile Image Url */
             profile_image_url?: string | null;
             /** Password */
@@ -4134,6 +4591,8 @@ export interface components {
             /** Phone Number */
             phone_number?: string | null;
             user_role: components["schemas"]["UserRole"];
+            /** Agency Id */
+            agency_id?: number | null;
             /** Profile Image Url */
             profile_image_url?: string | null;
             /** User Id */
@@ -4173,7 +4632,7 @@ export interface components {
          * @description User role enum - matches DB user_role_enum
          * @enum {string}
          */
-        UserRole: "seeker" | "agent" | "admin";
+        UserRole: "seeker" | "agent" | "agency_owner" | "admin";
         /**
          * UserStatsBreakdown
          * @description Detailed user statistics breakdown
@@ -4374,6 +4833,169 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+        };
+    };
+    get_admin_agencies_api_v1_admin_agencies__get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_agency_application_api_v1_admin_agencies__agency_id__approve__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_agency_application_api_v1_admin_agencies__agency_id__reject__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyRejectRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_agency_approval_api_v1_admin_agencies__agency_id__revoke__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_agency_api_v1_admin_agencies__agency_id__suspend__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4682,7 +5304,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PropertyVerificationUpdate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5148,6 +5774,72 @@ export interface operations {
             };
         };
     };
+    apply_for_agency_api_v1_agencies_apply__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyApplicationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyApplicationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_agency_invite_api_v1_agencies_accept_invite__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyInviteAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInviteAcceptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_agency_api_v1_agencies__agency_id__get: {
         parameters: {
             query?: never;
@@ -5304,6 +5996,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_agency_join_request_api_v1_agencies__agency_id__join_request__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_agency_join_requests_api_v1_agencies__agency_id__join_requests__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__approve__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reject__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestRejectRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invite_agency_agent_api_v1_agencies__agency_id__invite__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyInviteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInviteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6118,6 +6984,7 @@ export interface operations {
                 bathrooms?: number | null;
                 listing_type?: components["schemas"]["app__models__properties__ListingType"] | null;
                 listing_status?: components["schemas"]["app__models__properties__ListingStatus"] | null;
+                moderation_status?: components["schemas"]["ModerationStatus"] | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
@@ -7511,6 +8378,40 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_my_join_requests_api_v1_join_requests_mine__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAgencyJoinRequestResponse"][];
                 };
             };
             /** @description Validation Error */

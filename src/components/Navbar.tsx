@@ -32,7 +32,7 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link
-              href="/properties"
+              href="/"
               prefetch={false}
               className="text-lg font-bold tracking-tight text-gray-900 dark:text-white"
             >
@@ -65,7 +65,7 @@ export function Navbar() {
                   prefetch={false}
                   className="hidden max-w-[180px] truncate text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white md:block"
                 >
-                  {user.email}
+                  Profile Settings
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleSignOut}>
                   Sign out

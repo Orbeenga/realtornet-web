@@ -161,6 +161,52 @@ export default function AccountProfilePage() {
       </div>
 
       <Card>
+        <CardBody className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-xl font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="Profile avatar" className="h-full w-full object-cover" />
+            ) : (
+              <span>
+                {userQuery.data.first_name?.[0]}
+                {userQuery.data.last_name?.[0]}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                {userQuery.data.user_role}
+              </p>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                {form.watch("full_name") ||
+                  [userQuery.data.first_name, userQuery.data.last_name].filter(Boolean).join(" ") ||
+                  userQuery.data.email}
+              </h2>
+            </div>
+            <div className="grid gap-3 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Email
+                </p>
+                <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                  {userQuery.data.email}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Phone
+                </p>
+                <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                  {form.watch("phone_number") || userQuery.data.phone_number || "Phone unavailable"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
         <CardHeader>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

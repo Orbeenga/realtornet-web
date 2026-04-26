@@ -29,7 +29,7 @@ function getRoleBadgeVariant(role: UserProfile["user_role"]) {
     return "danger";
   }
 
-  if (role === "agent") {
+  if (role === "agent" || role === "agency_owner") {
     return "success";
   }
 
@@ -39,6 +39,10 @@ function getRoleBadgeVariant(role: UserProfile["user_role"]) {
 function formatRoleLabel(role: UserProfile["user_role"]) {
   if (role === "agent") {
     return "Agent";
+  }
+
+  if (role === "agency_owner") {
+    return "Agency Owner";
   }
 
   if (role === "admin") {
@@ -218,6 +222,24 @@ export function AdminUsersClient() {
                       size="sm"
                       loading={isRoleMutationPending}
                       onClick={() => void handleRoleUpdate(user, "seeker")}
+                    >
+                      Demote to Seeker
+                    </Button>
+                  ) : null}
+                  {user.user_role === "agency_owner" ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={isRoleMutationPending}
+                      onClick={() => {
+                        const confirmed = window.confirm(
+                          "Demote this agency owner to seeker?",
+                        );
+
+                        if (confirmed) {
+                          void handleRoleUpdate(user, "seeker");
+                        }
+                      }}
                     >
                       Demote to Seeker
                     </Button>

@@ -11,6 +11,13 @@ export function AgencyListingsGrid({
   properties = [],
   isLoading = false,
 }: AgencyListingsGridProps) {
+  const activeProperties = properties.filter(
+    (property) =>
+      property.is_verified &&
+      (property.listing_status === "active" ||
+        property.listing_status === "available"),
+  );
+
   return (
     <section className="space-y-5">
       <div>
@@ -30,16 +37,16 @@ export function AgencyListingsGrid({
         </div>
       ) : null}
 
-      {!isLoading && properties.length === 0 ? (
+      {!isLoading && activeProperties.length === 0 ? (
         <EmptyState
           title="No listings for this agency"
           description="This agency does not have any public property listings yet."
         />
       ) : null}
 
-      {!isLoading && properties.length > 0 ? (
+      {!isLoading && activeProperties.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          {properties.map((property) => (
+          {activeProperties.map((property) => (
             <PropertyCard key={property.property_id} property={property} />
           ))}
         </div>
