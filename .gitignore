@@ -52,4 +52,7 @@ next-env.d.ts
 # local AI/agent skill metadata
 .agents/
 
+# local phase planning workbook
+docs/phase-g-workbook.md
+
 .vercel

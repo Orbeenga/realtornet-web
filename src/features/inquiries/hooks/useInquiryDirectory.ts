@@ -85,7 +85,7 @@ export function useInquiryDirectory(
   const propertyQueries = useQueries({
     queries: propertyIds.map((propertyId) => ({
       queryKey: ["property", propertyId],
-      queryFn: () => apiClient<Property>(`/api/v1/properties/${propertyId}`),
+      queryFn: () => apiClient<Property>(`/api/v1/properties/${propertyId}/`),
       staleTime: 60_000,
     })),
   });
@@ -94,7 +94,7 @@ export function useInquiryDirectory(
     queries: propertyIds.map((propertyId) => ({
       queryKey: ["propertyImages", propertyId],
       queryFn: () =>
-        apiClient<PropertyImage[]>(`/api/v1/property-images/property/${propertyId}`),
+        apiClient<PropertyImage[]>(`/api/v1/property-images/property/${propertyId}/`),
       staleTime: 60_000,
     })),
   });
@@ -179,7 +179,7 @@ export function useUpdateInquiryStatus() {
       inquiryId: number;
       status: InquiryStatus;
     }) =>
-      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/status`, {
+      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/status/`, {
         method: "PATCH",
         body: JSON.stringify({
           inquiry_status: status,
@@ -199,7 +199,7 @@ export function useMarkInquiryViewed() {
 
   return useMutation({
     mutationFn: (inquiryId: number) =>
-      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/mark-viewed`, {
+      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/mark-viewed/`, {
         method: "POST",
       }),
     onSuccess: async () => {

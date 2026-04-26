@@ -12,7 +12,6 @@ import {
   AgencyListingsGrid,
   AgencyProfileHeader,
 } from "@/features/agencies/components";
-import { useUsersByIds } from "@/hooks/useUserById";
 import { ApiError } from "@/lib/api/client";
 
 interface AgencyProfileClientProps {
@@ -38,7 +37,6 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
   const agencyQuery = useAgencyProfile(id);
   const agentsQuery = useAgencyAgents(id);
   const listingsQuery = useAgencyListings(id);
-  const userQueries = useUsersByIds((agentsQuery.data ?? []).map((agent) => agent.user_id));
 
   if (agencyQuery.isLoading) {
     return <AgencyProfileSkeleton />;
@@ -74,17 +72,10 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
     );
   }
 
-  const usersById = Object.fromEntries(
-    userQueries
-      .map((query) => query.data)
-      .filter((user): user is NonNullable<typeof user> => Boolean(user))
-      .map((user) => [user.user_id, user]),
-  );
-
   return (
     <div className="space-y-8">
       <Link
-        href="/properties"
+        href="/agencies"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,14 +86,13 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
             d="M15.75 19.5L8.25 12l7.5-7.5"
           />
         </svg>
-        Back to listings
+        Back to agencies
       </Link>
 
       <AgencyProfileHeader agency={agencyQuery.data} />
 
       <AgencyAgentRoster
         agents={agentsQuery.data ?? []}
-        users={usersById}
         isLoading={agentsQuery.isLoading}
       />
 

@@ -5,7 +5,6 @@ import { EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgentListings, useAgentProfile } from "@/features/agents/hooks";
 import { AgentListingsGrid } from "@/features/agents/components/AgentListingsGrid";
 import { AgentProfileHeader } from "@/features/agents/components/AgentProfileHeader";
-import { useUserById } from "@/hooks/useUserById";
 import { ApiError } from "@/lib/api/client";
 
 interface AgentProfileClientProps {
@@ -31,7 +30,6 @@ function AgentProfileSkeleton() {
 
 export function AgentProfileClient({ id }: AgentProfileClientProps) {
   const agentQuery = useAgentProfile(id);
-  const userQuery = useUserById(agentQuery.data?.user_id);
   const listingsQuery = useAgentListings(id);
 
   if (agentQuery.isLoading) {
@@ -69,14 +67,13 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
   }
 
   const fullName =
-    [userQuery.data?.first_name, userQuery.data?.last_name].filter(Boolean).join(" ").trim() ||
     agentQuery.data.company_name ||
     "This agent";
 
   return (
     <div className="space-y-8">
       <Link
-        href="/properties"
+        href="/agencies"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,10 +84,10 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
             d="M15.75 19.5L8.25 12l7.5-7.5"
           />
         </svg>
-        Back to listings
+        Back to agencies
       </Link>
 
-      <AgentProfileHeader agent={agentQuery.data} user={userQuery.data} />
+      <AgentProfileHeader agent={agentQuery.data} />
 
       <AgentListingsGrid
         agentName={fullName}

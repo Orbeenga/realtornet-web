@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { Badge, Card, CardBody } from "@/components";
+import { useAuth } from "@/features/auth/AuthContext";
+import { normalizeAppRole } from "@/features/auth/navigation";
+import { getStoredJwtRole } from "@/lib/jwt";
 import type { Agency } from "@/types";
 
 interface AgencyProfileHeaderProps {
@@ -18,6 +22,9 @@ function getInitials(name: string) {
 
 export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
   const initials = getInitials(agency.name);
+  const { user, loading } = useAuth();
+  const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
+  const canRequestToJoin = !loading && role === "seeker";
 
   return (
     <Card>
@@ -38,11 +45,21 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
         </div>
 
         <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-              {agency.name}
-            </h1>
-            {agency.is_verified ? <Badge>Verified</Badge> : null}
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+                {agency.name}
+              </h1>
+              {agency.is_verified ? <Badge>Verified</Badge> : null}
+            </div>
+            {canRequestToJoin ? (
+              <Link
+                href={`/agencies/${agency.agency_id}/join`}
+                className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+              >
+                Request to Join as Agent
+              </Link>
+            ) : null}
           </div>
 
           {agency.description ? (
