@@ -20,6 +20,7 @@ export function Navbar() {
         ? payload.role
         : user?.user_role ?? null;
   const visibleNavLinks = getRoleNavLinks(user ? normalizeAppRole(role) : null);
+  const isProfilePage = pathname === "/account/profile";
 
   const handleSignOut = async () => {
     await signOut();
@@ -58,7 +59,7 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            {user ? (
+            {user && !isProfilePage ? (
               <>
                 <Link
                   href="/account/profile"
