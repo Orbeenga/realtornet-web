@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
 import {
   Button,
   Card,
@@ -12,6 +14,7 @@ import {
   LoadingState,
 } from "@/components";
 import { Input } from "@/components/Input";
+import { useAuth } from "@/features/auth/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import {
   useDeleteMyAvatar,
@@ -43,6 +46,8 @@ function buildDefaultValues(input: {
 }
 
 export default function AccountProfilePage() {
+  const router = useRouter();
+  const { signOut } = useAuth();
   const userQuery = useUserProfile();
   const profileQuery = useMyProfile(Boolean(userQuery.data));
   const upsertProfile = useUpsertMyProfile();
@@ -90,6 +95,20 @@ export default function AccountProfilePage() {
     () => previewUrl ?? profileQuery.data?.profile_picture ?? userQuery.data?.profile_image_url ?? null,
     [previewUrl, profileQuery.data?.profile_picture, userQuery.data?.profile_image_url],
   );
+
+  const displayName =
+    form.watch("full_name") ||
+    [userQuery.data?.first_name, userQuery.data?.last_name].filter(Boolean).join(" ") ||
+    userQuery.data?.email ||
+    "Profile";
+  const displayPhone =
+    form.watch("phone_number") || userQuery.data?.phone_number || "Phone unavailable";
+  const displayBio = form.watch("bio") || "No bio added yet.";
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+  };
 
   if (userQuery.isLoading || profileQuery.isLoading) {
     return <LoadingState fullPage message="Loading your profile..." />;
@@ -150,8 +169,8 @@ export default function AccountProfilePage() {
   };
 
   return (
-    <div className="mx-auto max-w-[800px] space-y-8">
-      <div className="space-y-2">
+    <div className="mx-auto max-w-7xl space-y-8">
+      <div className="space-y-2 lg:ml-[392px]">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
           Account profile
         </h1>
@@ -160,111 +179,134 @@ export default function AccountProfilePage() {
         </p>
       </div>
 
-      <Card>
-        <CardBody className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
-          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-xl font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="Profile avatar" className="h-full w-full object-cover" />
-            ) : (
-              <span>
-                {userQuery.data.first_name?.[0]}
-                {userQuery.data.last_name?.[0]}
-              </span>
-            )}
-          </div>
-          <div className="min-w-0 flex-1 space-y-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                {userQuery.data.user_role}
-              </p>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {form.watch("full_name") ||
-                  [userQuery.data.first_name, userQuery.data.last_name].filter(Boolean).join(" ") ||
-                  userQuery.data.email}
-              </h2>
-            </div>
-            <div className="grid gap-3 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-2">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Email
+      <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
+        <aside className="space-y-4 lg:sticky lg:top-24">
+          <Card className="w-full max-w-[360px]">
+            <CardBody className="space-y-5 p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-2xl font-semibold text-blue-700 ring-4 ring-white dark:bg-blue-950 dark:text-blue-200 dark:ring-gray-900">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt="Profile avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    <span>
+                      {userQuery.data.first_name?.[0]}
+                      {userQuery.data.last_name?.[0]}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                  {userQuery.data.user_role}
                 </p>
-                <p className="mt-1 font-medium text-gray-900 dark:text-white">
-                  {userQuery.data.email}
+                <h2 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+                  {displayName}
+                </h2>
+              </div>
+
+              <div className="space-y-4 border-t border-gray-100 pt-4 text-sm dark:border-gray-800">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Email
+                  </p>
+                  <p className="mt-1 break-words font-medium text-gray-900 dark:text-white">
+                    {userQuery.data.email}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Phone
+                  </p>
+                  <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                    {displayPhone}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Bio
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
+                    {displayBio}
+                  </p>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card className="w-full max-w-[360px]">
+            <CardBody className="grid gap-3 p-4">
+              <Link
+                href="#profile-settings"
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+              >
+                Profile Settings
+              </Link>
+              <Button type="button" variant="ghost" onClick={() => void handleSignOut()}>
+                Sign out
+              </Button>
+            </CardBody>
+          </Card>
+        </aside>
+
+        <div id="profile-settings" className="space-y-8">
+          <Card>
+            <CardHeader>
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Profile picture
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Upload a profile photo so other users can recognize your account.
                 </p>
               </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Phone
-                </p>
-                <p className="mt-1 font-medium text-gray-900 dark:text-white">
-                  {form.watch("phone_number") || userQuery.data.phone_number || "Phone unavailable"}
-                </p>
+            </CardHeader>
+            <CardBody className="flex flex-col gap-6 sm:flex-row sm:items-start">
+              <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-sm font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt="Profile avatar preview" className="h-full w-full object-cover" />
+                ) : (
+                  <span>
+                    {userQuery.data.first_name?.[0]}
+                    {userQuery.data.last_name?.[0]}
+                  </span>
+                )}
               </div>
-            </div>
-          </div>
-        </CardBody>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Profile picture
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Upload a profile photo so other users can recognize your account.
-            </p>
-          </div>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-6 sm:flex-row sm:items-start">
-          <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-sm font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="Profile avatar preview" className="h-full w-full object-cover" />
-            ) : (
-              <span>
-                {userQuery.data.first_name?.[0]}
-                {userQuery.data.last_name?.[0]}
-              </span>
-            )}
-          </div>
+              <div className="flex-1 space-y-3">
+                <Input
+                  type="file"
+                  id="profile-avatar"
+                  label="Profile picture"
+                  accept="image/*"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                  hint="PNG or JPG recommended."
+                />
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    onClick={() => void handleUploadAvatar()}
+                    loading={uploadAvatar.isPending}
+                    disabled={!selectedFile}
+                  >
+                    Upload photo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleDeleteAvatar()}
+                    loading={deleteAvatar.isPending}
+                    disabled={!profileQuery.data?.profile_picture && !userQuery.data.profile_image_url}
+                  >
+                    Remove photo
+                  </Button>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
 
-          <div className="flex-1 space-y-3">
-            <Input
-              type="file"
-              id="profile-avatar"
-              label="Profile picture"
-              accept="image/*"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-              hint="PNG or JPG recommended."
-            />
-            <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                onClick={() => void handleUploadAvatar()}
-                loading={uploadAvatar.isPending}
-                disabled={!selectedFile}
-              >
-                Upload photo
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void handleDeleteAvatar()}
-                loading={deleteAvatar.isPending}
-                disabled={!profileQuery.data?.profile_picture && !userQuery.data.profile_image_url}
-              >
-                Remove photo
-              </Button>
-            </div>
-          </div>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <form onSubmit={handleSave} noValidate>
-          <CardHeader>
+          <Card>
+            <form onSubmit={handleSave} noValidate>
+              <CardHeader>
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Personal details
@@ -320,8 +362,10 @@ export default function AccountProfilePage() {
               Save profile
             </Button>
           </CardFooter>
-        </form>
-      </Card>
+            </form>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
