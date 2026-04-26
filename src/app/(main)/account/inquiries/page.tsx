@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getInquiryNavigationConfig } from "@/features/auth/navigation";
+import { getStoredJwtRole } from "@/lib/jwt";
 import {
   ReceivedInquiriesList,
   SentInquiriesList,
@@ -44,7 +45,7 @@ function PageIntro({
 
 export default function InquiriesPage() {
   const { user } = useAuth();
-  const inquiryConfig = getInquiryNavigationConfig(user?.user_role);
+  const inquiryConfig = getInquiryNavigationConfig(getStoredJwtRole() ?? user?.user_role);
 
   const pageCopy = useMemo(() => {
     if (inquiryConfig.mode === "sent") {

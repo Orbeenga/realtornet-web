@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Agent, UserProfile } from "@/types";
 import { Badge, Card, CardBody } from "@/components";
+import { useAgencyProfile } from "@/features/agencies/hooks";
 
 interface AgentProfileHeaderProps {
   agent: Agent;
@@ -22,6 +23,7 @@ function getInitials(firstName?: string | null, lastName?: string | null, fallba
 }
 
 export function AgentProfileHeader({ agent, user }: AgentProfileHeaderProps) {
+  const agencyQuery = useAgencyProfile(agent.agency_id ?? "");
   const fullName =
     [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() ||
     agent.company_name ||
@@ -103,7 +105,7 @@ export function AgentProfileHeader({ agent, user }: AgentProfileHeaderProps) {
                 href={`/agencies/${agent.agency_id}`}
                 className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
               >
-                View affiliated agency
+                {agencyQuery.data?.name ?? "View affiliated agency"}
               </Link>
             ) : null}
             {agent.website ? (

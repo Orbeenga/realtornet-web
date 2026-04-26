@@ -112,7 +112,7 @@ export async function refreshAccessToken(): Promise<string> {
     throw new AuthError("Missing refresh token");
   }
 
-  const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
+  const res = await fetch(buildApiUrl("/api/v1/auth/refresh/"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

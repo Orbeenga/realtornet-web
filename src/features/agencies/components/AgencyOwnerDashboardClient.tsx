@@ -1,0 +1,400 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  EmptyState,
+  ErrorState,
+  Input,
+  LoadingState,
+} from "@/components";
+import { useAuth } from "@/features/auth/AuthContext";
+import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
+import { notify } from "@/lib/toast";
+import {
+  useAgencies,
+  useAgencyAgents,
+  useAgencyJoinRequests,
+  useApproveAgencyJoinRequest,
+  useInviteAgencyAgent,
+  useRejectAgencyJoinRequest,
+} from "@/features/agencies/hooks";
+
+const inviteSchema = z.object({
+  email: z.email("Use a valid email address"),
+});
+
+type InviteFormValues = z.infer<typeof inviteSchema>;
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+export function AgencyOwnerDashboardClient() {
+  const gate = useAgentRoleGate();
+  const { user } = useAuth();
+  const agenciesQuery = useAgencies(gate.isAllowed);
+  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
+
+  const agency = useMemo(() => {
+    const email = user?.email?.toLowerCase();
+
+    if (!email) {
+      return undefined;
+    }
+
+    return (agenciesQuery.data ?? []).find(
+      (candidate) => candidate.owner_email?.toLowerCase() === email,
+    );
+  }, [agenciesQuery.data, user?.email]);
+
+  const agencyId = agency?.agency_id;
+  const agentsQuery = useAgencyAgents(agencyId ?? "");
+  const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
+  const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
+  const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
+  const inviteAgent = useInviteAgencyAgent(agencyId);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors },
+  } = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
+
+  const handleApproveJoinRequest = async (requestId: number) => {
+    try {
+      await approveJoinRequest.mutateAsync(requestId);
+      notify.success("Join request approved");
+    } catch {
+      notify.error("Could not approve join request");
+    }
+  };
+
+  const handleRejectJoinRequest = async (requestId: number) => {
+    try {
+      await rejectJoinRequest.mutateAsync({
+        requestId,
+        payload: { reason: rejectReasons[requestId]?.trim() || null },
+      });
+      notify.success("Join request rejected");
+      setRejectReasons((current) => {
+        const next = { ...current };
+        delete next[requestId];
+        return next;
+      });
+    } catch {
+      notify.error("Could not reject join request");
+    }
+  };
+
+  const handleInvite = async (values: InviteFormValues) => {
+    try {
+      await inviteAgent.mutateAsync({ email: values.email.trim() });
+      notify.success("Invite created");
+      reset();
+    } catch {
+      setError("root", {
+        type: "server",
+        message: "Could not create invite. Please try again.",
+      });
+    }
+  };
+
+  if (gate.isChecking || !gate.isAllowed || agenciesQuery.isLoading) {
+    return <LoadingState />;
+  }
+
+  if (agenciesQuery.isError) {
+    return (
+      <ErrorState
+        title="Could not load agency dashboard"
+        message="There was a problem loading your agency profile."
+        onRetry={() => {
+          void agenciesQuery.refetch();
+        }}
+      />
+    );
+  }
+
+  if (!agency) {
+    return (
+      <EmptyState
+        title="No agency profile found"
+        description="Your agency owner account is active, but no approved agency profile was matched to your email."
+      />
+    );
+  }
+
+  const joinRequests = joinRequestsQuery.data ?? [];
+  const agents = agentsQuery.data ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+          Agency dashboard
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+          {agency.name}
+        </h1>
+      </div>
+
+      <Card>
+        <CardBody className="space-y-5">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Agency profile
+                </h2>
+                <Badge>{agency.status}</Badge>
+                {agency.is_verified ? <Badge>Verified</Badge> : null}
+              </div>
+              {agency.description ? (
+                <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+                  {agency.description}
+                </p>
+              ) : null}
+            </div>
+            <Link
+              href={`/agencies/${agency.agency_id}`}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+            >
+              View profile
+            </Link>
+          </div>
+
+          <div className="grid gap-4 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Contact
+              </p>
+              <p className="mt-1 text-gray-700 dark:text-gray-200">
+                {agency.email ?? "Email unavailable"}
+              </p>
+              <p className="text-gray-500 dark:text-gray-400">
+                {agency.phone_number ?? "Phone unavailable"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Owner
+              </p>
+              <p className="mt-1 text-gray-700 dark:text-gray-200">
+                {agency.owner_name ?? user?.first_name ?? "Owner"}
+              </p>
+              <p className="text-gray-500 dark:text-gray-400">
+                {agency.owner_email ?? user?.email ?? "Email unavailable"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Address
+              </p>
+              <p className="mt-1 text-gray-700 dark:text-gray-200">
+                {agency.address ?? "Address unavailable"}
+              </p>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Pending join requests
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Review seekers asking to join your agency roster.
+            </p>
+          </div>
+
+          {joinRequestsQuery.isLoading ? <LoadingState /> : null}
+          {joinRequestsQuery.isError ? (
+            <ErrorState
+              title="Could not load join requests"
+              message="There was a problem loading pending requests."
+              onRetry={() => {
+                void joinRequestsQuery.refetch();
+              }}
+            />
+          ) : null}
+          {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.length === 0 ? (
+            <EmptyState
+              title="No pending requests"
+              description="New seeker requests will appear here."
+            />
+          ) : null}
+          {!joinRequestsQuery.isLoading && joinRequests.length > 0 ? (
+            <div className="space-y-4">
+              {joinRequests.map((request) => (
+                <div
+                  key={request.join_request_id}
+                  className="rounded-lg border border-border p-4"
+                >
+                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {request.seeker_name ?? "Seeker"}
+                        </p>
+                        <Badge variant="warning">{request.status}</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
+                      </p>
+                      {request.cover_note ? (
+                        <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+                          {request.cover_note}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        loading={
+                          approveJoinRequest.isPending &&
+                          approveJoinRequest.variables === request.join_request_id
+                        }
+                        onClick={() => void handleApproveJoinRequest(request.join_request_id)}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        loading={
+                          rejectJoinRequest.isPending &&
+                          rejectJoinRequest.variables?.requestId === request.join_request_id
+                        }
+                        onClick={() => void handleRejectJoinRequest(request.join_request_id)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                  <Input
+                    className="mt-4"
+                    label="Reject reason"
+                    placeholder="Optional note for rejection"
+                    value={rejectReasons[request.join_request_id] ?? ""}
+                    onChange={(event) =>
+                      setRejectReasons((current) => ({
+                        ...current,
+                        [request.join_request_id]: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Agent roster
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Agents currently affiliated with this agency.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <LoadingState /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents"
+                message="There was a problem loading your agency roster."
+                onRetry={() => {
+                  void agentsQuery.refetch();
+                }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.length === 0 ? (
+              <EmptyState
+                title="No agents yet"
+                description="Approved join requests and invited agents will appear here."
+              />
+            ) : null}
+            {!agentsQuery.isLoading && agents.length > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.map((agent) => (
+                  <Link
+                    key={agent.profile_id}
+                    href={`/agents/${agent.profile_id}`}
+                    className="flex items-center justify-between gap-4 py-4"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {agent.company_name ?? "Listing agent"}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {agent.specialization ?? "Real estate agent"}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      View
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Invite agent
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Create an invite for an agent by email.
+              </p>
+            </div>
+            <form className="space-y-4" onSubmit={(event) => void handleSubmit(handleInvite)(event)}>
+              <Input
+                label="Agent email"
+                type="email"
+                placeholder="agent@example.com"
+                error={errors.email?.message}
+                {...register("email")}
+              />
+              {errors.root?.message ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {errors.root.message}
+                </p>
+              ) : null}
+              <Button type="submit" loading={inviteAgent.isPending}>
+                Send invite
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
+      </div>
+    </div>
+  );
+}

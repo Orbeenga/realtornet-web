@@ -169,6 +169,11 @@ export function PropertyCard({ property, onNavigateToDetail }: PropertyCardProps
           <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
             {price}
           </p>
+          {property.agency_name ? (
+            <p className="line-clamp-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              {property.agency_name}
+            </p>
+          ) : null}
           <p className="flex items-center gap-1 text-xs text-gray-500">
             <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path

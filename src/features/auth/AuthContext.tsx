@@ -53,7 +53,7 @@ async function fetchCurrentUser(token: string) {
   let res: Response;
 
   try {
-    res = await fetch(buildApiUrl("/api/v1/auth/me"), {
+    res = await fetch(buildApiUrl("/api/v1/auth/me/"), {
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scope: "",
     });
 
-    const res = await fetch(buildApiUrl("/api/v1/auth/login"), {
+    const res = await fetch(buildApiUrl("/api/v1/auth/login/"), {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -166,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }) => {
     const backendRole = role === "buyer" ? "seeker" : role;
 
-    const res = await fetch(buildApiUrl("/api/v1/auth/register"), {
+    const res = await fetch(buildApiUrl("/api/v1/auth/register/"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
