@@ -4,7 +4,12 @@ import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
 
 const heroImage =
+  "https://images.pexels.com/photos/32906220/pexels-photo-32906220.jpeg?auto=compress&cs=tinysrgb&w=1800&h=1200&dpr=2";
+
+const deprecatedHeroImage =
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1800&q=85";
+
+void deprecatedHeroImage;
 
 export default function Home() {
   return (
@@ -16,7 +21,34 @@ export default function Home() {
           style={{ backgroundImage: `url(${heroImage})` }}
         >
           <div className="absolute inset-0 bg-black/55" />
-          <div className="relative mx-auto grid min-h-[70vh] max-w-7xl content-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[420px_minmax(0,1fr)] lg:px-8">
+          <div className="relative mx-auto grid min-h-[70vh] max-w-7xl content-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
+            <div className="flex flex-col justify-center gap-6 text-white">
+              <p className="text-sm font-semibold uppercase tracking-wide text-emerald-200">
+                RealtorNet
+              </p>
+              <h2 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
+                Find property through trusted real estate agencies
+              </h2>
+              <p className="max-w-2xl text-lg leading-8 text-white/85">
+                Browse approved agencies, inspect their listings, and move from
+                discovery to inquiry with visible ownership at every step.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/agencies"
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  Browse agencies
+                </Link>
+                <Link
+                  href="/properties"
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  View listings
+                </Link>
+              </div>
+            </div>
+
             <div className="rounded-xl border border-white/20 bg-white/92 p-5 shadow-2xl backdrop-blur dark:bg-gray-950/88">
               <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 Public hierarchy
@@ -46,33 +78,6 @@ export default function Home() {
                     </span>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-center gap-6 text-white">
-              <p className="text-sm font-semibold uppercase tracking-wide text-emerald-200">
-                RealtorNet
-              </p>
-              <h2 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
-                Find property through trusted real estate agencies
-              </h2>
-              <p className="max-w-2xl text-lg leading-8 text-white/85">
-                Browse approved agencies, inspect their listings, and move from
-                discovery to inquiry with visible ownership at every step.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/agencies"
-                  className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                >
-                  Browse agencies
-                </Link>
-                <Link
-                  href="/properties"
-                  className="inline-flex items-center justify-center rounded-lg border border-white/50 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
-                >
-                  View listings
-                </Link>
               </div>
             </div>
           </div>
@@ -148,7 +153,7 @@ export default function Home() {
                 href="/agencies"
                 className="mt-5 inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
-                Browse agencies
+                Join an agency
               </Link>
             </div>
           </div>
