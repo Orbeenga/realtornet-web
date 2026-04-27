@@ -27,8 +27,9 @@ function getStatusVariant(status: string) {
 export function MyJoinRequestsClient() {
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
-  const isSeeker = Boolean(token) && role === "seeker";
-  const requestsQuery = useMyAgencyJoinRequests(isSeeker);
+  const canViewAgencyRequests =
+    Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
+  const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
 
   if (!token) {
     return (
@@ -48,11 +49,11 @@ export function MyJoinRequestsClient() {
     );
   }
 
-  if (!isSeeker) {
+  if (!canViewAgencyRequests) {
     return (
       <EmptyState
-        title="Join requests are for seekers"
-        description="Use a seeker account to track requests to join agency rosters."
+        title="Agency requests are not available"
+        description="Use a seeker, agent, or agency owner account to track agency join activity."
       />
     );
   }
@@ -79,17 +80,17 @@ export function MyJoinRequestsClient() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-          My Requests
+          My Agencies
         </h1>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Track agency join requests you have submitted.
+          Track agencies you have joined and requests that are still under review.
         </p>
       </div>
 
       {requests.length === 0 ? (
         <EmptyState
           title="No join requests yet"
-          description="Open an agency profile and request to join as an agent."
+          description="Open an agency profile and request to join its roster."
         />
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
