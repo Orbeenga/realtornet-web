@@ -1,21 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
+import { Button, Card, CardBody, EmptyState, ErrorState, Input, LoadingState } from "@/components";
 import { useAuth } from "@/features/auth/AuthContext";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
   useAgencyProfile,
   useCreateAgencyJoinRequest,
 } from "@/features/agencies/hooks";
+import { ApiError } from "@/lib/api/client";
 import { getStoredJwtRole } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 
 const joinRequestSchema = z.object({
+  full_name: z.string().trim().min(2, "Full name is required"),
+  email: z.email("Use a valid email address"),
+  phone_number: z.string().trim().min(6, "Phone number is required"),
   cover_note: z.string().trim().min(10, "Add a short cover note"),
+  portfolio_details: z.string().trim().optional().or(z.literal("")),
 });
 
 type JoinRequestFormValues = z.infer<typeof joinRequestSchema>;
@@ -32,25 +38,62 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
   const {
     register,
     handleSubmit,
+    reset,
     setError,
+    watch,
     formState: { errors, isSubmitSuccessful },
   } = useForm<JoinRequestFormValues>({
     resolver: zodResolver(joinRequestSchema),
     defaultValues: {
+      full_name: [user?.first_name, user?.last_name].filter(Boolean).join(" "),
+      email: user?.email ?? "",
+      phone_number: user?.phone_number ?? "",
       cover_note: "",
+      portfolio_details: "",
     },
   });
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    reset((current) => ({
+      ...current,
+      full_name:
+        current.full_name ||
+        [user.first_name, user.last_name].filter(Boolean).join(" "),
+      email: current.email || user.email,
+      phone_number: current.phone_number || user.phone_number || "",
+    }));
+  }, [reset, user]);
+
   const onSubmit = async (values: JoinRequestFormValues) => {
     try {
+      const profileDetails = [
+        `Full name: ${values.full_name.trim()}`,
+        `Email: ${values.email.trim()}`,
+        `Phone: ${values.phone_number.trim()}`,
+        values.portfolio_details?.trim()
+          ? `Portfolio / background: ${values.portfolio_details.trim()}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
       await createJoinRequest.mutateAsync({
         cover_note: values.cover_note.trim(),
+        portfolio_details: profileDetails,
       });
       notify.success("Join request submitted");
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not submit your join request. Please try again.";
       setError("root", {
         type: "server",
-        message: "Could not submit your join request. Please try again.",
+        message,
       });
     }
   };
@@ -67,7 +110,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
             Sign in to request access
           </h1>
           <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
-            Agent join requests are available to signed-in seekers.
+            Agent join requests are available to signed-in seekers and agents.
           </p>
           <Link
             href="/login"
@@ -80,11 +123,11 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
     );
   }
 
-  if (role !== "seeker") {
+  if (role !== "seeker" && role !== "agent") {
     return (
       <EmptyState
-        title="Join requests are for seekers"
-        description="Use a seeker account to request to join an agency as an agent."
+        title="Join requests are for seekers and agents"
+        description="Use a seeker or agent account to request to join an agency."
       />
     );
   }
@@ -110,12 +153,13 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
           </h1>
           <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
             Your request to join {agencyQuery.data.name} has been sent for review.
+            You can track it from My Agencies.
           </p>
           <Link
-            href={`/agencies/${agencyId}`}
+            href="/account/join-requests"
             className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
           >
-            Back to Agency
+            View My Agencies
           </Link>
         </CardBody>
       </Card>
@@ -135,6 +179,37 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
         </div>
 
         <form className="space-y-5" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+          <div className="grid gap-5 md:grid-cols-2">
+            <Input
+              label="Full name"
+              placeholder="Your full name"
+              error={errors.full_name?.message}
+              {...register("full_name")}
+            />
+            <Input
+              label="Email"
+              type="email"
+              placeholder="you@example.com"
+              error={errors.email?.message}
+              {...register("email")}
+            />
+            <Input
+              label="Phone number"
+              placeholder="+234..."
+              error={errors.phone_number?.message}
+              {...register("phone_number")}
+            />
+            <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
+              <p className="font-medium text-gray-900 dark:text-white">
+                Request summary
+              </p>
+              <p className="mt-1">
+                {watch("full_name") || "Your name"} will be sent to this agency
+                with your contact details.
+              </p>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label htmlFor="cover-note" className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Cover note
@@ -149,6 +224,24 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
             {errors.cover_note?.message ? (
               <p className="text-xs text-red-600" role="alert">
                 {errors.cover_note.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="portfolio-details" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Portfolio / background
+            </label>
+            <textarea
+              id="portfolio-details"
+              rows={5}
+              className="min-h-32 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              placeholder="Share your experience, coverage areas, specialties, or links the agency should review."
+              {...register("portfolio_details")}
+            />
+            {errors.portfolio_details?.message ? (
+              <p className="text-xs text-red-600" role="alert">
+                {errors.portfolio_details.message}
               </p>
             ) : null}
           </div>
