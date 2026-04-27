@@ -12,6 +12,7 @@ export {
 } from "./useAgencyApplications";
 export {
   useAgencyJoinRequests,
+  useAcceptAgencyInvite,
   useApproveAgencyJoinRequest,
   useCreateAgencyJoinRequest,
   useInviteAgencyAgent,

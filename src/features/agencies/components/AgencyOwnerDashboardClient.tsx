@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { notify } from "@/lib/toast";
+import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
   useAgencyAgents,
@@ -46,8 +47,15 @@ export function AgencyOwnerDashboardClient() {
   const { user } = useAuth();
   const agenciesQuery = useAgencies(gate.isAllowed);
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
   const agency = useMemo(() => {
+    if (typeof user?.agency_id === "number") {
+      return (agenciesQuery.data ?? []).find(
+        (candidate) => candidate.agency_id === user.agency_id,
+      );
+    }
+
     const email = user?.email?.toLowerCase();
 
     if (!email) {
@@ -57,7 +65,7 @@ export function AgencyOwnerDashboardClient() {
     return (agenciesQuery.data ?? []).find(
       (candidate) => candidate.owner_email?.toLowerCase() === email,
     );
-  }, [agenciesQuery.data, user?.email]);
+  }, [agenciesQuery.data, user?.agency_id, user?.email]);
 
   const agencyId = agency?.agency_id;
   const agentsQuery = useAgencyAgents(agencyId ?? "");
@@ -106,13 +114,19 @@ export function AgencyOwnerDashboardClient() {
 
   const handleInvite = async (values: InviteFormValues) => {
     try {
-      await inviteAgent.mutateAsync({ email: values.email.trim() });
+      const invite = await inviteAgent.mutateAsync({ email: values.email.trim() });
+      const inviteUrl = `${window.location.origin}/agencies/accept-invite?token=${encodeURIComponent(invite.invite_token)}`;
+      setLastInviteUrl(inviteUrl);
       notify.success("Invite created");
       reset();
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not create invite. Please try again.";
       setError("root", {
         type: "server",
-        message: "Could not create invite. Please try again.",
+        message,
       });
     }
   };
@@ -231,7 +245,12 @@ export function AgencyOwnerDashboardClient() {
           {joinRequestsQuery.isError ? (
             <ErrorState
               title="Could not load join requests"
-              message="There was a problem loading pending requests."
+              message={
+                joinRequestsQuery.error instanceof ApiError &&
+                typeof joinRequestsQuery.error.detail === "string"
+                  ? joinRequestsQuery.error.detail
+                  : "There was a problem loading pending requests."
+              }
               onRetry={() => {
                 void joinRequestsQuery.refetch();
               }}
@@ -392,6 +411,19 @@ export function AgencyOwnerDashboardClient() {
                 Send invite
               </Button>
             </form>
+            {lastInviteUrl ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+                <p className="font-medium text-emerald-900 dark:text-emerald-100">
+                  Invite link created
+                </p>
+                <a
+                  href={lastInviteUrl}
+                  className="mt-1 block break-all text-emerald-700 underline dark:text-emerald-300"
+                >
+                  {lastInviteUrl}
+                </a>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
       </div>
