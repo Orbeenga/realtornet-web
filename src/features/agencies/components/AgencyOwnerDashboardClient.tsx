@@ -42,6 +42,10 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatOptionalDate(value?: string | null) {
+  return value ? formatDate(value) : "Not recorded";
+}
+
 function getJoinRequestBadgeVariant(status: string) {
   if (status === "approved") {
     return "success" as const;
@@ -270,8 +274,8 @@ export function AgencyOwnerDashboardClient() {
           ) : null}
           {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.length === 0 ? (
             <EmptyState
-              title="No pending requests"
-              description="New seeker requests will appear here."
+              title="No join requests"
+              description="New requests and decision history will appear here."
             />
           ) : null}
           {!joinRequestsQuery.isLoading && joinRequests.length > 0 ? (
@@ -294,6 +298,11 @@ export function AgencyOwnerDashboardClient() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
                       </p>
+                      {request.status !== "pending" ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Decision recorded {formatOptionalDate(request.decided_at)}
+                        </p>
+                      ) : null}
                       {request.cover_note ? (
                         <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                           {request.cover_note}
@@ -392,31 +401,52 @@ export function AgencyOwnerDashboardClient() {
             {!agentsQuery.isLoading && agents.length > 0 ? (
               <div className="divide-y divide-border">
                 {agents.map((agent) => (
-                  <Link
-                    key={agent.profile_id}
-                    href={`/agents/${agent.profile_id}`}
-                    className="flex items-center justify-between gap-4 py-4"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {agent.company_name ?? "Listing agent"}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {agent.specialization ?? "Real estate agent"}
-                      </p>
-                      <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        {agent.years_experience != null ? (
-                          <span>{agent.years_experience} years experience</span>
-                        ) : null}
-                        {agent.license_number ? (
-                          <span>License {agent.license_number}</span>
-                        ) : null}
+                  <div key={agent.membership_id} className="flex items-center justify-between gap-4 py-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {agent.profile_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={agent.profile_image_url}
+                          alt=""
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                          {(agent.display_name || "Agent")
+                            .split(/\s+/)
+                            .slice(0, 2)
+                            .map((part) => part[0]?.toUpperCase() ?? "")
+                            .join("")}
+                        </div>
+                      )}
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {agent.display_name || agent.company_name || "Listing agent"}
+                        </p>
+                        <p className="truncate text-sm text-gray-500 dark:text-gray-400">
+                          {agent.email}
+                          {agent.phone_number ? ` - ${agent.phone_number}` : ""}
+                        </p>
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span>{agent.specialization ?? "Real estate agent"}</span>
+                          {agent.years_experience != null ? (
+                            <span>{agent.years_experience} years experience</span>
+                          ) : null}
+                          {agent.license_number ? (
+                            <span>License {agent.license_number}</span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                      View
-                    </span>
-                  </Link>
+                    {agent.profile_id ? (
+                      <Link
+                        href={`/agents/${agent.profile_id}`}
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400"
+                      >
+                        View
+                      </Link>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             ) : null}

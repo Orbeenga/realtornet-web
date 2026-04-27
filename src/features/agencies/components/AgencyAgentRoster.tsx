@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { Card, CardBody, EmptyState, Skeleton } from "@/components";
-import type { Agent, UserProfile } from "@/types";
+import type { AgencyAgentRosterMember } from "@/types";
 
 interface AgencyAgentRosterProps {
-  agents?: Agent[];
-  users?: Record<number, UserProfile | undefined>;
+  agents?: AgencyAgentRosterMember[];
   isLoading?: boolean;
 }
 
@@ -21,7 +20,6 @@ function getInitials(name: string) {
 
 export function AgencyAgentRoster({
   agents = [],
-  users = {},
   isLoading = false,
 }: AgencyAgentRosterProps) {
   return (
@@ -53,37 +51,52 @@ export function AgencyAgentRoster({
       {!isLoading && agents.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => {
-            const user = users[agent.user_id];
             const name =
-              [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() ||
+              agent.display_name ||
               agent.company_name ||
               "Listing agent";
-
-            return (
-              <Link key={agent.profile_id} href={`/agents/${agent.profile_id}`} className="block">
-                <Card hoverable className="h-full">
-                  <CardBody className="space-y-4">
-                    <div className="flex items-center gap-4">
+            const card = (
+              <Card hoverable={Boolean(agent.profile_id)} className="h-full">
+                <CardBody className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    {agent.profile_image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={agent.profile_image_url}
+                        alt=""
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
                         {getInitials(name)}
                       </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                          {name}
-                        </p>
-                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                          {agent.specialization ?? "Real estate agent"}
-                        </p>
-                      </div>
-                    </div>
-                    {user?.email ? (
-                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                        {user.email}
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                        {name}
                       </p>
+                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                        {agent.specialization ?? "Real estate agent"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="truncate">{agent.email}</p>
+                    {agent.phone_number ? <p className="truncate">{agent.phone_number}</p> : null}
+                    {agent.years_experience != null ? (
+                      <p>{agent.years_experience} years experience</p>
                     ) : null}
-                  </CardBody>
-                </Card>
+                  </div>
+                </CardBody>
+              </Card>
+            );
+
+            return agent.profile_id ? (
+              <Link key={agent.membership_id} href={`/agents/${agent.profile_id}`} className="block">
+                {card}
               </Link>
+            ) : (
+              <div key={agent.membership_id}>{card}</div>
             );
           })}
         </div>

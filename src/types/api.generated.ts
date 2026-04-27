@@ -811,7 +811,7 @@ export interface paths {
         put?: never;
         /**
          * Create Agency Join Request
-         * @description Create a pending seeker-to-agent request for an approved agency.
+         * @description Create a pending request to affiliate with an approved agency.
          */
         post: operations["create_agency_join_request_api_v1_agencies__agency_id__join_request__post"];
         delete?: never;
@@ -829,7 +829,7 @@ export interface paths {
         };
         /**
          * Read Agency Join Requests
-         * @description Return pending join requests for the authenticated agency owner.
+         * @description Return join requests for the authenticated agency owner.
          */
         get: operations["read_agency_join_requests_api_v1_agencies__agency_id__join_requests__get"];
         put?: never;
@@ -3045,6 +3045,50 @@ export interface components {
              */
             created_at: string;
         };
+        /** AgencyAgentRosterResponse */
+        AgencyAgentRosterResponse: {
+            /** User Id */
+            user_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Membership Id */
+            membership_id: number;
+            /** Membership Status */
+            membership_status: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Phone Number */
+            phone_number?: string | null;
+            /** Profile Image Url */
+            profile_image_url?: string | null;
+            /** Profile Id */
+            profile_id?: number | null;
+            /** Specialization */
+            specialization?: string | null;
+            /** Years Experience */
+            years_experience?: number | null;
+            /** License Number */
+            license_number?: string | null;
+            /** Bio */
+            bio?: string | null;
+            /** Company Name */
+            company_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * AgencyApplicationCreate
          * @description Public agency application payload.
@@ -3178,6 +3222,10 @@ export interface components {
             portfolio_details?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By */
+            decided_by?: number | null;
             /** Seeker Email */
             seeker_email?: string | null;
             /** Seeker Name */
@@ -3845,6 +3893,10 @@ export interface components {
             status: components["schemas"]["AgencyJoinRequestStatus"];
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By */
+            decided_by?: number | null;
             /**
              * Submitted At
              * Format: date-time
@@ -5959,7 +6011,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentProfileResponse"][];
+                    "application/json": components["schemas"]["AgencyAgentRosterResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -6047,6 +6099,7 @@ export interface operations {
     read_agency_join_requests_api_v1_agencies__agency_id__join_requests__get: {
         parameters: {
             query?: {
+                status?: string;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
