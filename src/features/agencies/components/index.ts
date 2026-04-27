@@ -6,6 +6,7 @@ export { AgencyDirectoryClient } from "./AgencyDirectoryClient";
 export { AgencyApplyForm } from "./AgencyApplyForm";
 export { AdminAgenciesClient } from "./AdminAgenciesClient";
 export { AgencyDirectoryActions } from "./AgencyDirectoryActions";
+export { AgencyInviteAcceptClient } from "./AgencyInviteAcceptClient";
 export { AgencyJoinRequestForm } from "./AgencyJoinRequestForm";
 export { AgencyOwnerDashboardClient } from "./AgencyOwnerDashboardClient";
 export { MyJoinRequestsClient } from "./MyJoinRequestsClient";

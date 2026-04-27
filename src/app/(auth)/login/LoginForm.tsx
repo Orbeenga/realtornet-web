@@ -13,13 +13,15 @@ export default function LoginForm() {
   const { signIn, user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
+  const safeNextPath = nextPath?.startsWith("/") ? nextPath : null;
   const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && user) {
-      router.push(getPostLoginPath(user.user_role));
+      router.push(safeNextPath ?? getPostLoginPath(user.user_role));
     }
-  }, [loading, router, user]);
+  }, [loading, router, safeNextPath, user]);
 
   const {
     register,

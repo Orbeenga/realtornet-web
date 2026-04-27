@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type {
   AgencyInviteCreate,
+  AgencyInviteAcceptRequest,
+  AgencyInviteAcceptResponse,
   AgencyInviteResponse,
   AgencyJoinRequestCreate,
   AgencyJoinRequestRejectRequest,
@@ -88,6 +90,24 @@ export function useInviteAgencyAgent(agencyId?: string | number | null) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+  });
+}
+
+export function useAcceptAgencyInvite() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: AgencyInviteAcceptRequest) =>
+      apiClient<AgencyInviteAcceptResponse>("/api/v1/agencies/accept-invite/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] }),
+        queryClient.invalidateQueries({ queryKey: ["agentProfileByUser"] }),
+      ]);
+    },
   });
 }
 
