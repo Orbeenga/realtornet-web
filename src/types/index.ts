@@ -10,6 +10,7 @@ export type PropertyType = components["schemas"]["PropertyTypeResponse"];
 export type PropertyCreate = components["schemas"]["PropertyCreate"];
 export type PropertyUpdate = components["schemas"]["PropertyUpdate"];
 export type Agent = components["schemas"]["AgentProfileResponse"];
+export type AgencyAgentRosterMember = components["schemas"]["AgencyAgentRosterResponse"];
 export type Agency = components["schemas"]["AgencyResponse"];
 export type AgencyApplicationCreate = components["schemas"]["AgencyApplicationCreate"];
 export type AgencyApplicationResponse = components["schemas"]["AgencyApplicationResponse"];
