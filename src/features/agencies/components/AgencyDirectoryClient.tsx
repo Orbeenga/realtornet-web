@@ -3,10 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Input, Skeleton } from "@/components";
-import { useAuth } from "@/features/auth/AuthContext";
-import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAgencies, useVisibleAgencyStats } from "@/features/agencies/hooks";
-import { getStoredJwtRole } from "@/lib/jwt";
 import type { Agency } from "@/types";
 
 const PAGE_SIZE = 9;
@@ -25,95 +22,75 @@ function AgencyDirectoryCard({
   listingCount,
   agentCount,
   statsLoading,
-  canRequestToJoin,
 }: {
   agency: Agency;
   listingCount: number;
   agentCount: number;
   statsLoading: boolean;
-  canRequestToJoin: boolean;
 }) {
   const initials = getInitials(agency.name);
 
   return (
-    <Card hoverable className="h-full">
-      <CardBody className="flex h-full flex-col gap-5">
-        <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 text-base font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-            {agency.logo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={agency.logo_url} alt={agency.name} className="h-full w-full object-cover" />
-            ) : (
-              initials || "AG"
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="line-clamp-1 text-base font-semibold text-gray-900 dark:text-white">
-                {agency.name}
-              </h2>
-              {agency.is_verified ? <Badge>Verified</Badge> : null}
+    <Link href={`/agencies/${agency.agency_id}`} className="block h-full">
+      <Card hoverable className="h-full">
+        <CardBody className="flex h-full flex-col gap-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 text-base font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+              {agency.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={agency.logo_url} alt={agency.name} className="h-full w-full object-cover" />
+              ) : (
+                initials || "AG"
+              )}
             </div>
-            {agency.address ? (
-              <p className="mt-1 line-clamp-1 text-sm text-gray-500 dark:text-gray-400">
-                {agency.address}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="line-clamp-1 text-base font-semibold text-gray-900 dark:text-white">
+                  {agency.name}
+                </h2>
+                {agency.is_verified ? <Badge>Verified</Badge> : null}
+              </div>
+              {agency.address ? (
+                <p className="mt-1 line-clamp-1 text-sm text-gray-500 dark:text-gray-400">
+                  {agency.address}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {agency.description ? (
+            <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-gray-600 dark:text-gray-300">
+              {agency.description}
+            </p>
+          ) : (
+            <p className="min-h-[4.5rem] text-sm leading-6 text-gray-500 dark:text-gray-400">
+              Agency profile details are being prepared.
+            </p>
+          )}
+
+          <div className="mt-auto grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
+              <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                {statsLoading ? "..." : listingCount}
               </p>
-            ) : null}
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
+              <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                {statsLoading ? "..." : agentCount}
+              </p>
+            </div>
           </div>
-        </div>
-
-        {agency.description ? (
-          <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-gray-600 dark:text-gray-300">
-            {agency.description}
-          </p>
-        ) : (
-          <p className="min-h-[4.5rem] text-sm leading-6 text-gray-500 dark:text-gray-400">
-            Agency profile details are being prepared.
-          </p>
-        )}
-
-        <div className="mt-auto grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
-            <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-              {statsLoading ? "..." : listingCount}
-            </p>
-          </div>
-          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
-            <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-              {statsLoading ? "..." : agentCount}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/agencies/${agency.agency_id}`}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"
-          >
-            View agency
-          </Link>
-          {canRequestToJoin ? (
-            <Link
-              href={`/agencies/${agency.agency_id}/join`}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-            >
-              Request to join
-            </Link>
-          ) : null}
-        </div>
-      </CardBody>
-    </Card>
+        </CardBody>
+      </Card>
+    </Link>
   );
 }
 
 export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const { user } = useAuth();
-  const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
-  const canRequestToJoin = role === null || role === "seeker" || role === "agent";
   const agenciesQuery = useAgencies();
 
   const approvedAgencies = useMemo(
@@ -198,7 +175,6 @@ export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }
                 listingCount={stats?.listingCount ?? 0}
                 agentCount={stats?.agentCount ?? 0}
                 statsLoading={stats?.isLoading ?? true}
-                canRequestToJoin={canRequestToJoin}
               />
             );
           })}
