@@ -105,6 +105,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
     return [
       { href: "/agencies", label: "Agencies" },
       { href: "/properties", label: "Properties" },
+      { href: "/account/join-requests", label: "My Agencies" },
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "Favorites" },
@@ -115,7 +116,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
     return [
       { href: "/agencies", label: "Agencies" },
       { href: "/properties", label: "Properties" },
-      { href: "/account/join-requests", label: "My Requests" },
+      { href: "/account/join-requests", label: "My Agencies" },
       { href: "/account/favorites", label: "Favorites" },
       { href: "/account/saved-searches", label: "Saved searches" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },

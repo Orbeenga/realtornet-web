@@ -42,6 +42,18 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function getJoinRequestBadgeVariant(status: string) {
+  if (status === "approved") {
+    return "success" as const;
+  }
+
+  if (status === "rejected") {
+    return "danger" as const;
+  }
+
+  return "warning" as const;
+}
+
 export function AgencyOwnerDashboardClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
@@ -234,10 +246,10 @@ export function AgencyOwnerDashboardClient() {
         <CardBody className="space-y-4">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Pending join requests
+              Join requests
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Review seekers asking to join your agency roster.
+              Review and audit people asking to join your agency roster.
             </p>
           </div>
 
@@ -275,7 +287,9 @@ export function AgencyOwnerDashboardClient() {
                         <p className="font-semibold text-gray-900 dark:text-white">
                           {request.seeker_name ?? "Seeker"}
                         </p>
-                        <Badge variant="warning">{request.status}</Badge>
+                        <Badge variant={getJoinRequestBadgeVariant(request.status)}>
+                          {request.status}
+                        </Badge>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
@@ -285,7 +299,21 @@ export function AgencyOwnerDashboardClient() {
                           {request.cover_note}
                         </p>
                       ) : null}
+                      {request.portfolio_details ? (
+                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
+                          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Profile details
+                          </p>
+                          <p className="whitespace-pre-wrap">{request.portfolio_details}</p>
+                        </div>
+                      ) : null}
+                      {request.rejection_reason ? (
+                        <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                          {request.rejection_reason}
+                        </div>
+                      ) : null}
                     </div>
+                    {request.status === "pending" ? (
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
@@ -311,19 +339,22 @@ export function AgencyOwnerDashboardClient() {
                         Reject
                       </Button>
                     </div>
+                    ) : null}
                   </div>
-                  <Input
-                    className="mt-4"
-                    label="Reject reason"
-                    placeholder="Optional note for rejection"
-                    value={rejectReasons[request.join_request_id] ?? ""}
-                    onChange={(event) =>
-                      setRejectReasons((current) => ({
-                        ...current,
-                        [request.join_request_id]: event.target.value,
-                      }))
-                    }
-                  />
+                  {request.status === "pending" ? (
+                    <Input
+                      className="mt-4"
+                      label="Reject reason"
+                      placeholder="Optional note for rejection"
+                      value={rejectReasons[request.join_request_id] ?? ""}
+                      onChange={(event) =>
+                        setRejectReasons((current) => ({
+                          ...current,
+                          [request.join_request_id]: event.target.value,
+                        }))
+                      }
+                    />
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -366,13 +397,21 @@ export function AgencyOwnerDashboardClient() {
                     href={`/agents/${agent.profile_id}`}
                     className="flex items-center justify-between gap-4 py-4"
                   >
-                    <div>
+                    <div className="min-w-0 space-y-1">
                       <p className="font-medium text-gray-900 dark:text-white">
                         {agent.company_name ?? "Listing agent"}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {agent.specialization ?? "Real estate agent"}
                       </p>
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        {agent.years_experience != null ? (
+                          <span>{agent.years_experience} years experience</span>
+                        ) : null}
+                        {agent.license_number ? (
+                          <span>License {agent.license_number}</span>
+                        ) : null}
+                      </div>
                     </div>
                     <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
                       View

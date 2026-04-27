@@ -12,6 +12,8 @@ import type {
 } from "@/types";
 
 export function useCreateAgencyJoinRequest(agencyId: string | number) {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (payload: AgencyJoinRequestCreate) =>
       apiClient<AgencyJoinRequestResponse>(
@@ -21,6 +23,9 @@ export function useCreateAgencyJoinRequest(agencyId: string | number) {
           body: JSON.stringify(payload),
         },
       ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
   });
 }
 
@@ -48,11 +53,17 @@ export function useApproveAgencyJoinRequest(agencyId?: string | number | null) {
         `/api/v1/agencies/${agencyId}/join-requests/${requestId}/approve/`,
         { method: "PATCH" },
       ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId] }),
-        queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] }),
-      ]);
+    onSuccess: async (_data, requestId) => {
+      queryClient.setQueryData<AgencyJoinRequestResponse[]>(
+        ["agencyJoinRequests", agencyId],
+        (current) =>
+          current?.map((request) =>
+            request.join_request_id === requestId
+              ? { ...request, status: "approved" }
+              : request,
+          ) ?? current,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] });
     },
   });
 }
@@ -75,10 +86,20 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
           body: JSON.stringify(payload ?? {}),
         },
       ),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["agencyJoinRequests", agencyId],
-      });
+    onSuccess: async (_data, variables) => {
+      queryClient.setQueryData<AgencyJoinRequestResponse[]>(
+        ["agencyJoinRequests", agencyId],
+        (current) =>
+          current?.map((request) =>
+            request.join_request_id === variables.requestId
+              ? {
+                  ...request,
+                  status: "rejected",
+                  rejection_reason: variables.payload?.reason ?? null,
+                }
+              : request,
+          ) ?? current,
+      );
     },
   });
 }
