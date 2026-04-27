@@ -34,10 +34,10 @@ export function useAgencyJoinRequests(
   enabled = true,
 ) {
   return useQuery({
-    queryKey: ["agencyJoinRequests", agencyId],
+    queryKey: ["agencyJoinRequests", agencyId, "all"],
     queryFn: () =>
       apiClient<AgencyJoinRequestResponse[]>(
-        `/api/v1/agencies/${agencyId}/join-requests/?limit=100`,
+        `/api/v1/agencies/${agencyId}/join-requests/?status=all&limit=100`,
       ),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId),
@@ -55,15 +55,18 @@ export function useApproveAgencyJoinRequest(agencyId?: string | number | null) {
       ),
     onSuccess: async (_data, requestId) => {
       queryClient.setQueryData<AgencyJoinRequestResponse[]>(
-        ["agencyJoinRequests", agencyId],
+        ["agencyJoinRequests", agencyId, "all"],
         (current) =>
           current?.map((request) =>
             request.join_request_id === requestId
-              ? { ...request, status: "approved" }
+              ? { ...request, ..._data }
               : request,
           ) ?? current,
       );
-      await queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] }),
+      ]);
     },
   });
 }
@@ -88,18 +91,18 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
       ),
     onSuccess: async (_data, variables) => {
       queryClient.setQueryData<AgencyJoinRequestResponse[]>(
-        ["agencyJoinRequests", agencyId],
+        ["agencyJoinRequests", agencyId, "all"],
         (current) =>
           current?.map((request) =>
             request.join_request_id === variables.requestId
               ? {
                   ...request,
-                  status: "rejected",
-                  rejection_reason: variables.payload?.reason ?? null,
+                  ..._data,
                 }
               : request,
           ) ?? current,
       );
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
     },
   });
 }
