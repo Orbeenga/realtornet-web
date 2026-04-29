@@ -9,23 +9,42 @@
 - The area file owns stack rules and implementation-specific guidance.
 
 ## Current phase state
-- Phase F remains active for frontend verification and polish.
-- F.3 mobile LCP is effectively closed from the latest measured result: LCP about 1.9s on `/properties`.
-- F.4 TBT is not fully closed technically; the exit criterion has been revised and promoted to Phase G review.
-- F.5 is not blocked by DEF-FE-004A. Listing verification/admin verification flow remains the immediate product flow to finish validating live.
+- Phase G is closed through G.7 Integration & Exit.
+- Phase H is the next active phase.
+- Frontend production: Next.js 16.2.1 on Vercel at `realtornet-web.vercel.app`.
+- Backend production: Railway at `realtornet-production.up.railway.app`.
+- Production Supabase project: `avkhpachzsbgmbnkfnhu`.
+- Dev Supabase project: `umhtnqxdvffpifqbdtjs`; do not use for production work.
+
+## Phase G locked architecture decisions
+- Agency-first public hierarchy is locked: Agencies -> Listings -> Agents.
+- `agency_owner` is active in the role enum; all four roles are live: `seeker`, `agent`, `agency_owner`, `admin`.
+- Multi-agency membership is modeled through `agency_agent_memberships`.
+- Moderation status enum includes `pending_review`, `verified`, `rejected`, and `revoked`.
+- Seeker-to-agency join-request flow is live.
+- Agent invitation flow is live, including persistent invitation inbox and accept/reject actions.
+- Agency membership management is live for suspend, revoke, block, restore, and review-decision flows.
+- Public agency, agent, and property discovery must remain browseable without login; auth gates belong only on transactional actions.
 
 ## Locked contracts
-- Backend is the source of truth for roles, permissions, property verification, and location references.
-- Public signup creates seeker/buyer behavior only; agent and admin remain backend-authoritative roles.
-- `/account/listings` admits `agent` and `admin`; seekers are redirected away.
+- Backend is the source of truth for roles, permissions, property verification, agency membership state, and location references.
+- Public signup creates seeker behavior only; agent, agency owner, and admin roles remain backend-authoritative.
 - The frontend must keep using generated API types from `src/types/api.generated.ts`.
-- Property creation still depends on `location_id` in the current API contract. Do not replace it with frontend-only free-text geocoding unless backend contract changes.
-- Public routes must stay server-first and must not depend on auth redirects.
+- Run `pnpm gen:types` against production Railway whenever backend schemas change.
+- Property creation still depends on `location_id` in the current API contract.
+- No `fetch()` calls in React components; API access belongs in hooks and shared client helpers.
 
 ## Open bugs and active follow-ups
-- Production property type and location dropdowns currently show one real option each because production seed data only contains one property type and one location.
-- Browserslist target has been updated, but residual `core-js` remains in emitted client output through third-party dependencies. Full elimination is deferred to Phase G dependency audit.
-- TBT remains above the original goal after code splitting and shared-weight cleanup. Further reduction likely requires architectural changes outside Phase F scope.
+- No Phase G exit-blocking frontend bugs are open as of G.7 validation.
+- Residual `core-js` output from third-party dependencies remains a future dependency-audit item.
+- Production seed breadth remains thin for some property types and locations; that is data coverage, not a frontend contract bug.
+
+## Latest G.7 validation
+- `pnpm gen:types` against production Railway completed; generated types were current.
+- `pnpm exec tsc --noEmit` completed with 0 errors.
+- `pnpm build` completed cleanly on Next.js 16.2.1 with no warnings in the build output.
+- Lighthouse mobile on `/agencies`: LCP 1.5s, accessibility 1.00, performance 0.92, CLS 0.
+- Production route walkthrough returned HTTP 200 with content for `/`, `/agencies/`, `/agencies/1/`, `/agencies/apply/`, `/account/join-requests/`, `/account/agency/`, and `/account/admin/agencies/`.
 
 ## Session template
 At session start, capture:
@@ -39,7 +58,3 @@ At session end, capture:
 - What was verified
 - What is still open
 - Whether production deploy or live validation is still pending
-
-## /wrap requirement
-- At the end of each Claude Code session, run `/wrap`.
-- Use `/wrap` to record current phase state, locked contracts, open bugs, and next-step handoff notes so future sessions do not require manual paste-in context.

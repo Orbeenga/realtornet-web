@@ -43,9 +43,10 @@ export function MyJoinRequestsClient() {
   const role = normalizeAppRole(getStoredJwtRole());
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
+  const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
   const membershipsQuery = useMyAgencyMemberships(Boolean(token) && role === "agent");
-  const invitationsQuery = useMyAgencyInvitations(Boolean(token) && role === "agent");
+  const invitationsQuery = useMyAgencyInvitations(canViewAgencyInvitations);
   const createReviewRequest = useCreateAgencyMembershipReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();

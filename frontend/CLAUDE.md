@@ -1,126 +1,76 @@
-# RealtorNet - Frontend CLAUDE.md
+# RealtorNet - Frontend Claude Context
 <!-- Place at: /frontend/CLAUDE.md -->
 <!-- Loaded after root CLAUDE.md. Frontend agent only. -->
 
 ## Entry State
 
-Next.js 16.2.1 deployed on Vercel. Phase D + E closed. Phase F is closed. Phase G is now open.
+Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration & Exit; Phase H opens next.
 
-## Navigation Contract (Locked - Do Not Modify Without Referencing navigation.ts)
+## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
 | Role | Navbar items | Post-login redirect |
 |---|---|---|
-| Seeker | Properties, Favorites, Saved searches, Inquiries | `/properties` |
-| Agent | Properties, My Listings, Inquiries, Favorites | `/account/listings` |
-| Admin | Properties, Property moderation, Users, Inquiries | `/account/listings` |
+| Logged out | Agencies, Properties | n/a |
+| Seeker | Agencies, Properties, My Agencies, Favorites, Saved searches, My Inquiries | `/properties` |
+| Agent | Agencies, Properties, My Agencies, My Listings, Inquiries, Favorites | `/account/listings` |
+| Agency owner | Agencies, Properties, My Listings, Inquiries, Favorites, Agency dashboard | `/account/agency` |
+| Admin | Properties, Agencies, Property moderation, Users, Inquiries, Agencies admin | `/account/listings` |
 
-- `/account/listings` gate: `role === "agent" || role === "admin"`
-- `/account/users` gate: `role === "admin"`
-- Admin listings data source: `GET /api/v1/admin/properties`
-- Agent listings data source: own listings only
+- `agency_owner` receives agent-style navigation plus `/account/agency`.
+- `/account/listings` admits `agent`, `agency_owner`, and `admin` where page-level role gates allow it.
+- `/account/agency` is agency-owner only.
+- `/account/users` and `/account/admin/agencies` are admin only.
+- `/account/join-requests` is the user-facing "My Agencies" surface for seeker and agent agency activity.
 
 ## API Layer Rules
 
-- No `fetch()` calls inside components - always use hooks
-- All API calls go through TanStack Query hooks in `/features/*/hooks/`
-- API types come from `src/types/api.generated.ts` only - no manual interfaces
-- `apiClient` injects the Bearer token on every request
-- `ApiError` normalizes error shape as `status`, `detail`, and `fieldErrors`
+- No `fetch()` calls inside components; use hooks in `/features/*/hooks/`.
+- API calls go through `apiClient`, which injects the Bearer token and preserves trailing slashes.
+- API response types come from `src/types/api.generated.ts`; do not hand-roll response interfaces.
+- `ApiError` normalizes error shape as `status`, `detail`, and `fieldErrors`.
+- Run `pnpm gen:types` against `https://realtornet-production.up.railway.app` after every backend contract change.
 
-## Auth Rules
+## Phase G Closed Scope
 
-- Supabase Auth JS SDK manages session
-- Silent JWT refresh on 401 is implemented: refresh -> retry once -> logout on failure
-- Logout flow: `supabase.auth.signOut()` + `router.push("/login")` + `queryClient.clear()`
-- Registration remains seeker-only from the frontend
-- Admin role promotion now goes through the backend API so DB role data and Supabase Auth metadata stay in sync
-
-## Code Rules
-
-- TypeScript strict mode - `tsc --noEmit` must pass on every commit
-- No `any` without explicit justification
-- No inline styles - Tailwind classes only
-- No manual API response interfaces when generated types exist
-- Zod schemas should mirror backend field names and types
-
-## Resolved This Session
-
-| Item | Status |
-|---|---|
-| Amenities API fetch | Resolved |
-| Verify/unverify query invalidation | Resolved |
-| Agent My Listings frontend filter check | Resolved |
-| Inquiry empty state on received inquiries | Resolved |
-| Agency branding on property detail | Resolved |
-| Admin promotion UI | Resolved |
-| Supabase Auth sync path via admin API | Resolved |
-
-## Phase G Active Backlog
-
-| Item | Status |
-|---|---|
-| DEF-G-INQ-002 | Inquiry property hydration / 204 investigation |
-| DEF-G-TBT-001 | TBT < 100ms (RSC evaluation) |
-| DEF-G-MOD-001 | Full moderation status enum |
-| DEF-G-AG-001 | Agency name on property cards |
-| DEF-G-POLYFILL-001 | Residual core-js |
-| DEF-002 | Audit log retention |
-| DEF-007 | psycopg3 dev restart |
-| Phase G feature | Advanced map (Mapbox) |
-| Phase G feature | Admin analytics |
-| Phase G feature | Saved search notifications |
-| Phase G feature | Custom domain |
+- Agency-first landing page and public hierarchy are live: Agencies -> Listings -> Agents.
+- Public agency directory, agency profile, agent roster, and agency listings are live.
+- Agency application form includes `website_url` and admin approval/rejection UI.
+- Seeker join-request flow is live, including personal history on `/account/join-requests`.
+- Agent invitation flow is live, including persistent invited-user inbox with accept/reject actions.
+- Agency owner dashboard is live with profile summary, join-request review, roster management, sent invitations, and invite-by-email.
+- Agency membership management is wired for suspend, revoke, block, restore, and review decision actions.
+- Admin agencies page uses pending/approved tabs with approve, reject, revoke, and suspend actions.
 
 ## Bundle Notes
 
-- `PropertiesExplorer` dynamic import via client shell - deployed
-- Toast deferred initialization - deployed
-- React Query Devtools removed from production - deployed
-- `.browserslistrc` updated to modern targets
-- Residual `core-js` polyfills from third-party dependencies remain a Phase G concern
+- `PropertiesExplorer` remains dynamically loaded through the client shell.
+- Toast initialization is deferred.
+- React Query Devtools are removed from production.
+- `.browserslistrc` targets modern browsers.
+- Residual `core-js` can still appear from third-party dependencies; track under future dependency audit, not Phase G exit.
 
-## Locked Decisions
+## Latest G.7 Validation
 
-- Backend local env had been pointing at dev
-- Production Supabase project: `avkhpachzsbgmbnkfnhu`
-- Dev Supabase project: `umhtnqxdvffpifqbdtjs`
-- Never mix production and dev Supabase projects during verification, cleanup, or type regeneration
-- Agency branding is pre-launch scope on property detail only for now: compact logo + agency link on detail, no per-card fetches on listing grids
-- Property card agency text stays deferred until the property list response includes agency branding fields; do not introduce N+1 card fetches
-- Agency-wide inquiries remain deferred to Phase G; no frontend aggregation from per-property inquiry endpoints
+- `pnpm gen:types` against production Railway completed and left generated API types current.
+- `pnpm exec tsc --noEmit` completed with 0 errors.
+- `pnpm build` completed cleanly on Next.js 16.2.1 with no warnings in the build output.
+- Lighthouse mobile on `/agencies`: LCP 1.5s, accessibility 1.00, performance 0.92, CLS 0.
+- Production route walkthrough returned HTTP 200 with content for `/`, `/agencies/`, `/agencies/1/`, `/agencies/apply/`, `/account/join-requests/`, `/account/agency/`, and `/account/admin/agencies/`.
 
-## Lighthouse Targets
+## Open Bugs
 
-| Metric | Target | Status |
-|---|---|---|
-| Mobile LCP | < 2.5s | 2.0s confirmed |
-| Desktop TBT | < 300ms (revised) | ~800ms median |
-| Mobile TBT | < 300ms (revised) | ~800ms median |
-| CLS | < 0.1 | Green |
-| Accessibility | 0 critical violations | Confirmed |
+- No Phase G exit-blocking frontend bugs are open after G.7 validation.
+- Production data breadth remains a seed/data concern for locations and property types.
 
 ## Type Generation
 
 ```bash
+$env:NEXT_PUBLIC_API_URL='https://realtornet-production.up.railway.app'
 pnpm gen:types
-# Runs: node scripts/gen-types.mjs
-# Resolves the OpenAPI target from NEXT_PUBLIC_API_URL, with API_URL fallback
-# Run whenever backend schemas change
 ```
 
-## Local Lighthouse
+## Quality Gates
 
-```bash
-pnpm lighthouse
-# Runs: lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html
-# Point at the Vercel URL for production audits
-# Requires Chrome installed
-```
-
-## Next Session Handover
-
-- Start Phase G with `DEF-G-INQ-002` and verify the true cause of inquiry property hydration failures
-- Evaluate TBT reduction paths under `DEF-G-TBT-001`, including RSC/server-first migration options
-- Design the moderation-status enum expansion before implementation under `DEF-G-MOD-001`
-- Keep agency card branding blocked on backend response enrichment; do not introduce N+1 card fetches
-- Preserve the production vs dev Supabase separation during all future verification and cleanup work
+- `pnpm exec tsc --noEmit`
+- `pnpm build`
+- Lighthouse mobile on `/agencies` when a phase touches public discovery, navigation, or page weight.
