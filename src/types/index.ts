@@ -15,6 +15,7 @@ export type AgencyAgentMembershipResponse = components["schemas"]["AgencyAgentMe
 export type AgencyAgentMembershipStatus = components["schemas"]["AgencyAgentMembershipStatus"];
 export type AgencyAgentRosterMember = components["schemas"]["AgencyAgentRosterResponse"];
 export type AgencyMembershipReviewRequestCreate = components["schemas"]["AgencyMembershipReviewRequestCreate"];
+export type AgencyMembershipReviewDecisionRequest = components["schemas"]["AgencyMembershipReviewDecisionRequest"];
 export type AgencyMembershipReviewRequestResponse = components["schemas"]["AgencyMembershipReviewRequestResponse"];
 export type AgentMembershipRestrictionStatus = components["schemas"]["AgentMembershipRestrictionStatus"];
 export type Agency = components["schemas"]["AgencyResponse"];

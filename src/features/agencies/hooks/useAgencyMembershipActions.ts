@@ -4,13 +4,14 @@ import type {
   AgencyAgentMembershipActionRequest,
   AgencyAgentMembershipResponse,
   AgencyAgentRosterMember,
+  AgencyMembershipReviewDecisionRequest,
   AgencyMembershipReviewRequestCreate,
   AgencyMembershipReviewRequestResponse,
   MyAgencyMembershipResponse,
   MyAgentMembershipStatusResponse,
 } from "@/types";
 
-type MembershipAction = "suspend" | "revoke" | "block";
+type MembershipAction = "suspend" | "revoke" | "block" | "restore";
 
 interface MembershipMutationVariables {
   membershipId: number;
@@ -63,6 +64,56 @@ export function useRevokeAgencyMembership(agencyId?: string | number | null) {
 
 export function useBlockAgencyMembership(agencyId?: string | number | null) {
   return useAgencyMembershipAction(agencyId, "block");
+}
+
+export function useRestoreAgencyMembership(agencyId?: string | number | null) {
+  return useAgencyMembershipAction(agencyId, "restore");
+}
+
+interface ReviewDecisionVariables {
+  membershipId: number;
+  reviewRequestId: number;
+  payload?: AgencyMembershipReviewDecisionRequest;
+}
+
+function useAgencyMembershipReviewDecision(
+  agencyId?: string | number | null,
+  action?: "approve" | "reject",
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      reviewRequestId,
+      payload,
+    }: ReviewDecisionVariables) =>
+      apiClient<AgencyMembershipReviewRequestResponse>(
+        `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-requests/${reviewRequestId}/${action}/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload ?? {}),
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+      ]);
+    },
+  });
+}
+
+export function useApproveAgencyMembershipReview(
+  agencyId?: string | number | null,
+) {
+  return useAgencyMembershipReviewDecision(agencyId, "approve");
+}
+
+export function useRejectAgencyMembershipReview(
+  agencyId?: string | number | null,
+) {
+  return useAgencyMembershipReviewDecision(agencyId, "reject");
 }
 
 interface ReviewRequestVariables {

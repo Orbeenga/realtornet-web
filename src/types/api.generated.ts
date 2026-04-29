@@ -837,6 +837,26 @@ export interface paths {
         patch: operations["block_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__block__patch"];
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/agents/{membership_id}/restore/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Restore Agency Agent Membership
+         * @description Reactivate a revoked, suspended, or blocked agency membership.
+         */
+        patch: operations["restore_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__restore__patch"];
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/agents/{membership_id}/review-request/": {
         parameters: {
             query?: never;
@@ -855,6 +875,46 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/agents/{membership_id}/review-requests/{review_request_id}/approve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Approve Agency Membership Review Request
+         * @description Approve an agent review request and reactivate the membership.
+         */
+        patch: operations["approve_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_requests__review_request_id__approve__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/agents/{membership_id}/review-requests/{review_request_id}/reject/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reject Agency Membership Review Request
+         * @description Reject an agent review request while retaining the membership state.
+         */
+        patch: operations["reject_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_requests__review_request_id__reject__patch"];
         trace?: never;
     };
     "/api/v1/agencies/{agency_id}/properties": {
@@ -1536,6 +1596,26 @@ export interface paths {
          *     Audit: Tracks creator via user_id FK
          */
         post: operations["create_property_api_v1_properties__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/properties/featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Featured Properties
+         * @description Return recent public featured properties for the landing page.
+         */
+        get: operations["read_featured_properties_api_v1_properties_featured_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3283,6 +3363,12 @@ export interface components {
             bio?: string | null;
             /** Company Name */
             company_name?: string | null;
+            /** Pending Review Request Id */
+            pending_review_request_id?: number | null;
+            /** Pending Review Reason */
+            pending_review_reason?: string | null;
+            /** Pending Review Submitted At */
+            pending_review_submitted_at?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3451,6 +3537,11 @@ export interface components {
          * @enum {string}
          */
         AgencyJoinRequestStatus: "pending" | "approved" | "rejected";
+        /** AgencyMembershipReviewDecisionRequest */
+        AgencyMembershipReviewDecisionRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** AgencyMembershipReviewRequestCreate */
         AgencyMembershipReviewRequestCreate: {
             /** Reason */
@@ -6440,6 +6531,42 @@ export interface operations {
             };
         };
     };
+    restore_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__restore__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                membership_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyAgentMembershipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_request__post: {
         parameters: {
             query?: never;
@@ -6458,6 +6585,80 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyMembershipReviewRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_requests__review_request_id__approve__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                membership_id: number;
+                review_request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyMembershipReviewDecisionRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyMembershipReviewRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_requests__review_request_id__reject__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                membership_id: number;
+                review_request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyMembershipReviewDecisionRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7648,6 +7849,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_featured_properties_api_v1_properties_featured_get: {
+        parameters: {
+            query?: {
+                /** @description Maximum featured properties */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"][];
                 };
             };
             /** @description Validation Error */
