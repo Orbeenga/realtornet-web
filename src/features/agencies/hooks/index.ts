@@ -1,6 +1,12 @@
 export { useAgencyProfile } from "./useAgencyProfile";
 export { useAgencyAgents } from "./useAgencyAgents";
 export { useAgencyListings } from "./useAgencyListings";
+export {
+  useBlockAgencyMembership,
+  useCreateAgencyMembershipReviewRequest,
+  useRevokeAgencyMembership,
+  useSuspendAgencyMembership,
+} from "./useAgencyMembershipActions";
 export { useAgencies, useVisibleAgencyStats } from "./useAgencies";
 export {
   useAdminAgencies,
