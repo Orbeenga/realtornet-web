@@ -24,7 +24,8 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
   const initials = getInitials(agency.name);
   const { user, loading } = useAuth();
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
-  const canRequestToJoin = !loading && (role === "seeker" || role === "agent");
+  const canRequestToJoin =
+    !loading && (role === null || role === "seeker" || role === "agent");
 
   return (
     <Card>
