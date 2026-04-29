@@ -24,8 +24,11 @@ import {
   useAgencyAgents,
   useAgencyJoinRequests,
   useApproveAgencyJoinRequest,
+  useBlockAgencyMembership,
   useInviteAgencyAgent,
   useRejectAgencyJoinRequest,
+  useRevokeAgencyMembership,
+  useSuspendAgencyMembership,
 } from "@/features/agencies/hooks";
 
 const inviteSchema = z.object({
@@ -58,11 +61,28 @@ function getJoinRequestBadgeVariant(status: string) {
   return "warning" as const;
 }
 
+function getMembershipBadgeVariant(status: string) {
+  if (status === "active") {
+    return "success" as const;
+  }
+
+  if (status === "suspended") {
+    return "warning" as const;
+  }
+
+  if (status === "blocked" || status === "inactive") {
+    return "danger" as const;
+  }
+
+  return "outline" as const;
+}
+
 export function AgencyOwnerDashboardClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
   const agenciesQuery = useAgencies(gate.isAllowed);
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
+  const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
   const agency = useMemo(() => {
@@ -84,10 +104,13 @@ export function AgencyOwnerDashboardClient() {
   }, [agenciesQuery.data, user?.agency_id, user?.email]);
 
   const agencyId = agency?.agency_id;
-  const agentsQuery = useAgencyAgents(agencyId ?? "");
+  const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
+  const suspendMembership = useSuspendAgencyMembership(agencyId);
+  const revokeMembership = useRevokeAgencyMembership(agencyId);
+  const blockMembership = useBlockAgencyMembership(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
   const {
     register,
@@ -144,6 +167,40 @@ export function AgencyOwnerDashboardClient() {
         type: "server",
         message,
       });
+    }
+  };
+
+  const handleMembershipAction = async (
+    action: "suspend" | "revoke" | "block",
+    membershipId: number,
+  ) => {
+    const reason = membershipReasons[membershipId]?.trim() || null;
+
+    try {
+      const payload = { membershipId, payload: { reason } };
+
+      if (action === "suspend") {
+        await suspendMembership.mutateAsync(payload);
+        notify.success("Agent membership suspended");
+      } else if (action === "revoke") {
+        await revokeMembership.mutateAsync(payload);
+        notify.success("Agent membership revoked");
+      } else {
+        await blockMembership.mutateAsync(payload);
+        notify.success("Agent membership blocked");
+      }
+
+      setMembershipReasons((current) => {
+        const next = { ...current };
+        delete next[membershipId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not update agent membership.";
+      notify.error(message);
     }
   };
 
@@ -379,7 +436,7 @@ export function AgencyOwnerDashboardClient() {
                 Agent roster
               </h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Agents currently affiliated with this agency.
+                Manage active, suspended, inactive, and blocked agency memberships.
               </p>
             </div>
             {agentsQuery.isLoading ? <LoadingState /> : null}
@@ -401,51 +458,123 @@ export function AgencyOwnerDashboardClient() {
             {!agentsQuery.isLoading && agents.length > 0 ? (
               <div className="divide-y divide-border">
                 {agents.map((agent) => (
-                  <div key={agent.membership_id} className="flex items-center justify-between gap-4 py-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {agent.profile_image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={agent.profile_image_url}
-                          alt=""
-                          className="h-12 w-12 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                          {(agent.display_name || "Agent")
-                            .split(/\s+/)
-                            .slice(0, 2)
-                            .map((part) => part[0]?.toUpperCase() ?? "")
-                            .join("")}
-                        </div>
-                      )}
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {agent.display_name || agent.company_name || "Listing agent"}
-                        </p>
-                        <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                          {agent.email}
-                          {agent.phone_number ? ` - ${agent.phone_number}` : ""}
-                        </p>
-                        <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                          <span>{agent.specialization ?? "Real estate agent"}</span>
-                          {agent.years_experience != null ? (
-                            <span>{agent.years_experience} years experience</span>
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={agent.profile_image_url}
+                            alt=""
+                            className="h-12 w-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent")
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((part) => part[0]?.toUpperCase() ?? "")
+                              .join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {agent.display_name || agent.company_name || "Listing agent"}
+                            </p>
+                            <Badge variant={getMembershipBadgeVariant(agent.membership_status)}>
+                              {agent.membership_status}
+                            </Badge>
+                          </div>
+                          <p className="truncate text-sm text-gray-500 dark:text-gray-400">
+                            {agent.email}
+                            {agent.phone_number ? ` - ${agent.phone_number}` : ""}
+                          </p>
+                          <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span>{agent.specialization ?? "Real estate agent"}</span>
+                            {agent.years_experience != null ? (
+                              <span>{agent.years_experience} years experience</span>
+                            ) : null}
+                            {agent.license_number ? (
+                              <span>License {agent.license_number}</span>
+                            ) : null}
+                          </div>
+                          {agent.status_reason ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Decision reason: {agent.status_reason}
+                            </p>
                           ) : null}
-                          {agent.license_number ? (
-                            <span>License {agent.license_number}</span>
+                          {agent.status_decided_at ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Last decision {formatOptionalDate(agent.status_decided_at)}
+                            </p>
                           ) : null}
                         </div>
                       </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {agent.profile_id ? (
+                          <Link
+                            href={`/agents/${agent.profile_id}`}
+                            className="inline-flex h-9 items-center justify-center rounded-lg bg-secondary px-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+                          >
+                            View
+                          </Link>
+                        ) : null}
+                        {agent.membership_status === "active" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            loading={
+                              suspendMembership.isPending &&
+                              suspendMembership.variables?.membershipId === agent.membership_id
+                            }
+                            onClick={() => void handleMembershipAction("suspend", agent.membership_id)}
+                          >
+                            Suspend
+                          </Button>
+                        ) : null}
+                        {agent.membership_status !== "inactive" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            loading={
+                              revokeMembership.isPending &&
+                              revokeMembership.variables?.membershipId === agent.membership_id
+                            }
+                            onClick={() => void handleMembershipAction("revoke", agent.membership_id)}
+                          >
+                            Revoke
+                          </Button>
+                        ) : null}
+                        {agent.membership_status !== "blocked" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            loading={
+                              blockMembership.isPending &&
+                              blockMembership.variables?.membershipId === agent.membership_id
+                            }
+                            onClick={() => void handleMembershipAction("block", agent.membership_id)}
+                          >
+                            Block
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
-                    {agent.profile_id ? (
-                      <Link
-                        href={`/agents/${agent.profile_id}`}
-                        className="text-sm font-medium text-blue-600 dark:text-blue-400"
-                      >
-                        View
-                      </Link>
-                    ) : null}
+                    <Input
+                      label="Decision reason"
+                      placeholder="Add a reason before suspending, revoking, or blocking"
+                      value={membershipReasons[agent.membership_id] ?? ""}
+                      onChange={(event) =>
+                        setMembershipReasons((current) => ({
+                          ...current,
+                          [agent.membership_id]: event.target.value,
+                        }))
+                      }
+                    />
                   </div>
                 ))}
               </div>
