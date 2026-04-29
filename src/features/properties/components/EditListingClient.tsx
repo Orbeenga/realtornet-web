@@ -79,8 +79,21 @@ export function EditListingClient({ id }: EditListingClientProps) {
     router.replace(`/account/listings/${id}/edit`);
   }, [id, router, searchParams]);
 
-  if (gate.isChecking) {
+  if (gate.isChecking || gate.isMembershipChecking) {
     return <LoadingState fullPage message="Checking agent access..." />;
+  }
+
+  if (gate.isMembershipRestricted) {
+    return (
+      <ErrorState
+        title="Agency access restricted"
+        message={
+          gate.membershipStatus?.reason
+            ? `Your agency membership is ${gate.membershipStatus.status}: ${gate.membershipStatus.reason}`
+            : "Your agency membership is restricted. Visit My Agencies to review the decision or request a review."
+        }
+      />
+    );
   }
 
   if (!gate.isAllowed) {
