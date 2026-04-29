@@ -43,6 +43,25 @@ function ListingRowsSkeleton() {
   );
 }
 
+function AgentMembershipRestrictedState({
+  status,
+  reason,
+}: {
+  status?: string | null;
+  reason?: string | null;
+}) {
+  return (
+    <ErrorState
+      title="Agency access restricted"
+      message={
+        reason
+          ? `Your agency membership is ${status ?? "restricted"}: ${reason}`
+          : "Your agency membership is restricted. Visit My Agencies to review the decision or request a review."
+      }
+    />
+  );
+}
+
 export function AgentListingsManagerClient() {
   const router = useRouter();
   const deleteProperty = useDeleteProperty();
@@ -60,11 +79,20 @@ export function AgentListingsManagerClient() {
   const hasAgentProfileError = !gate.isAdmin && agentProfileQuery.isError;
   const hasUserProfileError = !gate.isAdmin && profileQuery.isError;
 
-  if (gate.isChecking) {
+  if (gate.isChecking || gate.isMembershipChecking) {
     return (
       <LoadingState
         fullPage
         message={gate.role === "admin" ? "Checking admin access..." : "Checking agent access..."}
+      />
+    );
+  }
+
+  if (gate.isMembershipRestricted) {
+    return (
+      <AgentMembershipRestrictedState
+        status={gate.membershipStatus?.status}
+        reason={gate.membershipStatus?.reason}
       />
     );
   }

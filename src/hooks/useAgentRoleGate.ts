@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { useAgentMembershipStatus } from "@/features/agencies/hooks";
 import { getStoredJwtPayload, getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 
 export function useAgentRoleGate() {
@@ -14,7 +15,17 @@ export function useAgentRoleGate() {
   const isAdmin = role === "admin";
   const isAgent = role === "agent";
   const isAgencyOwner = role === "agency_owner";
-  const isAllowed = !isChecking && Boolean(token) && (isAgent || isAgencyOwner || isAdmin);
+  const membershipStatusQuery = useAgentMembershipStatus(!isChecking && Boolean(token) && isAgent);
+  const isMembershipChecking = isAgent && membershipStatusQuery.isLoading;
+  const isMembershipRestricted =
+    isAgent &&
+    (membershipStatusQuery.isError || membershipStatusQuery.data?.status !== "active");
+  const isAllowed =
+    !isChecking &&
+    !isMembershipChecking &&
+    Boolean(token) &&
+    (isAgent || isAgencyOwner || isAdmin) &&
+    !isMembershipRestricted;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -35,6 +46,9 @@ export function useAgentRoleGate() {
 
   return {
     isChecking,
+    isMembershipChecking,
+    isMembershipRestricted,
+    membershipStatus: membershipStatusQuery.data ?? null,
     isAllowed,
     isAdmin,
     role,
