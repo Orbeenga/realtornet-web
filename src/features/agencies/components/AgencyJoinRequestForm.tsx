@@ -11,6 +11,7 @@ import { normalizeAppRole } from "@/features/auth/navigation";
 import {
   useAgencyProfile,
   useCreateAgencyJoinRequest,
+  useMyAgencyJoinRequests,
 } from "@/features/agencies/hooks";
 import { ApiError } from "@/lib/api/client";
 import { getStoredJwtRole } from "@/lib/jwt";
@@ -34,6 +35,9 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
   const { user, loading } = useAuth();
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
   const agencyQuery = useAgencyProfile(agencyId);
+  const requestsQuery = useMyAgencyJoinRequests(
+    Boolean(user) && (role === "seeker" || role === "agent"),
+  );
   const createJoinRequest = useCreateAgencyJoinRequest(agencyId);
   const {
     register,
@@ -98,7 +102,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
     }
   };
 
-  if (loading || agencyQuery.isLoading) {
+  if (loading || agencyQuery.isLoading || requestsQuery.isLoading) {
     return <LoadingState />;
   }
 
@@ -141,6 +145,70 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
           void agencyQuery.refetch();
         }}
       />
+    );
+  }
+
+  const existingRequest = requestsQuery.data
+    ?.filter((request) => String(request.agency_id) === agencyId)
+    .find((request) => request.status === "approved" || request.status === "pending");
+
+  if (existingRequest?.status === "approved") {
+    return (
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            You have already joined this agency
+          </h1>
+          <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+            {agencyQuery.data.name} is already listed in My Agencies, so a new join
+            request is not needed.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/account/join-requests"
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              View My Agencies
+            </Link>
+            <Link
+              href={`/agencies/${agencyId}`}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+            >
+              Back to agency
+            </Link>
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (existingRequest?.status === "pending") {
+    return (
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Your request is pending
+          </h1>
+          <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+            {agencyQuery.data.name} already has your join request. Track the
+            status from My Agencies instead of submitting another request.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/account/join-requests"
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              View My Agencies
+            </Link>
+            <Link
+              href={`/agencies/${agencyId}`}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+            >
+              Back to agency
+            </Link>
+          </div>
+        </CardBody>
+      </Card>
     );
   }
 
