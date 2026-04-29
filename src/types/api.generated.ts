@@ -1009,6 +1009,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agency-memberships/mine/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Agency Memberships
+         * @description Return all agency memberships for the authenticated agent-facing user.
+         */
+        get: operations["read_my_agency_memberships_api_v1_agency_memberships_mine__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agency-memberships/me/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Agent Membership Status
+         * @description Return the most restrictive agency membership state for dashboard guards.
+         */
+        get: operations["read_my_agent_membership_status_api_v1_agency_memberships_me_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership/mine/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Agency Memberships
+         * @description Return all agency memberships for the authenticated agent-facing user.
+         */
+        get: operations["read_my_agency_memberships_api_v1_membership_mine__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership/me/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Agent Membership Status
+         * @description Return the most restrictive agency membership state for dashboard guards.
+         */
+        get: operations["read_my_agent_membership_status_api_v1_membership_me_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-profiles/": {
         parameters: {
             query?: never;
@@ -3508,6 +3588,11 @@ export interface components {
             rejection_reason?: string | null;
         };
         /**
+         * AgentMembershipRestrictionStatus
+         * @enum {string}
+         */
+        AgentMembershipRestrictionStatus: "active" | "suspended" | "blocked" | "revoked";
+        /**
          * AgentPerformanceResponse
          * @description Lightweight response schema for agent_performance view
          */
@@ -4067,6 +4152,62 @@ export interface components {
              * Format: date-time
              */
             submitted_at: string;
+        };
+        /** MyAgencyMembershipResponse */
+        MyAgencyMembershipResponse: {
+            /** Membership Id */
+            membership_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name: string;
+            status: components["schemas"]["AgencyAgentMembershipStatus"];
+            /** Status Reason */
+            status_reason?: string | null;
+            /** Status Decided At */
+            status_decided_at?: string | null;
+            /** Status Decided By */
+            status_decided_by?: number | null;
+            /** Source Join Request Id */
+            source_join_request_id?: number | null;
+            /** Pending Review Request Id */
+            pending_review_request_id?: number | null;
+            /** Pending Review Reason */
+            pending_review_reason?: string | null;
+            /** Pending Review Submitted At */
+            pending_review_submitted_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** MyAgentMembershipStatusResponse */
+        MyAgentMembershipStatusResponse: {
+            /**
+             * Agent Id
+             * Format: uuid
+             */
+            agent_id: string;
+            status: components["schemas"]["AgentMembershipRestrictionStatus"];
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Membership Id */
+            membership_id?: number | null;
+            /** Agency Id */
+            agency_id?: number | null;
+            /** Agency Name */
+            agency_name?: string | null;
         };
         /**
          * ProfileCreate
@@ -6573,6 +6714,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_my_agency_memberships_api_v1_agency_memberships_mine__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAgencyMembershipResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_my_agent_membership_status_api_v1_agency_memberships_me_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAgentMembershipStatusResponse"];
+                };
+            };
+        };
+    };
+    read_my_agency_memberships_api_v1_membership_mine__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAgencyMembershipResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_my_agent_membership_status_api_v1_membership_me_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAgentMembershipStatusResponse"];
                 };
             };
         };

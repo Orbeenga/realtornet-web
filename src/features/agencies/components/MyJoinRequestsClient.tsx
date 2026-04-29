@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
+import { useState } from "react";
+import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { normalizeAppRole } from "@/features/auth/navigation";
-import { useMyAgencyJoinRequests } from "@/features/agencies/hooks";
+import {
+  useCreateAgencyMembershipReviewRequest,
+  useMyAgencyJoinRequests,
+  useMyAgencyMemberships,
+} from "@/features/agencies/hooks";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
+import { notify } from "@/lib/toast";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -13,23 +19,48 @@ function formatDate(value: string) {
 }
 
 function getStatusVariant(status: string) {
-  if (status === "approved") {
+  if (status === "approved" || status === "active") {
     return "success" as const;
   }
 
-  if (status === "rejected") {
+  if (status === "rejected" || status === "blocked" || status === "inactive") {
     return "danger" as const;
   }
 
   return "warning" as const;
 }
 
+function displayMembershipStatus(status: string) {
+  return status === "inactive" ? "revoked" : status;
+}
+
 export function MyJoinRequestsClient() {
+  const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
+  const membershipsQuery = useMyAgencyMemberships(Boolean(token) && role === "agent");
+  const createReviewRequest = useCreateAgencyMembershipReviewRequest();
+
+  const handleReviewRequest = async (agencyId: number, membershipId: number) => {
+    try {
+      await createReviewRequest.mutateAsync({
+        agencyId,
+        membershipId,
+        payload: { reason: reviewReasons[membershipId]?.trim() || null },
+      });
+      notify.success("Review request submitted");
+      setReviewReasons((current) => {
+        const next = { ...current };
+        delete next[membershipId];
+        return next;
+      });
+    } catch {
+      notify.error("Could not submit review request");
+    }
+  };
 
   if (!token) {
     return (
@@ -58,7 +89,7 @@ export function MyJoinRequestsClient() {
     );
   }
 
-  if (requestsQuery.isLoading) {
+  if (requestsQuery.isLoading || membershipsQuery.isLoading) {
     return <LoadingState />;
   }
 
@@ -75,6 +106,7 @@ export function MyJoinRequestsClient() {
   }
 
   const requests = requestsQuery.data ?? [];
+  const memberships = membershipsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -86,6 +118,81 @@ export function MyJoinRequestsClient() {
           Track agencies you have joined and requests that are still under review.
         </p>
       </div>
+
+      {memberships.length > 0 ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Agency memberships
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {memberships.map((membership) => {
+              const isRestricted =
+                membership.status === "blocked" ||
+                membership.status === "suspended" ||
+                membership.status === "inactive";
+
+              return (
+                <Card key={membership.membership_id}>
+                  <CardBody className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <Link
+                        href={`/agencies/${membership.agency_id}`}
+                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                      >
+                        {membership.agency_name}
+                      </Link>
+                      <Badge variant={getStatusVariant(membership.status)}>
+                        {displayMembershipStatus(membership.status)}
+                      </Badge>
+                    </div>
+                    {membership.status_reason ? (
+                      <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                        {membership.status_reason}
+                      </div>
+                    ) : null}
+                    {membership.pending_review_request_id ? (
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        Review request pending
+                      </p>
+                    ) : isRestricted ? (
+                      <div className="space-y-3">
+                        <textarea
+                          rows={3}
+                          className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                          placeholder="Explain why this decision should be reviewed"
+                          value={reviewReasons[membership.membership_id] ?? ""}
+                          onChange={(event) =>
+                            setReviewReasons((current) => ({
+                              ...current,
+                              [membership.membership_id]: event.target.value,
+                            }))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          loading={
+                            createReviewRequest.isPending &&
+                            createReviewRequest.variables?.membershipId === membership.membership_id
+                          }
+                          onClick={() =>
+                            void handleReviewRequest(
+                              membership.agency_id,
+                              membership.membership_id,
+                            )
+                          }
+                        >
+                          Request review
+                        </Button>
+                      </div>
+                    ) : null}
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {requests.length === 0 ? (
         <EmptyState

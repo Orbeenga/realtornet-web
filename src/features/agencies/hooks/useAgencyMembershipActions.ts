@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type {
   AgencyAgentMembershipActionRequest,
@@ -6,6 +6,8 @@ import type {
   AgencyAgentRosterMember,
   AgencyMembershipReviewRequestCreate,
   AgencyMembershipReviewRequestResponse,
+  MyAgencyMembershipResponse,
+  MyAgentMembershipStatusResponse,
 } from "@/types";
 
 type MembershipAction = "suspend" | "revoke" | "block";
@@ -63,12 +65,17 @@ export function useBlockAgencyMembership(agencyId?: string | number | null) {
   return useAgencyMembershipAction(agencyId, "block");
 }
 
-export function useCreateAgencyMembershipReviewRequest(
-  agencyId?: string | number | null,
-  membershipId?: string | number | null,
-) {
+interface ReviewRequestVariables {
+  agencyId: string | number;
+  membershipId: string | number;
+  payload: AgencyMembershipReviewRequestCreate;
+}
+
+export function useCreateAgencyMembershipReviewRequest() {
+  const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: (payload: AgencyMembershipReviewRequestCreate) =>
+    mutationFn: ({ agencyId, membershipId, payload }: ReviewRequestVariables) =>
       apiClient<AgencyMembershipReviewRequestResponse>(
         `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-request/`,
         {
@@ -76,5 +83,29 @@ export function useCreateAgencyMembershipReviewRequest(
           body: JSON.stringify(payload),
         },
       ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] });
+    },
+  });
+}
+
+export function useAgentMembershipStatus(enabled = true) {
+  return useQuery({
+    queryKey: ["agentMembershipStatus"],
+    queryFn: () =>
+      apiClient<MyAgentMembershipStatusResponse>("/api/v1/membership/me/status"),
+    staleTime: 30_000,
+    enabled,
+    retry: false,
+  });
+}
+
+export function useMyAgencyMemberships(enabled = true) {
+  return useQuery({
+    queryKey: ["myAgencyMemberships"],
+    queryFn: () =>
+      apiClient<MyAgencyMembershipResponse[]>("/api/v1/agency-memberships/mine/"),
+    staleTime: 30_000,
+    enabled,
   });
 }
