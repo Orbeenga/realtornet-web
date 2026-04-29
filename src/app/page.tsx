@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
+import { FeaturedPropertiesSection } from "@/features/properties/components";
 
 const heroImage =
   "https://i.pinimg.com/1200x/65/19/b2/6519b25a5dbbe6387b0a7166bd777b9f.jpg";
@@ -80,6 +81,8 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        <FeaturedPropertiesSection />
 
         <section className="mx-auto max-w-7xl space-y-6 px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">

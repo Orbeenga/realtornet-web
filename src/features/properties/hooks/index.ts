@@ -1,4 +1,4 @@
-export { useProperties } from "./useProperties";
+export { useFeaturedProperties, useProperties } from "./useProperties";
 export { usePropertyDetail } from "./usePropertyDetail";
 export { useLocationDetail } from "./useLocationDetail";
 export { useLocations } from "./useLocations";

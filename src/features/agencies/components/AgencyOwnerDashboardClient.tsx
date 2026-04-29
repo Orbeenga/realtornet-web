@@ -23,11 +23,14 @@ import {
   useAgencies,
   useAgencyAgents,
   useAgencyJoinRequests,
+  useApproveAgencyMembershipReview,
   useApproveAgencyJoinRequest,
   useBlockAgencyMembership,
   useInviteAgencyAgent,
+  useRejectAgencyMembershipReview,
   useRejectAgencyJoinRequest,
   useRevokeAgencyMembership,
+  useRestoreAgencyMembership,
   useSuspendAgencyMembership,
 } from "@/features/agencies/hooks";
 
@@ -111,6 +114,9 @@ export function AgencyOwnerDashboardClient() {
   const suspendMembership = useSuspendAgencyMembership(agencyId);
   const revokeMembership = useRevokeAgencyMembership(agencyId);
   const blockMembership = useBlockAgencyMembership(agencyId);
+  const restoreMembership = useRestoreAgencyMembership(agencyId);
+  const approveReview = useApproveAgencyMembershipReview(agencyId);
+  const rejectReview = useRejectAgencyMembershipReview(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
   const {
     register,
@@ -200,6 +206,65 @@ export function AgencyOwnerDashboardClient() {
         error instanceof ApiError && typeof error.detail === "string"
           ? error.detail
           : "Could not update agent membership.";
+      notify.error(message);
+    }
+  };
+
+  const handleRestoreMembership = async (membershipId: number) => {
+    const reason = membershipReasons[membershipId]?.trim() || null;
+
+    try {
+      await restoreMembership.mutateAsync({
+        membershipId,
+        payload: { reason },
+      });
+      notify.success("Agent membership restored");
+      setMembershipReasons((current) => {
+        const next = { ...current };
+        delete next[membershipId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not restore agent membership.";
+      notify.error(message);
+    }
+  };
+
+  const handleReviewDecision = async (
+    action: "approve" | "reject",
+    membershipId: number,
+    reviewRequestId: number,
+  ) => {
+    const reason = membershipReasons[membershipId]?.trim() || null;
+
+    try {
+      const payload = {
+        membershipId,
+        reviewRequestId,
+        payload: { reason },
+      };
+
+      if (action === "approve") {
+        await approveReview.mutateAsync(payload);
+        notify.success("Review request approved");
+      } else {
+        await rejectReview.mutateAsync(payload);
+        notify.success("Review request rejected");
+      }
+
+      setMembershipReasons((current) => {
+        const next = { ...current };
+        delete next[membershipId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not update review request.";
       notify.error(message);
     }
   };
@@ -457,7 +522,10 @@ export function AgencyOwnerDashboardClient() {
             ) : null}
             {!agentsQuery.isLoading && agents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.map((agent) => (
+                {agents.map((agent) => {
+                  const pendingReviewRequestId = agent.pending_review_request_id;
+
+                  return (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
@@ -509,6 +577,19 @@ export function AgencyOwnerDashboardClient() {
                               Last decision {formatOptionalDate(agent.status_decided_at)}
                             </p>
                           ) : null}
+                          {agent.pending_review_request_id ? (
+                            <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                              <p className="font-medium">Review requested</p>
+                              {agent.pending_review_reason ? (
+                                <p className="mt-1">{agent.pending_review_reason}</p>
+                              ) : null}
+                              {agent.pending_review_submitted_at ? (
+                                <p className="mt-1">
+                                  Submitted {formatOptionalDate(agent.pending_review_submitted_at)}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
@@ -533,6 +614,60 @@ export function AgencyOwnerDashboardClient() {
                           >
                             Suspend
                           </Button>
+                        ) : null}
+                        {agent.membership_status !== "active" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              restoreMembership.isPending &&
+                              restoreMembership.variables?.membershipId === agent.membership_id
+                            }
+                            onClick={() => void handleRestoreMembership(agent.membership_id)}
+                          >
+                            Restore
+                          </Button>
+                        ) : null}
+                        {pendingReviewRequestId ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              loading={
+                                approveReview.isPending &&
+                                approveReview.variables?.reviewRequestId ===
+                                  pendingReviewRequestId
+                              }
+                              onClick={() =>
+                                void handleReviewDecision(
+                                  "approve",
+                                  agent.membership_id,
+                                  pendingReviewRequestId,
+                                )
+                              }
+                            >
+                              Approve review
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              loading={
+                                rejectReview.isPending &&
+                                rejectReview.variables?.reviewRequestId ===
+                                  pendingReviewRequestId
+                              }
+                              onClick={() =>
+                                void handleReviewDecision(
+                                  "reject",
+                                  agent.membership_id,
+                                  pendingReviewRequestId,
+                                )
+                              }
+                            >
+                              Reject review
+                            </Button>
+                          </>
                         ) : null}
                         {agent.membership_status !== "inactive" ? (
                           <Button
@@ -576,7 +711,8 @@ export function AgencyOwnerDashboardClient() {
                       }
                     />
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
           </CardBody>
