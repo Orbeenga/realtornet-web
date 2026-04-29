@@ -87,6 +87,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
       { href: "/account/users", label: "Users" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/admin/agencies", label: "Agencies admin" },
+      { href: "/account/admin/analytics", label: "Analytics" },
     ];
   }
 

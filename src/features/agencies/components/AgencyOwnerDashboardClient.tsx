@@ -24,6 +24,7 @@ import {
   useAgencyAgents,
   useAgencyInvitations,
   useAgencyJoinRequests,
+  useAgencyStats,
   useApproveAgencyMembershipReview,
   useApproveAgencyJoinRequest,
   useBlockAgencyMembership,
@@ -122,6 +123,7 @@ export function AgencyOwnerDashboardClient() {
   const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
+  const agencyStatsQuery = useAgencyStats(agencyId, Boolean(agencyId));
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
   const suspendMembership = useSuspendAgencyMembership(agencyId);
@@ -313,6 +315,14 @@ export function AgencyOwnerDashboardClient() {
   const joinRequests = joinRequestsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
+  const agencyStats = agencyStatsQuery.data;
+  const statsListingCount =
+    agencyStats?.active_listings ??
+    agencyStats?.listing_count ??
+    agencyStats?.property_count ??
+    agencyStats?.total_properties;
+  const statsAgentCount =
+    agencyStats?.agent_count ?? agencyStats?.total_agents;
 
   return (
     <div className="space-y-6">
@@ -382,6 +392,34 @@ export function AgencyOwnerDashboardClient() {
               </p>
             </div>
           </div>
+          {agencyStats ? (
+            <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Active listings
+                </p>
+                <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {statsListingCount ?? "Not recorded"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Roster agents
+                </p>
+                <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {statsAgentCount ?? "Not recorded"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Stats source
+                </p>
+                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                  Live backend agency stats
+                </p>
+              </div>
+            </div>
+          ) : null}
         </CardBody>
       </Card>
 

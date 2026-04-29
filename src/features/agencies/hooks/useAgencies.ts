@@ -2,12 +2,31 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { Agency, Agent, PropertyList } from "@/types";
 
+export interface AgencyStats {
+  agent_count?: number;
+  property_count?: number;
+  active_listings?: number;
+  listing_count?: number;
+  total_agents?: number;
+  total_properties?: number;
+  [key: string]: unknown;
+}
+
 export function useAgencies(enabled = true) {
   return useQuery({
     queryKey: ["agencies"],
     queryFn: () => apiClient<Agency[]>("/api/v1/agencies/"),
     staleTime: 60_000,
     enabled,
+  });
+}
+
+export function useAgencyStats(agencyId?: string | number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["agencyStats", agencyId],
+    queryFn: () => apiClient<AgencyStats>(`/api/v1/agencies/${agencyId}/stats`),
+    staleTime: 60_000,
+    enabled: enabled && Boolean(agencyId),
   });
 }
 
