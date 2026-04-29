@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge, Card, CardBody } from "@/components";
 import { useAuth } from "@/features/auth/AuthContext";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { useMyAgencyJoinRequests } from "@/features/agencies/hooks";
 import { getStoredJwtRole } from "@/lib/jwt";
 import type { Agency } from "@/types";
 
@@ -26,6 +27,12 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
   const canRequestToJoin =
     !loading && (role === null || role === "seeker" || role === "agent");
+  const requestsQuery = useMyAgencyJoinRequests(
+    !loading && Boolean(user) && (role === "seeker" || role === "agent"),
+  );
+  const existingRequest = requestsQuery.data
+    ?.filter((request) => request.agency_id === agency.agency_id)
+    .find((request) => request.status === "approved" || request.status === "pending");
 
   return (
     <Card>
@@ -53,7 +60,18 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
               </h1>
               {agency.is_verified ? <Badge>Verified</Badge> : null}
             </div>
-            {canRequestToJoin ? (
+            {existingRequest?.status === "approved" ? (
+              <span className="inline-flex items-center justify-center rounded-lg bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">
+                Already joined
+              </span>
+            ) : existingRequest?.status === "pending" ? (
+              <Link
+                href="/account/join-requests"
+                className="inline-flex items-center justify-center rounded-lg bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 ring-1 ring-amber-200 transition-colors hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900"
+              >
+                Request pending
+              </Link>
+            ) : canRequestToJoin ? (
               <Link
                 href={`/agencies/${agency.agency_id}/join`}
                 className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
