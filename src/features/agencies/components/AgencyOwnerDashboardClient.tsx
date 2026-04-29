@@ -81,6 +81,18 @@ function getMembershipBadgeVariant(status: string) {
   return "outline" as const;
 }
 
+function getRequiredDecisionReasonMessage(action: "suspend" | "revoke" | "block") {
+  if (action === "suspend") {
+    return "Enter a reason before suspending this agent.";
+  }
+
+  if (action === "revoke") {
+    return "Enter a reason before revoking this agent.";
+  }
+
+  return "Enter a reason before blocking this agent.";
+}
+
 export function AgencyOwnerDashboardClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
@@ -180,6 +192,11 @@ export function AgencyOwnerDashboardClient() {
     membershipId: number,
   ) => {
     const reason = membershipReasons[membershipId]?.trim() || null;
+
+    if (!reason) {
+      notify.error(getRequiredDecisionReasonMessage(action));
+      return;
+    }
 
     try {
       const payload = { membershipId, payload: { reason } };
@@ -701,7 +718,7 @@ export function AgencyOwnerDashboardClient() {
                     </div>
                     <Input
                       label="Decision reason"
-                      placeholder="Add a reason before suspending, revoking, or blocking"
+                      placeholder="Required before suspending, revoking, or blocking"
                       value={membershipReasons[agent.membership_id] ?? ""}
                       onChange={(event) =>
                         setMembershipReasons((current) => ({
