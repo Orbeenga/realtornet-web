@@ -44,8 +44,9 @@ export function MyJoinRequestsClient() {
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
+  const canViewAgencyMemberships = Boolean(token) && role === "agent";
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
-  const membershipsQuery = useMyAgencyMemberships(Boolean(token) && role === "agent");
+  const membershipsQuery = useMyAgencyMemberships(canViewAgencyMemberships);
   const invitationsQuery = useMyAgencyInvitations(canViewAgencyInvitations);
   const createReviewRequest = useCreateAgencyMembershipReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
@@ -145,179 +146,198 @@ export function MyJoinRequestsClient() {
         </p>
       </div>
 
-      {invitations.length > 0 ? (
+      {canViewAgencyInvitations ? (
         <section className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Agency invitations
           </h2>
+          {invitations.length === 0 ? (
+            <EmptyState
+              title="No agency invitations"
+              description="Invitations from agencies will appear here with accept and reject actions."
+            />
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.map((invitation) => (
+                <Card key={invitation.invitation_id}>
+                  <CardBody className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <Link
+                        href={`/agencies/${invitation.agency_id}`}
+                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                      >
+                        {invitation.agency_name}
+                      </Link>
+                      <Badge variant={getStatusVariant(invitation.status)}>
+                        {invitation.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      You have been invited to join {invitation.agency_name}.
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Sent {formatDate(invitation.created_at)}
+                    </p>
+                    {invitation.status === "pending" ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          loading={
+                            acceptInvitation.isPending &&
+                            acceptInvitation.variables === invitation.invitation_id
+                          }
+                          onClick={() =>
+                            void handleAcceptInvitation(invitation.invitation_id)
+                          }
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          loading={
+                            rejectInvitation.isPending &&
+                            rejectInvitation.variables === invitation.invitation_id
+                          }
+                          onClick={() =>
+                            void handleRejectInvitation(invitation.invitation_id)
+                          }
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ) : null}
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {canViewAgencyMemberships ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Agency memberships
+          </h2>
+          {memberships.length === 0 ? (
+            <EmptyState
+              title="No agency memberships"
+              description="Agencies you currently belong to will appear here."
+            />
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {memberships.map((membership) => {
+                const isRestricted =
+                  membership.status === "blocked" ||
+                  membership.status === "suspended" ||
+                  membership.status === "inactive";
+
+                return (
+                  <Card key={membership.membership_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${membership.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {membership.agency_name}
+                        </Link>
+                        <Badge variant={getStatusVariant(membership.status)}>
+                          {displayMembershipStatus(membership.status)}
+                        </Badge>
+                      </div>
+                      {membership.status_reason ? (
+                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                          {membership.status_reason}
+                        </div>
+                      ) : null}
+                      {membership.pending_review_request_id ? (
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Review request pending
+                        </p>
+                      ) : isRestricted ? (
+                        <div className="space-y-3">
+                          <textarea
+                            rows={3}
+                            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                            placeholder="Explain why this decision should be reviewed"
+                            value={reviewReasons[membership.membership_id] ?? ""}
+                            onChange={(event) =>
+                              setReviewReasons((current) => ({
+                                ...current,
+                                [membership.membership_id]: event.target.value,
+                              }))
+                            }
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              createReviewRequest.isPending &&
+                              createReviewRequest.variables?.membershipId === membership.membership_id
+                            }
+                            onClick={() =>
+                              void handleReviewRequest(
+                                membership.agency_id,
+                                membership.membership_id,
+                              )
+                            }
+                          >
+                            Request review
+                          </Button>
+                        </div>
+                      ) : null}
+                    </CardBody>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Agency requests
+        </h2>
+        {requests.length === 0 ? (
+          <EmptyState
+            title="No join requests yet"
+            description="Open an agency profile and request to join its roster."
+          />
+        ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {invitations.map((invitation) => (
-              <Card key={invitation.invitation_id}>
+            {requests.map((request) => (
+              <Card key={request.join_request_id}>
                 <CardBody className="space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <Link
-                      href={`/agencies/${invitation.agency_id}`}
+                      href={`/agencies/${request.agency_id}`}
                       className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                     >
-                      {invitation.agency_name}
+                      {request.agency_name}
                     </Link>
-                    <Badge variant={getStatusVariant(invitation.status)}>
-                      {invitation.status}
+                    <Badge variant={getStatusVariant(request.status)}>
+                      {request.status}
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    You have been invited to join {invitation.agency_name}.
+                    Submitted {formatDate(request.submitted_at)}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Sent {formatDate(invitation.created_at)}
-                  </p>
-                  {invitation.status === "pending" ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        loading={
-                          acceptInvitation.isPending &&
-                          acceptInvitation.variables === invitation.invitation_id
-                        }
-                        onClick={() =>
-                          void handleAcceptInvitation(invitation.invitation_id)
-                        }
-                      >
-                        Accept
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        loading={
-                          rejectInvitation.isPending &&
-                          rejectInvitation.variables === invitation.invitation_id
-                        }
-                        onClick={() =>
-                          void handleRejectInvitation(invitation.invitation_id)
-                        }
-                      >
-                        Reject
-                      </Button>
+                  {request.status === "rejected" && request.rejection_reason ? (
+                    <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                      {request.rejection_reason}
                     </div>
                   ) : null}
                 </CardBody>
               </Card>
             ))}
           </div>
-        </section>
-      ) : null}
-
-      {memberships.length > 0 ? (
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Agency memberships
-          </h2>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {memberships.map((membership) => {
-              const isRestricted =
-                membership.status === "blocked" ||
-                membership.status === "suspended" ||
-                membership.status === "inactive";
-
-              return (
-                <Card key={membership.membership_id}>
-                  <CardBody className="space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <Link
-                        href={`/agencies/${membership.agency_id}`}
-                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                      >
-                        {membership.agency_name}
-                      </Link>
-                      <Badge variant={getStatusVariant(membership.status)}>
-                        {displayMembershipStatus(membership.status)}
-                      </Badge>
-                    </div>
-                    {membership.status_reason ? (
-                      <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                        {membership.status_reason}
-                      </div>
-                    ) : null}
-                    {membership.pending_review_request_id ? (
-                      <p className="text-sm text-amber-700 dark:text-amber-300">
-                        Review request pending
-                      </p>
-                    ) : isRestricted ? (
-                      <div className="space-y-3">
-                        <textarea
-                          rows={3}
-                          className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                          placeholder="Explain why this decision should be reviewed"
-                          value={reviewReasons[membership.membership_id] ?? ""}
-                          onChange={(event) =>
-                            setReviewReasons((current) => ({
-                              ...current,
-                              [membership.membership_id]: event.target.value,
-                            }))
-                          }
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          loading={
-                            createReviewRequest.isPending &&
-                            createReviewRequest.variables?.membershipId === membership.membership_id
-                          }
-                          onClick={() =>
-                            void handleReviewRequest(
-                              membership.agency_id,
-                              membership.membership_id,
-                            )
-                          }
-                        >
-                          Request review
-                        </Button>
-                      </div>
-                    ) : null}
-                  </CardBody>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
-      {requests.length === 0 ? (
-        <EmptyState
-          title="No join requests yet"
-          description="Open an agency profile and request to join its roster."
-        />
-      ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {requests.map((request) => (
-            <Card key={request.join_request_id}>
-              <CardBody className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <Link
-                    href={`/agencies/${request.agency_id}`}
-                    className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                  >
-                    {request.agency_name}
-                  </Link>
-                  <Badge variant={getStatusVariant(request.status)}>
-                    {request.status}
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Submitted {formatDate(request.submitted_at)}
-                </p>
-                {request.status === "rejected" && request.rejection_reason ? (
-                  <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                    {request.rejection_reason}
-                  </div>
-                ) : null}
-              </CardBody>
-            </Card>
-          ))}
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 }
