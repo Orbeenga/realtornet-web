@@ -144,7 +144,7 @@ export function useAgentMembershipStatus(enabled = true) {
   return useQuery({
     queryKey: ["agentMembershipStatus"],
     queryFn: () =>
-      apiClient<MyAgentMembershipStatusResponse>("/api/v1/membership/me/status"),
+      apiClient<MyAgentMembershipStatusResponse>("/api/v1/agency-memberships/me/status"),
     staleTime: 30_000,
     enabled,
     retry: false,

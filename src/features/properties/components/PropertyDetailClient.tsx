@@ -27,6 +27,7 @@ import {
 } from "@/features/properties/components";
 import { ApiError } from "@/lib/api/client";
 import { notify } from "@/lib/toast";
+import { ReviewSection } from "@/features/reviews/ReviewSection";
 
 interface PropertyDetailClientProps {
   id: string;
@@ -257,6 +258,8 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
         has to parse up front.
       */}
       <InquiryForm propertyId={propertyId} />
+
+      <ReviewSection target="property" targetId={property.property_id} />
 
       {(locationQuery.isError || propertyTypeQuery.isError || imagesQuery.isError) ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
