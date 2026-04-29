@@ -22,6 +22,7 @@ import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
   useAgencyAgents,
+  useAgencyInvitations,
   useAgencyJoinRequests,
   useApproveAgencyMembershipReview,
   useApproveAgencyJoinRequest,
@@ -86,7 +87,6 @@ export function AgencyOwnerDashboardClient() {
   const agenciesQuery = useAgencies(gate.isAllowed);
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
-  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
   const agency = useMemo(() => {
     if (typeof user?.agency_id === "number") {
@@ -109,6 +109,7 @@ export function AgencyOwnerDashboardClient() {
   const agencyId = agency?.agency_id;
   const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
+  const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
   const suspendMembership = useSuspendAgencyMembership(agencyId);
@@ -159,10 +160,8 @@ export function AgencyOwnerDashboardClient() {
 
   const handleInvite = async (values: InviteFormValues) => {
     try {
-      const invite = await inviteAgent.mutateAsync({ email: values.email.trim() });
-      const inviteUrl = `${window.location.origin}/agencies/accept-invite?token=${encodeURIComponent(invite.invite_token)}`;
-      setLastInviteUrl(inviteUrl);
-      notify.success("Invite created");
+      await inviteAgent.mutateAsync({ email: values.email.trim() });
+      notify.success("Invite sent");
       reset();
     } catch (error) {
       const message =
@@ -296,6 +295,7 @@ export function AgencyOwnerDashboardClient() {
 
   const joinRequests = joinRequestsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
+  const invitations = invitationsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -745,19 +745,50 @@ export function AgencyOwnerDashboardClient() {
                 Send invite
               </Button>
             </form>
-            {lastInviteUrl ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-                <p className="font-medium text-emerald-900 dark:text-emerald-100">
-                  Invite link created
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Sent invitations
+              </h3>
+              {invitationsQuery.isLoading ? <LoadingState /> : null}
+              {invitationsQuery.isError ? (
+                <ErrorState
+                  title="Could not load invitations"
+                  message="There was a problem loading sent invitations."
+                  onRetry={() => {
+                    void invitationsQuery.refetch();
+                  }}
+                />
+              ) : null}
+              {!invitationsQuery.isLoading &&
+              !invitationsQuery.isError &&
+              invitations.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No invitations sent yet.
                 </p>
-                <a
-                  href={lastInviteUrl}
-                  className="mt-1 block break-all text-emerald-700 underline dark:text-emerald-300"
-                >
-                  {lastInviteUrl}
-                </a>
-              </div>
-            ) : null}
+              ) : null}
+              {!invitationsQuery.isLoading && invitations.length > 0 ? (
+                <div className="space-y-3">
+                  {invitations.slice(0, 5).map((invitation) => (
+                    <div
+                      key={invitation.invitation_id}
+                      className="rounded-lg border border-border p-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {invitation.email}
+                        </p>
+                        <Badge variant={getJoinRequestBadgeVariant(invitation.status)}>
+                          {invitation.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Sent {formatDate(invitation.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </CardBody>
         </Card>
       </div>

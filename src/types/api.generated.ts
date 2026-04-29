@@ -1020,6 +1020,26 @@ export interface paths {
         patch: operations["reject_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reject__patch"];
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/invitations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agency Invitations
+         * @description List invitations sent by the current agency owner.
+         */
+        get: operations["read_agency_invitations_api_v1_agencies__agency_id__invitations__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/invite/": {
         parameters: {
             query?: never;
@@ -1031,10 +1051,7 @@ export interface paths {
         put?: never;
         /**
          * Invite Agency Agent
-         * @description Create a signed agency invite token.
-         *
-         *     Email delivery is intentionally deferred; Phase G returns the token directly
-         *     so the accept-invite flow can be exercised end to end.
+         * @description Create or refresh a pending agency invitation.
          */
         post: operations["invite_agency_agent_api_v1_agencies__agency_id__invite__post"];
         delete?: never;
@@ -1067,6 +1084,66 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/mine/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Agency Invitations
+         * @description Return invitations addressed to the authenticated user's email.
+         */
+        get: operations["read_my_agency_invitations_api_v1_agency_invitations_mine__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Accept My Agency Invitation
+         * @description Accept a pending agency invitation for the authenticated user.
+         */
+        patch: operations["accept_my_agency_invitation_api_v1_agency_invitations__invitation_id__accept__patch"];
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/reject/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reject My Agency Invitation
+         * @description Reject a pending agency invitation for the authenticated user.
+         */
+        patch: operations["reject_my_agency_invitation_api_v1_agency_invitations__invitation_id__reject__patch"];
         trace?: never;
     };
     "/api/v1/agency-memberships/mine/": {
@@ -3448,6 +3525,49 @@ export interface components {
             /** Rejection Reason */
             rejection_reason?: string | null;
         };
+        /** AgencyInvitationResponse */
+        AgencyInvitationResponse: {
+            /** Invitation Id */
+            invitation_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Invited User Id */
+            invited_user_id?: number | null;
+            status: components["schemas"]["AgencyInvitationStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Accepted At */
+            accepted_at?: string | null;
+            /** Rejected At */
+            rejected_at?: string | null;
+            /** Revoked At */
+            revoked_at?: string | null;
+        };
+        /**
+         * AgencyInvitationStatus
+         * @enum {string}
+         */
+        AgencyInvitationStatus: "pending" | "accepted" | "rejected" | "expired" | "revoked";
         /** AgencyInviteAcceptRequest */
         AgencyInviteAcceptRequest: {
             /** Invite Token */
@@ -3461,6 +3581,8 @@ export interface components {
             agency_id?: number | null;
             /** User Id */
             user_id?: number | null;
+            /** Invitation Id */
+            invitation_id?: number | null;
             /** Redirect Url */
             redirect_url?: string | null;
             /** Email */
@@ -3485,6 +3607,11 @@ export interface components {
              * Format: email
              */
             email: string;
+            /** Invitation Id */
+            invitation_id?: number | null;
+            status?: components["schemas"]["AgencyInvitationStatus"] | null;
+            /** Expires At */
+            expires_at?: string | null;
         };
         /** AgencyJoinRequestCreate */
         AgencyJoinRequestCreate: {
@@ -6853,6 +6980,43 @@ export interface operations {
             };
         };
     };
+    read_agency_invitations_api_v1_agencies__agency_id__invitations__get: {
+        parameters: {
+            query?: {
+                status?: string;
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     invite_agency_agent_api_v1_agencies__agency_id__invite__post: {
         parameters: {
             query?: never;
@@ -6906,6 +7070,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_my_agency_invitations_api_v1_agency_invitations_mine__get: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_my_agency_invitation_api_v1_agency_invitations__invitation_id__accept__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInviteAcceptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_my_agency_invitation_api_v1_agency_invitations__invitation_id__reject__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"];
                 };
             };
             /** @description Validation Error */
