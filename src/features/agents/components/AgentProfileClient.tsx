@@ -6,6 +6,7 @@ import { useAgentListings, useAgentProfile } from "@/features/agents/hooks";
 import { AgentListingsGrid } from "@/features/agents/components/AgentListingsGrid";
 import { AgentProfileHeader } from "@/features/agents/components/AgentProfileHeader";
 import { ApiError } from "@/lib/api/client";
+import { ReviewSection } from "@/features/reviews/ReviewSection";
 
 interface AgentProfileClientProps {
   id: string;
@@ -94,6 +95,8 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
         properties={listingsQuery.data ?? []}
         isLoading={listingsQuery.isLoading}
       />
+
+      <ReviewSection target="agent" targetId={agentQuery.data.profile_id} />
     </div>
   );
 }

@@ -34,6 +34,11 @@ export type MyAgencyMembershipResponse = components["schemas"]["MyAgencyMembersh
 export type MyAgencyJoinRequestResponse = components["schemas"]["MyAgencyJoinRequestResponse"];
 export type MyAgentMembershipStatusResponse = components["schemas"]["MyAgentMembershipStatusResponse"];
 export type AgencyRejectRequest = components["schemas"]["AgencyRejectRequest"];
+export type AgentReviewCreate = components["schemas"]["AgentReviewCreate"];
+export type AgentReviewResponse = components["schemas"]["AgentReviewResponse"];
+export type PropertyReviewCreate = components["schemas"]["PropertyReviewCreate"];
+export type PropertyReviewResponse = components["schemas"]["PropertyReviewResponse"];
+export type ReviewUpdate = components["schemas"]["ReviewUpdate"];
 export type Inquiry = components["schemas"]["InquiryResponse"];
 export type InquiryCreate = components["schemas"]["InquiryCreate"];
 export type InquiryStatus = components["schemas"]["InquiryStatus"];
@@ -44,6 +49,10 @@ export type SavedSearchCreateInput = components["schemas"]["SavedSearchCreate"];
 export type UserProfile = components["schemas"]["UserResponse"];
 export type UserRole = components["schemas"]["UserRole"];
 export type Location = components["schemas"]["LocationResponse"];
+export type AgentPerformance = components["schemas"]["AgentPerformanceResponse"];
+export type DataIntegrity = components["schemas"]["DataIntegrityResponse"];
+export type SystemStats = components["schemas"]["SystemStatsResponse"];
+export type UsageMetrics = components["schemas"]["UsageMetricsResponse"];
 export type PaginatedProperties = components["schemas"]["PropertyResponse"][];
 
 export interface PropertyFilters {
