@@ -596,7 +596,7 @@ export function AgencyOwnerDashboardClient() {
                         {agent.profile_id ? (
                           <Link
                             href={`/agents/${agent.profile_id}`}
-                            className="inline-flex h-9 items-center justify-center rounded-lg bg-secondary px-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+                            className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-[min(var(--radius-md),12px)] border border-transparent bg-secondary px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-secondary-foreground transition-all outline-none select-none hover:bg-secondary/80 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                           >
                             View
                           </Link>
