@@ -4,16 +4,7 @@ import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
 
 const heroImage =
-  "https://images.pexels.com/photos/34939784/pexels-photo-34939784.jpeg?auto=compress&cs=tinysrgb&w=2200&q=85";
-
-const deprecatedHeroImage =
-  "https://images.pexels.com/photos/32906220/pexels-photo-32906220.jpeg?auto=compress&cs=tinysrgb&w=1800&h=1200&dpr=2";
-
-const originalHeroImage =
-  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1800&q=85";
-
-void deprecatedHeroImage;
-void originalHeroImage;
+  "https://i.pinimg.com/1200x/65/19/b2/6519b25a5dbbe6387b0a7166bd777b9f.jpg";
 
 export default function Home() {
   return (
@@ -24,7 +15,7 @@ export default function Home() {
           className="relative min-h-[70vh] overflow-hidden bg-gray-950 bg-cover bg-center"
           style={{
             backgroundImage: `url(${heroImage})`,
-            backgroundPosition: "center 52%",
+            backgroundPosition: "center center",
           }}
         >
           <div className="absolute inset-0 bg-black/55" />

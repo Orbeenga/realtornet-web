@@ -54,7 +54,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <main className="relative flex min-h-screen items-center justify-center bg-gray-50 px-4">
+      <Link
+        href="/"
+        className="absolute left-6 top-6 text-lg font-bold text-gray-950 transition-colors hover:text-blue-600"
+      >
+        RealtorNet
+      </Link>
+
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
         <h1 className="mb-2 text-2xl font-bold text-gray-900">Create account</h1>
         <p className="mb-8 text-sm text-gray-500">

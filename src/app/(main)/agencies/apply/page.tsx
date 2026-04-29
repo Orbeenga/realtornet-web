@@ -1,8 +1,16 @@
+import Link from "next/link";
 import { AgencyApplyForm } from "@/features/agencies/components";
 
 export default function AgencyApplyPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+      >
+        Home
+      </Link>
+
       <div className="space-y-3">
         <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
           Agency application
