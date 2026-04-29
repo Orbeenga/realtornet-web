@@ -5,9 +5,12 @@ import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
+  useAcceptAgencyInvitation,
   useCreateAgencyMembershipReviewRequest,
+  useMyAgencyInvitations,
   useMyAgencyJoinRequests,
   useMyAgencyMemberships,
+  useRejectAgencyInvitation,
 } from "@/features/agencies/hooks";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
@@ -42,7 +45,10 @@ export function MyJoinRequestsClient() {
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
   const membershipsQuery = useMyAgencyMemberships(Boolean(token) && role === "agent");
+  const invitationsQuery = useMyAgencyInvitations(Boolean(token) && role === "agent");
   const createReviewRequest = useCreateAgencyMembershipReviewRequest();
+  const acceptInvitation = useAcceptAgencyInvitation();
+  const rejectInvitation = useRejectAgencyInvitation();
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
     try {
@@ -59,6 +65,24 @@ export function MyJoinRequestsClient() {
       });
     } catch {
       notify.error("Could not submit review request");
+    }
+  };
+
+  const handleAcceptInvitation = async (invitationId: number) => {
+    try {
+      await acceptInvitation.mutateAsync(invitationId);
+      notify.success("Invitation accepted");
+    } catch {
+      notify.error("Could not accept invitation");
+    }
+  };
+
+  const handleRejectInvitation = async (invitationId: number) => {
+    try {
+      await rejectInvitation.mutateAsync(invitationId);
+      notify.success("Invitation rejected");
+    } catch {
+      notify.error("Could not reject invitation");
     }
   };
 
@@ -89,7 +113,7 @@ export function MyJoinRequestsClient() {
     );
   }
 
-  if (requestsQuery.isLoading || membershipsQuery.isLoading) {
+  if (requestsQuery.isLoading || membershipsQuery.isLoading || invitationsQuery.isLoading) {
     return <LoadingState />;
   }
 
@@ -107,6 +131,7 @@ export function MyJoinRequestsClient() {
 
   const requests = requestsQuery.data ?? [];
   const memberships = membershipsQuery.data ?? [];
+  const invitations = invitationsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -118,6 +143,70 @@ export function MyJoinRequestsClient() {
           Track agencies you have joined and requests that are still under review.
         </p>
       </div>
+
+      {invitations.length > 0 ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Agency invitations
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {invitations.map((invitation) => (
+              <Card key={invitation.invitation_id}>
+                <CardBody className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <Link
+                      href={`/agencies/${invitation.agency_id}`}
+                      className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                    >
+                      {invitation.agency_name}
+                    </Link>
+                    <Badge variant={getStatusVariant(invitation.status)}>
+                      {invitation.status}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    You have been invited to join {invitation.agency_name}.
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Sent {formatDate(invitation.created_at)}
+                  </p>
+                  {invitation.status === "pending" ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        loading={
+                          acceptInvitation.isPending &&
+                          acceptInvitation.variables === invitation.invitation_id
+                        }
+                        onClick={() =>
+                          void handleAcceptInvitation(invitation.invitation_id)
+                        }
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        loading={
+                          rejectInvitation.isPending &&
+                          rejectInvitation.variables === invitation.invitation_id
+                        }
+                        onClick={() =>
+                          void handleRejectInvitation(invitation.invitation_id)
+                        }
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  ) : null}
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {memberships.length > 0 ? (
         <section className="space-y-4">

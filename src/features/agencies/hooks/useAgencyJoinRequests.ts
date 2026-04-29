@@ -4,6 +4,7 @@ import type {
   AgencyInviteCreate,
   AgencyInviteAcceptRequest,
   AgencyInviteAcceptResponse,
+  AgencyInvitationResponse,
   AgencyInviteResponse,
   AgencyJoinRequestCreate,
   AgencyJoinRequestRejectRequest,
@@ -108,12 +109,17 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
 }
 
 export function useInviteAgencyAgent(agencyId?: string | number | null) {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (payload: AgencyInviteCreate) =>
       apiClient<AgencyInviteResponse>(`/api/v1/agencies/${agencyId}/invite/`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agencyInvitations", agencyId] });
+    },
   });
 }
 
@@ -142,5 +148,65 @@ export function useMyAgencyJoinRequests(enabled = true) {
       apiClient<MyAgencyJoinRequestResponse[]>("/api/v1/join-requests/mine/"),
     staleTime: 30_000,
     enabled,
+  });
+}
+
+export function useAgencyInvitations(
+  agencyId?: string | number | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["agencyInvitations", agencyId],
+    queryFn: () =>
+      apiClient<AgencyInvitationResponse[]>(
+        `/api/v1/agencies/${agencyId}/invitations/?limit=100`,
+      ),
+    staleTime: 30_000,
+    enabled: enabled && Boolean(agencyId),
+  });
+}
+
+export function useMyAgencyInvitations(enabled = true) {
+  return useQuery({
+    queryKey: ["myAgencyInvitations"],
+    queryFn: () =>
+      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/"),
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function useAcceptAgencyInvitation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInviteAcceptResponse>(
+        `/api/v1/agency-invitations/${invitationId}/accept/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] }),
+        queryClient.invalidateQueries({ queryKey: ["agentProfileByUser"] }),
+      ]);
+    },
+  });
+}
+
+export function useRejectAgencyInvitation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agency-invitations/${invitationId}/reject/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] });
+    },
   });
 }
