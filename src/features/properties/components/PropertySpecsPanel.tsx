@@ -1,24 +1,15 @@
 import type { Property } from "@/types";
 import { Badge } from "@/components";
+import {
+  LISTING_STATUS_LABELS,
+  LISTING_TYPE_LABELS,
+} from "@/features/properties/lib/propertyOptions";
 
 interface PropertySpecsPanelProps {
   property: Property;
   propertyTypeName?: string | null;
   locationLabel?: string | null;
 }
-
-const listingTypeLabels: Record<string, string> = {
-  sale: "For Sale",
-  rent: "For Rent",
-  lease: "For Lease",
-};
-
-const listingStatusLabels: Record<string, string> = {
-  available: "Available",
-  active: "Active",
-  sold: "Sold",
-  pending: "Pending",
-};
 
 function formatBooleanFeature(value: boolean | null, label: string) {
   return value ? label : "Not listed";
@@ -61,10 +52,10 @@ export function PropertySpecsPanel({
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="success">
-            {listingStatusLabels[property.listing_status] ?? property.listing_status}
+            {LISTING_STATUS_LABELS[property.listing_status] ?? property.listing_status}
           </Badge>
           <Badge variant="outline">
-            {listingTypeLabels[property.listing_type] ?? property.listing_type}
+            {LISTING_TYPE_LABELS[property.listing_type] ?? property.listing_type}
           </Badge>
         </div>
       </div>

@@ -11,12 +11,17 @@ import {
   useRemoveFavorite,
 } from "@/features/favorites/hooks";
 import { usePropertyImages } from "@/features/properties/hooks";
+import {
+  LISTING_STATUS_LABELS,
+  LISTING_TYPE_LABELS,
+} from "@/features/properties/lib/propertyOptions";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 interface PropertyCardProps {
   property: Property;
   onNavigateToDetail?: () => void;
+  locationLabel?: string | null;
 }
 
 const statusVariant: Record<
@@ -31,14 +36,11 @@ const statusVariant: Record<
   pending: "warning",
 };
 
-const statusLabel: Record<string, string> = {
-  available: "Available",
-  active: "Active",
-  sold: "Sold",
-  pending: "Pending",
-};
-
-export function PropertyCard({ property, onNavigateToDetail }: PropertyCardProps) {
+export function PropertyCard({
+  property,
+  onNavigateToDetail,
+  locationLabel,
+}: PropertyCardProps) {
   const lastFavoriteToggleAtRef = useRef(0);
   const { data: favorites } = useFavorites();
   const addFavorite = useAddFavorite();
@@ -150,14 +152,10 @@ export function PropertyCard({ property, onNavigateToDetail }: PropertyCardProps
 
           <div className="absolute bottom-2 left-2 flex gap-2">
             <Badge variant={statusVariant[property.listing_status] ?? "default"}>
-              {statusLabel[property.listing_status] ?? property.listing_status}
+              {LISTING_STATUS_LABELS[property.listing_status] ?? property.listing_status}
             </Badge>
             <Badge variant="outline">
-              {property.listing_type === "sale"
-                ? "For Sale"
-                : property.listing_type === "rent"
-                  ? "For Rent"
-                  : "Lease"}
+              {LISTING_TYPE_LABELS[property.listing_type] ?? property.listing_type}
             </Badge>
           </div>
         </div>
@@ -183,9 +181,10 @@ export function PropertyCard({ property, onNavigateToDetail }: PropertyCardProps
                 d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
               />
             </svg>
-            {property.location_id
-              ? `Location #${property.location_id}`
-              : "Location available on detail page"}
+            {locationLabel ||
+              (property.location_id
+                ? `Location #${property.location_id}`
+                : "Location available on detail page")}
           </p>
           <div className="flex items-center gap-3 pt-1 text-xs text-gray-500">
             {property.bedrooms != null ? (

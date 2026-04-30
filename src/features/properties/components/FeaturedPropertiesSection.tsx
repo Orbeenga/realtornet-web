@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { EmptyState, ErrorState, PropertyCardSkeleton } from "@/components";
 import { PropertyCard } from "@/features/properties/components/PropertyCard";
-import { useFeaturedProperties } from "@/features/properties/hooks";
+import { useFeaturedProperties, useLocations } from "@/features/properties/hooks";
+import { buildLocationLabelMap } from "@/features/properties/lib/locationLabels";
 
 export function FeaturedPropertiesSection() {
   const featuredQuery = useFeaturedProperties(3);
+  const locationsQuery = useLocations();
   const properties = featuredQuery.data ?? [];
+  const locationLabels = buildLocationLabelMap(locationsQuery.data ?? []);
 
   return (
     <section className="mx-auto max-w-7xl space-y-6 px-4 py-12 sm:px-6 lg:px-8">
@@ -56,7 +59,13 @@ export function FeaturedPropertiesSection() {
       {!featuredQuery.isLoading && !featuredQuery.isError && properties.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
           {properties.map((property) => (
-            <PropertyCard key={property.property_id} property={property} />
+            <PropertyCard
+              key={property.property_id}
+              property={property}
+              locationLabel={
+                property.location_id ? locationLabels.get(property.location_id) : undefined
+              }
+            />
           ))}
         </div>
       ) : null}

@@ -6,12 +6,16 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useFavoriteProperties } from "@/features/favorites/hooks";
 import { getFavoritesPageCopy } from "@/features/auth/navigation";
 import { PropertyCard } from "@/features/properties/components";
+import { useLocations } from "@/features/properties/hooks";
+import { buildLocationLabelMap } from "@/features/properties/lib/locationLabels";
 
 export default function FavoritesPage() {
   const { user } = useAuth();
   const favoritesQuery = useFavoriteProperties();
+  const locationsQuery = useLocations();
   const { savedTitle, savedDescription, emptyTitle, emptyDescription } =
     getFavoritesPageCopy(user?.user_role);
+  const locationLabels = buildLocationLabelMap(locationsQuery.data ?? []);
 
   return (
     <div className="mx-auto max-w-[800px] space-y-8">
@@ -72,7 +76,13 @@ export default function FavoritesPage() {
       favoritesQuery.properties.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {favoritesQuery.properties.map((property) => (
-            <PropertyCard key={property.property_id} property={property} />
+            <PropertyCard
+              key={property.property_id}
+              property={property}
+              locationLabel={
+                property.location_id ? locationLabels.get(property.location_id) : undefined
+              }
+            />
           ))}
         </div>
       ) : null}
