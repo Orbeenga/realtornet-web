@@ -4,6 +4,12 @@ import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/Input";
+import {
+  LISTING_STATUSES,
+  LISTING_STATUS_LABELS,
+  LISTING_TYPES,
+  LISTING_TYPE_LABELS,
+} from "@/features/properties/lib/propertyOptions";
 
 const PropertyFiltersSavedSearch = dynamic(
   () =>
@@ -100,9 +106,11 @@ export function PropertyFilters() {
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         >
           <option value="">All types</option>
-          <option value="sale">For Sale</option>
-          <option value="rent">For Rent</option>
-          <option value="lease">For Lease</option>
+          {LISTING_TYPES.map((listingType) => (
+            <option key={listingType} value={listingType}>
+              {LISTING_TYPE_LABELS[listingType]}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -120,10 +128,11 @@ export function PropertyFilters() {
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
         >
           <option value="">All statuses</option>
-          <option value="available">Available</option>
-          <option value="active">Active</option>
-          <option value="sold">Sold</option>
-          <option value="pending">Pending</option>
+          {LISTING_STATUSES.map((listingStatus) => (
+            <option key={listingStatus} value={listingStatus}>
+              {LISTING_STATUS_LABELS[listingStatus]}
+            </option>
+          ))}
         </select>
       </div>
 
