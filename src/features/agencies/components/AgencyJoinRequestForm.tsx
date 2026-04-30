@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button, Card, CardBody, EmptyState, ErrorState, Input, LoadingState } from "@/components";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -44,7 +44,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
     handleSubmit,
     reset,
     setError,
-    watch,
+    control,
     formState: { errors, isSubmitSuccessful },
   } = useForm<JoinRequestFormValues>({
     resolver: zodResolver(joinRequestSchema),
@@ -56,6 +56,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
       portfolio_details: "",
     },
   });
+  const watchedFullName = useWatch({ control, name: "full_name" });
 
   useEffect(() => {
     if (!user) {
@@ -272,7 +273,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
                 Request summary
               </p>
               <p className="mt-1">
-                {watch("full_name") || "Your name"} will be sent to this agency
+                {watchedFullName || "Your name"} will be sent to this agency
                 with your contact details.
               </p>
             </div>

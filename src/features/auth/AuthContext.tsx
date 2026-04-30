@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -193,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signIn(email, password);
   };
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     clearStoredAuthTokens();
     queryClient.clear();
     setToken(null);
@@ -202,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       window.location.assign("/login");
     }
-  };
+  }, [queryClient]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => signOut());
@@ -210,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       setUnauthorizedHandler(null);
     };
-  }, [queryClient]);
+  }, [signOut]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut }}>

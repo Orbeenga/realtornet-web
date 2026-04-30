@@ -1,8 +1,7 @@
-const { test, expect } = require("@playwright/test");
+import { test, expect } from "@playwright/test";
 
 const baseURL = "https://realtornet-web.vercel.app";
 const password = "Markets26_";
-const loginUrlPattern = /\/login\/?$/;
 const propertiesUrlPattern = /\/properties\/?$/;
 const propertiesSearchPattern = /\/properties\/?\?search=lekki$/;
 const listingsUrlPattern = /\/account\/listings\/?$/;
@@ -59,11 +58,6 @@ async function login(page, email) {
   await page.getByPlaceholder("you@example.com").fill(email);
   await page.getByPlaceholder("********").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-}
-
-async function logout(page) {
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await page.waitForURL(loginUrlPattern);
 }
 
 test.use({ viewport: { width: 1440, height: 1200 } });

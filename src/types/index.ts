@@ -4,6 +4,8 @@ import type { components } from "./api.generated";
 
 export type Property = components["schemas"]["PropertyResponse"];
 export type PropertyList = components["schemas"]["PropertyResponse"][];
+export type ModerationStatus = components["schemas"]["ModerationStatus"];
+export type PropertyVerificationUpdate = components["schemas"]["PropertyVerificationUpdate"];
 export type PropertyImage = components["schemas"]["PropertyImageResponse"];
 export type Amenity = components["schemas"]["AmenityResponse"];
 export type PropertyType = components["schemas"]["PropertyTypeResponse"];
@@ -62,6 +64,7 @@ export interface PropertyFilters {
   bedrooms?: number;
   listing_type?: string;
   listing_status?: string;
+  moderation_status?: ModerationStatus;
   location_id?: number;
   skip?: number;
   limit?: number;

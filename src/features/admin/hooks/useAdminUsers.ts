@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api/client";
-import type { Agent, Agency, UserProfile, UserRole } from "@/types";
+import type { Agent, UserProfile, UserRole } from "@/types";
 
 function extractUserCollection(
   payload: UserProfile[] | Record<string, unknown>,
