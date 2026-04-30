@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Agent, UserProfile } from "@/types";
 import { Badge, Card, CardBody } from "@/components";
 import { useAgencyProfile } from "@/features/agencies/hooks";
+import { isVerifiedUserProfile } from "@/features/agents/lib/verification";
 
 interface AgentProfileHeaderProps {
   agent: Agent;
@@ -43,7 +44,7 @@ export function AgentProfileHeader({ agent, user }: AgentProfileHeaderProps) {
               <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
                 {fullName}
               </h1>
-              {user?.is_verified ? <Badge>Verified</Badge> : null}
+              {isVerifiedUserProfile(user) ? <Badge>Verified</Badge> : null}
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {agent.specialization ?? "Real estate agent"}

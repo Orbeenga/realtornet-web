@@ -135,7 +135,6 @@ export function ReviewSection({ target, targetId }: ReviewSectionProps) {
     [reviewsQuery.data],
   );
   const ownReview = reviews.find((review) => review.user_id === user?.user_id);
-  const editingReview = reviews.find((review) => review.review_id === editingReviewId);
   const averageRating =
     reviews.length > 0
       ? reviews.reduce((total, review) => total + Number(review.rating), 0) / reviews.length

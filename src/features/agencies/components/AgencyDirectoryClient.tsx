@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgencies, useVisibleAgencyStats } from "@/features/agencies/hooks";
+import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { cn } from "@/lib/utils";
 import type { Agency } from "@/types";
 
@@ -49,7 +50,7 @@ function AgencyDirectoryCard({
                 <h2 className="line-clamp-1 text-base font-semibold text-gray-900 dark:text-white">
                   {agency.name}
                 </h2>
-                {agency.is_verified ? <Badge>Verified</Badge> : null}
+                {isVerifiedAgency(agency) ? <Badge>Verified</Badge> : null}
               </div>
               {agency.address ? (
                 <p className="mt-1 line-clamp-1 text-sm text-gray-500 dark:text-gray-400">

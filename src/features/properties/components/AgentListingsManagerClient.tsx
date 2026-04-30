@@ -21,7 +21,13 @@ import {
   useVerifyProperty,
 } from "@/features/properties/hooks";
 import { notify } from "@/lib/toast";
-import type { Property } from "@/types";
+import {
+  MODERATION_STATUS,
+  moderationStatusBadgeVariant,
+  moderationStatusLabel,
+  shouldShowModerationReason,
+} from "@/features/properties/lib/moderation";
+import type { ModerationStatus, Property } from "@/types";
 
 function formatPrice(price: string, currency: string | null) {
   const amount = Number(price);
@@ -151,15 +157,17 @@ export function AgentListingsManagerClient() {
     }
   };
 
-  const handleSetVerification = async (
+  const handleSetModerationStatus = async (
     propertyId: number,
-    isVerified: boolean,
+    moderationStatus: ModerationStatus,
     successMessage: string,
+    moderationReason?: string | null,
   ) => {
     try {
       await verifyProperty.mutateAsync({
         propertyId,
-        isVerified,
+        moderationStatus,
+        moderationReason,
       });
       notify.success(successMessage);
     } catch (error) {
@@ -171,8 +179,38 @@ export function AgentListingsManagerClient() {
           ? error.detail
           : null;
 
-      notify.error(detail ?? "Could not update verification status");
+      notify.error(detail ?? "Could not update moderation status");
     }
+  };
+
+  const handleReject = (propertyId: number) => {
+    const reason = window.prompt("Reason for rejecting this listing?");
+
+    if (reason === null) {
+      return;
+    }
+
+    void handleSetModerationStatus(
+      propertyId,
+      MODERATION_STATUS.rejected,
+      "Listing rejected",
+      reason.trim() || null,
+    );
+  };
+
+  const handleRevoke = (propertyId: number) => {
+    const reason = window.prompt("Reason for revoking this listing?");
+
+    if (reason === null) {
+      return;
+    }
+
+    void handleSetModerationStatus(
+      propertyId,
+      MODERATION_STATUS.revoked,
+      "Listing revoked",
+      reason.trim() || null,
+    );
   };
 
   return (
@@ -273,33 +311,26 @@ export function AgentListingsManagerClient() {
               onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
               onDelete={() => void handleDelete(property.property_id)}
               onVerify={
-                gate.isAdmin && !property.is_verified
+                gate.isAdmin &&
+                property.moderation_status !== MODERATION_STATUS.verified
                   ? () =>
-                      void handleSetVerification(
+                      void handleSetModerationStatus(
                         property.property_id,
-                        true,
+                        MODERATION_STATUS.verified,
                         "Listing marked as verified",
                       )
                   : undefined
               }
               onReject={
-                gate.isAdmin && !property.is_verified
-                  ? () =>
-                      void handleSetVerification(
-                        property.property_id,
-                        false,
-                        "Listing rejected",
-                      )
+                gate.isAdmin &&
+                property.moderation_status === MODERATION_STATUS.pendingReview
+                  ? () => handleReject(property.property_id)
                   : undefined
               }
-              onUnverify={
-                gate.isAdmin && property.is_verified
-                  ? () =>
-                      void handleSetVerification(
-                        property.property_id,
-                        false,
-                        "Listing marked as pending",
-                      )
+              onRevoke={
+                gate.isAdmin &&
+                property.moderation_status === MODERATION_STATUS.verified
+                  ? () => handleRevoke(property.property_id)
                   : undefined
               }
             />
@@ -319,7 +350,7 @@ interface ListingRowProps {
   onDelete: () => void;
   onVerify?: () => void;
   onReject?: () => void;
-  onUnverify?: () => void;
+  onRevoke?: () => void;
 }
 
 function ListingRow({
@@ -331,7 +362,7 @@ function ListingRow({
   onDelete,
   onVerify,
   onReject,
-  onUnverify,
+  onRevoke,
 }: ListingRowProps) {
   const imagesQuery = usePropertyImages(property.property_id);
   const displayImage = imagesQuery.data?.[0] ?? null;
@@ -371,11 +402,18 @@ function ListingRow({
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                 {property.listing_status}
               </span>
-              <Badge variant={property.is_verified ? "success" : "warning"}>
-                {property.is_verified ? "Verified" : "Pending"}
+              <Badge variant={moderationStatusBadgeVariant[property.moderation_status]}>
+                {moderationStatusLabel[property.moderation_status]}
               </Badge>
               <span>{property.listing_type}</span>
             </div>
+            {shouldShowModerationReason(property.moderation_status) &&
+            property.moderation_reason ? (
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+                {moderationStatusLabel[property.moderation_status]} reason:{" "}
+                {property.moderation_reason}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -401,14 +439,14 @@ function ListingRow({
             Verify
           </Button>
         ) : null}
-        {onUnverify ? (
+        {onRevoke ? (
           <Button
-            variant="secondary"
+            variant="destructive"
             size="sm"
             loading={verifying}
-            onClick={onUnverify}
+            onClick={onRevoke}
           >
-            Unverify
+            Revoke
           </Button>
         ) : null}
         {canManage ? (

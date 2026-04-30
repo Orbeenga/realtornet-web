@@ -25,6 +25,7 @@ import {
   PropertySpecsPanel,
   PropertyStaticMap,
 } from "@/features/properties/components";
+import { isVerifiedModerationStatus } from "@/features/properties/lib/moderation";
 import { ApiError } from "@/lib/api/client";
 import { notify } from "@/lib/toast";
 import { ReviewSection } from "@/features/reviews/ReviewSection";
@@ -218,7 +219,9 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
             <div className="flex flex-wrap gap-2">
               <Badge variant="success">{property.listing_status}</Badge>
               <Badge variant="outline">{property.listing_type}</Badge>
-              {property.is_verified ? <Badge>Verified</Badge> : null}
+              {isVerifiedModerationStatus(property.moderation_status) ? (
+                <Badge>Verified</Badge>
+              ) : null}
             </div>
           </div>
 

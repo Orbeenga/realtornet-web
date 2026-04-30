@@ -1,5 +1,6 @@
 import { EmptyState, PropertyCardSkeleton } from "@/components";
 import { PropertyCard } from "@/features/properties/components";
+import { isVerifiedModerationStatus } from "@/features/properties/lib/moderation";
 import type { Property } from "@/types";
 
 interface AgencyListingsGridProps {
@@ -13,7 +14,7 @@ export function AgencyListingsGrid({
 }: AgencyListingsGridProps) {
   const activeProperties = properties.filter(
     (property) =>
-      property.is_verified &&
+      isVerifiedModerationStatus(property.moderation_status) &&
       (property.listing_status === "active" ||
         property.listing_status === "available"),
   );

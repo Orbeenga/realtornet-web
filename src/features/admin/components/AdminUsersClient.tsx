@@ -64,9 +64,15 @@ export function AdminUsersClient() {
 
   useEffect(() => {
     if (promotedAgentProfileQuery.data?.agency_id) {
-      setAgencyAssignmentUserId(null);
-      setSelectedAgencyId(null);
+      const timeout = window.setTimeout(() => {
+        setAgencyAssignmentUserId(null);
+        setSelectedAgencyId(null);
+      }, 0);
+
+      return () => window.clearTimeout(timeout);
     }
+
+    return undefined;
   }, [promotedAgentProfileQuery.data?.agency_id]);
 
   if (gate.isChecking) {
