@@ -5,6 +5,7 @@ import { Badge, Card, CardBody } from "@/components";
 import { useAuth } from "@/features/auth/AuthContext";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useMyAgencyJoinRequests } from "@/features/agencies/hooks";
+import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { getStoredJwtRole } from "@/lib/jwt";
 import type { Agency } from "@/types";
 
@@ -58,7 +59,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
               <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
                 {agency.name}
               </h1>
-              {agency.is_verified ? <Badge>Verified</Badge> : null}
+              {isVerifiedAgency(agency) ? <Badge>Verified</Badge> : null}
             </div>
             {existingRequest?.status === "approved" ? (
               <span className="inline-flex items-center justify-center rounded-lg bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">

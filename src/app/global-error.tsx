@@ -7,6 +7,8 @@ export default function GlobalError({
 }: {
   error: Error & { digest?: string };
 }) {
+  void error;
+
   return (
     <html lang="en">
       <body>

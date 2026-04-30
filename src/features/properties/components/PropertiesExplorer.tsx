@@ -10,6 +10,10 @@ import {
   restorePropertiesScrollPosition,
   savePropertiesScrollPosition,
 } from "@/features/properties/lib/scrollRestoration";
+import {
+  MODERATION_STATUS,
+  isVerifiedModerationStatus,
+} from "@/features/properties/lib/moderation";
 import { PropertyCardSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -58,6 +62,7 @@ export function PropertiesExplorer() {
     search: searchParams.get("search") ?? undefined,
     listing_type: searchParams.get("listing_type") ?? undefined,
     listing_status: searchParams.get("listing_status") ?? undefined,
+    moderation_status: MODERATION_STATUS.verified,
     min_price: searchParams.get("min_price")
       ? Number(searchParams.get("min_price"))
       : undefined,
@@ -71,14 +76,20 @@ export function PropertiesExplorer() {
 
   const { data, isLoading, isError, refetch } = useProperties(filters);
 
-  const properties: Property[] = (data ?? []).filter((property) => property.is_verified);
+  const properties: Property[] = (data ?? []).filter((property) =>
+    isVerifiedModerationStatus(property.moderation_status),
+  );
   const total = properties.length;
 
   useEffect(() => {
     // The sidebar is useful, but it is not required for the first paint of the
     // public listings feed. Hydrating it after mount trims work from the
     // initial route bundle without removing the desktop experience.
-    setHydrateDesktopFilters(true);
+    const timeout = window.setTimeout(() => {
+      setHydrateDesktopFilters(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {

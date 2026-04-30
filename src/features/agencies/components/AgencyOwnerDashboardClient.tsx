@@ -35,6 +35,7 @@ import {
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
 } from "@/features/agencies/hooks";
+import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 
 const inviteSchema = z.object({
   email: z.email("Use a valid email address"),
@@ -100,15 +101,17 @@ export function AgencyOwnerDashboardClient() {
   const agenciesQuery = useAgencies(gate.isAllowed);
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
+  const userAgencyId = user?.agency_id;
+  const userEmail = user?.email;
 
   const agency = useMemo(() => {
-    if (typeof user?.agency_id === "number") {
+    if (typeof userAgencyId === "number") {
       return (agenciesQuery.data ?? []).find(
-        (candidate) => candidate.agency_id === user.agency_id,
+        (candidate) => candidate.agency_id === userAgencyId,
       );
     }
 
-    const email = user?.email?.toLowerCase();
+    const email = userEmail?.toLowerCase();
 
     if (!email) {
       return undefined;
@@ -117,7 +120,7 @@ export function AgencyOwnerDashboardClient() {
     return (agenciesQuery.data ?? []).find(
       (candidate) => candidate.owner_email?.toLowerCase() === email,
     );
-  }, [agenciesQuery.data, user?.agency_id, user?.email]);
+  }, [agenciesQuery.data, userAgencyId, userEmail]);
 
   const agencyId = agency?.agency_id;
   const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
@@ -344,7 +347,7 @@ export function AgencyOwnerDashboardClient() {
                   Agency profile
                 </h2>
                 <Badge>{agency.status}</Badge>
-                {agency.is_verified ? <Badge>Verified</Badge> : null}
+                {isVerifiedAgency(agency) ? <Badge>Verified</Badge> : null}
               </div>
               {agency.description ? (
                 <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">

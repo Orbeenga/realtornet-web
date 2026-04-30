@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getRoleNavLinks, normalizeAppRole } from "@/features/auth/navigation";
-import { Button } from "@/components/Button";
 import { useMyProfile } from "@/features/profile/hooks";
 import { getStoredJwtPayload } from "@/lib/jwt";
 import { cn } from "@/lib/utils";
@@ -48,7 +47,11 @@ export function Navbar() {
   const avatarUrl = profileQuery.data?.profile_picture ?? user?.profile_image_url ?? null;
 
   useEffect(() => {
-    setIsAccountMenuOpen(false);
+    const timeout = window.setTimeout(() => {
+      setIsAccountMenuOpen(false);
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [pathname]);
 
   useEffect(() => {
