@@ -15,6 +15,7 @@ import { AmenitySelector } from "@/features/properties/components/AmenitySelecto
 import { PropertyImageManager } from "@/features/properties/components/PropertyImageManager";
 import type { PropertyUpdate } from "@/types";
 import { notify } from "@/lib/toast";
+import { LISTING_STATUSES } from "@/features/properties/lib/propertyOptions";
 
 interface EditListingClientProps {
   id: string;
@@ -23,11 +24,8 @@ interface EditListingClientProps {
 type EditableListingStatus = ListingFormValues["listing_status"];
 
 function normalizeListingStatus(status: string): EditableListingStatus {
-  return status === "available" ||
-    status === "active" ||
-    status === "pending" ||
-    status === "sold"
-    ? status
+  return LISTING_STATUSES.includes(status as EditableListingStatus)
+    ? (status as EditableListingStatus)
     : "available";
 }
 
@@ -55,6 +53,11 @@ export function EditListingClient({ id }: EditListingClientProps) {
             listing_status: normalizeListingStatus(propertyQuery.data.listing_status),
             property_type_id: propertyQuery.data.property_type_id ?? 0,
             location_id: propertyQuery.data.location_id ?? 0,
+            year_built: propertyQuery.data.year_built ?? null,
+            parking_spaces: propertyQuery.data.parking_spaces ?? null,
+            has_garden: Boolean(propertyQuery.data.has_garden),
+            has_security: Boolean(propertyQuery.data.has_security),
+            has_swimming_pool: Boolean(propertyQuery.data.has_swimming_pool),
           }
         : undefined,
     [propertyQuery.data],
@@ -123,7 +126,21 @@ export function EditListingClient({ id }: EditListingClientProps) {
 
   const handleSubmit = async (values: ListingFormValues) => {
     const payload: PropertyUpdate = {
-      ...values,
+      title: values.title,
+      description: values.description,
+      price: values.price,
+      bedrooms: values.bedrooms,
+      bathrooms: values.bathrooms,
+      property_size: values.property_size,
+      listing_type: values.listing_type,
+      listing_status: values.listing_status,
+      property_type_id: values.property_type_id,
+      location_id: values.location_id,
+      year_built: values.year_built,
+      parking_spaces: values.parking_spaces,
+      has_garden: values.has_garden,
+      has_security: values.has_security,
+      has_swimming_pool: values.has_swimming_pool,
     };
 
     await updateProperty.mutateAsync({

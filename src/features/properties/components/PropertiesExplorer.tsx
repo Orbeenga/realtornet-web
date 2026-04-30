@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PropertyCard } from "@/features/properties/components/PropertyCard";
 import { SearchBar } from "@/features/properties/components/SearchBar";
-import { useProperties } from "@/features/properties/hooks";
+import { useLocations, useProperties } from "@/features/properties/hooks";
 import {
   restorePropertiesScrollPosition,
   savePropertiesScrollPosition,
@@ -14,6 +14,7 @@ import {
   MODERATION_STATUS,
   isVerifiedModerationStatus,
 } from "@/features/properties/lib/moderation";
+import { buildLocationLabelMap } from "@/features/properties/lib/locationLabels";
 import { PropertyCardSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -75,10 +76,12 @@ export function PropertiesExplorer() {
   };
 
   const { data, isLoading, isError, refetch } = useProperties(filters);
+  const locationsQuery = useLocations();
 
   const properties: Property[] = (data ?? []).filter((property) =>
     isVerifiedModerationStatus(property.moderation_status),
   );
+  const locationLabels = buildLocationLabelMap(locationsQuery.data ?? []);
   const total = properties.length;
 
   useEffect(() => {
@@ -184,6 +187,11 @@ export function PropertiesExplorer() {
                   <PropertyCard
                     key={property.property_id}
                     property={property}
+                    locationLabel={
+                      property.location_id
+                        ? locationLabels.get(property.location_id)
+                        : undefined
+                    }
                     onNavigateToDetail={handleNavigateToDetail}
                   />
                 ))}

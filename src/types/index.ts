@@ -5,6 +5,8 @@ import type { components } from "./api.generated";
 export type Property = components["schemas"]["PropertyResponse"];
 export type PropertyList = components["schemas"]["PropertyResponse"][];
 export type ModerationStatus = components["schemas"]["ModerationStatus"];
+export type ListingStatus = components["schemas"]["ListingStatus-Output"];
+export type ListingType = components["schemas"]["ListingType-Output"];
 export type PropertyVerificationUpdate = components["schemas"]["PropertyVerificationUpdate"];
 export type PropertyImage = components["schemas"]["PropertyImageResponse"];
 export type Amenity = components["schemas"]["AmenityResponse"];

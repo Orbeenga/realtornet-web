@@ -9,14 +9,12 @@ import {
   useAgentProfileByUser,
   useAmenities,
   useCreateProperty,
-  useSyncPropertyAmenities,
 } from "@/features/properties/hooks";
 import { ListingForm, type ListingFormValues } from "@/features/properties/components/ListingForm";
 import { PropertyImageManager } from "@/features/properties/components/PropertyImageManager";
 import type { PropertyCreate } from "@/types";
 import { notify } from "@/lib/toast";
 import { AmenityCheckboxGrid } from "@/features/properties/components/AmenitySelector";
-import { ApiError } from "@/lib/api/client";
 import type { Property } from "@/types";
 
 export function CreateListingClient() {
@@ -28,7 +26,6 @@ export function CreateListingClient() {
   );
   const createProperty = useCreateProperty();
   const amenitiesQuery = useAmenities();
-  const syncAmenities = useSyncPropertyAmenities();
   const [selectedAmenityIds, setSelectedAmenityIds] = useState<number[]>([]);
   const [createdProperty, setCreatedProperty] = useState<Property | null>(null);
   const hasAgentProfileError = agentProfileQuery.isError;
@@ -80,30 +77,16 @@ export function CreateListingClient() {
       listing_type: values.listing_type,
       agency_id: agentProfileQuery.data?.agency_id,
       price_currency: "NGN",
-      has_garden: false,
-      has_security: false,
-      has_swimming_pool: false,
+      year_built: values.year_built,
+      parking_spaces: values.parking_spaces,
+      has_garden: values.has_garden,
+      has_security: values.has_security,
+      has_swimming_pool: values.has_swimming_pool,
       is_featured: false,
+      amenity_ids: selectedAmenityIds,
     };
 
     const property = await createProperty.mutateAsync(payload);
-
-    if (selectedAmenityIds.length > 0) {
-      try {
-        await syncAmenities.mutateAsync({
-          propertyId: property.property_id,
-          amenityIds: selectedAmenityIds,
-        });
-      } catch (error) {
-        if (error instanceof ApiError && typeof error.detail === "string") {
-          notify.error(error.detail);
-          return;
-        }
-
-        notify.error("Listing created, but amenities could not be saved");
-        return;
-      }
-    }
 
     setCreatedProperty(property);
     notify.success("Listing created. Add photos below to complete the listing.");
@@ -165,7 +148,7 @@ export function CreateListingClient() {
           description="Publish a new property using your live backend account."
           submitLabel="Create listing"
           onSubmit={handleSubmit}
-          submitting={createProperty.isPending || syncAmenities.isPending}
+          submitting={createProperty.isPending}
           secondaryActionLabel="Back to my listings"
           onSecondaryAction={() => router.push("/account/listings")}
           variant="plain"
@@ -181,7 +164,7 @@ export function CreateListingClient() {
             }}
             loading={amenitiesQuery.isLoading}
             error={amenitiesQuery.isError}
-            disabled={createProperty.isPending || syncAmenities.isPending}
+            disabled={createProperty.isPending}
             amenities={amenitiesQuery.data ?? []}
           />
         </ListingForm>

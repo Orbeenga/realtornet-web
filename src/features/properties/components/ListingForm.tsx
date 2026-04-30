@@ -6,6 +6,12 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@/lib/api/client";
 import {
+  LISTING_STATUSES,
+  LISTING_STATUS_LABELS,
+  LISTING_TYPES,
+  LISTING_TYPE_LABELS,
+} from "@/features/properties/lib/propertyOptions";
+import {
   Button,
   Card,
   CardBody,
@@ -16,6 +22,11 @@ import {
 } from "@/components";
 import { useLocations, usePropertyTypes } from "@/features/properties/hooks";
 
+const optionalNonNegativeInt = z.preprocess(
+  (value) => (value === "" || value == null ? null : value),
+  z.coerce.number().int().min(0, "Value cannot be negative").nullable(),
+);
+
 const listingFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
@@ -23,10 +34,15 @@ const listingFormSchema = z.object({
   bedrooms: z.coerce.number().int().min(0, "Bedrooms cannot be negative"),
   bathrooms: z.coerce.number().min(0, "Bathrooms cannot be negative"),
   property_size: z.coerce.number().positive("Property size must be greater than zero"),
-  listing_type: z.enum(["sale", "rent", "lease"]),
-  listing_status: z.enum(["available", "active", "sold", "pending"]),
+  listing_type: z.enum(LISTING_TYPES),
+  listing_status: z.enum(LISTING_STATUSES),
   property_type_id: z.coerce.number().int().positive("Select a property type"),
   location_id: z.coerce.number().int().positive("Select a location"),
+  year_built: optionalNonNegativeInt,
+  parking_spaces: optionalNonNegativeInt,
+  has_garden: z.boolean(),
+  has_security: z.boolean(),
+  has_swimming_pool: z.boolean(),
 });
 
 type ListingFormInput = z.input<typeof listingFormSchema>;
@@ -56,6 +72,11 @@ const defaultValues: ListingFormValues = {
   listing_status: "available",
   property_type_id: 0,
   location_id: 0,
+  year_built: null,
+  parking_spaces: null,
+  has_garden: false,
+  has_security: false,
+  has_swimming_pool: false,
 };
 
 export function ListingForm({
@@ -217,9 +238,11 @@ export function ListingForm({
                 {...register("listing_type")}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               >
-                <option value="sale">For Sale</option>
-                <option value="rent">For Rent</option>
-                <option value="lease">For Lease</option>
+                {LISTING_TYPES.map((listingType) => (
+                  <option key={listingType} value={listingType}>
+                    {LISTING_TYPE_LABELS[listingType]}
+                  </option>
+                ))}
               </select>
               {errors.listing_type ? (
                 <p className="text-xs text-red-600">{errors.listing_type.message}</p>
@@ -234,16 +257,61 @@ export function ListingForm({
                 {...register("listing_status")}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               >
-                <option value="available">Available</option>
-                <option value="active">Active</option>
-                <option value="sold">Sold</option>
-                <option value="pending">Pending</option>
+                {LISTING_STATUSES.map((listingStatus) => (
+                  <option key={listingStatus} value={listingStatus}>
+                    {LISTING_STATUS_LABELS[listingStatus]}
+                  </option>
+                ))}
               </select>
               {errors.listing_status ? (
                 <p className="text-xs text-red-600">{errors.listing_status.message}</p>
               ) : null}
             </div>
           </div>
+
+          <div className="flex flex-wrap gap-6">
+            <div className="w-full sm:w-[180px]">
+              <Input
+                type="number"
+                label="Year Built"
+                error={errors.year_built?.message}
+                {...register("year_built")}
+              />
+            </div>
+            <div className="w-full sm:w-[180px]">
+              <Input
+                type="number"
+                label="Parking Spaces"
+                error={errors.parking_spaces?.message}
+                {...register("parking_spaces")}
+              />
+            </div>
+          </div>
+
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Property Features
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["has_garden", "Garden"],
+                ["has_security", "Security"],
+                ["has_swimming_pool", "Swimming pool"],
+              ].map(([field, label]) => (
+                <label
+                  key={field}
+                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    {...register(field as "has_garden" | "has_security" | "has_swimming_pool")}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="flex flex-wrap gap-6">
             <div className="w-full sm:w-[260px]">
