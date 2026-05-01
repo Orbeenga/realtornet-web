@@ -50,6 +50,7 @@ export function PropertiesExplorer() {
   const router = useRouter();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [hydrateDesktopFilters, setHydrateDesktopFilters] = useState(false);
+  const [hydrateLocationLabels, setHydrateLocationLabels] = useState(false);
   const hasAttemptedScrollRestoreRef = useRef(false);
 
   const currentPage = Number(searchParams.get("page") ?? 1);
@@ -76,7 +77,7 @@ export function PropertiesExplorer() {
   };
 
   const { data, isLoading, isError, refetch } = useProperties(filters);
-  const locationsQuery = useLocations();
+  const locationsQuery = useLocations(hydrateLocationLabels);
 
   const properties: Property[] = (data ?? []).filter((property) =>
     isVerifiedModerationStatus(property.moderation_status),
@@ -86,10 +87,11 @@ export function PropertiesExplorer() {
 
   useEffect(() => {
     // The sidebar is useful, but it is not required for the first paint of the
-    // public listings feed. Hydrating it after mount trims work from the
-    // initial route bundle without removing the desktop experience.
+    // public listings feed. Location labels are also non-critical because
+    // cards can render without them and fill in once the lookup arrives.
     const timeout = window.setTimeout(() => {
       setHydrateDesktopFilters(true);
+      setHydrateLocationLabels(true);
     }, 0);
 
     return () => window.clearTimeout(timeout);

@@ -28,7 +28,6 @@ import {
 import { isVerifiedModerationStatus } from "@/features/properties/lib/moderation";
 import { ApiError } from "@/lib/api/client";
 import { notify } from "@/lib/toast";
-import { ReviewSection } from "@/features/reviews/ReviewSection";
 
 interface PropertyDetailClientProps {
   id: string;
@@ -41,6 +40,16 @@ const InquiryForm = dynamic(
     ),
   {
     loading: () => <InquiryFormFallback />,
+  },
+);
+
+const ReviewSection = dynamic(
+  () =>
+    import("@/features/reviews/ReviewSection").then(
+      (module) => module.ReviewSection,
+    ),
+  {
+    loading: () => <ReviewSectionFallback />,
   },
 );
 
@@ -86,6 +95,15 @@ function InquiryFormFallback() {
       </div>
       <Skeleton className="h-36 w-full rounded-xl" />
       <Skeleton className="h-10 w-32 rounded-xl" />
+    </section>
+  );
+}
+
+function ReviewSectionFallback() {
+  return (
+    <section className="space-y-4">
+      <Skeleton className="h-6 w-28" />
+      <Skeleton className="h-28 w-full rounded-xl" />
     </section>
   );
 }

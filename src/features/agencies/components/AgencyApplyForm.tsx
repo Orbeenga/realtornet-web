@@ -28,6 +28,59 @@ function optionalValue(value?: string) {
   return trimmed ? trimmed : null;
 }
 
+function stringifyApiDetail(detail: unknown) {
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          "msg" in item &&
+          typeof item.msg === "string"
+        ) {
+          return item.msg;
+        }
+
+        return null;
+      })
+      .filter((message): message is string => Boolean(message))
+      .join(" ");
+  }
+
+  if (typeof detail === "object" && detail !== null && "message" in detail) {
+    const message = detail.message;
+    return typeof message === "string" ? message : null;
+  }
+
+  return null;
+}
+
+function getAgencyApplicationErrorMessage(error: ApiError) {
+  const detailMessage = stringifyApiDetail(error.detail);
+
+  if (detailMessage) {
+    return detailMessage;
+  }
+
+  if (error.status >= 500) {
+    return "The application service had a server error. Please try again shortly.";
+  }
+
+  if (error.status === 409) {
+    return "An agency application with these details already exists.";
+  }
+
+  if (error.status === 422) {
+    return "Some application details were not accepted. Please review the highlighted fields.";
+  }
+
+  return "Could not submit the application. Please try again.";
+}
+
 export function AgencyApplyForm() {
   const [submitted, setSubmitted] = useState(false);
   const applyForAgency = useApplyForAgency();
@@ -67,20 +120,33 @@ export function AgencyApplyForm() {
       setSubmitted(true);
     } catch (error) {
       if (error instanceof ApiError && error.fieldErrors) {
+        let matchedFieldError = false;
+
         Object.entries(error.fieldErrors).forEach(([field, messages]) => {
           if (field in agencyApplicationSchema.shape) {
+            matchedFieldError = true;
             setError(field as keyof AgencyApplicationFormValues, {
               type: "server",
               message: messages[0] ?? "Invalid value",
             });
           }
         });
-        return;
+
+        if (matchedFieldError) {
+          setError("root", {
+            type: "server",
+            message: getAgencyApplicationErrorMessage(error),
+          });
+          return;
+        }
       }
 
       setError("root", {
         type: "server",
-        message: "Could not submit the application. Please try again.",
+        message:
+          error instanceof ApiError
+            ? getAgencyApplicationErrorMessage(error)
+            : "Could not submit the application. Please try again.",
       });
     }
   };

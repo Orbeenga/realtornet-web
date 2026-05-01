@@ -1,16 +1,26 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgentListings, useAgentProfile } from "@/features/agents/hooks";
 import { AgentListingsGrid } from "@/features/agents/components/AgentListingsGrid";
 import { AgentProfileHeader } from "@/features/agents/components/AgentProfileHeader";
 import { ApiError } from "@/lib/api/client";
-import { ReviewSection } from "@/features/reviews/ReviewSection";
 
 interface AgentProfileClientProps {
   id: string;
 }
+
+const ReviewSection = dynamic(
+  () =>
+    import("@/features/reviews/ReviewSection").then(
+      (module) => module.ReviewSection,
+    ),
+  {
+    loading: () => <Skeleton className="h-40 w-full rounded-2xl" />,
+  },
+);
 
 function AgentProfileSkeleton() {
   return (
