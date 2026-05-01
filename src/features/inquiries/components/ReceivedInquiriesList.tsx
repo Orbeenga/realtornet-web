@@ -14,6 +14,7 @@ import type { InquiryStatus } from "@/types";
 
 interface ReceivedInquiriesListProps {
   source: Exclude<InquiryDirectorySource, "sent">;
+  agencyId?: number;
   emptyTitle: string;
   emptyDescription: string;
   showStatusActions?: boolean;
@@ -172,12 +173,10 @@ function ReceivedInquiryCard({
               </div>
               <div className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  {contact
-                    ? `${contact.first_name} ${contact.last_name}`.trim()
-                    : "Seeker"}
+                  {contact?.fullName ?? "Seeker"}
                 </p>
                 <p>{contact?.email ?? "Email unavailable"}</p>
-                <p>{contact?.phone_number ?? "Phone unavailable"}</p>
+                <p>{contact?.phoneNumber ?? "Phone unavailable"}</p>
               </div>
             </div>
 
@@ -222,11 +221,12 @@ function ReceivedInquiryCard({
 
 export function ReceivedInquiriesList({
   source,
+  agencyId,
   emptyTitle,
   emptyDescription,
   showStatusActions = true,
 }: ReceivedInquiriesListProps) {
-  const inquiryDirectory = useInquiryDirectory(source);
+  const inquiryDirectory = useInquiryDirectory(source, { agencyId });
 
   if (inquiryDirectory.isLoading) {
     return <InquiryListSkeleton />;
