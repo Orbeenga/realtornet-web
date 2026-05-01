@@ -940,6 +940,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/inquiries/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agency Inquiries
+         * @description Retrieve inquiries for listings owned by active agents in an agency.
+         */
+        get: operations["read_agency_inquiries_api_v1_agencies__agency_id__inquiries__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/join-request/": {
         parameters: {
             query?: never;
@@ -6827,6 +6847,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_agency_inquiries_api_v1_agencies__agency_id__inquiries__get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InquiryExtendedResponse"][];
                 };
             };
             /** @description Validation Error */

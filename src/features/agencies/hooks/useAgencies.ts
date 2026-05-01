@@ -30,7 +30,7 @@ export function useAgencyStats(agencyId?: string | number | null, enabled = true
   });
 }
 
-export function useVisibleAgencyStats(agencies: Agency[]) {
+export function useVisibleAgencyStats(agencies: Agency[], enabled = true) {
   return useQueries({
     queries: agencies.flatMap((agency) => [
       {
@@ -40,6 +40,7 @@ export function useVisibleAgencyStats(agencies: Agency[]) {
             `/api/v1/agencies/${agency.agency_id}/properties?limit=100`,
           ),
         staleTime: 60_000,
+        enabled,
       },
       {
         queryKey: ["agencyAgents", agency.agency_id, "count"],
@@ -48,6 +49,7 @@ export function useVisibleAgencyStats(agencies: Agency[]) {
             `/api/v1/agencies/${agency.agency_id}/agents?limit=100`,
           ),
         staleTime: 60_000,
+        enabled,
       },
     ]),
     combine: (results) => {
