@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
-import { getInquiryNavigationConfig } from "@/features/auth/navigation";
+import {
+  getInquiryNavigationConfig,
+  normalizeAppRole,
+} from "@/features/auth/navigation";
+import { useAgencies } from "@/features/agencies/hooks";
 import { getStoredJwtRole } from "@/lib/jwt";
 import {
   ReceivedInquiriesList,
@@ -45,7 +49,26 @@ function PageIntro({
 
 export default function InquiriesPage() {
   const { user } = useAuth();
-  const inquiryConfig = getInquiryNavigationConfig(getStoredJwtRole() ?? user?.user_role);
+  const normalizedRole = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
+  const inquiryConfig = getInquiryNavigationConfig(normalizedRole);
+  const shouldResolveAgency =
+    normalizedRole === "agency_owner" && typeof user?.agency_id !== "number";
+  const agenciesQuery = useAgencies(shouldResolveAgency);
+  const agencyId = useMemo(() => {
+    if (typeof user?.agency_id === "number") {
+      return user.agency_id;
+    }
+
+    const email = user?.email?.toLowerCase();
+
+    if (!email) {
+      return undefined;
+    }
+
+    return (agenciesQuery.data ?? []).find(
+      (agency) => agency.owner_email?.toLowerCase() === email,
+    )?.agency_id;
+  }, [agenciesQuery.data, user?.agency_id, user?.email]);
 
   const pageCopy = useMemo(() => {
     if (inquiryConfig.mode === "sent") {
@@ -77,7 +100,8 @@ export default function InquiriesPage() {
 
       {inquiryConfig.mode === "received" ? (
         <ReceivedInquiriesList
-          source="received"
+          source={normalizedRole === "agency_owner" ? "agency" : "received"}
+          agencyId={agencyId}
           emptyTitle="No inquiries on your listings yet"
           emptyDescription="When seekers contact you about your listings, the lead details will appear here."
         />

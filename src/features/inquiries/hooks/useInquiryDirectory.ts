@@ -2,18 +2,44 @@ import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useUsersByIds } from "@/hooks/useUserById";
-import type { Inquiry, InquiryStatus, Property, PropertyImage, UserProfile } from "@/types";
+import type {
+  Inquiry,
+  InquiryExtended,
+  InquiryStatus,
+  Property,
+  PropertyImage,
+  UserProfile,
+} from "@/types";
 
-export type InquiryDirectorySource = "sent" | "received" | "admin";
+export type InquiryDirectorySource = "sent" | "received" | "admin" | "agency";
+
+export interface InquiryDirectoryContact {
+  fullName: string;
+  email?: string | null;
+  phoneNumber?: string | null;
+}
+
+export interface InquiryDirectoryProperty {
+  property_id?: number | null;
+  title?: string | null;
+  [key: string]: unknown;
+}
 
 export interface InquiryDirectoryItem {
   inquiry: Inquiry;
-  property: Property | null;
+  property: InquiryDirectoryProperty | null;
   propertyImage: PropertyImage | null;
-  contact: UserProfile | null;
+  contact: InquiryDirectoryContact | null;
 }
 
-function extractInquiryCollection(payload: Inquiry[] | Record<string, unknown>): Inquiry[] {
+type InquiryCollectionPayload =
+  | Inquiry[]
+  | InquiryExtended[]
+  | Record<string, unknown>;
+
+function extractInquiryCollection(
+  payload: InquiryCollectionPayload,
+): Array<Inquiry | InquiryExtended> {
   if (Array.isArray(payload)) {
     return payload;
   }
@@ -24,7 +50,7 @@ function extractInquiryCollection(payload: Inquiry[] | Record<string, unknown>):
     const value = payload[key];
 
     if (Array.isArray(value)) {
-      return value as Inquiry[];
+      return value as Array<Inquiry | InquiryExtended>;
     }
   }
 
@@ -33,6 +59,7 @@ function extractInquiryCollection(payload: Inquiry[] | Record<string, unknown>):
 
 async function fetchInquiryCollection(
   source: InquiryDirectorySource,
+  agencyId?: number,
 ) {
   if (source === "sent") {
     return apiClient<Inquiry[]>("/api/v1/inquiries/");
@@ -42,6 +69,16 @@ async function fetchInquiryCollection(
     return apiClient<Inquiry[]>("/api/v1/inquiries/received/");
   }
 
+  if (source === "agency") {
+    if (typeof agencyId !== "number") {
+      return [];
+    }
+
+    return apiClient<InquiryExtended[]>(
+      `/api/v1/agencies/${agencyId}/inquiries/?page_size=100`,
+    );
+  }
+
   const payload = await apiClient<Inquiry[] | Record<string, unknown>>(
     "/api/v1/admin/inquiries/",
   );
@@ -49,41 +86,127 @@ async function fetchInquiryCollection(
   return extractInquiryCollection(payload);
 }
 
+function getContactFromProfile(profile: UserProfile): InquiryDirectoryContact {
+  return {
+    fullName: `${profile.first_name} ${profile.last_name}`.trim() || "Seeker",
+    email: profile.email,
+    phoneNumber: profile.phone_number,
+  };
+}
+
+function getContactFromExtendedInquiry(
+  inquiry: Inquiry | InquiryExtended,
+): InquiryDirectoryContact | null {
+  if (!("user" in inquiry) || !inquiry.user) {
+    return null;
+  }
+
+  return {
+    fullName: inquiry.user.full_name,
+    email: inquiry.user.email,
+  };
+}
+
+function getPropertyFromExtendedInquiry(
+  inquiry: Inquiry | InquiryExtended,
+): InquiryDirectoryProperty | null {
+  if (
+    !("property" in inquiry) ||
+    !inquiry.property ||
+    typeof inquiry.property !== "object"
+  ) {
+    return null;
+  }
+
+  return inquiry.property as InquiryDirectoryProperty;
+}
+
 export function useInquiryDirectory(
   source: InquiryDirectorySource,
+  options?: { agencyId?: number },
 ) {
+  const canFetch = source !== "agency" || typeof options?.agencyId === "number";
   const inquiriesQuery = useQuery({
-    queryKey: ["inquiryDirectory", source],
-    queryFn: () => fetchInquiryCollection(source),
+    queryKey: ["inquiryDirectory", source, options?.agencyId ?? null],
+    queryFn: () => fetchInquiryCollection(source, options?.agencyId),
     staleTime: 30_000,
+    enabled: canFetch,
   });
+  const inquiries = useMemo(
+    () => (inquiriesQuery.data ?? []) as Array<Inquiry | InquiryExtended>,
+    [inquiriesQuery.data],
+  );
+
+  const extendedPropertyById = useMemo(() => {
+    const properties = new Map<number, InquiryDirectoryProperty>();
+
+    inquiries.forEach((inquiry) => {
+      const property = getPropertyFromExtendedInquiry(inquiry);
+      const propertyId =
+        typeof property?.property_id === "number"
+          ? property.property_id
+          : inquiry.property_id;
+
+      if (typeof propertyId === "number" && property) {
+        properties.set(propertyId, property);
+      }
+    });
+
+    return properties;
+  }, [inquiries]);
+
+  const extendedContactByUserId = useMemo(() => {
+    const contacts = new Map<number, InquiryDirectoryContact>();
+
+    inquiries.forEach((inquiry) => {
+      if (typeof inquiry.user_id !== "number") {
+        return;
+      }
+
+      const contact = getContactFromExtendedInquiry(inquiry);
+
+      if (contact) {
+        contacts.set(inquiry.user_id, contact);
+      }
+    });
+
+    return contacts;
+  }, [inquiries]);
 
   const propertyIds = useMemo(
     () =>
       [
         ...new Set(
-          (inquiriesQuery.data ?? [])
+          inquiries
             .map((inquiry) => inquiry.property_id)
             .filter((propertyId): propertyId is number => typeof propertyId === "number"),
         ),
       ].sort((left, right) => left - right),
-    [inquiriesQuery.data],
+    [inquiries],
+  );
+
+  const propertyIdsNeedingDetail = useMemo(
+    () => propertyIds.filter((propertyId) => !extendedPropertyById.has(propertyId)),
+    [extendedPropertyById, propertyIds],
   );
 
   const contactUserIds = useMemo(
     () =>
       [
         ...new Set(
-          (inquiriesQuery.data ?? [])
+          inquiries
             .map((inquiry) => inquiry.user_id)
-            .filter((userId): userId is number => typeof userId === "number"),
+            .filter(
+              (userId): userId is number =>
+                typeof userId === "number" && !extendedContactByUserId.has(userId),
+            ),
         ),
       ].sort((left, right) => left - right),
-    [inquiriesQuery.data],
+    [extendedContactByUserId, inquiries],
   );
 
   const propertyQueries = useQueries({
-    queries: propertyIds.map((propertyId) => ({
+    queries: propertyIdsNeedingDetail.map((propertyId) => ({
       queryKey: ["property", propertyId],
       queryFn: () => apiClient<Property>(`/api/v1/properties/${propertyId}/`),
       staleTime: 60_000,
@@ -101,7 +224,9 @@ export function useInquiryDirectory(
 
   const contactQueries = useUsersByIds(contactUserIds);
 
-  const propertyById = new Map<number, Property>();
+  const propertyById = new Map<number, InquiryDirectoryProperty>(
+    extendedPropertyById,
+  );
 
   for (const query of propertyQueries) {
     if (query.data) {
@@ -120,15 +245,17 @@ export function useInquiryDirectory(
     );
   }
 
-  const contactByUserId = new Map<number, UserProfile>();
+  const contactByUserId = new Map<number, InquiryDirectoryContact>(
+    extendedContactByUserId,
+  );
 
   for (const query of contactQueries) {
     if (query.data) {
-      contactByUserId.set(query.data.user_id, query.data);
+      contactByUserId.set(query.data.user_id, getContactFromProfile(query.data));
     }
   }
 
-  const items: InquiryDirectoryItem[] = (inquiriesQuery.data ?? []).map((inquiry) => ({
+  const items: InquiryDirectoryItem[] = inquiries.map((inquiry) => ({
     inquiry,
     property:
       typeof inquiry.property_id === "number"
@@ -145,13 +272,13 @@ export function useInquiryDirectory(
   }));
 
   const relatedQueries = [...propertyQueries, ...propertyImageQueries, ...contactQueries];
-  const hasInquiries = (inquiriesQuery.data?.length ?? 0) > 0;
-  const hasLoadedEmpty = inquiriesQuery.isSuccess && !hasInquiries;
+  const hasInquiries = inquiries.length > 0;
+  const hasLoadedEmpty = !canFetch || (inquiriesQuery.isSuccess && !hasInquiries);
 
   return {
     items,
     isLoading:
-      inquiriesQuery.isLoading ||
+      (canFetch && inquiriesQuery.isLoading) ||
       relatedQueries.some((query) => query.isLoading),
     isError:
       inquiriesQuery.isError ||
