@@ -44,6 +44,7 @@ export type PropertyReviewCreate = components["schemas"]["PropertyReviewCreate"]
 export type PropertyReviewResponse = components["schemas"]["PropertyReviewResponse"];
 export type ReviewUpdate = components["schemas"]["ReviewUpdate"];
 export type Inquiry = components["schemas"]["InquiryResponse"];
+export type InquiryExtended = components["schemas"]["InquiryExtendedResponse"];
 export type InquiryCreate = components["schemas"]["InquiryCreate"];
 export type InquiryStatus = components["schemas"]["InquiryStatus"];
 export type Favorite = components["schemas"]["FavoriteResponse"];
