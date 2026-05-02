@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Badge, Button, EmptyState, ErrorState, LoadingState, Skeleton } from "@/components";
+import { Badge, Button, EmptyState, ErrorState, Input, LoadingState, Skeleton } from "@/components";
 import { useAgencies } from "@/features/agencies/hooks";
 import {
   useAdminUsers,
   useAgentProfileForAdmin,
+  useActivateAdminUser,
   useAssignAgentAgency,
+  useDeactivateAdminUser,
   useUpdateAdminUserRole,
 } from "@/features/admin/hooks/useAdminUsers";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
@@ -52,13 +54,25 @@ function formatRoleLabel(role: UserProfile["user_role"]) {
   return "Seeker";
 }
 
+function extractApiDetail(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    "detail" in error &&
+    typeof error.detail === "string"
+    ? error.detail
+    : null;
+}
+
 export function AdminUsersClient() {
   const gate = useAdminRoleGate();
   const usersQuery = useAdminUsers();
   const updateUserRole = useUpdateAdminUserRole();
   const assignAgentAgency = useAssignAgentAgency();
+  const deactivateUser = useDeactivateAdminUser();
+  const activateUser = useActivateAdminUser();
   const [agencyAssignmentUserId, setAgencyAssignmentUserId] = useState<number | null>(null);
   const [selectedAgencyId, setSelectedAgencyId] = useState<number | null>(null);
+  const [deactivationReasons, setDeactivationReasons] = useState<Record<number, string>>({});
   const promotedAgentProfileQuery = useAgentProfileForAdmin(agencyAssignmentUserId);
   const agenciesQuery = useAgencies(agencyAssignmentUserId !== null);
 
@@ -143,15 +157,7 @@ export function AdminUsersClient() {
 
       notify.success("User demoted to seeker");
     } catch (error) {
-      const detail =
-        typeof error === "object" &&
-        error !== null &&
-        "detail" in error &&
-        typeof error.detail === "string"
-          ? error.detail
-          : null;
-
-      notify.error(detail ?? "Could not update user role");
+      notify.error(extractApiDetail(error) ?? "Could not update user role");
     }
   };
 
@@ -171,15 +177,40 @@ export function AdminUsersClient() {
       setAgencyAssignmentUserId(null);
       setSelectedAgencyId(null);
     } catch (error) {
-      const detail =
-        typeof error === "object" &&
-        error !== null &&
-        "detail" in error &&
-        typeof error.detail === "string"
-          ? error.detail
-          : null;
+      notify.error(extractApiDetail(error) ?? "Could not assign agency");
+    }
+  };
 
-      notify.error(detail ?? "Could not assign agency");
+  const handleDeactivateUser = async (user: UserProfile) => {
+    const reason = deactivationReasons[user.user_id]?.trim();
+
+    if (!reason) {
+      notify.error("Enter a reason before deactivating this user.");
+      return;
+    }
+
+    try {
+      await deactivateUser.mutateAsync({
+        userId: user.user_id,
+        payload: { reason },
+      });
+      notify.success("User deactivated");
+      setDeactivationReasons((current) => {
+        const next = { ...current };
+        delete next[user.user_id];
+        return next;
+      });
+    } catch (error) {
+      notify.error(extractApiDetail(error) ?? "Could not deactivate user");
+    }
+  };
+
+  const handleActivateUser = async (user: UserProfile) => {
+    try {
+      await activateUser.mutateAsync(user.user_id);
+      notify.success("User activated");
+    } catch (error) {
+      notify.error(extractApiDetail(error) ?? "Could not activate user");
     }
   };
 
@@ -193,6 +224,7 @@ export function AdminUsersClient() {
             updateUserRole.isPending &&
             updateUserRole.variables?.userId === user.user_id;
           const isAgencyAssignmentRow = agencyAssignmentUserId === user.user_id;
+          const isDeactivated = Boolean(user.deleted_at);
 
           return (
             <div
@@ -208,12 +240,20 @@ export function AdminUsersClient() {
                     <Badge variant={getRoleBadgeVariant(user.user_role)}>
                       {formatRoleLabel(user.user_role)}
                     </Badge>
+                    <Badge variant={isDeactivated ? "danger" : "success"}>
+                      {isDeactivated ? "Deactivated" : "Active"}
+                    </Badge>
                   </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                  {user.deactivation_reason ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Deactivation reason: {user.deactivation_reason}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {user.user_role === "seeker" ? (
+                  {user.user_role === "seeker" && !isDeactivated ? (
                     <Button
                       size="sm"
                       loading={isRoleMutationPending}
@@ -222,7 +262,7 @@ export function AdminUsersClient() {
                       Promote to Agent
                     </Button>
                   ) : null}
-                  {user.user_role === "agent" ? (
+                  {user.user_role === "agent" && !isDeactivated ? (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -232,7 +272,7 @@ export function AdminUsersClient() {
                       Demote to Seeker
                     </Button>
                   ) : null}
-                  {user.user_role === "agency_owner" ? (
+                  {user.user_role === "agency_owner" && !isDeactivated ? (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -250,8 +290,47 @@ export function AdminUsersClient() {
                       Demote to Seeker
                     </Button>
                   ) : null}
+                  {isDeactivated ? (
+                    <Button
+                      size="sm"
+                      loading={
+                        activateUser.isPending &&
+                        activateUser.variables === user.user_id
+                      }
+                      onClick={() => void handleActivateUser(user)}
+                    >
+                      Activate
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      loading={
+                        deactivateUser.isPending &&
+                        deactivateUser.variables?.userId === user.user_id
+                      }
+                      onClick={() => void handleDeactivateUser(user)}
+                    >
+                      Deactivate
+                    </Button>
+                  )}
                 </div>
               </div>
+
+              {!isDeactivated ? (
+                <Input
+                  className="mt-4"
+                  label="Deactivation reason"
+                  placeholder="Required before deactivating this user"
+                  value={deactivationReasons[user.user_id] ?? ""}
+                  onChange={(event) =>
+                    setDeactivationReasons((current) => ({
+                      ...current,
+                      [user.user_id]: event.target.value,
+                    }))
+                  }
+                />
+              ) : null}
 
               {isAgencyAssignmentRow ? (
                 <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">

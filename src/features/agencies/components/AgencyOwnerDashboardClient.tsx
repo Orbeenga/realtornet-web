@@ -83,16 +83,25 @@ function getMembershipBadgeVariant(status: string) {
   return "outline" as const;
 }
 
-function getRequiredDecisionReasonMessage(action: "suspend" | "revoke" | "block") {
-  if (action === "suspend") {
-    return "Enter a reason before suspending this agent.";
+function getRequiredDecisionReasonMessage(
+  action: "suspend" | "revoke" | "block" | "restore" | "approve review" | "reject review",
+) {
+  if (action === "approve review") {
+    return "Enter a reason before approving this review request.";
   }
 
-  if (action === "revoke") {
-    return "Enter a reason before revoking this agent.";
+  if (action === "reject review") {
+    return "Enter a reason before rejecting this review request.";
   }
 
-  return "Enter a reason before blocking this agent.";
+  const actionLabels = {
+    suspend: "suspending",
+    revoke: "revoking",
+    block: "blocking",
+    restore: "restoring",
+  } as const;
+
+  return `Enter a reason before ${actionLabels[action]} this agent.`;
 }
 
 export function AgencyOwnerDashboardClient() {
@@ -159,10 +168,17 @@ export function AgencyOwnerDashboardClient() {
   };
 
   const handleRejectJoinRequest = async (requestId: number) => {
+    const reason = rejectReasons[requestId]?.trim();
+
+    if (!reason) {
+      notify.error("Enter a reason before rejecting this join request.");
+      return;
+    }
+
     try {
       await rejectJoinRequest.mutateAsync({
         requestId,
-        payload: { reason: rejectReasons[requestId]?.trim() || null },
+        payload: { reason },
       });
       notify.success("Join request rejected");
       setRejectReasons((current) => {
@@ -232,7 +248,12 @@ export function AgencyOwnerDashboardClient() {
   };
 
   const handleRestoreMembership = async (membershipId: number) => {
-    const reason = membershipReasons[membershipId]?.trim() || null;
+    const reason = membershipReasons[membershipId]?.trim();
+
+    if (!reason) {
+      notify.error(getRequiredDecisionReasonMessage("restore"));
+      return;
+    }
 
     try {
       await restoreMembership.mutateAsync({
@@ -259,7 +280,16 @@ export function AgencyOwnerDashboardClient() {
     membershipId: number,
     reviewRequestId: number,
   ) => {
-    const reason = membershipReasons[membershipId]?.trim() || null;
+    const reason = membershipReasons[membershipId]?.trim();
+
+    if (!reason) {
+      notify.error(
+        getRequiredDecisionReasonMessage(
+          action === "approve" ? "approve review" : "reject review",
+        ),
+      );
+      return;
+    }
 
     try {
       const payload = {
@@ -534,7 +564,7 @@ export function AgencyOwnerDashboardClient() {
                     <Input
                       className="mt-4"
                       label="Reject reason"
-                      placeholder="Optional note for rejection"
+                      placeholder="Required before rejecting"
                       value={rejectReasons[request.join_request_id] ?? ""}
                       onChange={(event) =>
                         setRejectReasons((current) => ({
@@ -759,7 +789,7 @@ export function AgencyOwnerDashboardClient() {
                     </div>
                     <Input
                       label="Decision reason"
-                      placeholder="Required before suspending, revoking, or blocking"
+                      placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}
                       onChange={(event) =>
                         setMembershipReasons((current) => ({

@@ -38,6 +38,7 @@ export type MyAgencyMembershipResponse = components["schemas"]["MyAgencyMembersh
 export type MyAgencyJoinRequestResponse = components["schemas"]["MyAgencyJoinRequestResponse"];
 export type MyAgentMembershipStatusResponse = components["schemas"]["MyAgentMembershipStatusResponse"];
 export type AgencyRejectRequest = components["schemas"]["AgencyRejectRequest"];
+export type UserDeactivateRequest = components["schemas"]["UserDeactivateRequest"];
 export type AgentReviewCreate = components["schemas"]["AgentReviewCreate"];
 export type AgentReviewResponse = components["schemas"]["AgentReviewResponse"];
 export type PropertyReviewCreate = components["schemas"]["PropertyReviewCreate"];
