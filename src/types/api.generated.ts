@@ -163,7 +163,7 @@ export interface paths {
         head?: never;
         /**
          * Reject Agency Application
-         * @description Reject a pending agency application with an optional reason.
+         * @description Reject a pending agency application with a required audit reason.
          */
         patch: operations["reject_agency_application_api_v1_admin_agencies__agency_id__reject__patch"];
         trace?: never;
@@ -183,7 +183,7 @@ export interface paths {
         head?: never;
         /**
          * Revoke Agency Approval
-         * @description Revoke an approved agency back to pending review.
+         * @description Revoke an approved agency back to pending review with a required reason.
          */
         patch: operations["revoke_agency_approval_api_v1_admin_agencies__agency_id__revoke__patch"];
         trace?: never;
@@ -203,7 +203,7 @@ export interface paths {
         head?: never;
         /**
          * Suspend Agency
-         * @description Suspend an agency without soft-deleting its data.
+         * @description Suspend an agency without soft-deleting its data, requiring a reason.
          */
         patch: operations["suspend_agency_api_v1_admin_agencies__agency_id__suspend__patch"];
         trace?: never;
@@ -3385,7 +3385,7 @@ export interface components {
         /** AgencyAgentMembershipActionRequest */
         AgencyAgentMembershipActionRequest: {
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /** AgencyAgentMembershipResponse */
         AgencyAgentMembershipResponse: {
@@ -3544,6 +3544,8 @@ export interface components {
             owner_phone_number?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Status Reason */
+            status_reason?: string | null;
         };
         /** AgencyInvitationResponse */
         AgencyInvitationResponse: {
@@ -3643,7 +3645,7 @@ export interface components {
         /** AgencyJoinRequestRejectRequest */
         AgencyJoinRequestRejectRequest: {
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /** AgencyJoinRequestResponse */
         AgencyJoinRequestResponse: {
@@ -3687,7 +3689,7 @@ export interface components {
         /** AgencyMembershipReviewDecisionRequest */
         AgencyMembershipReviewDecisionRequest: {
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /** AgencyMembershipReviewRequestCreate */
         AgencyMembershipReviewRequestCreate: {
@@ -3732,7 +3734,7 @@ export interface components {
         /** AgencyRejectRequest */
         AgencyRejectRequest: {
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /**
          * AgencyResponse
@@ -3768,6 +3770,8 @@ export interface components {
             owner_phone_number?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Status Reason */
+            status_reason?: string | null;
             /** Agency Id */
             agency_id: number;
             /**
@@ -3824,6 +3828,8 @@ export interface components {
             owner_phone_number?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Status Reason */
+            status_reason?: string | null;
         };
         /**
          * AgentMembershipRestrictionStatus
@@ -5170,6 +5176,11 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** UserDeactivateRequest */
+        UserDeactivateRequest: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * UserResponse
          * @description Schema for user responses (includes DB-generated fields, no sensitive data)
@@ -5216,6 +5227,8 @@ export interface components {
             last_login?: string | null;
             /** Deleted At */
             deleted_at?: string | null;
+            /** Deactivation Reason */
+            deactivation_reason?: string | null;
             /** Created By */
             created_by?: string | null;
             /** Updated By */
@@ -5477,7 +5490,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyRejectRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5508,9 +5525,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyRejectRequest"] | null;
+                "application/json": components["schemas"]["AgencyRejectRequest"];
             };
         };
         responses: {
@@ -5543,7 +5560,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyRejectRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5574,7 +5595,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyRejectRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5802,7 +5827,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDeactivateRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -6580,9 +6609,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"] | null;
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
             };
         };
         responses: {
@@ -6616,9 +6645,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"] | null;
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
             };
         };
         responses: {
@@ -6652,9 +6681,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"] | null;
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
             };
         };
         responses: {
@@ -6688,9 +6717,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"] | null;
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
             };
         };
         responses: {
@@ -6761,9 +6790,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyMembershipReviewDecisionRequest"] | null;
+                "application/json": components["schemas"]["AgencyMembershipReviewDecisionRequest"];
             };
         };
         responses: {
@@ -6798,9 +6827,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyMembershipReviewDecisionRequest"] | null;
+                "application/json": components["schemas"]["AgencyMembershipReviewDecisionRequest"];
             };
         };
         responses: {
@@ -7008,9 +7037,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyJoinRequestRejectRequest"] | null;
+                "application/json": components["schemas"]["AgencyJoinRequestRejectRequest"];
             };
         };
         responses: {

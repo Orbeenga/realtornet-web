@@ -81,13 +81,13 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
       payload,
     }: {
       requestId: number;
-      payload?: AgencyJoinRequestRejectRequest;
+      payload: AgencyJoinRequestRejectRequest;
     }) =>
       apiClient<AgencyJoinRequestResponse>(
         `/api/v1/agencies/${agencyId}/join-requests/${requestId}/reject/`,
         {
           method: "PATCH",
-          body: JSON.stringify(payload ?? {}),
+          body: JSON.stringify(payload),
         },
       ),
     onSuccess: async (_data, variables) => {

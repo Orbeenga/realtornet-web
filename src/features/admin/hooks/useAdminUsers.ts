@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api/client";
-import type { Agent, UserProfile, UserRole } from "@/types";
+import type { Agent, UserDeactivateRequest, UserProfile, UserRole } from "@/types";
 
 function extractUserCollection(
   payload: UserProfile[] | Record<string, unknown>,
@@ -121,6 +121,41 @@ export function useAssignAgentAgency() {
           queryKey: ["agentProfileByUser", variables.userId],
         }),
       ]);
+    },
+  });
+}
+
+export function useDeactivateAdminUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      userId,
+      payload,
+    }: {
+      userId: number;
+      payload: UserDeactivateRequest;
+    }) =>
+      apiClient<UserProfile>(`/api/v1/admin/users/${userId}/deactivate`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+    },
+  });
+}
+
+export function useActivateAdminUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: number) =>
+      apiClient<UserProfile>(`/api/v1/admin/users/${userId}/activate`, {
+        method: "POST",
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
     },
   });
 }
