@@ -26,6 +26,8 @@ import {
   useAgencyProfile,
   useAgencyJoinRequests,
   useAgencyStats,
+  getAgencyAgentCount,
+  getAgencyListingCount,
   useApproveAgencyMembershipReview,
   useApproveAgencyJoinRequest,
   useBlockAgencyMembership,
@@ -372,13 +374,8 @@ export function AgencyOwnerDashboardClient() {
   const agents = agentsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
   const agencyStats = agencyStatsQuery.data;
-  const statsListingCount =
-    agencyStats?.active_listings ??
-    agencyStats?.listing_count ??
-    agencyStats?.property_count ??
-    agencyStats?.total_properties;
-  const statsAgentCount =
-    agencyStats?.agent_count ?? agencyStats?.total_agents;
+  const statsListingCount = getAgencyListingCount(agencyStats);
+  const statsAgentCount = getAgencyAgentCount(agencyStats);
 
   return (
     <div className="space-y-6">
@@ -448,7 +445,33 @@ export function AgencyOwnerDashboardClient() {
               </p>
             </div>
           </div>
-          {agencyStats ? (
+          {agencyStatsQuery.isLoading ? (
+            <div className="border-t border-border pt-4">
+              <LoadingState message="Loading live agency stats..." />
+            </div>
+          ) : null}
+          {agencyStatsQuery.isError ? (
+            <div
+              className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+              role="alert"
+            >
+              <p className="font-medium">Live agency stats could not be loaded.</p>
+              <p>
+                Profile details are still available, but listing and roster counts may be stale.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  void agencyStatsQuery.refetch();
+                }}
+              >
+                Retry stats
+              </Button>
+            </div>
+          ) : null}
+          {!agencyStatsQuery.isLoading && !agencyStatsQuery.isError && agencyStats ? (
             <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-3">
               <div className="rounded-lg border border-border p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">

@@ -25,3 +25,13 @@ export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   rented: "Rented",
   unavailable: "Unavailable",
 };
+
+export function parseListingType(value: string | null): ListingType | undefined {
+  return LISTING_TYPES.includes(value as ListingType) ? (value as ListingType) : undefined;
+}
+
+export function parseListingStatus(value: string | null): ListingStatus | undefined {
+  return LISTING_STATUSES.includes(value as ListingStatus)
+    ? (value as ListingStatus)
+    : undefined;
+}

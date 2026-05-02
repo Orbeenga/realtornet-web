@@ -12,7 +12,13 @@ export {
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
 } from "./useAgencyMembershipActions";
-export { useAgencies, useAgencyStats, useVisibleAgencyStats } from "./useAgencies";
+export {
+  getAgencyAgentCount,
+  getAgencyListingCount,
+  useAgencies,
+  useAgencyStats,
+  useVisibleAgencyStats,
+} from "./useAgencies";
 export {
   useAdminAgencies,
   useApplyForAgency,

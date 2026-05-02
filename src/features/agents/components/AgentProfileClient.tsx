@@ -104,6 +104,15 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
         agentName={fullName}
         properties={listingsQuery.data ?? []}
         isLoading={listingsQuery.isLoading}
+        isError={listingsQuery.isError}
+        errorMessage={
+          listingsQuery.error instanceof ApiError && typeof listingsQuery.error.detail === "string"
+            ? listingsQuery.error.detail
+            : "There was a problem loading this agent's listings."
+        }
+        onRetry={() => {
+          void listingsQuery.refetch();
+        }}
       />
 
       <ReviewSection target="agent" targetId={agentQuery.data.profile_id} />

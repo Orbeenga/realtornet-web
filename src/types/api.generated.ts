@@ -5229,6 +5229,8 @@ export interface components {
             deleted_at?: string | null;
             /** Deactivation Reason */
             deactivation_reason?: string | null;
+            /** Role Change Reason */
+            role_change_reason?: string | null;
             /** Created By */
             created_by?: string | null;
             /** Updated By */
@@ -5280,6 +5282,8 @@ export interface components {
             /** Profile Image Url */
             profile_image_url?: string | null;
             user_role?: components["schemas"]["UserRole"] | null;
+            /** Role Change Reason */
+            role_change_reason?: string | null;
             /** Password */
             password?: string | null;
         };
