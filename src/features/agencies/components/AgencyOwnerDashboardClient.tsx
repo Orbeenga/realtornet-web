@@ -23,6 +23,7 @@ import {
   useAgencies,
   useAgencyAgents,
   useAgencyInvitations,
+  useAgencyProfile,
   useAgencyJoinRequests,
   useAgencyStats,
   useApproveAgencyMembershipReview,
@@ -42,6 +43,13 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
+type AgencyOwnerTab = "joinRequests" | "agents" | "invitations";
+
+const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
+  { value: "joinRequests", label: "Join requests" },
+  { value: "agents", label: "Agent roster" },
+  { value: "invitations", label: "Invitations" },
+];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -107,17 +115,18 @@ function getRequiredDecisionReasonMessage(
 export function AgencyOwnerDashboardClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
-  const agenciesQuery = useAgencies(gate.isAllowed);
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
+  const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const userAgencyId = user?.agency_id;
   const userEmail = user?.email;
+  const shouldLoadAgencyDirectory = gate.isAllowed && typeof userAgencyId !== "number";
+  const agencyProfileQuery = useAgencyProfile(userAgencyId ?? "");
+  const agenciesQuery = useAgencies(shouldLoadAgencyDirectory);
 
   const agency = useMemo(() => {
     if (typeof userAgencyId === "number") {
-      return (agenciesQuery.data ?? []).find(
-        (candidate) => candidate.agency_id === userAgencyId,
-      );
+      return agencyProfileQuery.data;
     }
 
     const email = userEmail?.toLowerCase();
@@ -129,7 +138,7 @@ export function AgencyOwnerDashboardClient() {
     return (agenciesQuery.data ?? []).find(
       (candidate) => candidate.owner_email?.toLowerCase() === email,
     );
-  }, [agenciesQuery.data, userAgencyId, userEmail]);
+  }, [agenciesQuery.data, agencyProfileQuery.data, userAgencyId, userEmail]);
 
   const agencyId = agency?.agency_id;
   const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
@@ -320,16 +329,30 @@ export function AgencyOwnerDashboardClient() {
     }
   };
 
-  if (gate.isChecking || !gate.isAllowed || agenciesQuery.isLoading) {
+  const isAgencyLoading =
+    typeof userAgencyId === "number"
+      ? agencyProfileQuery.isLoading
+      : agenciesQuery.isLoading;
+  const isAgencyError =
+    typeof userAgencyId === "number"
+      ? agencyProfileQuery.isError
+      : agenciesQuery.isError;
+
+  if (gate.isChecking || !gate.isAllowed || isAgencyLoading) {
     return <LoadingState />;
   }
 
-  if (agenciesQuery.isError) {
+  if (isAgencyError) {
     return (
       <ErrorState
         title="Could not load agency dashboard"
         message="There was a problem loading your agency profile."
         onRetry={() => {
+          if (typeof userAgencyId === "number") {
+            void agencyProfileQuery.refetch();
+            return;
+          }
+
           void agenciesQuery.refetch();
         }}
       />
@@ -456,6 +479,21 @@ export function AgencyOwnerDashboardClient() {
         </CardBody>
       </Card>
 
+      <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+        {AGENCY_OWNER_TABS.map(({ value, label }) => (
+          <Button
+            key={value}
+            type="button"
+            variant={activeTab === value ? "primary" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab(value)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+
+      {activeTab === "joinRequests" ? (
       <Card>
         <CardBody className="space-y-4">
           <div>
@@ -580,8 +618,9 @@ export function AgencyOwnerDashboardClient() {
           ) : null}
         </CardBody>
       </Card>
+      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      {activeTab === "agents" ? (
         <Card>
           <CardBody className="space-y-4">
             <div>
@@ -805,7 +844,9 @@ export function AgencyOwnerDashboardClient() {
             ) : null}
           </CardBody>
         </Card>
+      ) : null}
 
+      {activeTab === "invitations" ? (
         <Card>
           <CardBody className="space-y-4">
             <div>
@@ -879,7 +920,7 @@ export function AgencyOwnerDashboardClient() {
             </div>
           </CardBody>
         </Card>
-      </div>
+      ) : null}
     </div>
   );
 }
