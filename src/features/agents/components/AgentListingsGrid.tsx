@@ -1,4 +1,4 @@
-import { EmptyState, PropertyCardSkeleton } from "@/components";
+import { EmptyState, ErrorState, PropertyCardSkeleton } from "@/components";
 import { PropertyCard } from "@/features/properties/components";
 import type { Property } from "@/types";
 
@@ -6,12 +6,18 @@ interface AgentListingsGridProps {
   agentName: string;
   properties?: Property[];
   isLoading?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
+  onRetry?: () => void;
 }
 
 export function AgentListingsGrid({
   agentName,
   properties = [],
   isLoading = false,
+  isError = false,
+  errorMessage = "There was a problem loading this agent's listings.",
+  onRetry,
 }: AgentListingsGridProps) {
   return (
     <section className="space-y-5">
@@ -32,14 +38,22 @@ export function AgentListingsGrid({
         </div>
       ) : null}
 
-      {!isLoading && properties.length === 0 ? (
+      {isError ? (
+        <ErrorState
+          title="Could not load agent listings"
+          message={errorMessage}
+          onRetry={onRetry}
+        />
+      ) : null}
+
+      {!isLoading && !isError && properties.length === 0 ? (
         <EmptyState
           title="No active listings"
           description="This agent does not have any active property listings yet."
         />
       ) : null}
 
-      {!isLoading && properties.length > 0 ? (
+      {!isLoading && !isError && properties.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {properties.map((property) => (
             <PropertyCard key={property.property_id} property={property} />

@@ -24,11 +24,13 @@ function AgencyDirectoryCard({
   listingCount,
   agentCount,
   statsLoading,
+  statsError,
 }: {
   agency: Agency;
-  listingCount: number;
-  agentCount: number;
+  listingCount?: number;
+  agentCount?: number;
   statsLoading: boolean;
+  statsError: boolean;
 }) {
   const initials = getInitials(agency.name);
 
@@ -74,16 +76,21 @@ function AgencyDirectoryCard({
             <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
               <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                {statsLoading ? "..." : listingCount}
+                {statsLoading ? "..." : statsError ? "Unavailable" : listingCount ?? "Not recorded"}
               </p>
             </div>
             <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
               <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                {statsLoading ? "..." : agentCount}
+                {statsLoading ? "..." : statsError ? "Unavailable" : agentCount ?? "Not recorded"}
               </p>
             </div>
           </div>
+          {statsError ? (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Live agency stats could not be loaded.
+            </p>
+          ) : null}
         </CardBody>
       </Card>
     </Link>
@@ -219,9 +226,10 @@ export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }
               <AgencyDirectoryCard
                 key={agency.agency_id}
                 agency={agency}
-                listingCount={stats?.listingCount ?? 0}
-                agentCount={stats?.agentCount ?? 0}
+                listingCount={stats?.listingCount}
+                agentCount={stats?.agentCount}
                 statsLoading={stats?.isLoading ?? true}
+                statsError={stats?.isError ?? false}
               />
             );
           })}
