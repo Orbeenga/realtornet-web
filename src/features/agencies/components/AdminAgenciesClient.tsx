@@ -12,19 +12,63 @@ import {
 } from "@/features/agencies/hooks";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
 import { notify } from "@/lib/toast";
+import type { Agency, AgencyStatus } from "@/types";
+
+const ADMIN_AGENCY_TABS: Array<{ value: AgencyStatus; label: string }> = [
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "suspended", label: "Suspended" },
+];
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  return new Intl.DateTimeFormat("en-NG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function getStatusBadgeVariant(status: AgencyStatus) {
+  if (status === "approved") {
+    return "success" as const;
+  }
+
+  if (status === "pending") {
+    return "warning" as const;
+  }
+
+  return "danger" as const;
+}
+
+function getStatusLabel(status: AgencyStatus) {
+  const labels: Record<AgencyStatus, string> = {
+    pending: "Pending",
+    approved: "Approved",
+    rejected: "Rejected",
+    suspended: "Suspended",
+  };
+
+  return labels[status];
+}
 
 export function AdminAgenciesClient() {
   const gate = useAdminRoleGate();
   const pendingAgenciesQuery = useAdminAgencies("pending", gate.isAllowed);
   const approvedAgenciesQuery = useAdminAgencies("approved", gate.isAllowed);
+  const rejectedAgenciesQuery = useAdminAgencies("rejected", gate.isAllowed);
+  const suspendedAgenciesQuery = useAdminAgencies("suspended", gate.isAllowed);
   const approveAgency = useApproveAgencyApplication();
   const rejectAgency = useRejectAgencyApplication();
   const revokeAgency = useRevokeAgencyApproval();
   const suspendAgency = useSuspendAgency();
   const [decisionReasons, setDecisionReasons] = useState<Record<number, string>>({});
-  const [activeTab, setActiveTab] = useState<"pending" | "approved">("pending");
+  const [activeTab, setActiveTab] = useState<AgencyStatus>("pending");
 
-  const getDecisionReason = (agencyId: number, action: string) => {
+  const getRequiredDecisionReason = (agencyId: number, action: string) => {
     const reason = decisionReasons[agencyId]?.trim();
 
     if (!reason) {
@@ -35,6 +79,9 @@ export function AdminAgenciesClient() {
     return reason;
   };
 
+  const getOptionalDecisionReason = (agencyId: number, fallback: string) =>
+    decisionReasons[agencyId]?.trim() || fallback;
+
   const clearDecisionReason = (agencyId: number) => {
     setDecisionReasons((current) => {
       const next = { ...current };
@@ -44,11 +91,7 @@ export function AdminAgenciesClient() {
   };
 
   const handleApprove = async (agencyId: number) => {
-    const reason = getDecisionReason(agencyId, "approving");
-
-    if (!reason) {
-      return;
-    }
+    const reason = getOptionalDecisionReason(agencyId, "Approved by admin.");
 
     try {
       await approveAgency.mutateAsync({ agencyId, payload: { reason } });
@@ -60,7 +103,7 @@ export function AdminAgenciesClient() {
   };
 
   const handleReject = async (agencyId: number) => {
-    const reason = getDecisionReason(agencyId, "rejecting");
+    const reason = getRequiredDecisionReason(agencyId, "rejecting");
 
     if (!reason) {
       return;
@@ -79,7 +122,7 @@ export function AdminAgenciesClient() {
   };
 
   const handleRevoke = async (agencyId: number) => {
-    const reason = getDecisionReason(agencyId, "revoking");
+    const reason = getRequiredDecisionReason(agencyId, "revoking");
 
     if (!reason) {
       return;
@@ -95,7 +138,7 @@ export function AdminAgenciesClient() {
   };
 
   const handleSuspend = async (agencyId: number) => {
-    const reason = getDecisionReason(agencyId, "suspending");
+    const reason = getRequiredDecisionReason(agencyId, "suspending");
 
     if (!reason) {
       return;
@@ -114,11 +157,18 @@ export function AdminAgenciesClient() {
     return <LoadingState />;
   }
 
-  if (pendingAgenciesQuery.isLoading || approvedAgenciesQuery.isLoading) {
+  const agencyQueries = [
+    pendingAgenciesQuery,
+    approvedAgenciesQuery,
+    rejectedAgenciesQuery,
+    suspendedAgenciesQuery,
+  ];
+
+  if (agencyQueries.some((query) => query.isLoading)) {
     return <LoadingState />;
   }
 
-  if (pendingAgenciesQuery.isError || approvedAgenciesQuery.isError) {
+  if (agencyQueries.some((query) => query.isError)) {
     return (
       <ErrorState
         title="Could not load agencies"
@@ -126,6 +176,8 @@ export function AdminAgenciesClient() {
         onRetry={() => {
           void pendingAgenciesQuery.refetch();
           void approvedAgenciesQuery.refetch();
+          void rejectedAgenciesQuery.refetch();
+          void suspendedAgenciesQuery.refetch();
         }}
       />
     );
@@ -133,6 +185,15 @@ export function AdminAgenciesClient() {
 
   const pendingAgencies = pendingAgenciesQuery.data ?? [];
   const approvedAgencies = approvedAgenciesQuery.data ?? [];
+  const rejectedAgencies = rejectedAgenciesQuery.data ?? [];
+  const suspendedAgencies = suspendedAgenciesQuery.data ?? [];
+  const agenciesByStatus: Record<AgencyStatus, Agency[]> = {
+    pending: pendingAgencies,
+    approved: approvedAgencies,
+    rejected: rejectedAgencies,
+    suspended: suspendedAgencies,
+  };
+  const activeAgencies = agenciesByStatus[activeTab];
 
   return (
     <div className="space-y-6">
@@ -146,35 +207,31 @@ export function AdminAgenciesClient() {
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
-        {[
-          ["pending", "Pending Applications"],
-          ["approved", "Approved Agencies"],
-        ].map(([value, label]) => (
+        {ADMIN_AGENCY_TABS.map(({ value, label }) => (
           <Button
             key={value}
             type="button"
             variant={activeTab === value ? "primary" : "ghost"}
             size="sm"
-            onClick={() => setActiveTab(value as "pending" | "approved")}
+            onClick={() => setActiveTab(value)}
           >
-            {label}
+            {label} ({agenciesByStatus[value].length})
           </Button>
         ))}
       </div>
 
-      {activeTab === "pending" ? (
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Pending applications
+          {getStatusLabel(activeTab)} agencies
         </h2>
-        {pendingAgencies.length === 0 ? (
+        {activeAgencies.length === 0 ? (
           <EmptyState
-            title="No pending applications"
-            description="New agency applications will appear here for review."
+            title={`No ${activeTab} agencies`}
+            description="Agency records for this status will appear here."
           />
         ) : (
           <div className="space-y-4">
-            {pendingAgencies.map((agency) => (
+            {activeAgencies.map((agency) => (
             <Card key={agency.agency_id}>
               <CardBody className="space-y-5">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -183,15 +240,23 @@ export function AdminAgenciesClient() {
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                         {agency.name}
                       </h2>
-                      <Badge variant="warning">Pending</Badge>
+                      <Badge variant={getStatusBadgeVariant(agency.status)}>
+                        {getStatusLabel(agency.status)}
+                      </Badge>
                     </div>
                     {agency.description ? (
                       <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                         {agency.description}
                       </p>
                     ) : null}
+                    {agency.status_reason ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Last decision reason: {agency.status_reason}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {agency.status !== "approved" ? (
                     <Button
                       type="button"
                       size="sm"
@@ -203,6 +268,8 @@ export function AdminAgenciesClient() {
                     >
                       Approve
                     </Button>
+                    ) : null}
+                    {agency.status === "pending" ? (
                     <Button
                       type="button"
                       size="sm"
@@ -215,10 +282,45 @@ export function AdminAgenciesClient() {
                     >
                       Reject
                     </Button>
+                    ) : null}
+                    {agency.status === "approved" ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          loading={
+                            revokeAgency.isPending &&
+                            revokeAgency.variables?.agencyId === agency.agency_id
+                          }
+                          onClick={() => void handleRevoke(agency.agency_id)}
+                        >
+                          Revoke
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          loading={
+                            suspendAgency.isPending &&
+                            suspendAgency.variables?.agencyId === agency.agency_id
+                          }
+                          onClick={() => void handleSuspend(agency.agency_id)}
+                        >
+                          Suspend
+                        </Button>
+                      </>
+                    ) : null}
+                    <Link
+                      href={`/agencies/${agency.agency_id}`}
+                      className="inline-flex h-8 items-center justify-center rounded-lg bg-secondary px-2.5 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+                    >
+                      View
+                    </Link>
                   </div>
                 </div>
 
-                <div className="grid gap-4 text-sm md:grid-cols-3">
+                <div className="grid gap-4 text-sm md:grid-cols-4">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Owner
@@ -254,11 +356,30 @@ export function AdminAgenciesClient() {
                       {agency.address ?? "Address unavailable"}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Timeline
+                    </p>
+                    <p className="mt-1 text-gray-700 dark:text-gray-200">
+                      Submitted {formatDateTime(agency.created_at)}
+                    </p>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Updated {formatDateTime(agency.updated_at)}
+                    </p>
+                  </div>
                 </div>
 
                 <Input
-                  label="Decision reason"
-                  placeholder="Required before approving or rejecting"
+                  label={
+                    agency.status === "approved"
+                      ? "Decision reason"
+                      : "Approval note / rejection reason"
+                  }
+                  placeholder={
+                    agency.status === "approved"
+                      ? "Required before revoking or suspending"
+                      : "Optional for approval, required for rejection"
+                  }
                   value={decisionReasons[agency.agency_id] ?? ""}
                   onChange={(event) =>
                     setDecisionReasons((current) => ({
@@ -273,93 +394,6 @@ export function AdminAgenciesClient() {
           </div>
         )}
       </section>
-      ) : null}
-
-      {activeTab === "approved" ? (
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Approved agencies
-        </h2>
-        {approvedAgencies.length === 0 ? (
-          <EmptyState
-            title="No approved agencies"
-            description="Approved agencies will appear here after review."
-          />
-        ) : (
-          <div className="space-y-4">
-            {approvedAgencies.map((agency) => (
-              <Card key={agency.agency_id}>
-                <CardBody className="space-y-4">
-                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {agency.name}
-                        </h3>
-                        <Badge>Approved</Badge>
-                      </div>
-                      {agency.description ? (
-                        <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-                          {agency.description}
-                        </p>
-                      ) : null}
-                      {agency.status_reason ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Last decision reason: {agency.status_reason}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/agencies/${agency.agency_id}`}
-                        className="inline-flex h-8 items-center justify-center rounded-lg bg-secondary px-2.5 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-                      >
-                        View
-                      </Link>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        loading={
-                          revokeAgency.isPending &&
-                          revokeAgency.variables?.agencyId === agency.agency_id
-                        }
-                        onClick={() => void handleRevoke(agency.agency_id)}
-                      >
-                        Revoke
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        loading={
-                          suspendAgency.isPending &&
-                          suspendAgency.variables?.agencyId === agency.agency_id
-                        }
-                        onClick={() => void handleSuspend(agency.agency_id)}
-                      >
-                        Suspend
-                      </Button>
-                    </div>
-                  </div>
-                  <Input
-                    label="Decision reason"
-                    placeholder="Required before revoking or suspending"
-                    value={decisionReasons[agency.agency_id] ?? ""}
-                    onChange={(event) =>
-                      setDecisionReasons((current) => ({
-                        ...current,
-                        [agency.agency_id]: event.target.value,
-                      }))
-                    }
-                  />
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-      ) : null}
     </div>
   );
 }
