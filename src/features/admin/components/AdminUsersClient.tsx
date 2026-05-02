@@ -73,6 +73,7 @@ export function AdminUsersClient() {
   const [agencyAssignmentUserId, setAgencyAssignmentUserId] = useState<number | null>(null);
   const [selectedAgencyId, setSelectedAgencyId] = useState<number | null>(null);
   const [deactivationReasons, setDeactivationReasons] = useState<Record<number, string>>({});
+  const [roleChangeReasons, setRoleChangeReasons] = useState<Record<number, string>>({});
   const promotedAgentProfileQuery = useAgentProfileForAdmin(agencyAssignmentUserId);
   const agenciesQuery = useAgencies(agencyAssignmentUserId !== null);
 
@@ -137,10 +138,21 @@ export function AdminUsersClient() {
     user: UserProfile,
     nextRole: "agent" | "seeker",
   ) => {
+    const isDemotion =
+      nextRole === "seeker" &&
+      (user.user_role === "agent" || user.user_role === "agency_owner");
+    const roleChangeReason = roleChangeReasons[user.user_id]?.trim();
+
+    if (isDemotion && !roleChangeReason) {
+      notify.error("Enter a reason before demoting this user.");
+      return;
+    }
+
     try {
       const updatedUser = await updateUserRole.mutateAsync({
         userId: user.user_id,
         userRole: nextRole,
+        roleChangeReason,
       });
 
       if (nextRole === "agent") {
@@ -156,6 +168,11 @@ export function AdminUsersClient() {
       }
 
       notify.success("User demoted to seeker");
+      setRoleChangeReasons((current) => {
+        const next = { ...current };
+        delete next[user.user_id];
+        return next;
+      });
     } catch (error) {
       notify.error(extractApiDetail(error) ?? "Could not update user role");
     }
@@ -318,18 +335,32 @@ export function AdminUsersClient() {
               </div>
 
               {!isDeactivated ? (
-                <Input
-                  className="mt-4"
-                  label="Deactivation reason"
-                  placeholder="Required before deactivating this user"
-                  value={deactivationReasons[user.user_id] ?? ""}
-                  onChange={(event) =>
-                    setDeactivationReasons((current) => ({
-                      ...current,
-                      [user.user_id]: event.target.value,
-                    }))
-                  }
-                />
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {(user.user_role === "agent" || user.user_role === "agency_owner") ? (
+                    <Input
+                      label="Role change reason"
+                      placeholder="Required before demoting this user"
+                      value={roleChangeReasons[user.user_id] ?? ""}
+                      onChange={(event) =>
+                        setRoleChangeReasons((current) => ({
+                          ...current,
+                          [user.user_id]: event.target.value,
+                        }))
+                      }
+                    />
+                  ) : null}
+                  <Input
+                    label="Deactivation reason"
+                    placeholder="Required before deactivating this user"
+                    value={deactivationReasons[user.user_id] ?? ""}
+                    onChange={(event) =>
+                      setDeactivationReasons((current) => ({
+                        ...current,
+                        [user.user_id]: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
               ) : null}
 
               {isAgencyAssignmentRow ? (

@@ -43,14 +43,17 @@ export function useUpdateAdminUserRole() {
     mutationFn: ({
       userId,
       userRole,
+      roleChangeReason,
     }: {
       userId: number;
       userRole: Extract<UserRole, "seeker" | "agent">;
+      roleChangeReason?: string;
     }) =>
       apiClient<UserProfile>(`/api/v1/admin/users/${userId}`, {
         method: "PUT",
         body: JSON.stringify({
           user_role: userRole,
+          ...(roleChangeReason ? { role_change_reason: roleChangeReason } : {}),
         }),
       }),
     onSuccess: async (_, variables) => {

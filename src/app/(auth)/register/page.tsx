@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -13,9 +13,19 @@ import {
 } from "@/features/auth/schemas";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageContent />
+    </Suspense>
+  );
+}
+
+function RegisterPageContent() {
   const { signUp, user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
+  const emailParam = searchParams.get("email") ?? "";
 
   useEffect(() => {
     if (!loading && user) {
@@ -31,6 +41,7 @@ export default function RegisterPage() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       user_role: "buyer",
+      email: emailParam,
     },
   });
 
@@ -65,6 +76,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
         <h1 className="mb-2 text-2xl font-bold text-gray-900">Create account</h1>
         <p className="mb-8 text-sm text-gray-500">
+          {emailParam
+            ? "Use the approved owner email to claim your agency workspace. "
+            : null}
           Already registered?{" "}
           <Link href="/login" className="text-blue-600 hover:underline">
             Sign in
