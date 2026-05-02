@@ -11,6 +11,10 @@ import {
   savePropertiesScrollPosition,
 } from "@/features/properties/lib/scrollRestoration";
 import {
+  parseListingStatus,
+  parseListingType,
+} from "@/features/properties/lib/propertyOptions";
+import {
   MODERATION_STATUS,
   isVerifiedModerationStatus,
 } from "@/features/properties/lib/moderation";
@@ -62,8 +66,8 @@ export function PropertiesExplorer() {
     skip: (currentPage - 1) * PAGE_SIZE,
     limit: PAGE_SIZE,
     search: searchParams.get("search") ?? undefined,
-    listing_type: searchParams.get("listing_type") ?? undefined,
-    listing_status: searchParams.get("listing_status") ?? undefined,
+    listing_type: parseListingType(searchParams.get("listing_type")),
+    listing_status: parseListingStatus(searchParams.get("listing_status")),
     moderation_status: MODERATION_STATUS.verified,
     min_price: searchParams.get("min_price")
       ? Number(searchParams.get("min_price"))
