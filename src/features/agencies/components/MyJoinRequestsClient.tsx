@@ -37,8 +37,11 @@ function displayMembershipStatus(status: string) {
   return status === "inactive" ? "revoked" : status;
 }
 
+type MyAgenciesTab = "invitations" | "memberships" | "requests";
+
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
+  const [activeTab, setActiveTab] = useState<MyAgenciesTab>("requests");
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
   const canViewAgencyRequests =
@@ -134,6 +137,15 @@ export function MyJoinRequestsClient() {
   const requests = requestsQuery.data ?? [];
   const memberships = membershipsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
+  const availableTabs: Array<{ value: MyAgenciesTab; label: string; count: number }> = [
+    ...(canViewAgencyInvitations
+      ? [{ value: "invitations" as const, label: "Invitations", count: invitations.length }]
+      : []),
+    ...(canViewAgencyMemberships
+      ? [{ value: "memberships" as const, label: "Memberships", count: memberships.length }]
+      : []),
+    { value: "requests" as const, label: "Sent requests", count: requests.length },
+  ];
 
   return (
     <div className="space-y-6">
@@ -146,7 +158,21 @@ export function MyJoinRequestsClient() {
         </p>
       </div>
 
-      {canViewAgencyInvitations ? (
+      <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+        {availableTabs.map(({ value, label, count }) => (
+          <Button
+            key={value}
+            type="button"
+            variant={activeTab === value ? "primary" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab(value)}
+          >
+            {label} ({count})
+          </Button>
+        ))}
+      </div>
+
+      {canViewAgencyInvitations && activeTab === "invitations" ? (
         <section className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Agency invitations
@@ -217,7 +243,7 @@ export function MyJoinRequestsClient() {
         </section>
       ) : null}
 
-      {canViewAgencyMemberships ? (
+      {canViewAgencyMemberships && activeTab === "memberships" ? (
         <section className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Agency memberships
@@ -299,6 +325,7 @@ export function MyJoinRequestsClient() {
         </section>
       ) : null}
 
+      {activeTab === "requests" ? (
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Agency requests
@@ -338,6 +365,7 @@ export function MyJoinRequestsClient() {
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }

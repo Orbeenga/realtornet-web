@@ -4,6 +4,7 @@ import type {
   Agency,
   AgencyApplicationCreate,
   AgencyApplicationResponse,
+  AgencyStatus,
   AgencyRejectRequest,
 } from "@/types";
 
@@ -23,15 +24,18 @@ export function useApplyForAgency() {
 }
 
 export function useAdminAgencies(
-  status: "pending" | "approved" | "rejected" = "pending",
+  status?: AgencyStatus,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: ["adminAgencies", status],
-    queryFn: () =>
-      apiClient<Agency[]>(
-        `/api/v1/admin/agencies/?status=${encodeURIComponent(status)}&limit=100`,
-      ),
+    queryKey: ["adminAgencies", status ?? "all"],
+    queryFn: () => {
+      const query = status
+        ? `?status=${encodeURIComponent(status)}&limit=100`
+        : "?limit=100";
+
+      return apiClient<Agency[]>(`/api/v1/admin/agencies/${query}`);
+    },
     staleTime: 30_000,
     enabled,
   });
