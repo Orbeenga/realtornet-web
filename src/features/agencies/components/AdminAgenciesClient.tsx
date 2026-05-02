@@ -21,48 +21,90 @@ export function AdminAgenciesClient() {
   const rejectAgency = useRejectAgencyApplication();
   const revokeAgency = useRevokeAgencyApproval();
   const suspendAgency = useSuspendAgency();
-  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
+  const [decisionReasons, setDecisionReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<"pending" | "approved">("pending");
 
+  const getDecisionReason = (agencyId: number, action: string) => {
+    const reason = decisionReasons[agencyId]?.trim();
+
+    if (!reason) {
+      notify.error(`Enter a reason before ${action} this agency.`);
+      return null;
+    }
+
+    return reason;
+  };
+
+  const clearDecisionReason = (agencyId: number) => {
+    setDecisionReasons((current) => {
+      const next = { ...current };
+      delete next[agencyId];
+      return next;
+    });
+  };
+
   const handleApprove = async (agencyId: number) => {
+    const reason = getDecisionReason(agencyId, "approving");
+
+    if (!reason) {
+      return;
+    }
+
     try {
-      await approveAgency.mutateAsync(agencyId);
+      await approveAgency.mutateAsync({ agencyId, payload: { reason } });
       notify.success("Agency approved");
+      clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not approve agency");
     }
   };
 
   const handleReject = async (agencyId: number) => {
+    const reason = getDecisionReason(agencyId, "rejecting");
+
+    if (!reason) {
+      return;
+    }
+
     try {
       await rejectAgency.mutateAsync({
         agencyId,
-        payload: { reason: rejectReasons[agencyId]?.trim() || null },
+        payload: { reason },
       });
       notify.success("Agency rejected");
-      setRejectReasons((current) => {
-        const next = { ...current };
-        delete next[agencyId];
-        return next;
-      });
+      clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not reject agency");
     }
   };
 
   const handleRevoke = async (agencyId: number) => {
+    const reason = getDecisionReason(agencyId, "revoking");
+
+    if (!reason) {
+      return;
+    }
+
     try {
-      await revokeAgency.mutateAsync(agencyId);
+      await revokeAgency.mutateAsync({ agencyId, payload: { reason } });
       notify.success("Agency approval revoked");
+      clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not revoke agency approval");
     }
   };
 
   const handleSuspend = async (agencyId: number) => {
+    const reason = getDecisionReason(agencyId, "suspending");
+
+    if (!reason) {
+      return;
+    }
+
     try {
-      await suspendAgency.mutateAsync(agencyId);
+      await suspendAgency.mutateAsync({ agencyId, payload: { reason } });
       notify.success("Agency suspended");
+      clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not suspend agency");
     }
@@ -155,7 +197,7 @@ export function AdminAgenciesClient() {
                       size="sm"
                       loading={
                         approveAgency.isPending &&
-                        approveAgency.variables === agency.agency_id
+                        approveAgency.variables?.agencyId === agency.agency_id
                       }
                       onClick={() => void handleApprove(agency.agency_id)}
                     >
@@ -215,11 +257,11 @@ export function AdminAgenciesClient() {
                 </div>
 
                 <Input
-                  label="Reject reason"
-                  placeholder="Optional note for rejection"
-                  value={rejectReasons[agency.agency_id] ?? ""}
+                  label="Decision reason"
+                  placeholder="Required before approving or rejecting"
+                  value={decisionReasons[agency.agency_id] ?? ""}
                   onChange={(event) =>
-                    setRejectReasons((current) => ({
+                    setDecisionReasons((current) => ({
                       ...current,
                       [agency.agency_id]: event.target.value,
                     }))
@@ -261,6 +303,11 @@ export function AdminAgenciesClient() {
                           {agency.description}
                         </p>
                       ) : null}
+                      {agency.status_reason ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Last decision reason: {agency.status_reason}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Link
@@ -275,7 +322,7 @@ export function AdminAgenciesClient() {
                         variant="secondary"
                         loading={
                           revokeAgency.isPending &&
-                          revokeAgency.variables === agency.agency_id
+                          revokeAgency.variables?.agencyId === agency.agency_id
                         }
                         onClick={() => void handleRevoke(agency.agency_id)}
                       >
@@ -287,7 +334,7 @@ export function AdminAgenciesClient() {
                         variant="secondary"
                         loading={
                           suspendAgency.isPending &&
-                          suspendAgency.variables === agency.agency_id
+                          suspendAgency.variables?.agencyId === agency.agency_id
                         }
                         onClick={() => void handleSuspend(agency.agency_id)}
                       >
@@ -295,6 +342,17 @@ export function AdminAgenciesClient() {
                       </Button>
                     </div>
                   </div>
+                  <Input
+                    label="Decision reason"
+                    placeholder="Required before revoking or suspending"
+                    value={decisionReasons[agency.agency_id] ?? ""}
+                    onChange={(event) =>
+                      setDecisionReasons((current) => ({
+                        ...current,
+                        [agency.agency_id]: event.target.value,
+                      }))
+                    }
+                  />
                 </CardBody>
               </Card>
             ))}

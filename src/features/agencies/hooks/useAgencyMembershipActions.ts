@@ -15,7 +15,7 @@ type MembershipAction = "suspend" | "revoke" | "block" | "restore";
 
 interface MembershipMutationVariables {
   membershipId: number;
-  payload?: AgencyAgentMembershipActionRequest;
+  payload: AgencyAgentMembershipActionRequest;
 }
 
 function useAgencyMembershipAction(
@@ -30,7 +30,7 @@ function useAgencyMembershipAction(
         `/api/v1/agencies/${agencyId}/agents/${membershipId}/${action}/`,
         {
           method: "PATCH",
-          body: JSON.stringify(payload ?? {}),
+          body: JSON.stringify(payload),
         },
       ),
     onSuccess: async (membership) => {
@@ -73,7 +73,7 @@ export function useRestoreAgencyMembership(agencyId?: string | number | null) {
 interface ReviewDecisionVariables {
   membershipId: number;
   reviewRequestId: number;
-  payload?: AgencyMembershipReviewDecisionRequest;
+  payload: AgencyMembershipReviewDecisionRequest;
 }
 
 function useAgencyMembershipReviewDecision(
@@ -92,7 +92,7 @@ function useAgencyMembershipReviewDecision(
         `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-requests/${reviewRequestId}/${action}/`,
         {
           method: "PATCH",
-          body: JSON.stringify(payload ?? {}),
+          body: JSON.stringify(payload),
         },
       ),
     onSuccess: async () => {

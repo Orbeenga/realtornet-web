@@ -7,6 +7,11 @@ import type {
   AgencyRejectRequest,
 } from "@/types";
 
+interface AgencyDecisionVariables {
+  agencyId: number;
+  payload: AgencyRejectRequest;
+}
+
 export function useApplyForAgency() {
   return useMutation({
     mutationFn: (payload: AgencyApplicationCreate) =>
@@ -36,9 +41,10 @@ export function useApproveAgencyApplication() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (agencyId: number) =>
+    mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
       apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/approve/`, {
         method: "PATCH",
+        body: JSON.stringify(payload),
       }),
     onSuccess: async () => {
       await Promise.all([
@@ -53,16 +59,10 @@ export function useRejectAgencyApplication() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      agencyId,
-      payload,
-    }: {
-      agencyId: number;
-      payload?: AgencyRejectRequest;
-    }) =>
+    mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
       apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/reject/`, {
         method: "PATCH",
-        body: JSON.stringify(payload ?? {}),
+        body: JSON.stringify(payload),
       }),
     onSuccess: async () => {
       await Promise.all([
@@ -77,9 +77,10 @@ export function useRevokeAgencyApproval() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (agencyId: number) =>
+    mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
       apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/revoke/`, {
         method: "PATCH",
+        body: JSON.stringify(payload),
       }),
     onSuccess: async () => {
       await Promise.all([
@@ -94,9 +95,10 @@ export function useSuspendAgency() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (agencyId: number) =>
+    mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
       apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/suspend/`, {
         method: "PATCH",
+        body: JSON.stringify(payload),
       }),
     onSuccess: async () => {
       await Promise.all([
