@@ -78,6 +78,9 @@ export function PropertiesExplorer() {
     bedrooms: searchParams.get("bedrooms")
       ? Number(searchParams.get("bedrooms"))
       : undefined,
+    property_type_id: searchParams.get("property_type_id")
+      ? Number(searchParams.get("property_type_id"))
+      : undefined,
   };
 
   const { data, isLoading, isError, refetch } = useProperties(filters);

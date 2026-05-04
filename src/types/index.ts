@@ -67,6 +67,7 @@ export interface PropertyFilters {
   min_price?: number;
   max_price?: number;
   bedrooms?: number;
+  property_type_id?: number;
   listing_type?: ListingType;
   listing_status?: ListingStatus;
   moderation_status?: ModerationStatus;

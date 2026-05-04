@@ -726,7 +726,7 @@ export interface paths {
         get: operations["read_agency_api_v1_agencies__agency_id__get"];
         /**
          * Update Agency
-         * @description Update an agency. Admin only.
+         * @description Update an agency. Admins can update any agency; agency owners can update their own public profile fields.
          *
          *     Validates name and email uniqueness if being changed.
          *
@@ -1198,46 +1198,6 @@ export interface paths {
          * @description Return the most restrictive agency membership state for dashboard guards.
          */
         get: operations["read_my_agent_membership_status_api_v1_agency_memberships_me_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/membership/mine/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read My Agency Memberships
-         * @description Return all agency memberships for the authenticated agent-facing user.
-         */
-        get: operations["read_my_agency_memberships_api_v1_membership_mine__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/membership/me/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read My Agent Membership Status
-         * @description Return the most restrictive agency membership state for dashboard guards.
-         */
-        get: operations["read_my_agent_membership_status_api_v1_membership_me_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7317,64 +7277,11 @@ export interface operations {
             };
         };
     };
-    read_my_agency_memberships_api_v1_membership_mine__get: {
-        parameters: {
-            query?: {
-                /** @description Records to skip */
-                skip?: number;
-                /** @description Page size (max 100) */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MyAgencyMembershipResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_my_agent_membership_status_api_v1_membership_me_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MyAgentMembershipStatusResponse"];
-                };
-            };
-        };
-    };
     read_agent_profiles_api_v1_agent_profiles__get: {
         parameters: {
             query?: {
                 agency_id?: number | null;
+                location_id?: number | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
@@ -8139,6 +8046,7 @@ export interface operations {
                 max_price?: number | null;
                 bedrooms?: number | null;
                 bathrooms?: number | null;
+                property_type_id?: number | null;
                 listing_type?: components["schemas"]["app__models__properties__ListingType"] | null;
                 listing_status?: components["schemas"]["app__models__properties__ListingStatus"] | null;
                 moderation_status?: components["schemas"]["ModerationStatus"] | null;

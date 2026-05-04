@@ -10,6 +10,7 @@ import {
   LISTING_TYPES,
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
+import { usePropertyTypes } from "@/features/properties/hooks";
 
 const PropertyFiltersSavedSearch = dynamic(
   () =>
@@ -54,6 +55,7 @@ export function PropertyFilters() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const plainSearchParams = new URLSearchParams(searchParams.toString());
+  const propertyTypesQuery = usePropertyTypes();
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -131,6 +133,38 @@ export function PropertyFilters() {
           {LISTING_STATUSES.map((listingStatus) => (
             <option key={listingStatus} value={listingStatus}>
               {LISTING_STATUS_LABELS[listingStatus]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label
+          htmlFor="property-type"
+          className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
+        >
+          Property type
+        </label>
+        <select
+          id="property-type"
+          value={searchParams.get("property_type_id") ?? ""}
+          onChange={(event) => updateFilter("property_type_id", event.target.value)}
+          disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+        >
+          <option value="">
+            {propertyTypesQuery.isLoading
+              ? "Loading property types..."
+              : propertyTypesQuery.isError
+                ? "Property types unavailable"
+                : "All property types"}
+          </option>
+          {(propertyTypesQuery.data ?? []).map((propertyType) => (
+            <option
+              key={propertyType.property_type_id}
+              value={propertyType.property_type_id}
+            >
+              {propertyType.name}
             </option>
           ))}
         </select>
