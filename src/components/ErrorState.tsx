@@ -23,9 +23,9 @@ export function ErrorState({
           />
         </svg>
       </div>
-      <h3 className="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">
+      <p className="mb-1 text-base font-semibold text-gray-900 dark:text-gray-100">
         {title}
-      </h3>
+      </p>
       <p className="mb-6 max-w-sm text-sm text-gray-500 dark:text-gray-400">
         {message}
       </p>

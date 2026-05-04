@@ -53,6 +53,20 @@ function getStatusLabel(status: AgencyStatus) {
   return ADMIN_AGENCY_TABS.find((tab) => tab.value === status)?.label ?? status;
 }
 
+function getDecisionEmailStatus(agency: Agency) {
+  const emailStatus = (agency as Record<string, unknown>).email_status;
+
+  if (emailStatus === "sent") {
+    return "Confirmation email sent.";
+  }
+
+  if (emailStatus === "failed") {
+    return "Decision saved — email delivery pending.";
+  }
+
+  return "Decision saved — confirmation email queued.";
+}
+
 export function AdminAgenciesClient() {
   const gate = useAdminRoleGate();
   const pendingAgenciesQuery = useAdminAgencies("pending", gate.isAllowed);
@@ -64,6 +78,7 @@ export function AdminAgenciesClient() {
   const revokeAgency = useRevokeAgencyApproval();
   const suspendAgency = useSuspendAgency();
   const [decisionReasons, setDecisionReasons] = useState<Record<number, string>>({});
+  const [emailStatusMessages, setEmailStatusMessages] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyStatus>("pending");
 
   const getRequiredDecisionReason = (agencyId: number, action: string) => {
@@ -92,8 +107,10 @@ export function AdminAgenciesClient() {
     const reason = getOptionalDecisionReason(agencyId, "Approved by admin.");
 
     try {
-      await approveAgency.mutateAsync({ agencyId, payload: { reason } });
-      notify.success("Agency approved");
+      const agency = await approveAgency.mutateAsync({ agencyId, payload: { reason } });
+      const emailStatus = getDecisionEmailStatus(agency);
+      setEmailStatusMessages((current) => ({ ...current, [agencyId]: emailStatus }));
+      notify.success(`Agency approved. ${emailStatus}`);
       clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not approve agency");
@@ -108,11 +125,13 @@ export function AdminAgenciesClient() {
     }
 
     try {
-      await rejectAgency.mutateAsync({
+      const agency = await rejectAgency.mutateAsync({
         agencyId,
         payload: { reason },
       });
-      notify.success("Agency rejected");
+      const emailStatus = getDecisionEmailStatus(agency);
+      setEmailStatusMessages((current) => ({ ...current, [agencyId]: emailStatus }));
+      notify.success(`Agency rejected. ${emailStatus}`);
       clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not reject agency");
@@ -366,6 +385,12 @@ export function AdminAgenciesClient() {
                     </p>
                   </div>
                 </div>
+
+                {emailStatusMessages[agency.agency_id] ? (
+                  <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+                    {emailStatusMessages[agency.agency_id]}
+                  </p>
+                ) : null}
 
                 <Input
                   label={

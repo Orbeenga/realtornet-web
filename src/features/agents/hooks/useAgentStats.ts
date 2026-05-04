@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api/client";
 export interface AgentStats {
   total_listings?: number | null;
   listing_count?: number | null;
+  active_listings?: number | null;
   average_rating?: number | null;
   avg_rating?: number | null;
   inquiry_count?: number | null;
