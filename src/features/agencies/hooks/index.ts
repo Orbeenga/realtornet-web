@@ -1,4 +1,4 @@
-export { useAgencyProfile } from "./useAgencyProfile";
+export { useAgencyProfile, useUpdateAgencyProfile } from "./useAgencyProfile";
 export { useAgencyAgents } from "./useAgencyAgents";
 export { useAgencyListings } from "./useAgencyListings";
 export {
