@@ -26,6 +26,7 @@ import {
   useAgencyProfile,
   useAgencyJoinRequests,
   useAgencyStats,
+  useUpdateAgencyProfile,
   getAgencyAgentCount,
   getAgencyListingCount,
   useApproveAgencyMembershipReview,
@@ -44,7 +45,16 @@ const inviteSchema = z.object({
   email: z.email("Use a valid email address"),
 });
 
+const agencyProfileSchema = z.object({
+  name: z.string().trim().min(2, "Agency name is required"),
+  description: z.string().trim().optional(),
+  address: z.string().trim().optional(),
+  website_url: z.union([z.url("Use a valid website URL"), z.literal("")]).optional(),
+  logo_url: z.union([z.url("Use a valid logo URL"), z.literal("")]).optional(),
+});
+
 type InviteFormValues = z.infer<typeof inviteSchema>;
+type AgencyProfileFormValues = z.infer<typeof agencyProfileSchema>;
 type AgencyOwnerTab = "joinRequests" | "agents" | "invitations";
 
 const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
@@ -120,6 +130,7 @@ export function AgencyOwnerDashboardClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
+  const [isEditingAgencyProfile, setIsEditingAgencyProfile] = useState(false);
   const userAgencyId = user?.agency_id;
   const userEmail = user?.email;
   const shouldLoadAgencyDirectory = gate.isAllowed && typeof userAgencyId !== "number";
@@ -156,6 +167,17 @@ export function AgencyOwnerDashboardClient() {
   const approveReview = useApproveAgencyMembershipReview(agencyId);
   const rejectReview = useRejectAgencyMembershipReview(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
+  const updateAgencyProfile = useUpdateAgencyProfile(agencyId);
+  const agencyProfileForm = useForm<AgencyProfileFormValues>({
+    resolver: zodResolver(agencyProfileSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      address: "",
+      website_url: "",
+      logo_url: "",
+    },
+  });
   const {
     register,
     handleSubmit,
@@ -168,6 +190,49 @@ export function AgencyOwnerDashboardClient() {
       email: "",
     },
   });
+
+  const handleStartAgencyProfileEdit = () => {
+    if (!agency) {
+      return;
+    }
+
+    agencyProfileForm.reset({
+      name: agency.name,
+      description: agency.description ?? "",
+      address: agency.address ?? "",
+      website_url: agency.website_url ?? "",
+      logo_url: agency.logo_url ?? "",
+    });
+    setIsEditingAgencyProfile(true);
+  };
+
+  const handleCancelAgencyProfileEdit = () => {
+    setIsEditingAgencyProfile(false);
+    agencyProfileForm.clearErrors();
+  };
+
+  const handleUpdateAgencyProfile = async (values: AgencyProfileFormValues) => {
+    try {
+      await updateAgencyProfile.mutateAsync({
+        name: values.name,
+        description: values.description?.trim() || null,
+        address: values.address?.trim() || null,
+        website_url: values.website_url?.trim() || null,
+        logo_url: values.logo_url?.trim() || null,
+      });
+      notify.success("Agency profile updated");
+      setIsEditingAgencyProfile(false);
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not update agency profile.";
+      agencyProfileForm.setError("root", {
+        type: "server",
+        message,
+      });
+    }
+  };
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -411,7 +476,76 @@ export function AgencyOwnerDashboardClient() {
             >
               View profile
             </Link>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleStartAgencyProfileEdit}
+            >
+              Edit profile
+            </Button>
           </div>
+
+          {isEditingAgencyProfile ? (
+            <form
+              className="space-y-4 rounded-lg border border-border p-4"
+              onSubmit={(event) =>
+                void agencyProfileForm.handleSubmit(handleUpdateAgencyProfile)(event)
+              }
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input
+                  label="Agency name"
+                  error={agencyProfileForm.formState.errors.name?.message}
+                  {...agencyProfileForm.register("name")}
+                />
+                <Input
+                  label="Website URL"
+                  placeholder="https://example.com"
+                  error={agencyProfileForm.formState.errors.website_url?.message}
+                  {...agencyProfileForm.register("website_url")}
+                />
+                <Input
+                  label="Logo URL"
+                  placeholder="https://example.com/logo.png"
+                  error={agencyProfileForm.formState.errors.logo_url?.message}
+                  {...agencyProfileForm.register("logo_url")}
+                />
+                <Input
+                  label="Address"
+                  error={agencyProfileForm.formState.errors.address?.message}
+                  {...agencyProfileForm.register("address")}
+                />
+              </div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Description
+                <textarea
+                  rows={4}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  {...agencyProfileForm.register("description")}
+                />
+              </label>
+              {agencyProfileForm.formState.errors.root?.message ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {agencyProfileForm.formState.errors.root.message}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="submit"
+                  loading={updateAgencyProfile.isPending}
+                >
+                  Save profile
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCancelAgencyProfileEdit}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : null}
 
           <div className="grid gap-4 text-sm md:grid-cols-3">
             <div>

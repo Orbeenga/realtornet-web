@@ -63,20 +63,43 @@ export function AgencyInviteAcceptClient() {
   }
 
   if (acceptInvite.isError) {
+    const message =
+      acceptInvite.error instanceof ApiError &&
+      typeof acceptInvite.error.detail === "string"
+        ? acceptInvite.error.detail
+        : "There was a problem accepting this invite.";
+
     return (
-      <ErrorState
-        title="Could not accept invite"
-        message={
-          acceptInvite.error instanceof ApiError &&
-          typeof acceptInvite.error.detail === "string"
-            ? acceptInvite.error.detail
-            : "There was a problem accepting this invite."
-        }
-        onRetry={() => {
-          hasSubmittedRef.current = false;
-          void acceptInvite.mutateAsync({ invite_token: token });
-        }}
-      />
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              Could not accept invite
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+              {message}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                hasSubmittedRef.current = false;
+                void acceptInvite.mutateAsync({ invite_token: token });
+              }}
+            >
+              Try again
+            </Button>
+            <Link
+              href="/agencies"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              Request new invitation
+            </Link>
+          </div>
+        </CardBody>
+      </Card>
     );
   }
 

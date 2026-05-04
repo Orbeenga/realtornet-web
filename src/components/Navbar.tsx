@@ -89,6 +89,11 @@ export function Navbar() {
               href="/"
               prefetch={false}
               className="text-lg font-bold tracking-tight text-gray-900 dark:text-white"
+              style={{
+                alignItems: "center",
+                display: "inline-flex",
+                minHeight: 44,
+              }}
             >
               RealtorNet
             </Link>
@@ -99,7 +104,7 @@ export function Navbar() {
                   href={href}
                   prefetch={false}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     pathname.startsWith(href)
                       ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
                       : "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white",
