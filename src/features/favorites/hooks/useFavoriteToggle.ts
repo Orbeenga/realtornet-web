@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import type { Favorite, FavoriteCreate } from "@/types";
 
 interface ToggleArgs {
@@ -9,6 +10,7 @@ interface ToggleArgs {
 
 export function useFavoriteToggle() {
   const queryClient = useQueryClient();
+  const { data: profile } = useUserProfile();
 
   return useMutation({
     mutationFn: async ({ propertyId, isFavorited }: ToggleArgs) => {
@@ -25,10 +27,23 @@ export function useFavoriteToggle() {
     },
     onMutate: async ({ propertyId, isFavorited }) => {
       await queryClient.cancelQueries({ queryKey: ["favorites"] });
+      await queryClient.cancelQueries({ queryKey: ["favoriteCount", propertyId] });
+      await queryClient.cancelQueries({
+        queryKey: ["isFavorited", propertyId, profile?.user_id],
+      });
 
       const favoriteEntries = queryClient.getQueriesData<Favorite[]>({
         queryKey: ["favorites"],
       });
+      const previousFavoriteCount = queryClient.getQueryData<number>([
+        "favoriteCount",
+        propertyId,
+      ]);
+      const previousIsFavorited = queryClient.getQueryData<boolean>([
+        "isFavorited",
+        propertyId,
+        profile?.user_id,
+      ]);
 
       for (const [queryKey, favorites] of favoriteEntries) {
         if (!favorites) {
@@ -52,15 +67,38 @@ export function useFavoriteToggle() {
         queryClient.setQueryData(queryKey, nextFavorites);
       }
 
-      return { favoriteEntries };
+      queryClient.setQueryData(
+        ["favoriteCount", propertyId],
+        Math.max(0, (previousFavoriteCount ?? 0) + (isFavorited ? -1 : 1)),
+      );
+      queryClient.setQueryData(
+        ["isFavorited", propertyId, profile?.user_id],
+        !isFavorited,
+      );
+
+      return { favoriteEntries, previousFavoriteCount, previousIsFavorited };
     },
-    onError: (_error, _variables, context) => {
+    onError: (_error, variables, context) => {
       context?.favoriteEntries.forEach(([queryKey, favorites]) => {
         queryClient.setQueryData(queryKey, favorites);
       });
+      queryClient.setQueryData(
+        ["favoriteCount", variables.propertyId],
+        context?.previousFavoriteCount,
+      );
+      queryClient.setQueryData(
+        ["isFavorited", variables.propertyId, profile?.user_id],
+        context?.previousIsFavorited,
+      );
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({
+        queryKey: ["favoriteCount", variables.propertyId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["isFavorited", variables.propertyId],
+      });
       queryClient.invalidateQueries({
         queryKey: ["property", variables.propertyId],
       });

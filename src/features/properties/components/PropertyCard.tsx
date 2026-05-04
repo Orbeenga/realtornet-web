@@ -6,9 +6,9 @@ import type { Property } from "@/types";
 import { Badge } from "@/components/Badge";
 import { Card, CardBody } from "@/components/Card";
 import {
-  useAddFavorite,
-  useFavorites,
-  useRemoveFavorite,
+  useFavoriteCount,
+  useFavoriteToggle,
+  useIsFavorited,
 } from "@/features/favorites/hooks";
 import { usePropertyImages } from "@/features/properties/hooks";
 import {
@@ -42,15 +42,12 @@ export function PropertyCard({
   locationLabel,
 }: PropertyCardProps) {
   const lastFavoriteToggleAtRef = useRef(0);
-  const { data: favorites } = useFavorites();
-  const addFavorite = useAddFavorite();
-  const removeFavorite = useRemoveFavorite();
+  const favoriteCountQuery = useFavoriteCount(property.property_id);
+  const isFavoritedQuery = useIsFavorited(property.property_id);
+  const favoriteToggle = useFavoriteToggle();
   const imagesQuery = usePropertyImages(property.property_id);
   const displayImage = imagesQuery.data?.[0] ?? null;
-
-  const isFavorited =
-    favorites?.some((favorite) => favorite.property_id === property.property_id) ??
-    false;
+  const isFavorited = isFavoritedQuery.data ?? false;
 
   const toggleFavorite = async (event: MouseEvent) => {
     event.preventDefault();
@@ -59,8 +56,7 @@ export function PropertyCard({
     const now = Date.now();
 
     if (
-      addFavorite.isPending ||
-      removeFavorite.isPending ||
+      favoriteToggle.isPending ||
       now - lastFavoriteToggleAtRef.current < 500
     ) {
       return;
@@ -69,13 +65,11 @@ export function PropertyCard({
     lastFavoriteToggleAtRef.current = now;
 
     try {
-      if (isFavorited) {
-        await removeFavorite.mutateAsync(property.property_id);
-        notify.success("Removed from saved listings");
-      } else {
-        await addFavorite.mutateAsync(property.property_id);
-        notify.success("Listing saved");
-      }
+      await favoriteToggle.mutateAsync({
+        propertyId: property.property_id,
+        isFavorited,
+      });
+      notify.success(isFavorited ? "Removed from saved listings" : "Listing saved");
     } catch {
       notify.error("Could not update saved listings");
     }
@@ -127,7 +121,7 @@ export function PropertyCard({
           <button
             onClick={toggleFavorite}
             aria-label={isFavorited ? "Remove saved listing" : "Save listing"}
-            disabled={addFavorite.isPending || removeFavorite.isPending}
+            disabled={favoriteToggle.isPending}
             className={cn(
               "absolute top-2 right-2 rounded-full p-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70",
               isFavorited
@@ -198,6 +192,10 @@ export function PropertyCard({
             {property.property_size != null ? (
               <span>{property.property_size} sqm</span>
             ) : null}
+            <span>
+              {favoriteCountQuery.data ?? 0} save
+              {(favoriteCountQuery.data ?? 0) === 1 ? "" : "s"}
+            </span>
           </div>
         </CardBody>
       </Card>

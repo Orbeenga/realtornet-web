@@ -98,6 +98,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "Favorites" },
+      { href: "/account/reviews", label: "Reviews" },
       { href: "/account/agency", label: "Agency dashboard" },
     ];
   }
@@ -110,6 +111,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "Favorites" },
+      { href: "/account/reviews", label: "Reviews" },
     ];
   }
 
@@ -119,6 +121,7 @@ export function getRoleNavLinks(role: string | null | undefined) {
       { href: "/properties", label: "Properties" },
       { href: "/account/join-requests", label: "My Agencies" },
       { href: "/account/favorites", label: "Favorites" },
+      { href: "/account/reviews", label: "Reviews" },
       { href: "/account/saved-searches", label: "Saved searches" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
     ];

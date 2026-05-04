@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { EmptyState, ErrorState, Skeleton } from "@/components";
-import { useAgentListings, useAgentProfile } from "@/features/agents/hooks";
+import { useAgentListings, useAgentProfile, useAgentStats } from "@/features/agents/hooks";
 import { AgentListingsGrid } from "@/features/agents/components/AgentListingsGrid";
 import { AgentProfileHeader } from "@/features/agents/components/AgentProfileHeader";
 import { ApiError } from "@/lib/api/client";
@@ -39,9 +39,24 @@ function AgentProfileSkeleton() {
   );
 }
 
+function readStatValue(
+  stats: Record<string, unknown> | undefined,
+  keys: string[],
+) {
+  for (const key of keys) {
+    const value = stats?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
 export function AgentProfileClient({ id }: AgentProfileClientProps) {
   const agentQuery = useAgentProfile(id);
   const listingsQuery = useAgentListings(id);
+  const statsQuery = useAgentStats(id);
 
   if (agentQuery.isLoading) {
     return <AgentProfileSkeleton />;
@@ -80,6 +95,31 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
   const fullName =
     agentQuery.data.company_name ||
     "This agent";
+  const stats = statsQuery.data;
+  const totalListings =
+    readStatValue(stats, ["total_listings", "listing_count", "active_listings"]) ??
+    listingsQuery.data?.length ??
+    null;
+  const averageRating = readStatValue(stats, ["average_rating", "avg_rating"]);
+  const inquiryCount = readStatValue(stats, ["inquiry_count", "total_inquiries"]);
+
+  const statCards = [
+    {
+      label: "Total listings",
+      value: totalListings,
+      formatter: (value: number) => value.toLocaleString(),
+    },
+    {
+      label: "Average rating",
+      value: averageRating,
+      formatter: (value: number) => value.toFixed(1),
+    },
+    {
+      label: "Inquiries",
+      value: inquiryCount,
+      formatter: (value: number) => value.toLocaleString(),
+    },
+  ];
 
   return (
     <div className="space-y-8">
@@ -99,6 +139,29 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
       </Link>
 
       <AgentProfileHeader agent={agentQuery.data} />
+
+      <section
+        aria-label="Agent performance summary"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      >
+        {statCards.map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
+          >
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              {stat.label}
+            </p>
+            <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
+              {statsQuery.isLoading
+                ? "..."
+                : typeof stat.value === "number"
+                  ? stat.formatter(stat.value)
+                  : "Not recorded"}
+            </p>
+          </div>
+        ))}
+      </section>
 
       <AgentListingsGrid
         agentName={fullName}
