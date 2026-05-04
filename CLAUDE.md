@@ -10,7 +10,8 @@
 
 ## Current phase state
 - Phase G is closed through G.7 Integration & Exit.
-- Phase H is in progress. Stream B is the active frontend stream: H.3 moderation UI consistency is complete, H.4 performance pass is complete with mobile TBT deferred, and H.5 UX completeness is active.
+- Phase H is in progress. Backend B1-B3 are complete (`5a96191`, `59c6923`, `0d58594`): legacy membership aliases removed, `property_type_id` search filter live, agency-owner profile edit contract open for own agency, and agent directory filters support `agency_id` + `location_id`.
+- Frontend Stream B is active: H.3 moderation UI consistency is complete, H.4 performance pass is complete with mobile TBT deferred, and F1-F3 frontend endpoint wiring is in progress.
 - Frontend production: Next.js 16.2.1 on Vercel at `realtornet-web.vercel.app`.
 - Backend production: Railway at `realtornet-production.up.railway.app`.
 - Production Supabase project: `avkhpachzsbgmbnkfnhu`.
@@ -38,13 +39,13 @@
 
 ## April 22 / Phase E-H follow-up audit
 - Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), desktop H.4 TBT target for `/properties` and `/agencies`, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, and admin user demotion/deactivation reason gates.
-- Still open or deferred: inquiry cards on `/account/inquiries` still lack joined property title/link data (`DEF-G-INQ-002`), mobile H.4 TBT remains above the revised 300ms target (`DEF-H4-MOBILE-TBT`), public property-type filtering is blocked until `/api/v1/properties/` accepts `property_type_id` (`DEF-H5-PROPERTY-TYPE-FILTER`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred until real traffic data (`DEF-002`), and production seed breadth remains a data-coverage concern.
+- Still open or deferred: inquiry cards on `/account/inquiries` need the newly confirmed embedded property/seeker data wired to remove N+1 hydration, mobile H.4 TBT remains above the revised 300ms target (`DEF-H4-MOBILE-TBT`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred until real traffic data (`DEF-002`), and production seed breadth remains a data-coverage concern.
 
 ## Latest Phase H validation
-- After commits `fd0fb12`, `5ceb385`, and `c68cc91`, frontend `tsc`, lint, and build gates were clean.
+- After commit `5f43f0f`, frontend `pnpm gen:types`, `tsc`, lint, and build gates were clean.
 - H.3 moderation UI consistency completed: public feeds filter to verified listings, agent/admin surfaces render all moderation states, and the shared moderation helper is the UI source of truth.
 - H.4 desktop TBT target was met locally against Railway: `/properties` 66ms TBT and `/agencies` 177ms TBT. Mobile TBT remains deferred to Phase I for deeper RSC/island/runtime work.
-- H.5 active contracts confirmed in Railway OpenAPI: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/{profile_id}`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, and listing status enum schemas. Railway does not expose `/api/v1/agents/{id}`; frontend uses the live `agent-profiles` contract. `/api/v1/properties/` does not accept `property_type_id`, so property-type public filtering is deferred.
+- Current Railway OpenAPI confirms: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/` with `agency_id` and `location_id`, `/api/v1/agent-profiles/{profile_id}/reviews`, `/api/v1/agent-profiles/{profile_id}/stats`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, `/api/v1/properties/` with `property_type_id`, `/api/v1/agencies/{agency_id}` owner-safe PUT, and listing status/type enum schemas.
 
 ## Session template
 At session start, capture:

@@ -15,10 +15,15 @@ import { notify } from "@/lib/toast";
 import type { Agency, AgencyStatus } from "@/types";
 
 const ADMIN_AGENCY_TABS: Array<{ value: AgencyStatus; label: string }> = [
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "suspended", label: "Suspended" },
+  ...Object.entries({
+    pending: "Pending",
+    approved: "Approved",
+    rejected: "Rejected",
+    suspended: "Suspended",
+  } satisfies Record<AgencyStatus, string>).map(([value, label]) => ({
+    value: value as AgencyStatus,
+    label,
+  })),
 ];
 
 function formatDateTime(value?: string | null) {
@@ -45,14 +50,7 @@ function getStatusBadgeVariant(status: AgencyStatus) {
 }
 
 function getStatusLabel(status: AgencyStatus) {
-  const labels: Record<AgencyStatus, string> = {
-    pending: "Pending",
-    approved: "Approved",
-    rejected: "Rejected",
-    suspended: "Suspended",
-  };
-
-  return labels[status];
+  return ADMIN_AGENCY_TABS.find((tab) => tab.value === status)?.label ?? status;
 }
 
 export function AdminAgenciesClient() {

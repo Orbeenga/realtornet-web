@@ -4,7 +4,7 @@
 
 ## Entry State
 
-Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration & Exit. Phase H is in progress: H.3 moderation UI consistency is complete, H.4 performance pass is complete with mobile TBT deferred, and H.5 UX completeness is active.
+Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration & Exit. Phase H is in progress: H.3 moderation UI consistency is complete, H.4 performance pass is complete with mobile TBT deferred, and F1-F3 frontend endpoint wiring is active.
 
 ## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
@@ -56,15 +56,15 @@ Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration 
 
 ## Latest Phase H Validation
 
-- After commits `fd0fb12`, `5ceb385`, and `c68cc91`, frontend `tsc`, lint, and build gates were clean.
+- After commit `5f43f0f`, frontend `pnpm gen:types`, `tsc`, lint, and build gates were clean.
 - H.3 moderation UI consistency completed: public feeds filter to verified listings, agent/admin surfaces render all moderation states, and the shared moderation helper is the UI source of truth.
 - H.4 local Railway-backed Lighthouse desktop TBT: `/properties` 66ms and `/agencies` 177ms.
-- H.5 live Railway OpenAPI contracts confirmed: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/{profile_id}`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, and listing status enum schemas. Railway does not expose `/api/v1/agents/{id}`; use `agent-profiles`. `/api/v1/properties/` does not accept `property_type_id`, so public property-type filtering is deferred.
+- Current Railway OpenAPI confirms: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/` with `agency_id` and `location_id`, `/api/v1/agent-profiles/{profile_id}/reviews`, `/api/v1/agent-profiles/{profile_id}/stats`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, `/api/v1/properties/` with `property_type_id`, `/api/v1/agencies/{agency_id}` owner-safe PUT, and listing status/type enum schemas.
 
 ## April 22 / Phase E-H Follow-Up Audit
 
 - Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), desktop H.4 TBT target, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, and admin user demotion/deactivation reason gates.
-- Still open or deferred: `/account/inquiries` cards still need joined property title/link data (`DEF-G-INQ-002`), mobile H.4 TBT remains above the revised 300ms target (`DEF-H4-MOBILE-TBT`), public property-type filtering is blocked until `/api/v1/properties/` accepts `property_type_id` (`DEF-H5-PROPERTY-TYPE-FILTER`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), and production seed breadth remains a data-coverage concern.
+- Still open or deferred: `/account/inquiries` must be rewired to use newly confirmed embedded property/seeker data and remove N+1 hydration, mobile H.4 TBT remains above the revised 300ms target (`DEF-H4-MOBILE-TBT`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), and production seed breadth remains a data-coverage concern.
 
 ## Type Generation
 
@@ -75,6 +75,8 @@ pnpm gen:types
 
 ## Quality Gates
 
+- `pnpm gen:types`
 - `pnpm exec tsc --noEmit`
+- `pnpm lint`
 - `pnpm build`
 - Lighthouse mobile on `/agencies` when a phase touches public discovery, navigation, or page weight.
