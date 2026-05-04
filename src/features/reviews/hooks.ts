@@ -20,6 +20,24 @@ export function usePropertyReviews(propertyId?: number | null) {
   });
 }
 
+export function useMyPropertyReviews() {
+  return useQuery({
+    queryKey: ["myPropertyReviews"],
+    queryFn: () =>
+      apiClient<PropertyReviewResponse[]>("/api/v1/reviews/by-user/property/"),
+    staleTime: 30_000,
+  });
+}
+
+export function useMyAgentReviews() {
+  return useQuery({
+    queryKey: ["myAgentReviews"],
+    queryFn: () =>
+      apiClient<AgentReviewResponse[]>("/api/v1/reviews/by-user/agent/"),
+    staleTime: 30_000,
+  });
+}
+
 export function useCreatePropertyReview() {
   const queryClient = useQueryClient();
 
@@ -77,7 +95,7 @@ export function useAgentReviews(agentId?: number | null) {
     queryKey: ["agentReviews", agentId],
     queryFn: () =>
       apiClient<AgentReviewResponse[]>(
-        `/api/v1/reviews/agent/by-agent/${agentId}`,
+        `/api/v1/agent-profiles/${agentId}/reviews`,
       ),
     enabled: typeof agentId === "number",
     staleTime: 30_000,

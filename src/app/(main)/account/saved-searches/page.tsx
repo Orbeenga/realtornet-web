@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, EmptyState, ErrorState, Skeleton } from "@/components";
 import {
   useDeleteSavedSearch,
   useExecuteSavedSearch,
+  useSavedSearchDetail,
   useSavedSearches,
+  useUpdateSavedSearch,
 } from "@/features/properties/hooks";
 import { buildSavedSearchHref, summarizeSavedSearch } from "@/features/properties/lib/savedSearchParams";
 import { notify } from "@/lib/toast";
@@ -30,8 +33,13 @@ function formatDate(value: string) {
 
 export default function SavedSearchesPage() {
   const router = useRouter();
+  const [editingSearchId, setEditingSearchId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editParamsJson, setEditParamsJson] = useState("");
   const savedSearchesQuery = useSavedSearches();
+  const savedSearchDetailQuery = useSavedSearchDetail(editingSearchId);
   const executeSavedSearch = useExecuteSavedSearch();
+  const updateSavedSearch = useUpdateSavedSearch();
   const deleteSavedSearch = useDeleteSavedSearch();
 
   const handleRunSearch = async (
@@ -62,6 +70,61 @@ export default function SavedSearchesPage() {
       }
 
       notify.error("Could not delete saved search");
+    }
+  };
+
+  const handleStartEdit = (searchId: number) => {
+    setEditingSearchId(searchId);
+    const search = savedSearchesQuery.data?.find(
+      (candidate) => candidate.search_id === searchId,
+    );
+
+    if (search) {
+      setEditName(search.name ?? "");
+      setEditParamsJson(JSON.stringify(search.search_params, null, 2));
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSearchId(null);
+    setEditName("");
+    setEditParamsJson("");
+  };
+
+  const handleUpdateSearch = async (searchId: number) => {
+    let parsedParams: Record<string, unknown>;
+
+    try {
+      const parsed = JSON.parse(editParamsJson) as unknown;
+
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        notify.error("Search criteria must be a JSON object");
+        return;
+      }
+
+      parsedParams = parsed as Record<string, unknown>;
+    } catch {
+      notify.error("Search criteria must be valid JSON");
+      return;
+    }
+
+    try {
+      await updateSavedSearch.mutateAsync({
+        searchId,
+        payload: {
+          name: editName.trim() || null,
+          search_params: parsedParams,
+        },
+      });
+      notify.success("Saved search updated");
+      handleCancelEdit();
+    } catch (error) {
+      if (error instanceof ApiError && typeof error.detail === "string") {
+        notify.error(error.detail);
+        return;
+      }
+
+      notify.error("Could not update saved search");
     }
   };
 
@@ -124,43 +187,106 @@ export default function SavedSearchesPage() {
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-2">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {search.name?.trim() || summarizeSavedSearch(search.search_params)}
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    {summarizeSavedSearch(search.search_params)}
-                  </p>
+                  {editingSearchId === search.search_id ? (
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Name
+                        <input
+                          value={editName}
+                          onChange={(event) => setEditName(event.target.value)}
+                          className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                          placeholder="Saved search name"
+                        />
+                      </label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Criteria
+                        <textarea
+                          value={editParamsJson}
+                          onChange={(event) => setEditParamsJson(event.target.value)}
+                          rows={7}
+                          className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {search.name?.trim() || summarizeSavedSearch(search.search_params)}
+                      </h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        {summarizeSavedSearch(search.search_params)}
+                      </p>
+                    </>
+                  )}
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Saved {formatDate(search.created_at)}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    loading={
-                      executeSavedSearch.isPending &&
-                      executeSavedSearch.variables === search.search_id
-                    }
-                    onClick={() =>
-                      void handleRunSearch(search.search_id, search.search_params)
-                    }
-                  >
-                    Run search
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    loading={
-                      deleteSavedSearch.isPending &&
-                      deleteSavedSearch.variables === search.search_id
-                    }
-                    onClick={() => void handleDeleteSearch(search.search_id)}
-                  >
-                    Delete
-                  </Button>
+                  {editingSearchId === search.search_id ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        loading={
+                          updateSavedSearch.isPending &&
+                          updateSavedSearch.variables?.searchId === search.search_id
+                        }
+                        onClick={() => void handleUpdateSearch(search.search_id)}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        loading={
+                          executeSavedSearch.isPending &&
+                          executeSavedSearch.variables === search.search_id
+                        }
+                        onClick={() =>
+                          void handleRunSearch(search.search_id, search.search_params)
+                        }
+                      >
+                        Run search
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        loading={
+                          savedSearchDetailQuery.isLoading &&
+                          editingSearchId === search.search_id
+                        }
+                        onClick={() => handleStartEdit(search.search_id)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        loading={
+                          deleteSavedSearch.isPending &&
+                          deleteSavedSearch.variables === search.search_id
+                        }
+                        onClick={() => void handleDeleteSearch(search.search_id)}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

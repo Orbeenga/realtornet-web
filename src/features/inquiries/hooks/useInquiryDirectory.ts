@@ -97,13 +97,30 @@ function getContactFromProfile(profile: UserProfile): InquiryDirectoryContact {
 function getContactFromExtendedInquiry(
   inquiry: Inquiry | InquiryExtended,
 ): InquiryDirectoryContact | null {
-  if (!("user" in inquiry) || !inquiry.user) {
+  const record = inquiry as Record<string, unknown>;
+  const candidate = record.user ?? record.seeker ?? record.contact;
+
+  if (!candidate || typeof candidate !== "object") {
     return null;
   }
 
+  const contact = candidate as Record<string, unknown>;
+  const firstName = typeof contact.first_name === "string" ? contact.first_name : "";
+  const lastName = typeof contact.last_name === "string" ? contact.last_name : "";
+  const fullName =
+    (typeof contact.full_name === "string" && contact.full_name.trim()) ||
+    [firstName, lastName].filter(Boolean).join(" ").trim() ||
+    "Seeker";
+
   return {
-    fullName: inquiry.user.full_name,
-    email: inquiry.user.email,
+    fullName,
+    email: typeof contact.email === "string" ? contact.email : null,
+    phoneNumber:
+      typeof contact.phone_number === "string"
+        ? contact.phone_number
+        : typeof contact.phoneNumber === "string"
+          ? contact.phoneNumber
+          : null,
   };
 }
 
@@ -121,11 +138,36 @@ function getPropertyFromExtendedInquiry(
   return inquiry.property as InquiryDirectoryProperty;
 }
 
+function getPropertyImageFromExtendedInquiry(
+  inquiry: Inquiry | InquiryExtended,
+): PropertyImage | null {
+  const property = getPropertyFromExtendedInquiry(inquiry) as
+    | (InquiryDirectoryProperty & {
+        primary_image?: PropertyImage | null;
+        image?: PropertyImage | null;
+        images?: PropertyImage[];
+      })
+    | null;
+
+  if (!property) {
+    return null;
+  }
+
+  return (
+    property.primary_image ??
+    property.image ??
+    property.images?.find((image) => image.is_primary) ??
+    property.images?.[0] ??
+    null
+  );
+}
+
 export function useInquiryDirectory(
   source: InquiryDirectorySource,
   options?: { agencyId?: number },
 ) {
   const canFetch = source !== "agency" || typeof options?.agencyId === "number";
+  const useEmbeddedReceivedData = source === "received";
   const inquiriesQuery = useQuery({
     queryKey: ["inquiryDirectory", source, options?.agencyId ?? null],
     queryFn: () => fetchInquiryCollection(source, options?.agencyId),
@@ -186,23 +228,28 @@ export function useInquiryDirectory(
   );
 
   const propertyIdsNeedingDetail = useMemo(
-    () => propertyIds.filter((propertyId) => !extendedPropertyById.has(propertyId)),
-    [extendedPropertyById, propertyIds],
+    () =>
+      useEmbeddedReceivedData
+        ? []
+        : propertyIds.filter((propertyId) => !extendedPropertyById.has(propertyId)),
+    [extendedPropertyById, propertyIds, useEmbeddedReceivedData],
   );
 
   const contactUserIds = useMemo(
     () =>
-      [
-        ...new Set(
-          inquiries
-            .map((inquiry) => inquiry.user_id)
-            .filter(
-              (userId): userId is number =>
-                typeof userId === "number" && !extendedContactByUserId.has(userId),
+      useEmbeddedReceivedData
+        ? []
+        : [
+            ...new Set(
+              inquiries
+                .map((inquiry) => inquiry.user_id)
+                .filter(
+                  (userId): userId is number =>
+                    typeof userId === "number" && !extendedContactByUserId.has(userId),
+                ),
             ),
-        ),
-      ].sort((left, right) => left - right),
-    [extendedContactByUserId, inquiries],
+          ].sort((left, right) => left - right),
+    [extendedContactByUserId, inquiries, useEmbeddedReceivedData],
   );
 
   const propertyQueries = useQueries({
@@ -214,12 +261,14 @@ export function useInquiryDirectory(
   });
 
   const propertyImageQueries = useQueries({
-    queries: propertyIds.map((propertyId) => ({
-      queryKey: ["propertyImages", propertyId],
-      queryFn: () =>
-        apiClient<PropertyImage[]>(`/api/v1/property-images/property/${propertyId}/`),
-      staleTime: 60_000,
-    })),
+    queries: useEmbeddedReceivedData
+      ? []
+      : propertyIds.map((propertyId) => ({
+          queryKey: ["propertyImages", propertyId],
+          queryFn: () =>
+            apiClient<PropertyImage[]>(`/api/v1/property-images/property/${propertyId}/`),
+          staleTime: 60_000,
+        })),
   });
 
   const contactQueries = useUsersByIds(contactUserIds);
@@ -236,13 +285,23 @@ export function useInquiryDirectory(
 
   const primaryImageByPropertyId = new Map<number, PropertyImage | null>();
 
-  for (let index = 0; index < propertyIds.length; index += 1) {
-    const propertyId = propertyIds[index];
-    const images = propertyImageQueries[index]?.data ?? [];
-    primaryImageByPropertyId.set(
-      propertyId,
-      images.find((image) => image.is_primary) ?? images[0] ?? null,
-    );
+  inquiries.forEach((inquiry) => {
+    const image = getPropertyImageFromExtendedInquiry(inquiry);
+
+    if (typeof inquiry.property_id === "number" && image) {
+      primaryImageByPropertyId.set(inquiry.property_id, image);
+    }
+  });
+
+  if (!useEmbeddedReceivedData) {
+    for (let index = 0; index < propertyIds.length; index += 1) {
+      const propertyId = propertyIds[index];
+      const images = propertyImageQueries[index]?.data ?? [];
+      primaryImageByPropertyId.set(
+        propertyId,
+        images.find((image) => image.is_primary) ?? images[0] ?? null,
+      );
+    }
   }
 
   const contactByUserId = new Map<number, InquiryDirectoryContact>(

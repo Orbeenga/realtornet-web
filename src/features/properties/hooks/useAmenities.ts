@@ -17,6 +17,14 @@ export function useAmenities() {
   });
 }
 
+export function useAmenityCategories() {
+  return useQuery({
+    queryKey: ["amenity-categories"],
+    queryFn: () => apiClient<string[]>("/api/v1/amenities/categories"),
+    staleTime: 300_000,
+  });
+}
+
 export function usePropertyAmenities(propertyId?: number | null) {
   return useQuery({
     queryKey: ["property-amenities", propertyId],

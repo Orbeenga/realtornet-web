@@ -5,7 +5,12 @@ import { useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
-import { useFavorites, useFavoriteToggle } from "@/features/favorites/hooks";
+import {
+  useFavoriteCount,
+  useFavoriteToggle,
+  useIsFavorited,
+} from "@/features/favorites/hooks";
+import { useInquiryCountByProperty } from "@/features/inquiries/hooks";
 import {
   useAgentProfileByUser,
   useLocationDetail,
@@ -121,15 +126,19 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
   const propertyTypeQuery = usePropertyTypeDetail(property?.property_type_id);
   const imagesQuery = usePropertyImages(property?.property_id);
   const agentQuery = useAgentProfileByUser(property?.user_id);
-  const favoritesQuery = useFavorites();
+  const favoriteCountQuery = useFavoriteCount(property?.property_id);
+  const isFavoritedQuery = useIsFavorited(property?.property_id);
   const favoriteToggle = useFavoriteToggle();
+  const canViewInquiryCount =
+    user?.user_role === "admin" ||
+    user?.user_role === "agency_owner" ||
+    (user?.user_role === "agent" && property?.user_id === user.user_id);
+  const inquiryCountQuery = useInquiryCountByProperty(
+    property?.property_id,
+    canViewInquiryCount,
+  );
 
-  const isFavorited =
-    typeof property?.property_id === "number" &&
-    (favoritesQuery.data?.some(
-      (favorite) => favorite.property_id === property.property_id,
-    ) ??
-      false);
+  const isFavorited = isFavoritedQuery.data ?? false;
 
   const handleToggleFavorite = async () => {
     const now = Date.now();
@@ -255,6 +264,18 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
 
         {locationLabel ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">{locationLabel}</p>
+        ) : null}
+        {favoriteCountQuery.data != null ? (
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {favoriteCountQuery.data.toLocaleString()} save
+            {favoriteCountQuery.data === 1 ? "" : "s"}
+          </p>
+        ) : null}
+        {canViewInquiryCount && inquiryCountQuery.data != null ? (
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {inquiryCountQuery.data.toLocaleString()} inquir
+            {inquiryCountQuery.data === 1 ? "y" : "ies"}
+          </p>
         ) : null}
       </section>
 
