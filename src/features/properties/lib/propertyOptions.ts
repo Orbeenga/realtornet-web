@@ -1,21 +1,12 @@
 import type { ListingStatus, ListingType } from "@/types";
 
-export const LISTING_TYPES = ["sale", "rent", "lease"] as const satisfies readonly ListingType[];
-
 export const LISTING_TYPE_LABELS: Record<ListingType, string> = {
   sale: "For Sale",
   rent: "For Rent",
   lease: "For Lease",
 };
 
-export const LISTING_STATUSES = [
-  "available",
-  "active",
-  "pending",
-  "sold",
-  "rented",
-  "unavailable",
-] as const satisfies readonly ListingStatus[];
+export const LISTING_TYPES = Object.keys(LISTING_TYPE_LABELS) as ListingType[];
 
 export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   available: "Available",
@@ -25,6 +16,8 @@ export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   rented: "Rented",
   unavailable: "Unavailable",
 };
+
+export const LISTING_STATUSES = Object.keys(LISTING_STATUS_LABELS) as ListingStatus[];
 
 export function parseListingType(value: string | null): ListingType | undefined {
   return LISTING_TYPES.includes(value as ListingType) ? (value as ListingType) : undefined;
