@@ -20,6 +20,7 @@ export { useAdminProperties } from "./useAdminProperties";
 export { useVerifyProperty } from "./useVerifyProperty";
 export { useOwnerListings } from "./useOwnerListings";
 export {
+  useAmenityCategories,
   useAmenities,
   usePropertyAmenities,
   useSyncPropertyAmenities,
@@ -28,5 +29,7 @@ export {
   useCreateSavedSearch,
   useDeleteSavedSearch,
   useExecuteSavedSearch,
+  useSavedSearchDetail,
   useSavedSearches,
+  useUpdateSavedSearch,
 } from "./useSavedSearches";

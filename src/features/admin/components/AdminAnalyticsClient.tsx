@@ -3,9 +3,13 @@
 import { Badge, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
 import {
+  useAdminActiveProperties,
   useAdminAgentPerformance,
   useAdminDataIntegrity,
+  useAdminFeaturedProperties,
+  useAdminStatsOverview,
   useAdminSystemStats,
+  useAdminTopAgents,
   useAdminUsageMetrics,
 } from "@/features/admin/hooks/useAdminAnalytics";
 
@@ -101,6 +105,10 @@ export function AdminAnalyticsClient() {
   const usageQuery = useAdminUsageMetrics(gate.isAllowed);
   const integrityQuery = useAdminDataIntegrity(gate.isAllowed);
   const agentPerformanceQuery = useAdminAgentPerformance(gate.isAllowed);
+  const topAgentsQuery = useAdminTopAgents(gate.isAllowed);
+  const activePropertiesQuery = useAdminActiveProperties(gate.isAllowed);
+  const featuredPropertiesQuery = useAdminFeaturedProperties(gate.isAllowed);
+  const overviewQuery = useAdminStatsOverview(gate.isAllowed);
 
   if (gate.isChecking) {
     return <LoadingState fullPage message="Checking admin access..." />;
@@ -114,6 +122,13 @@ export function AdminAnalyticsClient() {
   const usage = usageQuery.data;
   const integrity = integrityQuery.data;
   const agents = agentPerformanceQuery.data ?? [];
+  const topAgents = topAgentsQuery.data ?? [];
+  const activeProperties = activePropertiesQuery.data ?? [];
+  const featuredProperties = featuredPropertiesQuery.data ?? [];
+  const overview =
+    overviewQuery.data && Object.keys(overviewQuery.data).length > 0
+      ? overviewQuery.data
+      : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -150,6 +165,24 @@ export function AdminAnalyticsClient() {
           />
         </div>
       ) : null}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          label="Active property feed"
+          value={activePropertiesQuery.isError ? "Unavailable" : activeProperties.length}
+          detail="From /analytics/properties/active"
+        />
+        <MetricCard
+          label="Featured property feed"
+          value={featuredPropertiesQuery.isError ? "Unavailable" : featuredProperties.length}
+          detail="From /analytics/properties/featured"
+        />
+        <MetricCard
+          label="Admin overview"
+          value={overview ? Object.keys(overview).length : overviewQuery.isError ? "Unavailable" : "Loaded"}
+          detail={overview ? "Distinct overview payload available" : "No distinct fields returned"}
+        />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
@@ -278,6 +311,67 @@ export function AdminAnalyticsClient() {
                       </td>
                       <td className="py-3 pr-4">{agent.total_listings}</td>
                       <td className="py-3 pr-4">{agent.active_listings}</td>
+                      <td className="py-3 pr-4">{agent.sold_count}</td>
+                      <td className="py-3 pr-4">
+                        {agent.avg_rating ?? "No reviews"} ({agent.review_count})
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Top agents
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Ranked agent performance from `/analytics/agents/top`.
+            </p>
+          </div>
+          {topAgentsQuery.isLoading ? <LoadingState /> : null}
+          {topAgentsQuery.isError ? (
+            <ErrorState
+              title="Could not load top agents"
+              message="The top agents endpoint did not respond successfully."
+              onRetry={() => {
+                void topAgentsQuery.refetch();
+              }}
+            />
+          ) : null}
+          {!topAgentsQuery.isLoading && !topAgentsQuery.isError && topAgents.length === 0 ? (
+            <EmptyState
+              title="No top agents yet"
+              description="Top-agent rankings will appear after listing and review activity accumulates."
+            />
+          ) : null}
+          {topAgents.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-border text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <tr>
+                    <th className="py-3 pr-4">Agent</th>
+                    <th className="py-3 pr-4">Agency</th>
+                    <th className="py-3 pr-4">Listings</th>
+                    <th className="py-3 pr-4">Sold</th>
+                    <th className="py-3 pr-4">Rating</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {topAgents.map((agent) => (
+                    <tr key={agent.user_id}>
+                      <td className="py-3 pr-4 font-medium text-gray-900 dark:text-white">
+                        {agent.agent_name}
+                      </td>
+                      <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
+                        {agent.agency_name ?? "Independent"}
+                      </td>
+                      <td className="py-3 pr-4">{agent.total_listings}</td>
                       <td className="py-3 pr-4">{agent.sold_count}</td>
                       <td className="py-3 pr-4">
                         {agent.avg_rating ?? "No reviews"} ({agent.review_count})

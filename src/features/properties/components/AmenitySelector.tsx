@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/client";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import {
+  useAmenityCategories,
   useAmenities,
   usePropertyAmenities,
   useSyncPropertyAmenities,
@@ -19,6 +20,7 @@ interface AmenityOption {
   amenity_id: number;
   name: string;
   description?: string | null;
+  category?: string | null;
 }
 
 function toAmenityOption(value: {
@@ -26,6 +28,7 @@ function toAmenityOption(value: {
   id?: number | null;
   name?: string;
   description?: string | null;
+  category?: string | null;
 }): AmenityOption | null {
   const amenityId =
     typeof value.amenity_id === "number"
@@ -42,11 +45,13 @@ function toAmenityOption(value: {
     amenity_id: amenityId,
     name: value.name,
     description: value.description,
+    category: value.category,
   };
 }
 
 export function AmenitySelector({ propertyId }: AmenitySelectorProps) {
   const amenitiesQuery = useAmenities();
+  const categoriesQuery = useAmenityCategories();
   const propertyAmenitiesQuery = usePropertyAmenities(propertyId);
   const syncAmenities = useSyncPropertyAmenities(propertyId);
   const amenityOptions = useMemo(
@@ -116,6 +121,7 @@ export function AmenitySelector({ propertyId }: AmenitySelectorProps) {
   return (
     <AmenityCheckboxGrid
       amenities={amenityOptions}
+      categories={categoriesQuery.data ?? []}
       selectedAmenityIds={selectedAmenityIds}
       disabled={syncAmenities.isPending}
       onToggle={(amenityId) => {
@@ -127,6 +133,7 @@ export function AmenitySelector({ propertyId }: AmenitySelectorProps) {
 
 interface AmenityCheckboxGridProps {
   amenities: AmenityOption[];
+  categories?: string[];
   selectedAmenityIds: number[];
   disabled?: boolean;
   onToggle: (amenityId: number) => void;
@@ -134,48 +141,73 @@ interface AmenityCheckboxGridProps {
 
 export function AmenityCheckboxGrid({
   amenities,
+  categories = [],
   selectedAmenityIds,
   disabled = false,
   onToggle,
 }: AmenityCheckboxGridProps) {
   const selectedAmenityIdSet = new Set(selectedAmenityIds);
+  const groupedAmenities = useMemo(() => {
+    const categoryOrder = categories.filter(Boolean);
+    const groups = new Map<string, AmenityOption[]>();
+
+    for (const category of categoryOrder) {
+      groups.set(category, []);
+    }
+
+    for (const amenity of amenities) {
+      const category = amenity.category?.trim() || "Other amenities";
+      groups.set(category, [...(groups.get(category) ?? []), amenity]);
+    }
+
+    return [...groups.entries()].filter(([, groupAmenities]) => groupAmenities.length > 0);
+  }, [amenities, categories]);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {amenities.map((amenity) => {
-        const checked = selectedAmenityIdSet.has(amenity.amenity_id);
+    <div className="space-y-5">
+      {groupedAmenities.map(([category, groupAmenities]) => (
+        <section key={category} className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+            {category}
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {groupAmenities.map((amenity) => {
+              const checked = selectedAmenityIdSet.has(amenity.amenity_id);
 
-        return (
-          <label
-            key={amenity.amenity_id}
-            className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition",
-              checked
-                ? "border-blue-500 bg-blue-50/70 dark:bg-blue-950/20"
-                : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900",
-              disabled && "cursor-not-allowed opacity-70",
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={disabled}
-              onChange={() => onToggle(amenity.amenity_id)}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">
-                {amenity.name}
-              </p>
-              {amenity.description ? (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {amenity.description}
-                </p>
-              ) : null}
-            </div>
-          </label>
-        );
-      })}
+              return (
+                <label
+                  key={amenity.amenity_id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition",
+                    checked
+                      ? "border-blue-500 bg-blue-50/70 dark:bg-blue-950/20"
+                      : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900",
+                    disabled && "cursor-not-allowed opacity-70",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => onToggle(amenity.amenity_id)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {amenity.name}
+                    </p>
+                    {amenity.description ? (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {amenity.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

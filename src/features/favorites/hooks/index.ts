@@ -1,5 +1,7 @@
 export {
   useFavorites,
+  useFavoriteCount,
+  useIsFavorited,
   useAddFavorite,
   useRemoveFavorite,
 } from "./useFavorites";
