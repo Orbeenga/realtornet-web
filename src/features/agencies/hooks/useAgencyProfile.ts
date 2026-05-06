@@ -5,7 +5,8 @@ import type { Agency, AgencyUpdate } from "@/types";
 export function useAgencyProfile(id: string | number) {
   return useQuery({
     queryKey: ["agency", id],
-    queryFn: () => apiClient<Agency>(`/api/v1/agencies/${id}`),
+    queryFn: () =>
+      apiClient<Agency>(`/api/v1/agencies/${id}`, { authMode: "omit" }),
     staleTime: 60_000,
     enabled: Boolean(id),
   });

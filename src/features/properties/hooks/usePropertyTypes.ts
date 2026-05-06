@@ -5,7 +5,8 @@ import type { PropertyType } from "@/types";
 export function usePropertyTypes() {
   return useQuery({
     queryKey: ["propertyTypes"],
-    queryFn: () => apiClient<PropertyType[]>("/api/v1/property-types/"),
+    queryFn: () =>
+      apiClient<PropertyType[]>("/api/v1/property-types/", { authMode: "omit" }),
     staleTime: 60_000,
   });
 }

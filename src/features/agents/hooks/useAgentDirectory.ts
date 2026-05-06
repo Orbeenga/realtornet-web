@@ -30,7 +30,8 @@ function buildAgentDirectoryPath(filters: AgentDirectoryFilters) {
 export function useAgentDirectory(filters: AgentDirectoryFilters = {}) {
   return useQuery({
     queryKey: ["agentDirectory", filters],
-    queryFn: () => apiClient<Agent[]>(buildAgentDirectoryPath(filters)),
+    queryFn: () =>
+      apiClient<Agent[]>(buildAgentDirectoryPath(filters), { authMode: "omit" }),
     staleTime: 60_000,
   });
 }
@@ -40,7 +41,9 @@ export function useVisibleAgentStats(agents: Agent[], enabled = true) {
     queries: agents.map((agent) => ({
       queryKey: ["agentStats", agent.profile_id],
       queryFn: () =>
-        apiClient<AgentStats>(`/api/v1/agent-profiles/${agent.profile_id}/stats`),
+        apiClient<AgentStats>(`/api/v1/agent-profiles/${agent.profile_id}/stats`, {
+          authMode: "omit",
+        }),
       staleTime: 60_000,
       enabled,
     })),

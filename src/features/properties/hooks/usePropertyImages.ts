@@ -8,6 +8,7 @@ export function usePropertyImages(propertyId?: number | null) {
     queryFn: () =>
       apiClient<PropertyImage[]>(
         `/api/v1/property-images/property/${propertyId}`,
+        { authMode: "omit" },
       ),
     staleTime: 60_000,
     enabled: typeof propertyId === "number",

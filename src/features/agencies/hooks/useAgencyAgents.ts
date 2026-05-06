@@ -8,7 +8,10 @@ export function useAgencyAgents(id: string | number, status?: "all") {
   return useQuery({
     queryKey: ["agencyAgents", id, status ?? "active"],
     queryFn: () =>
-      apiClient<AgencyAgentRosterMember[]>(`/api/v1/agencies/${id}/agents/${query}`),
+      apiClient<AgencyAgentRosterMember[]>(
+        `/api/v1/agencies/${id}/agents/${query}`,
+        { authMode: "omit" },
+      ),
     staleTime: 60_000,
     enabled: Boolean(id),
   });

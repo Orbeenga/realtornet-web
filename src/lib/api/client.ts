@@ -22,6 +22,10 @@ const REFRESH_TOKEN_STORAGE_KEY = "rn_refresh_token";
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 let refreshPromise: Promise<string> | null = null;
 
+interface ApiClientOptions extends RequestInit {
+  authMode?: "include" | "omit";
+}
+
 function getApiBasePath() {
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(
     /^http:\/\//,
@@ -174,19 +178,20 @@ function extractFieldErrors(
 
 export async function apiClient<T>(
   path: string,
-  options?: RequestInit,
+  options?: ApiClientOptions,
   isRetry = false,
 ): Promise<T> {
   const normalizedPath = normalizeApiPath(path);
   const token = getStoredAccessToken();
   const isFormData = options?.body instanceof FormData;
+  const { authMode = "include", ...requestOptions } = options ?? {};
 
   const res = await fetch(buildApiUrl(normalizedPath), {
-    ...options,
+    ...requestOptions,
     headers: {
       ...(!isFormData ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
+      ...(token && authMode !== "omit" ? { Authorization: `Bearer ${token}` } : {}),
+      ...requestOptions.headers,
     },
   });
 

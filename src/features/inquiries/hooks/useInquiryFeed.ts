@@ -26,7 +26,10 @@ export function useInquiryFeed() {
   const propertyQueries = useQueries({
     queries: propertyIds.map((propertyId) => ({
       queryKey: ["property", propertyId],
-      queryFn: () => apiClient<Property>(`/api/v1/properties/${propertyId}`),
+      queryFn: () =>
+        apiClient<Property>(`/api/v1/properties/${propertyId}`, {
+          authMode: "omit",
+        }),
       staleTime: 60_000,
     })),
   });
