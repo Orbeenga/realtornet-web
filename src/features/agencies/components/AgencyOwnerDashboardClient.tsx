@@ -237,7 +237,7 @@ export function AgencyOwnerDashboardClient() {
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
       await approveJoinRequest.mutateAsync(requestId);
-      notify.success("Join request approved");
+      notify.success("Join request approved. The applicant can see the decision in My Agencies.");
     } catch {
       notify.error("Could not approve join request");
     }
@@ -256,7 +256,7 @@ export function AgencyOwnerDashboardClient() {
         requestId,
         payload: { reason },
       });
-      notify.success("Join request rejected");
+      notify.success("Join request rejected. The applicant can see the reason in My Agencies.");
       setRejectReasons((current) => {
         const next = { ...current };
         delete next[requestId];
@@ -270,7 +270,7 @@ export function AgencyOwnerDashboardClient() {
   const handleInvite = async (values: InviteFormValues) => {
     try {
       await inviteAgent.mutateAsync({ email: values.email.trim() });
-      notify.success("Invite sent");
+      notify.success("Invite saved and email delivery queued.");
       reset();
     } catch (error) {
       const message =
@@ -300,13 +300,13 @@ export function AgencyOwnerDashboardClient() {
 
       if (action === "suspend") {
         await suspendMembership.mutateAsync(payload);
-        notify.success("Agent membership suspended");
+        notify.success("Agent membership suspended. The agent can see the reason in My Agencies.");
       } else if (action === "revoke") {
         await revokeMembership.mutateAsync(payload);
-        notify.success("Agent membership revoked");
+        notify.success("Agent membership revoked. The agent can see the reason in My Agencies.");
       } else {
         await blockMembership.mutateAsync(payload);
-        notify.success("Agent membership blocked");
+        notify.success("Agent membership blocked. The agent can see the reason in My Agencies.");
       }
 
       setMembershipReasons((current) => {
@@ -336,7 +336,7 @@ export function AgencyOwnerDashboardClient() {
         membershipId,
         payload: { reason },
       });
-      notify.success("Agent membership restored");
+      notify.success("Agent membership restored. The agent can see the updated status in My Agencies.");
       setMembershipReasons((current) => {
         const next = { ...current };
         delete next[membershipId];
@@ -376,10 +376,10 @@ export function AgencyOwnerDashboardClient() {
 
       if (action === "approve") {
         await approveReview.mutateAsync(payload);
-        notify.success("Review request approved");
+        notify.success("Review request approved. The agent can see the decision in My Agencies.");
       } else {
         await rejectReview.mutateAsync(payload);
-        notify.success("Review request rejected");
+        notify.success("Review request rejected. The agent can see the reason in My Agencies.");
       }
 
       setMembershipReasons((current) => {
@@ -467,6 +467,11 @@ export function AgencyOwnerDashboardClient() {
               {agency.description ? (
                 <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                   {agency.description}
+                </p>
+              ) : null}
+              {agency.status_reason ? (
+                <p className="max-w-3xl rounded-lg bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  Latest agency decision: {agency.status_reason}
                 </p>
               ) : null}
             </div>

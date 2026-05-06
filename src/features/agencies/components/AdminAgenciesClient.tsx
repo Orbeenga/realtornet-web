@@ -14,7 +14,9 @@ import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
 import { notify } from "@/lib/toast";
 import type { Agency, AgencyStatus } from "@/types";
 
-const ADMIN_AGENCY_TABS: Array<{ value: AgencyStatus; label: string }> = [
+type AdminAgencyTab = AgencyStatus | "revocation";
+
+const ADMIN_AGENCY_TABS: Array<{ value: AdminAgencyTab; label: string }> = [
   ...Object.entries({
     pending: "Pending",
     approved: "Approved",
@@ -24,6 +26,7 @@ const ADMIN_AGENCY_TABS: Array<{ value: AgencyStatus; label: string }> = [
     value: value as AgencyStatus,
     label,
   })),
+  { value: "revocation", label: "Revocation review" },
 ];
 
 function formatDateTime(value?: string | null) {
@@ -53,6 +56,10 @@ function getStatusLabel(status: AgencyStatus) {
   return ADMIN_AGENCY_TABS.find((tab) => tab.value === status)?.label ?? status;
 }
 
+function isRevocationReviewAgency(agency: Agency) {
+  return agency.status === "pending" && Boolean(agency.status_reason?.trim());
+}
+
 function getDecisionEmailStatus(agency: Agency) {
   const emailStatus = (agency as Record<string, unknown>).email_status;
 
@@ -67,6 +74,10 @@ function getDecisionEmailStatus(agency: Agency) {
   return "Decision saved — confirmation email queued.";
 }
 
+function getInternalDecisionStatus(action: string) {
+  return `${action} saved. The agency owner can see this status and reason in their dashboard.`;
+}
+
 export function AdminAgenciesClient() {
   const gate = useAdminRoleGate();
   const pendingAgenciesQuery = useAdminAgencies("pending", gate.isAllowed);
@@ -79,7 +90,7 @@ export function AdminAgenciesClient() {
   const suspendAgency = useSuspendAgency();
   const [decisionReasons, setDecisionReasons] = useState<Record<number, string>>({});
   const [emailStatusMessages, setEmailStatusMessages] = useState<Record<number, string>>({});
-  const [activeTab, setActiveTab] = useState<AgencyStatus>("pending");
+  const [activeTab, setActiveTab] = useState<AdminAgencyTab>("pending");
 
   const getRequiredDecisionReason = (agencyId: number, action: string) => {
     const reason = decisionReasons[agencyId]?.trim();
@@ -111,6 +122,7 @@ export function AdminAgenciesClient() {
       const emailStatus = getDecisionEmailStatus(agency);
       setEmailStatusMessages((current) => ({ ...current, [agencyId]: emailStatus }));
       notify.success(`Agency approved. ${emailStatus}`);
+      setActiveTab("approved");
       clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not approve agency");
@@ -132,6 +144,7 @@ export function AdminAgenciesClient() {
       const emailStatus = getDecisionEmailStatus(agency);
       setEmailStatusMessages((current) => ({ ...current, [agencyId]: emailStatus }));
       notify.success(`Agency rejected. ${emailStatus}`);
+      setActiveTab("rejected");
       clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not reject agency");
@@ -147,7 +160,10 @@ export function AdminAgenciesClient() {
 
     try {
       await revokeAgency.mutateAsync({ agencyId, payload: { reason } });
-      notify.success("Agency approval revoked");
+      const internalStatus = getInternalDecisionStatus("Revocation");
+      setEmailStatusMessages((current) => ({ ...current, [agencyId]: internalStatus }));
+      notify.success(`Agency approval revoked. ${internalStatus}`);
+      setActiveTab("revocation");
       clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not revoke agency approval");
@@ -163,7 +179,10 @@ export function AdminAgenciesClient() {
 
     try {
       await suspendAgency.mutateAsync({ agencyId, payload: { reason } });
-      notify.success("Agency suspended");
+      const internalStatus = getInternalDecisionStatus("Suspension");
+      setEmailStatusMessages((current) => ({ ...current, [agencyId]: internalStatus }));
+      notify.success(`Agency suspended. ${internalStatus}`);
+      setActiveTab("suspended");
       clearDecisionReason(agencyId);
     } catch {
       notify.error("Could not suspend agency");
@@ -204,13 +223,17 @@ export function AdminAgenciesClient() {
   const approvedAgencies = approvedAgenciesQuery.data ?? [];
   const rejectedAgencies = rejectedAgenciesQuery.data ?? [];
   const suspendedAgencies = suspendedAgenciesQuery.data ?? [];
-  const agenciesByStatus: Record<AgencyStatus, Agency[]> = {
+  const revocationReviewAgencies = pendingAgencies.filter(isRevocationReviewAgency);
+  const agenciesByStatus: Record<AdminAgencyTab, Agency[]> = {
     pending: pendingAgencies,
     approved: approvedAgencies,
     rejected: rejectedAgencies,
     suspended: suspendedAgencies,
+    revocation: revocationReviewAgencies,
   };
   const activeAgencies = agenciesByStatus[activeTab];
+  const activeTabLabel =
+    ADMIN_AGENCY_TABS.find((tab) => tab.value === activeTab)?.label ?? activeTab;
 
   return (
     <div className="space-y-6">
@@ -239,12 +262,16 @@ export function AdminAgenciesClient() {
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          {getStatusLabel(activeTab)} agencies
+          {activeTabLabel} agencies
         </h2>
         {activeAgencies.length === 0 ? (
           <EmptyState
             title={`No ${activeTab} agencies`}
-            description="Agency records for this status will appear here."
+            description={
+              activeTab === "revocation"
+                ? "Agencies whose approval was revoked move back to pending review and appear here with their revocation reason."
+                : "Agency records for this status will appear here."
+            }
           />
         ) : (
           <div className="space-y-4">
@@ -268,7 +295,10 @@ export function AdminAgenciesClient() {
                     ) : null}
                     {agency.status_reason ? (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Last decision reason: {agency.status_reason}
+                        {isRevocationReviewAgency(agency)
+                          ? "Revocation reason"
+                          : "Last decision reason"}
+                        : {agency.status_reason}
                       </p>
                     ) : null}
                   </div>
