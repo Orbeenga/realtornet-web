@@ -22,6 +22,10 @@ import type { UserProfile } from "@/types";
 
 type RegisterRole = "buyer" | "agent" | "admin";
 
+interface SignOutOptions {
+  redirectToLogin?: boolean;
+}
+
 class AuthBootstrapError extends Error {
   constructor(public status?: number) {
     super("Unable to load current user");
@@ -41,7 +45,7 @@ interface AuthContextValue {
     lastName: string;
     role: RegisterRole;
   }) => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (options?: SignOutOptions) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -194,19 +198,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signIn(email, password);
   };
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (options: SignOutOptions = {}) => {
+    const { redirectToLogin = true } = options;
+
     clearStoredAuthTokens();
     queryClient.clear();
     setToken(null);
     setUser(null);
 
-    if (typeof window !== "undefined") {
+    if (redirectToLogin && typeof window !== "undefined") {
       window.location.assign("/login");
     }
   }, [queryClient]);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => signOut());
+    setUnauthorizedHandler(() =>
+      signOut({
+        redirectToLogin:
+          typeof window !== "undefined" &&
+          window.location.pathname.startsWith("/account"),
+      }),
+    );
 
     return () => {
       setUnauthorizedHandler(null);
