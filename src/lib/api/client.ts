@@ -20,6 +20,7 @@ const ACCESS_TOKEN_STORAGE_KEY = "rn_token";
 const REFRESH_TOKEN_STORAGE_KEY = "rn_refresh_token";
 
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+let staleRoleVersionHandler: (() => Promise<string | null>) | null = null;
 let refreshPromise: Promise<string> | null = null;
 
 interface ApiClientOptions extends RequestInit {
@@ -72,6 +73,12 @@ export function setUnauthorizedHandler(
   unauthorizedHandler = handler;
 }
 
+export function setStaleRoleVersionHandler(
+  handler: (() => Promise<string | null>) | null,
+) {
+  staleRoleVersionHandler = handler;
+}
+
 export function getStoredAccessToken() {
   if (typeof window === "undefined") {
     return null;
@@ -116,7 +123,7 @@ export async function refreshAccessToken(): Promise<string> {
     throw new AuthError("Missing refresh token");
   }
 
-  const res = await fetch(buildApiUrl("/api/v1/auth/refresh/"), {
+  const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -141,6 +148,19 @@ async function handleUnauthorized() {
   if (unauthorizedHandler) {
     await unauthorizedHandler();
   }
+}
+
+function getErrorDetail(body: unknown) {
+  return typeof body === "object" && body !== null && "detail" in body
+    ? (body as { detail: unknown }).detail
+    : body;
+}
+
+function isStaleRoleVersionDetail(detail: unknown) {
+  return (
+    typeof detail === "string" &&
+    detail.toLowerCase().includes("token role version is stale")
+  );
 }
 
 function extractFieldErrors(
@@ -196,11 +216,27 @@ export async function apiClient<T>(
   });
 
   if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Unknown error" }));
+    const detail = getErrorDetail(body);
+
     if (
       res.status === 401 &&
       !isRetry &&
-      normalizedPath !== "/api/v1/auth/refresh/" &&
-      normalizedPath !== "/api/v1/auth/login/" &&
+      isStaleRoleVersionDetail(detail) &&
+      staleRoleVersionHandler
+    ) {
+      const refreshedToken = await staleRoleVersionHandler();
+
+      if (refreshedToken) {
+        return apiClient<T>(normalizedPath, options, true);
+      }
+    }
+
+    if (
+      res.status === 401 &&
+      !isRetry &&
+      normalizedPath !== "/api/v1/auth/refresh" &&
+      normalizedPath !== "/api/v1/auth/login" &&
       getStoredRefreshToken()
     ) {
       try {
@@ -222,13 +258,9 @@ export async function apiClient<T>(
       await handleUnauthorized();
     }
 
-    const body = await res.json().catch(() => ({ detail: "Unknown error" }));
-
     throw new ApiError(
       res.status,
-      typeof body === "object" && body !== null && "detail" in body
-        ? body.detail
-        : body,
+      detail,
       extractFieldErrors(
         typeof body === "object" && body !== null && "detail" in body
           ? body.detail

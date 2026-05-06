@@ -10,7 +10,7 @@ export function useAgencyAgents(id: string | number, status?: "all") {
     queryFn: () =>
       apiClient<AgencyAgentRosterMember[]>(
         `/api/v1/agencies/${id}/agents/${query}`,
-        { authMode: "omit" },
+        status === "all" ? undefined : { authMode: "omit" },
       ),
     staleTime: 60_000,
     enabled: Boolean(id),

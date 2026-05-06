@@ -46,7 +46,7 @@ export function InquiryForm({ propertyId }: InquiryFormProps) {
         message: values.message,
       });
       reset();
-      notify.success("Inquiry sent successfully");
+      notify.success("Your inquiry has been sent. The agent will be in touch.");
     } catch (error) {
       if (error instanceof ApiError) {
         const messageError = error.fieldErrors?.message?.[0];

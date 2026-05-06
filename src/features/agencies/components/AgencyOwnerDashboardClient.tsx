@@ -25,21 +25,23 @@ import {
   useAgencyInvitations,
   useAgencyProfile,
   useAgencyJoinRequests,
+  useAgencyReviewRequests,
   useAgencyStats,
   useUpdateAgencyProfile,
   getAgencyAgentCount,
   getAgencyListingCount,
-  useApproveAgencyMembershipReview,
+  useAcceptAgencyReviewRequest,
   useApproveAgencyJoinRequest,
   useBlockAgencyMembership,
+  useDeclineAgencyReviewRequest,
   useInviteAgencyAgent,
-  useRejectAgencyMembershipReview,
   useRejectAgencyJoinRequest,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
 } from "@/features/agencies/hooks";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
+import { MembershipHistoryList } from "./MembershipHistoryList";
 
 const inviteSchema = z.object({
   email: z.email("Use a valid email address"),
@@ -55,10 +57,11 @@ const agencyProfileSchema = z.object({
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
 type AgencyProfileFormValues = z.infer<typeof agencyProfileSchema>;
-type AgencyOwnerTab = "joinRequests" | "agents" | "invitations";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations";
 
 const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "joinRequests", label: "Join requests" },
+  { value: "reviewRequests", label: "Review requests" },
   { value: "agents", label: "Agent roster" },
   { value: "invitations", label: "Invitations" },
 ];
@@ -104,16 +107,8 @@ function getMembershipBadgeVariant(status: string) {
 }
 
 function getRequiredDecisionReasonMessage(
-  action: "suspend" | "revoke" | "block" | "restore" | "approve review" | "reject review",
+  action: "suspend" | "revoke" | "block" | "restore",
 ) {
-  if (action === "approve review") {
-    return "Enter a reason before approving this review request.";
-  }
-
-  if (action === "reject review") {
-    return "Enter a reason before rejecting this review request.";
-  }
-
   const actionLabels = {
     suspend: "suspending",
     revoke: "revoking",
@@ -156,6 +151,7 @@ export function AgencyOwnerDashboardClient() {
   const agencyId = agency?.agency_id;
   const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
+  const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
   const agencyStatsQuery = useAgencyStats(agencyId, Boolean(agencyId));
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -164,8 +160,8 @@ export function AgencyOwnerDashboardClient() {
   const revokeMembership = useRevokeAgencyMembership(agencyId);
   const blockMembership = useBlockAgencyMembership(agencyId);
   const restoreMembership = useRestoreAgencyMembership(agencyId);
-  const approveReview = useApproveAgencyMembershipReview(agencyId);
-  const rejectReview = useRejectAgencyMembershipReview(agencyId);
+  const acceptReview = useAcceptAgencyReviewRequest(agencyId);
+  const declineReview = useDeclineAgencyReviewRequest(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
   const updateAgencyProfile = useUpdateAgencyProfile(agencyId);
   const agencyProfileForm = useForm<AgencyProfileFormValues>({
@@ -351,40 +347,27 @@ export function AgencyOwnerDashboardClient() {
     }
   };
 
-  const handleReviewDecision = async (
-    action: "approve" | "reject",
-    membershipId: number,
-    reviewRequestId: number,
-  ) => {
-    const reason = membershipReasons[membershipId]?.trim();
-
-    if (!reason) {
-      notify.error(
-        getRequiredDecisionReasonMessage(
-          action === "approve" ? "approve review" : "reject review",
-        ),
-      );
-      return;
-    }
+  const handleReviewDecision = async (action: "accept" | "decline", requestId: number) => {
+    const reason = membershipReasons[requestId]?.trim() || null;
 
     try {
-      const payload = {
-        membershipId,
-        reviewRequestId,
-        payload: { reason },
-      };
-
-      if (action === "approve") {
-        await approveReview.mutateAsync(payload);
-        notify.success("Review request approved. The agent can see the decision in My Agencies.");
+      if (action === "accept") {
+        await acceptReview.mutateAsync({
+          requestId,
+          payload: { reason },
+        });
+        notify.success("Review request accepted. The agent role has been reinstated if needed.");
       } else {
-        await rejectReview.mutateAsync(payload);
-        notify.success("Review request rejected. The agent can see the reason in My Agencies.");
+        await declineReview.mutateAsync({
+          requestId,
+          payload: { reason },
+        });
+        notify.success("Review request declined. The requester has been notified.");
       }
 
       setMembershipReasons((current) => {
         const next = { ...current };
-        delete next[membershipId];
+        delete next[requestId];
         return next;
       });
     } catch (error) {
@@ -437,10 +420,17 @@ export function AgencyOwnerDashboardClient() {
 
   const joinRequests = joinRequestsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
+  const reviewRequests = reviewRequestsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
   const agencyStats = agencyStatsQuery.data;
   const statsListingCount = getAgencyListingCount(agencyStats);
   const statsAgentCount = getAgencyAgentCount(agencyStats);
+  const tabCounts: Record<AgencyOwnerTab, number> = {
+    joinRequests: joinRequests.length,
+    reviewRequests: reviewRequests.length,
+    agents: agents.length,
+    invitations: invitations.length,
+  };
 
   return (
     <div className="space-y-6">
@@ -650,7 +640,7 @@ export function AgencyOwnerDashboardClient() {
             size="sm"
             onClick={() => setActiveTab(value)}
           >
-            {label}
+            {label} ({tabCounts[value]})
           </Button>
         ))}
       </div>
@@ -782,6 +772,129 @@ export function AgencyOwnerDashboardClient() {
       </Card>
       ) : null}
 
+      {activeTab === "reviewRequests" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Review requests
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Review returning agents who asked for a membership decision to be reconsidered.
+              </p>
+            </div>
+            {reviewRequestsQuery.isLoading ? <LoadingState /> : null}
+            {reviewRequestsQuery.isError ? (
+              <ErrorState
+                title="Could not load review requests"
+                message="There was a problem loading agency review requests."
+                onRetry={() => {
+                  void reviewRequestsQuery.refetch();
+                }}
+              />
+            ) : null}
+            {!reviewRequestsQuery.isLoading && !reviewRequestsQuery.isError && reviewRequests.length === 0 ? (
+              <EmptyState
+                title="No review requests"
+                description="Requests to rejoin or review a membership decision will appear here."
+              />
+            ) : null}
+            {!reviewRequestsQuery.isLoading && reviewRequests.length > 0 ? (
+              <div className="space-y-4">
+                {reviewRequests.map((request) => (
+                    <div key={request.id} className="rounded-lg border border-border p-4">
+                      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.requester_name ?? request.requester_email ?? "Applicant"}
+                            </p>
+                            <Badge variant={request.status === "accepted" ? "success" : request.status === "declined" ? "danger" : "warning"}>
+                              {request.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {request.requester_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                          </p>
+                          {request.message ? (
+                            <div className="rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                              {request.message}
+                            </div>
+                          ) : null}
+                          {request.membership_history && request.membership_history.length > 0 ? (
+                            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950/40">
+                              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Prior agency history
+                              </p>
+                              <MembershipHistoryList history={request.membership_history} />
+                            </div>
+                          ) : null}
+                          {request.reason ? (
+                            <p className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                              Decision reason: {request.reason}
+                            </p>
+                          ) : null}
+                        </div>
+                        {request.status === "pending" ? (
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              acceptReview.isPending &&
+                              acceptReview.variables?.requestId === request.id
+                            }
+                            onClick={() =>
+                              void handleReviewDecision(
+                                "accept",
+                                request.id,
+                              )
+                            }
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            loading={
+                              declineReview.isPending &&
+                              declineReview.variables?.requestId === request.id
+                            }
+                            onClick={() =>
+                              void handleReviewDecision(
+                                "decline",
+                                request.id,
+                              )
+                            }
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                        ) : null}
+                      </div>
+                      {request.status === "pending" ? (
+                        <Input
+                        className="mt-4"
+                        label="Decision reason"
+                        placeholder="Optional reason shown to the requester"
+                        value={membershipReasons[request.id] ?? ""}
+                        onChange={(event) =>
+                          setMembershipReasons((current) => ({
+                            ...current,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      ) : null}
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
       {activeTab === "agents" ? (
         <Card>
           <CardBody className="space-y-4">
@@ -811,10 +924,7 @@ export function AgencyOwnerDashboardClient() {
             ) : null}
             {!agentsQuery.isLoading && agents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.map((agent) => {
-                  const pendingReviewRequestId = agent.pending_review_request_id;
-
-                  return (
+                {agents.map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
@@ -917,47 +1027,6 @@ export function AgencyOwnerDashboardClient() {
                             Restore
                           </Button>
                         ) : null}
-                        {pendingReviewRequestId ? (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              loading={
-                                approveReview.isPending &&
-                                approveReview.variables?.reviewRequestId ===
-                                  pendingReviewRequestId
-                              }
-                              onClick={() =>
-                                void handleReviewDecision(
-                                  "approve",
-                                  agent.membership_id,
-                                  pendingReviewRequestId,
-                                )
-                              }
-                            >
-                              Approve review
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              loading={
-                                rejectReview.isPending &&
-                                rejectReview.variables?.reviewRequestId ===
-                                  pendingReviewRequestId
-                              }
-                              onClick={() =>
-                                void handleReviewDecision(
-                                  "reject",
-                                  agent.membership_id,
-                                  pendingReviewRequestId,
-                                )
-                              }
-                            >
-                              Reject review
-                            </Button>
-                          </>
-                        ) : null}
                         {agent.membership_status !== "inactive" ? (
                           <Button
                             type="button"
@@ -1000,8 +1069,7 @@ export function AgencyOwnerDashboardClient() {
                       }
                     />
                   </div>
-                  );
-                })}
+                ))}
               </div>
             ) : null}
           </CardBody>

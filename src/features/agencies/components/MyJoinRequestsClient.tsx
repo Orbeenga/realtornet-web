@@ -6,7 +6,7 @@ import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } f
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
   useAcceptAgencyInvitation,
-  useCreateAgencyMembershipReviewRequest,
+  useCreateAgencyReviewRequest,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
   useMyAgencyMemberships,
@@ -14,6 +14,7 @@ import {
 } from "@/features/agencies/hooks";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
+import { ApiError } from "@/lib/api/client";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -51,7 +52,7 @@ export function MyJoinRequestsClient() {
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
   const membershipsQuery = useMyAgencyMemberships(canViewAgencyMemberships);
   const invitationsQuery = useMyAgencyInvitations(canViewAgencyInvitations);
-  const createReviewRequest = useCreateAgencyMembershipReviewRequest();
+  const createReviewRequest = useCreateAgencyReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
 
@@ -59,16 +60,27 @@ export function MyJoinRequestsClient() {
     try {
       await createReviewRequest.mutateAsync({
         agencyId,
-        membershipId,
-        payload: { reason: reviewReasons[membershipId]?.trim() || null },
+        payload: { message: reviewReasons[membershipId]?.trim() || null },
       });
-      notify.success("Review request submitted");
+      notify.success("Your request has been submitted.");
       setReviewReasons((current) => {
         const next = { ...current };
         delete next[membershipId];
         return next;
       });
-    } catch {
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      const text = typeof detail === "string" ? detail.toLowerCase() : "";
+
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        (text.includes("pending") || text.includes("already"))
+      ) {
+        notify.info("Review request already submitted - waiting for agency response.");
+        return;
+      }
+
       notify.error("Could not submit review request");
     }
   };
@@ -303,7 +315,7 @@ export function MyJoinRequestsClient() {
                             size="sm"
                             loading={
                               createReviewRequest.isPending &&
-                              createReviewRequest.variables?.membershipId === membership.membership_id
+                              createReviewRequest.variables?.agencyId === membership.agency_id
                             }
                             onClick={() =>
                               void handleReviewRequest(
