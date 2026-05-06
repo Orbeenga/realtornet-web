@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
@@ -10,12 +10,18 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
   useAgencyProfile,
+  useCreateAgencyReviewRequest,
   useCreateAgencyJoinRequest,
+  useMembershipHistory,
   useMyAgencyJoinRequests,
 } from "@/features/agencies/hooks";
 import { ApiError } from "@/lib/api/client";
 import { getStoredJwtRole } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
+import {
+  getLatestMembershipRecord,
+  isReturningMembershipAction,
+} from "./membershipHistory";
 
 const joinRequestSchema = z.object({
   full_name: z.string().trim().min(2, "Full name is required"),
@@ -33,12 +39,16 @@ interface AgencyJoinRequestFormProps {
 
 export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) {
   const { user, loading } = useAuth();
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewRequestSubmitted, setReviewRequestSubmitted] = useState(false);
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
   const agencyQuery = useAgencyProfile(agencyId);
   const requestsQuery = useMyAgencyJoinRequests(
     Boolean(user) && (role === "seeker" || role === "agent"),
   );
+  const historyQuery = useMembershipHistory(Boolean(user));
   const createJoinRequest = useCreateAgencyJoinRequest(agencyId);
+  const createReviewRequest = useCreateAgencyReviewRequest();
   const {
     register,
     handleSubmit,
@@ -103,7 +113,39 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
     }
   };
 
-  if (loading || agencyQuery.isLoading || requestsQuery.isLoading) {
+  const handleReviewRequest = async (numericAgencyId: number) => {
+    try {
+      await createReviewRequest.mutateAsync({
+        agencyId: numericAgencyId,
+        payload: { message: reviewMessage.trim() || null },
+      });
+      notify.success("Your request has been submitted.");
+      setReviewRequestSubmitted(true);
+      setReviewMessage("");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      const text = typeof detail === "string" ? detail.toLowerCase() : "";
+
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        (text.includes("pending") || text.includes("already"))
+      ) {
+        notify.info("Review request already submitted - waiting for agency response.");
+        setReviewRequestSubmitted(true);
+        return;
+      }
+
+      notify.error("Could not submit review request.");
+    }
+  };
+
+  if (
+    loading ||
+    agencyQuery.isLoading ||
+    requestsQuery.isLoading ||
+    historyQuery.isLoading
+  ) {
     return <LoadingState />;
   }
 
@@ -152,6 +194,29 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
   const existingRequest = requestsQuery.data
     ?.filter((request) => String(request.agency_id) === agencyId)
     .find((request) => request.status === "approved" || request.status === "pending");
+  const latestHistory = getLatestMembershipRecord(historyQuery.data ?? [], agencyId);
+  const isReturningApplicant = isReturningMembershipAction(latestHistory?.action);
+
+  if (reviewRequestSubmitted) {
+    return (
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Review request submitted
+          </h1>
+          <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+            Review request submitted - waiting for agency response.
+          </p>
+          <Link
+            href="/account/join-requests"
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            View My Agencies
+          </Link>
+        </CardBody>
+      </Card>
+    );
+  }
 
   if (existingRequest?.status === "approved") {
     return (
@@ -201,6 +266,50 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
             >
               View My Agencies
             </Link>
+            <Link
+              href={`/agencies/${agencyId}`}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+            >
+              Back to agency
+            </Link>
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (isReturningApplicant) {
+    return (
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              Returning applicant
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              Request to rejoin {agencyQuery.data.name}
+            </h1>
+          </div>
+          {latestHistory?.reason ? (
+            <div className="rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              {latestHistory.reason}
+            </div>
+          ) : null}
+          <textarea
+            rows={5}
+            className="min-h-28 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            placeholder="Add any context you want this agency to review."
+            value={reviewMessage}
+            onChange={(event) => setReviewMessage(event.target.value)}
+          />
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              loading={createReviewRequest.isPending}
+              onClick={() => void handleReviewRequest(agencyQuery.data.agency_id)}
+            >
+              Request to Rejoin
+            </Button>
             <Link
               href={`/agencies/${agencyId}`}
               className="inline-flex h-10 items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"

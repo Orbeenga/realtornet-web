@@ -19,6 +19,11 @@ import {
   useUploadMyAvatar,
   useUpsertMyProfile,
 } from "@/features/profile/hooks";
+import {
+  MembershipHistoryList,
+  PostRevocationDashboard,
+} from "@/features/agencies/components";
+import { useMembershipHistory } from "@/features/agencies/hooks";
 import { notify } from "@/lib/toast";
 
 interface ProfileFormValues {
@@ -45,10 +50,12 @@ function buildDefaultValues(input: {
 export default function AccountProfilePage() {
   const userQuery = useUserProfile();
   const profileQuery = useMyProfile(Boolean(userQuery.data));
+  const membershipHistoryQuery = useMembershipHistory(Boolean(userQuery.data));
   const upsertProfile = useUpsertMyProfile();
   const uploadAvatar = useUploadMyAvatar();
   const deleteAvatar = useDeleteMyAvatar();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState<"profile" | "membershipHistory">("profile");
 
   const form = useForm<ProfileFormValues>({
     defaultValues: {
@@ -160,6 +167,54 @@ export default function AccountProfilePage() {
         </p>
       </div>
 
+      <PostRevocationDashboard />
+
+      <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+        <Button
+          type="button"
+          variant={activeTab === "profile" ? "primary" : "ghost"}
+          size="sm"
+          onClick={() => setActiveTab("profile")}
+        >
+          Profile
+        </Button>
+        <Button
+          type="button"
+          variant={activeTab === "membershipHistory" ? "primary" : "ghost"}
+          size="sm"
+          onClick={() => setActiveTab("membershipHistory")}
+        >
+          Membership history ({membershipHistoryQuery.data?.length ?? 0})
+        </Button>
+      </div>
+
+      {activeTab === "membershipHistory" ? (
+        <Card>
+          <CardHeader>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Membership history
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Review every agency relationship recorded for your account.
+              </p>
+            </div>
+          </CardHeader>
+          <CardBody>
+            <MembershipHistoryList
+              history={membershipHistoryQuery.data}
+              isLoading={membershipHistoryQuery.isLoading}
+              isError={membershipHistoryQuery.isError}
+              onRetry={() => {
+                void membershipHistoryQuery.refetch();
+              }}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "profile" ? (
+      <>
       <Card>
         <CardHeader>
           <div className="space-y-1">
@@ -276,6 +331,8 @@ export default function AccountProfilePage() {
           </CardFooter>
         </form>
       </Card>
+      </>
+      ) : null}
     </div>
   );
 }
