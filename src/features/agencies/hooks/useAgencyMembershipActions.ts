@@ -4,9 +4,10 @@ import type {
   AgencyAgentMembershipActionRequest,
   AgencyAgentMembershipResponse,
   AgencyAgentRosterMember,
-  AgencyMembershipReviewDecisionRequest,
-  AgencyMembershipReviewRequestCreate,
-  AgencyMembershipReviewRequestResponse,
+  AgencyReviewRequestCreate,
+  AgencyReviewRequestDecisionRequest,
+  AgencyReviewRequestResponse,
+  AgentMembershipAudit,
   MyAgencyMembershipResponse,
   MyAgentMembershipStatusResponse,
 } from "@/types";
@@ -70,72 +71,146 @@ export function useRestoreAgencyMembership(agencyId?: string | number | null) {
   return useAgencyMembershipAction(agencyId, "restore");
 }
 
-interface ReviewDecisionVariables {
-  membershipId: number;
-  reviewRequestId: number;
-  payload: AgencyMembershipReviewDecisionRequest;
-}
-
-function useAgencyMembershipReviewDecision(
-  agencyId?: string | number | null,
-  action?: "approve" | "reject",
-) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({
-      membershipId,
-      reviewRequestId,
-      payload,
-    }: ReviewDecisionVariables) =>
-      apiClient<AgencyMembershipReviewRequestResponse>(
-        `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-requests/${reviewRequestId}/${action}/`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        },
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] }),
-        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
-      ]);
-    },
-  });
-}
-
-export function useApproveAgencyMembershipReview(
-  agencyId?: string | number | null,
-) {
-  return useAgencyMembershipReviewDecision(agencyId, "approve");
-}
-
-export function useRejectAgencyMembershipReview(
-  agencyId?: string | number | null,
-) {
-  return useAgencyMembershipReviewDecision(agencyId, "reject");
-}
-
 interface ReviewRequestVariables {
   agencyId: string | number;
-  membershipId: string | number;
-  payload: AgencyMembershipReviewRequestCreate;
+  payload: AgencyReviewRequestCreate;
 }
 
-export function useCreateAgencyMembershipReviewRequest() {
+export function useCreateAgencyReviewRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ agencyId, membershipId, payload }: ReviewRequestVariables) =>
-      apiClient<AgencyMembershipReviewRequestResponse>(
-        `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-request/`,
+    mutationFn: ({ agencyId, payload }: ReviewRequestVariables) =>
+      apiClient<AgencyReviewRequestResponse>(
+        `/api/v1/agencies/${agencyId}/review-requests/`,
         {
           method: "POST",
           body: JSON.stringify(payload),
         },
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["membershipHistory"] }),
+        queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests"] }),
+      ]);
+    },
+  });
+}
+
+export function useAgencyReviewRequests(
+  agencyId?: string | number | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["agencyReviewRequests", agencyId],
+    queryFn: () =>
+      apiClient<AgencyReviewRequestResponse[]>(
+        `/api/v1/agencies/${agencyId}/review-requests/`,
+      ),
+    staleTime: 30_000,
+    enabled: enabled && Boolean(agencyId),
+  });
+}
+
+function useAgencyReviewRequestDecision(
+  agencyId?: string | number | null,
+  action?: "accept" | "decline",
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      requestId,
+      payload,
+    }: {
+      requestId: number;
+      payload: AgencyReviewRequestDecisionRequest;
+    }) =>
+      apiClient<AgencyReviewRequestResponse>(
+        `/api/v1/agencies/${agencyId}/review-requests/${requestId}/${action}/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        },
+      ),
+    onSuccess: async (reviewRequest) => {
+      queryClient.setQueryData<AgencyReviewRequestResponse[]>(
+        ["agencyReviewRequests", agencyId],
+        (current) =>
+          current?.map((request) =>
+            request.id === reviewRequest.id ? reviewRequest : request,
+          ) ?? current,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", agencyId] }),
+        queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["membershipHistory"] }),
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] }),
+      ]);
+    },
+  });
+}
+
+export function useAcceptAgencyReviewRequest(agencyId?: string | number | null) {
+  return useAgencyReviewRequestDecision(agencyId, "accept");
+}
+
+export function useDeclineAgencyReviewRequest(agencyId?: string | number | null) {
+  return useAgencyReviewRequestDecision(agencyId, "decline");
+}
+
+export function useMembershipHistory(enabled = true) {
+  return useQuery({
+    queryKey: ["membershipHistory", "me"],
+    queryFn: () =>
+      apiClient<AgentMembershipAudit[]>("/api/v1/users/me/membership-history/"),
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function useAgencyMemberHistory(
+  agencyId?: string | number | null,
+  userId?: string | number | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["agencyMemberHistory", agencyId, userId],
+    queryFn: () =>
+      apiClient<AgentMembershipAudit[]>(
+        `/api/v1/agencies/${agencyId}/member-history/${userId}/`,
+      ),
+    staleTime: 30_000,
+    enabled: enabled && Boolean(agencyId) && Boolean(userId),
+  });
+}
+
+export function useLeaveAgencyMembership() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      reason,
+    }: {
+      membershipId: number;
+      reason?: string | null;
+    }) =>
+      apiClient<MyAgencyMembershipResponse>(
+        `/api/v1/agency-memberships/${membershipId}/leave/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ reason: reason ?? null }),
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["membershipHistory"] }),
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] }),
+      ]);
     },
   });
 }

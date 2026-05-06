@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import {
   buildApiUrl,
   clearStoredAuthTokens,
@@ -16,6 +17,7 @@ import {
   getStoredRefreshToken,
   persistAuthTokens,
   refreshAccessToken,
+  setStaleRoleVersionHandler,
   setUnauthorizedHandler,
 } from "@/lib/api/client";
 import type { UserProfile } from "@/types";
@@ -58,7 +60,7 @@ async function fetchCurrentUser(token: string) {
   let res: Response;
 
   try {
-    res = await fetch(buildApiUrl("/api/v1/auth/me/"), {
+    res = await fetch(buildApiUrl("/api/v1/auth/me"), {
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
@@ -76,6 +78,7 @@ async function fetchCurrentUser(token: string) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -133,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scope: "",
     });
 
-    const res = await fetch(buildApiUrl("/api/v1/auth/login/"), {
+    const res = await fetch(buildApiUrl("/api/v1/auth/login"), {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -171,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }) => {
     const backendRole = role === "buyer" ? "seeker" : role;
 
-    const res = await fetch(buildApiUrl("/api/v1/auth/register/"), {
+    const res = await fetch(buildApiUrl("/api/v1/auth/register"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -224,6 +227,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUnauthorizedHandler(null);
     };
   }, [signOut]);
+
+  useEffect(() => {
+    setStaleRoleVersionHandler(async () => {
+      try {
+        const refreshedToken = await refreshAccessToken();
+        const me = await fetchCurrentUser(refreshedToken);
+
+        queryClient.clear();
+        setToken(refreshedToken);
+        setUser(me);
+
+        if (me.user_role === "seeker") {
+          router.replace("/account/profile?membership=revoked");
+        }
+
+        return refreshedToken;
+      } catch {
+        await signOut({
+          redirectToLogin:
+            typeof window !== "undefined" &&
+            window.location.pathname.startsWith("/account"),
+        });
+        return null;
+      }
+    });
+
+    return () => {
+      setStaleRoleVersionHandler(null);
+    };
+  }, [queryClient, router, signOut]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut }}>

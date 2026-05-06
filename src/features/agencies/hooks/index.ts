@@ -3,11 +3,15 @@ export { useAgencyAgents } from "./useAgencyAgents";
 export { useAgencyListings } from "./useAgencyListings";
 export {
   useAgentMembershipStatus,
-  useApproveAgencyMembershipReview,
+  useAgencyMemberHistory,
+  useAcceptAgencyReviewRequest,
   useBlockAgencyMembership,
-  useCreateAgencyMembershipReviewRequest,
+  useAgencyReviewRequests,
+  useCreateAgencyReviewRequest,
+  useDeclineAgencyReviewRequest,
+  useLeaveAgencyMembership,
+  useMembershipHistory,
   useMyAgencyMemberships,
-  useRejectAgencyMembershipReview,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,

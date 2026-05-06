@@ -64,3 +64,11 @@ until the project custom domain is registered and verified.
 
 H.1-RAILWAY-ENV - Closed in Phase H. Railway production was running with a dev
 mode environment; `ENV=production` is fixed and locked for production deploys.
+
+DEF-I-MEM-SMOKE-001 - Multi-agency revocation smoke not confirmed. Backend
+Rule 2 logic is in place from Phase I I.3 (`4933915`). Frontend CTA logic
+branches on membership count in history. Full end-to-end verification requires
+two active agency memberships on one agent account with owner control over both
+agencies. Cannot be completed with current production seed data. Verify
+manually when a real multi-agency agent exists on the platform, or provision the
+scenario in the next backend session and re-smoke.

@@ -549,6 +549,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/membership-history/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Membership History
+         * @description Return the authenticated user's complete agency membership audit history.
+         */
+        get: operations["read_my_membership_history_api_v1_users_me_membership_history__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{user_id}": {
         parameters: {
             query?: never;
@@ -777,6 +797,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/member-history/{user_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agency Member History
+         * @description Return this agency's full membership history with a specific user.
+         */
+        get: operations["read_agency_member_history_api_v1_agencies__agency_id__member_history__user_id___get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/agents/{membership_id}/suspend/": {
         parameters: {
             query?: never;
@@ -915,6 +955,70 @@ export interface paths {
          * @description Reject an agent review request while retaining the membership state.
          */
         patch: operations["reject_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_requests__review_request_id__reject__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/review-requests/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agency Review Requests
+         * @description List pending agency-level review requests with prior membership history.
+         */
+        get: operations["list_agency_review_requests_api_v1_agencies__agency_id__review_requests__get"];
+        put?: never;
+        /**
+         * Create Agency Review Request
+         * @description Create a generic agency review/rejoin request for the current user.
+         */
+        post: operations["create_agency_review_request_api_v1_agencies__agency_id__review_requests__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/review-requests/{request_id}/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Accept Agency Review Request
+         * @description Accept a review request and reinstate the user's agency membership.
+         */
+        patch: operations["accept_agency_review_request_api_v1_agencies__agency_id__review_requests__request_id__accept__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/review-requests/{request_id}/decline/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Decline Agency Review Request
+         * @description Decline a review request and notify the requester.
+         */
+        patch: operations["decline_agency_review_request_api_v1_agencies__agency_id__review_requests__request_id__decline__patch"];
         trace?: never;
     };
     "/api/v1/agencies/{agency_id}/properties": {
@@ -1204,6 +1308,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agency-memberships/{membership_id}/leave/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Leave My Agency Membership
+         * @description Allow an agent-facing user to voluntarily leave one agency membership.
+         */
+        patch: operations["leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch"];
         trace?: never;
     };
     "/api/v1/agent-profiles/": {
@@ -2500,6 +2624,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/saved-searches/unsubscribe/{unsubscribe_token}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unsubscribe Saved Search
+         * @description Public one-click unsubscribe for saved-search match emails.
+         *
+         *     No authentication is required because the UUID token is the capability.
+         *     The table uses soft delete as its active/deactivated state.
+         */
+        get: operations["unsubscribe_saved_search_api_v1_saved_searches_unsubscribe__unsubscribe_token___get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/saved-searches/{search_id}": {
         parameters: {
             query?: never;
@@ -3753,6 +3900,53 @@ export interface components {
             /** Deleted By */
             deleted_by?: string | null;
         };
+        /** AgencyReviewRequestCreate */
+        AgencyReviewRequestCreate: {
+            /** Message */
+            message?: string | null;
+        };
+        /** AgencyReviewRequestDecisionRequest */
+        AgencyReviewRequestDecisionRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** AgencyReviewRequestResponse */
+        AgencyReviewRequestResponse: {
+            /** Id */
+            id: number;
+            /** User Id */
+            user_id: number;
+            /** Agency Id */
+            agency_id: number;
+            status: components["schemas"]["AgencyReviewRequestStatus"];
+            /** Message */
+            message?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Actor Id */
+            actor_id?: number | null;
+            /** Requester Email */
+            requester_email?: string | null;
+            /** Requester Name */
+            requester_name?: string | null;
+            /** Membership History */
+            membership_history?: components["schemas"]["AgentMembershipAuditResponse"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * AgencyReviewRequestStatus
+         * @enum {string}
+         */
+        AgencyReviewRequestStatus: "pending" | "accepted" | "declined";
         /**
          * AgencyStatus
          * @enum {string}
@@ -3790,6 +3984,30 @@ export interface components {
             rejection_reason?: string | null;
             /** Status Reason */
             status_reason?: string | null;
+        };
+        /** AgentMembershipAuditResponse */
+        AgentMembershipAuditResponse: {
+            /** Id */
+            id: number;
+            /** User Id */
+            user_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name?: string | null;
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id?: number | null;
+            /** Reason */
+            reason?: string | null;
+            prior_role?: components["schemas"]["UserRole"] | null;
+            post_role?: components["schemas"]["UserRole"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * AgentMembershipRestrictionStatus
@@ -4008,6 +4226,11 @@ export interface components {
         Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post: {
             /** Agent User Id */
             agent_user_id: number;
+        };
+        /** Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch */
+        Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch: {
+            /** Reason */
+            reason?: string | null;
         };
         /** Body_login_access_token_api_v1_auth_login_post */
         Body_login_access_token_api_v1_auth_login_post: {
@@ -4982,6 +5205,11 @@ export interface components {
             /** User Id */
             user_id: number;
             /**
+             * Unsubscribe Token
+             * Format: uuid
+             */
+            unsubscribe_token: string;
+            /**
              * Created At
              * Format: date-time
              */
@@ -4995,6 +5223,18 @@ export interface components {
             deleted_at?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+        };
+        /**
+         * SavedSearchUnsubscribeResponse
+         * @description Response for public one-click saved-search unsubscribe links.
+         */
+        SavedSearchUnsubscribeResponse: {
+            /** Status */
+            status: string;
+            /** Search Id */
+            search_id: number;
+            /** Message */
+            message: string;
         };
         /**
          * SavedSearchUpdate
@@ -5169,6 +5409,8 @@ export interface components {
              * Format: uuid
              */
             supabase_id: string;
+            /** Role Version */
+            role_version: number;
             /** Is Verified */
             is_verified: boolean;
             /** Is Admin */
@@ -6129,6 +6371,40 @@ export interface operations {
             };
         };
     };
+    read_my_membership_history_api_v1_users_me_membership_history__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMembershipAuditResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_user_by_id_api_v1_users__user_id__get: {
         parameters: {
             query?: never;
@@ -6563,6 +6839,43 @@ export interface operations {
             };
         };
     };
+    read_agency_member_history_api_v1_agencies__agency_id__member_history__user_id___get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMembershipAuditResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     suspend_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__suspend__patch: {
         parameters: {
             query?: never;
@@ -6804,6 +7117,147 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgencyMembershipReviewRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agency_review_requests_api_v1_agencies__agency_id__review_requests__get: {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewRequestResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_agency_review_request_api_v1_agencies__agency_id__review_requests__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyReviewRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_agency_review_request_api_v1_agencies__agency_id__review_requests__request_id__accept__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyReviewRequestDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decline_agency_review_request_api_v1_agencies__agency_id__review_requests__request_id__decline__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyReviewRequestDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewRequestResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7273,6 +7727,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyAgentMembershipStatusResponse"];
+                };
+            };
+        };
+    };
+    leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                membership_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyAgencyMembershipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9574,6 +10063,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SavedSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsubscribe_saved_search_api_v1_saved_searches_unsubscribe__unsubscribe_token___get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unsubscribe_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSearchUnsubscribeResponse"];
                 };
             };
             /** @description Validation Error */

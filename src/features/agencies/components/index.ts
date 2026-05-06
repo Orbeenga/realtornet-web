@@ -1,5 +1,7 @@
 export { AgencyProfileClient } from "./AgencyProfileClient";
 export { AgencyProfileHeader } from "./AgencyProfileHeader";
+export { MembershipHistoryList } from "./MembershipHistoryList";
+export { PostRevocationDashboard } from "./PostRevocationDashboard";
 export { AgencyAgentRoster } from "./AgencyAgentRoster";
 export { AgencyListingsGrid } from "./AgencyListingsGrid";
 export { AgencyDirectoryClient } from "./AgencyDirectoryClient";
