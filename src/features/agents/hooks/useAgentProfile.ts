@@ -5,7 +5,8 @@ import type { Agent } from "@/types";
 export function useAgentProfile(id: string | number) {
   return useQuery({
     queryKey: ["agent", id],
-    queryFn: () => apiClient<Agent>(`/api/v1/agent-profiles/${id}`),
+    queryFn: () =>
+      apiClient<Agent>(`/api/v1/agent-profiles/${id}`, { authMode: "omit" }),
     staleTime: 60_000,
     enabled: Boolean(id),
   });

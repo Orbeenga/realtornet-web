@@ -14,6 +14,7 @@ export function usePropertyReviews(propertyId?: number | null) {
     queryFn: () =>
       apiClient<PropertyReviewResponse[]>(
         `/api/v1/reviews/property/by-property/${propertyId}`,
+        { authMode: "omit" },
       ),
     enabled: typeof propertyId === "number",
     staleTime: 30_000,
@@ -96,6 +97,7 @@ export function useAgentReviews(agentId?: number | null) {
     queryFn: () =>
       apiClient<AgentReviewResponse[]>(
         `/api/v1/agent-profiles/${agentId}/reviews`,
+        { authMode: "omit" },
       ),
     enabled: typeof agentId === "number",
     staleTime: 30_000,

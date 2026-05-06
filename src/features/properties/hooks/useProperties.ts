@@ -21,7 +21,10 @@ export function useProperties(filters: PropertyFilters = {}) {
 
   return useQuery({
     queryKey: ["properties", filters],
-    queryFn: () => apiClient<PaginatedProperties>(`/api/v1/properties/${query}`),
+    queryFn: () =>
+      apiClient<PaginatedProperties>(`/api/v1/properties/${query}`, {
+        authMode: "omit",
+      }),
     staleTime: 60_000,
   });
 }
@@ -30,7 +33,9 @@ export function useFeaturedProperties(limit = 3) {
   return useQuery({
     queryKey: ["featuredProperties", limit],
     queryFn: () =>
-      apiClient<PropertyList>(`/api/v1/properties/featured?limit=${limit}`),
+      apiClient<PropertyList>(`/api/v1/properties/featured?limit=${limit}`, {
+        authMode: "omit",
+      }),
     staleTime: 60_000,
   });
 }

@@ -12,7 +12,8 @@ type SyncAmenitiesArgs =
 export function useAmenities() {
   return useQuery({
     queryKey: ["amenities"],
-    queryFn: () => apiClient<Amenity[]>("/api/v1/amenities/"),
+    queryFn: () =>
+      apiClient<Amenity[]>("/api/v1/amenities/", { authMode: "omit" }),
     staleTime: 300_000,
   });
 }
@@ -20,7 +21,8 @@ export function useAmenities() {
 export function useAmenityCategories() {
   return useQuery({
     queryKey: ["amenity-categories"],
-    queryFn: () => apiClient<string[]>("/api/v1/amenities/categories"),
+    queryFn: () =>
+      apiClient<string[]>("/api/v1/amenities/categories", { authMode: "omit" }),
     staleTime: 300_000,
   });
 }
@@ -29,7 +31,10 @@ export function usePropertyAmenities(propertyId?: number | null) {
   return useQuery({
     queryKey: ["property-amenities", propertyId],
     queryFn: () =>
-      apiClient<Amenity[]>(`/api/v1/property-amenities/property/${propertyId}`),
+      apiClient<Amenity[]>(
+        `/api/v1/property-amenities/property/${propertyId}`,
+        { authMode: "omit" },
+      ),
     enabled: typeof propertyId === "number",
     staleTime: 60_000,
   });

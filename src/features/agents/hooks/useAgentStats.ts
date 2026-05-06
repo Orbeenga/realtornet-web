@@ -17,7 +17,9 @@ export function useAgentStats(agentId?: string | number | null) {
   return useQuery({
     queryKey: ["agentStats", agentId],
     queryFn: () =>
-      apiClient<AgentStats>(`/api/v1/agent-profiles/${agentId}/stats`),
+      apiClient<AgentStats>(`/api/v1/agent-profiles/${agentId}/stats`, {
+        authMode: "omit",
+      }),
     enabled: Boolean(agentId),
     staleTime: 60_000,
   });
