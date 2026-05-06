@@ -132,3 +132,40 @@ Three `<select>` elements in the property filter UI missing associated
 ### DEF-FE-006 - CSP / security headers (Phase F)
 No Content-Security-Policy, COOP, or X-Frame-Options headers. Noted by
 Lighthouse Best Practices audit. Implement via `next.config.ts` headers config.
+
+---
+
+## Phase H Closed Items
+
+## H.1-EMAIL-RESEND - Resend live email
+**Status:** Closed in Phase H.
+**Delivered:** Live email delivery confirmed through Resend and the smoke
+passed. Railway `RESEND_API_KEY` propagation on `imaginative-peace` is resolved.
+Temporary sender is `onboarding@resend.dev` until the project custom domain is
+registered and verified.
+
+## H.1-RAILWAY-ENV - Production environment mode
+**Status:** Closed in Phase H.
+**Delivered:** Railway production was found running with a dev-mode environment.
+`ENV=production` is now fixed and locked for production deploys.
+
+---
+
+## Phase I Deferrals
+
+## DEF-H4-MOBILE-TBT - Mobile TBT and public discovery runtime cost
+**Status:** Deferred to Phase I.
+**Observed:** H.4 desktop TBT target is met, but mobile TBT remains near or
+above the revised 300ms target on public discovery routes. The remaining cost is
+primarily shared Next/Turbopack runtime and polyfill boot work, not local
+Zod/RHF/Sonner form code.
+**Next step:** Evaluate deeper server-component boundaries, islands, runtime
+reduction, and public discovery payload timing in Phase I.
+
+## DEF-I-LOC-001 - Hierarchical location filter
+**Status:** Deferred to Phase I.
+**Observed:** Live `/api/v1/locations/states` currently returns a flat string
+list (`lagos`) rather than structured state/city/neighborhood records.
+**Next step:** Keep the flat `location_id` picker until the backend provides
+structured location hierarchy data from `/locations/states`,
+`/locations/cities`, and `/locations/neighborhoods`.

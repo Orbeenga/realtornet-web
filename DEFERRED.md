@@ -56,3 +56,11 @@ string list with only `lagos`, not structured state/city/neighborhood records.
 Keep the existing flat `location_id` picker until the backend provides real
 hierarchical data from `/locations/states`, `/locations/cities`, and
 `/locations/neighborhoods`.
+
+H.1-EMAIL-RESEND - Closed in Phase H. Live email delivery is confirmed through
+Resend, the smoke passed, and Railway `RESEND_API_KEY` propagation on
+`imaginative-peace` is resolved. Temporary sender is `onboarding@resend.dev`
+until the project custom domain is registered and verified.
+
+H.1-RAILWAY-ENV - Closed in Phase H. Railway production was running with a dev
+mode environment; `ENV=production` is fixed and locked for production deploys.

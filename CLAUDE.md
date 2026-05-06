@@ -9,13 +9,15 @@
 - The area file owns stack rules and implementation-specific guidance.
 
 ## Current phase state
-- Phase G is closed through G.7 Integration & Exit.
-- Phase H is in progress. Backend B1-B3 are complete (`5a96191`, `59c6923`, `0d58594`): legacy membership aliases removed, `property_type_id` search filter live, agency-owner profile edit contract open for own agency, and agent directory filters support `agency_id` + `location_id`.
-- Frontend Stream B is active: H.3 moderation UI consistency is complete, H.4 performance pass is complete with mobile TBT deferred, F1 foundation is pushed (`1660933`), F2 endpoint wiring is pushed (`1c356e6`), and F3 final UX wiring is in progress.
+- Phase H is closed. Phase I is opening from a clean Phase H baseline.
+- Phase H backend B1-B3 are complete (`5a96191`, `59c6923`, `0d58594`): legacy membership aliases removed, `property_type_id` search filter live, agency-owner profile edit contract open for own agency, and agent directory filters support `agency_id` + `location_id`.
+- Phase H frontend F1-F3 are complete (`1660933`, `1c356e6`, `aced574`), with the public landing-page stale-auth redirect follow-up fixed in `ed11530`.
+- H.1 live email is closed: Resend delivery confirmed, Railway variable propagation resolved, and smoke validation passed.
 - Frontend production: Next.js 16.2.1 on Vercel at `realtornet-web.vercel.app`.
 - Backend production: Railway at `realtornet-production.up.railway.app`.
 - Production Supabase project: `avkhpachzsbgmbnkfnhu`.
 - Dev Supabase project: `umhtnqxdvffpifqbdtjs`; do not use for production work.
+- Railway production service must run with `ENV=production`.
 
 ## Locked architecture decisions
 - Agency-first public hierarchy is locked: Agencies -> Listings -> Agents.
@@ -31,6 +33,9 @@
 - `/account/reviews` is the account-owned reviews surface for seeker, agent, and agency-owner roles.
 - Agency owners can edit only their own public agency profile fields through `PUT /api/v1/agencies/{agency_id}`; status, verification, and owner-control fields remain admin-owned.
 - Public agency, agent, and property discovery must remain browseable without login; auth gates belong only on transactional actions.
+- Resend is the live Phase H email provider. `RESEND_API_KEY` must be present in Railway `imaginative-peace` Variables; current temporary sender is `onboarding@resend.dev` until a custom domain is registered.
+- Public hooks on discovery surfaces use the `authMode: "omit"` pattern; do not reattach bearer auth to public browsing endpoints.
+- Mobile H.4 TBT and structured location hierarchy are intentionally deferred to Phase I (`DEF-H4-MOBILE-TBT`, `DEF-I-LOC-001`).
 
 ## Locked contracts
 - Backend is the source of truth for roles, permissions, property verification, agency membership state, and location references.
@@ -41,7 +46,7 @@
 - No `fetch()` calls in React components; API access belongs in hooks and shared client helpers.
 
 ## April 22 / Phase E-H follow-up audit
-- Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), desktop H.4 TBT target for `/properties` and `/agencies`, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, admin user demotion/deactivation reason gates, `property_type_id` public search filtering, account reviews, received-inquiry embedded data wiring, and admin analytics richer endpoint wiring.
+- Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), H.1 Resend live email, desktop H.4 TBT target for `/properties` and `/agencies`, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, admin user demotion/deactivation reason gates, `property_type_id` public search filtering, `/agents` public directory, `/account/reviews`, received-inquiry embedded data wiring, admin analytics richer endpoint wiring, public `authMode: "omit"` hook hardening, Railway `RESEND_API_KEY` propagation, and Railway `ENV=production`.
 - Still open or deferred: mobile H.4 TBT remains above the revised 300ms target (`DEF-H4-MOBILE-TBT`), hierarchical location filtering awaits structured location data (`DEF-I-LOC-001`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred until real traffic data (`DEF-002`), and production seed breadth remains a data-coverage concern.
 
 ## Latest Phase H validation
