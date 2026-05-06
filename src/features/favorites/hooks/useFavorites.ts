@@ -56,6 +56,7 @@ export function useFavoriteCount(propertyId?: number | null) {
     queryFn: async () => {
       const response = await apiClient<FavoriteCountResponse>(
         `/api/v1/favorites/count/${propertyId}`,
+        { authMode: "omit" },
       );
 
       return normalizeFavoriteCount(response);

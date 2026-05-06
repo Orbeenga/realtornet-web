@@ -28,7 +28,8 @@ export function getAgencyAgentCount(stats?: AgencyStats) {
 export function useAgencies(enabled = true) {
   return useQuery({
     queryKey: ["agencies"],
-    queryFn: () => apiClient<Agency[]>("/api/v1/agencies/"),
+    queryFn: () =>
+      apiClient<Agency[]>("/api/v1/agencies/", { authMode: "omit" }),
     staleTime: 60_000,
     enabled,
   });
@@ -37,7 +38,10 @@ export function useAgencies(enabled = true) {
 export function useAgencyStats(agencyId?: string | number | null, enabled = true) {
   return useQuery({
     queryKey: ["agencyStats", agencyId],
-    queryFn: () => apiClient<AgencyStats>(`/api/v1/agencies/${agencyId}/stats`),
+    queryFn: () =>
+      apiClient<AgencyStats>(`/api/v1/agencies/${agencyId}/stats`, {
+        authMode: "omit",
+      }),
     staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
   });
@@ -48,7 +52,10 @@ export function useVisibleAgencyStats(agencies: Agency[], enabled = true) {
     queries: agencies.map((agency) => (
       {
         queryKey: ["agencyStats", agency.agency_id],
-        queryFn: () => apiClient<AgencyStats>(`/api/v1/agencies/${agency.agency_id}/stats`),
+        queryFn: () =>
+          apiClient<AgencyStats>(`/api/v1/agencies/${agency.agency_id}/stats`, {
+            authMode: "omit",
+          }),
         staleTime: 60_000,
         enabled,
       }
