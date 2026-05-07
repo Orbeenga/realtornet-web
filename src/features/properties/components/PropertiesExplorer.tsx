@@ -79,6 +79,9 @@ export function PropertiesExplorer() {
     bedrooms: searchParams.get("bedrooms")
       ? Number(searchParams.get("bedrooms"))
       : undefined,
+    location_id: searchParams.get("location_id")
+      ? Number(searchParams.get("location_id"))
+      : undefined,
     property_type_id: searchParams.get("property_type_id")
       ? Number(searchParams.get("property_type_id"))
       : undefined,

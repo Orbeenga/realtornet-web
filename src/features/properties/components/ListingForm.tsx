@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@/lib/api/client";
+import {
+  LocationCascadeSelector,
+  type LocationCascadeValue,
+} from "@/features/locations/components/LocationCascadeSelector";
 import {
   LISTING_STATUSES,
   LISTING_STATUS_LABELS,
@@ -20,7 +24,7 @@ import {
   Input,
   LoadingState,
 } from "@/components";
-import { useLocations, usePropertyTypes } from "@/features/properties/hooks";
+import { useLocationDetail, usePropertyTypes } from "@/features/properties/hooks";
 
 const optionalNonNegativeInt = z.preprocess(
   (value) => (value === "" || value == null ? null : value),
@@ -92,13 +96,17 @@ export function ListingForm({
   variant = "card",
 }: ListingFormProps) {
   const propertyTypesQuery = usePropertyTypes();
-  const locationsQuery = useLocations();
+  const initialLocationId = initialValues?.location_id;
+  const initialLocationQuery = useLocationDetail(initialLocationId);
+  const [locationOverride, setLocationOverride] =
+    useState<LocationCascadeValue | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ListingFormInput, unknown, ListingFormValues>({
     resolver: zodResolver(listingFormSchema),
@@ -118,6 +126,34 @@ export function ListingForm({
       ...initialValues,
     } satisfies ListingFormInput);
   }, [initialValues, reset]);
+
+  const initialLocationValue = useMemo<LocationCascadeValue>(() => {
+    if (initialLocationQuery.data) {
+      return {
+        state: initialLocationQuery.data.state,
+        city: initialLocationQuery.data.city,
+        neighborhood: initialLocationQuery.data.neighborhood ?? "",
+        locationId: initialLocationQuery.data.location_id,
+      };
+    }
+
+    return {
+      state: "",
+      city: "",
+      neighborhood: "",
+      locationId:
+        initialLocationId && initialLocationId > 0 ? initialLocationId : undefined,
+    };
+  }, [initialLocationId, initialLocationQuery.data]);
+  const locationValue = locationOverride ?? initialLocationValue;
+
+  const handleLocationChange = (value: LocationCascadeValue) => {
+    setLocationOverride(value);
+    setValue("location_id", value.locationId ?? 0, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
 
   const submitHandler = async (values: ListingFormValues) => {
     try {
@@ -148,18 +184,18 @@ export function ListingForm({
     }
   };
 
-  if (propertyTypesQuery.isLoading || locationsQuery.isLoading) {
+  if (propertyTypesQuery.isLoading || initialLocationQuery.isLoading) {
     return <LoadingState message="Loading listing form..." />;
   }
 
-  if (propertyTypesQuery.isError || locationsQuery.isError) {
+  if (propertyTypesQuery.isError || initialLocationQuery.isError) {
     return (
       <ErrorState
         title="Could not load listing options"
         message="Property types and locations come from the live backend catalogue. Please try again."
         onRetry={() => {
           void propertyTypesQuery.refetch();
-          void locationsQuery.refetch();
+          void initialLocationQuery.refetch();
         }}
       />
     );
@@ -170,7 +206,7 @@ export function ListingForm({
           <div className="w-full">
             <Input
               label="Title"
-              placeholder="Modern 3-bedroom apartment in Lekki"
+              placeholder="Modern 3-bedroom apartment"
               error={errors.title?.message}
               className="h-11 w-full px-3 py-2"
               {...register("title")}
@@ -340,25 +376,18 @@ export function ListingForm({
             </div>
 
             <div className="w-full sm:w-[260px]">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <input type="hidden" {...register("location_id")} />
+              <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Location
-              </label>
-              <select
-                {...register("location_id")}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              >
-                <option value={0}>Select location</option>
-                {(locationsQuery.data ?? []).map((location) => (
-                  <option key={location.location_id} value={location.location_id}>
-                    {[location.neighborhood, location.city, location.state]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </option>
-                ))}
-              </select>
-              {errors.location_id ? (
-                <p className="text-xs text-red-600">{errors.location_id.message}</p>
-              ) : null}
+              </p>
+              <LocationCascadeSelector
+                idPrefix="listing-location"
+                value={locationValue}
+                onChange={handleLocationChange}
+                required
+                compact
+                error={errors.location_id?.message}
+              />
             </div>
           </div>
 

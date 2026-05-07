@@ -17,6 +17,7 @@ import {
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
 import { usePropertyTypes } from "@/features/properties/hooks";
+import { LocationCascadeSelector } from "@/features/locations/components/LocationCascadeSelector";
 import { cn } from "@/lib/utils";
 import { PropertyFiltersSavedSearch } from "./PropertyFiltersSavedSearch";
 
@@ -138,6 +139,42 @@ export function PropertyFilters() {
     [pathname, router, searchParams],
   );
 
+  const updateLocationFilters = useCallback(
+    (value: {
+      state: string;
+      city: string;
+      neighborhood: string;
+      locationId?: number;
+    }) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      for (const key of ["state", "city", "neighborhood", "location_id"]) {
+        params.delete(key);
+      }
+
+      if (value.state) {
+        params.set("state", value.state);
+      }
+
+      if (value.city) {
+        params.set("city", value.city);
+      }
+
+      if (value.neighborhood) {
+        params.set("neighborhood", value.neighborhood);
+      }
+
+      if (value.locationId) {
+        params.set("location_id", String(value.locationId));
+      }
+
+      params.delete("page");
+      const query = params.toString();
+      router.push(query ? `${pathname}?${query}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
+
   const clearAll = () => {
     router.push(pathname);
     setOpenPanel(null);
@@ -163,6 +200,19 @@ export function PropertyFilters() {
   const minPrice = searchParams.get("min_price") ?? "";
   const maxPrice = searchParams.get("max_price") ?? "";
   const bedrooms = searchParams.get("bedrooms") ?? "";
+  const locationValue = {
+    state: searchParams.get("state") ?? "",
+    city: searchParams.get("city") ?? "",
+    neighborhood: searchParams.get("neighborhood") ?? "",
+    locationId: searchParams.get("location_id")
+      ? Number(searchParams.get("location_id"))
+      : undefined,
+  };
+  const locationLabel =
+    locationValue.neighborhood ||
+    locationValue.city ||
+    locationValue.state ||
+    null;
   const hasFilters = searchParams.toString().length > 0;
   const selectClassName = SelectClassName();
 
@@ -242,6 +292,15 @@ export function PropertyFilters() {
 
   const moreFilters = (
     <div className="space-y-4">
+      <div>
+        <LocationCascadeSelector
+          idPrefix="property-filter-location"
+          value={locationValue}
+          onChange={updateLocationFilters}
+          compact
+        />
+      </div>
+
       <div>
         <FieldLabel htmlFor="listing-type">Listing type</FieldLabel>
         <select
@@ -357,7 +416,7 @@ export function PropertyFilters() {
           <FilterPopover
             id="more"
             label="Filters"
-            value={listingStatusLabel ?? listingTypeLabel}
+            value={locationLabel ?? listingStatusLabel ?? listingTypeLabel}
             openPanel={openPanel}
             onOpenPanelChange={setOpenPanel}
           >
