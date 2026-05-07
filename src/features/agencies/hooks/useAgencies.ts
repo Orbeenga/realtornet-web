@@ -35,12 +35,16 @@ export function useAgencies(enabled = true) {
   });
 }
 
-export function useAgencyStats(agencyId?: string | number | null, enabled = true) {
+export function useAgencyStats(
+  agencyId?: string | number | null,
+  enabled = true,
+  authMode: "include" | "omit" = "omit",
+) {
   return useQuery({
     queryKey: ["agencyStats", agencyId],
     queryFn: () =>
       apiClient<AgencyStats>(`/api/v1/agencies/${agencyId}/stats`, {
-        authMode: "omit",
+        authMode,
       }),
     staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
