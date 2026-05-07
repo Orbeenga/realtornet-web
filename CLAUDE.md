@@ -40,7 +40,7 @@
 - Public agency, agent, and property discovery must remain browseable without login; auth gates belong only on transactional actions.
 - Resend is the live Phase H email provider. `RESEND_API_KEY` must be present in Railway `imaginative-peace` Variables; current temporary sender is `onboarding@resend.dev` until a custom domain is registered.
 - Public hooks on discovery surfaces use the `authMode: "omit"` pattern; do not reattach bearer auth to public browsing endpoints.
-- Structured location hierarchy remains intentionally deferred to Phase I data work (`DEF-I-LOC-001`).
+- Structured location picker UI is wired to the public location hierarchy endpoints, but live seed breadth remains sparse under `DEF-I-LOC-001`.
 - Public-directory stats and non-critical filter hydration should stay deferred past initial mobile interactivity unless a later trace proves they are no longer contributing to TBT.
 
 ## Locked contracts
@@ -53,8 +53,8 @@
 
 ## April 22 / Phase E-H follow-up audit
 - Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), H.1 Resend live email, desktop H.4 TBT target for `/properties` and `/agencies`, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, admin user demotion/deactivation reason gates, `property_type_id` public search filtering, `/agents` public directory, `/account/reviews`, received-inquiry embedded data wiring, admin analytics richer endpoint wiring, public `authMode: "omit"` hook hardening, Railway `RESEND_API_KEY` propagation, and Railway `ENV=production`.
-- Still open or deferred: hierarchical location filtering awaits structured location data (`DEF-I-LOC-001`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred until real traffic data (`DEF-002`), multi-agency revocation smoke remains blocked by production seed shape (`DEF-I-MEM-SMOKE-001`), and production seed breadth remains a data-coverage concern.
-- I.7 evidence on 2026-05-07: production volume remains low (`/admin/stats`: 7 users, 2 properties, 4 inquiries), location hierarchy is still too sparse for richer UI, and no custom domain has been started. See `DEF-I-OPS-AUDIT-001`, `DEF-I-LOC-001`, and `DEF-I-DOMAIN-001`.
+- Still open or deferred: location seed breadth remains sparse (`DEF-I-LOC-001`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred until real traffic data (`DEF-002`), multi-agency revocation smoke remains blocked by production seed shape (`DEF-I-MEM-SMOKE-001`), and production seed breadth remains a data-coverage concern.
+- I.7 evidence on 2026-05-07: production volume remains low (`/admin/stats`: 7 users, 2 properties, 4 inquiries), live location data has one Lagos/Lekki/phase 1 row, and no custom domain has been started. See `DEF-I-OPS-AUDIT-001`, `DEF-I-LOC-001`, and `DEF-I-DOMAIN-001`.
 - I.6 validation on 2026-05-07, local production build: `/properties` mobile performance 97, accessibility 100, LCP 2523ms, TBT 42ms, CLS 0; `/agencies` mobile performance 100, accessibility 100, LCP 1339ms, TBT 0ms, CLS 0; `/agents` mobile performance 100, accessibility 100, LCP 982ms, TBT 0ms, CLS 0.
 
 ## Latest Phase H validation
@@ -63,7 +63,7 @@
 - H.3 moderation UI consistency completed: public feeds filter to verified listings, agent/admin surfaces render all moderation states, and the shared moderation helper is the UI source of truth.
 - H.4 desktop TBT target was met locally against Railway: `/properties` 66ms TBT and `/agencies` 177ms TBT. Mobile TBT remains deferred to Phase I for deeper RSC/island/runtime work.
 - Current Railway OpenAPI confirms: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/` with `agency_id` and `location_id`, `/api/v1/agent-profiles/{profile_id}/reviews`, `/api/v1/agent-profiles/{profile_id}/stats`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, `/api/v1/properties/` with `property_type_id`, `/api/v1/agencies/{agency_id}` owner-safe PUT, `/api/v1/favorites/count/{property_id}`, `/api/v1/favorites/is-favorited`, `/api/v1/reviews/by-user/property/`, `/api/v1/reviews/by-user/agent/`, `/api/v1/amenities/categories`, and listing status/type enum schemas.
-- Live `/api/v1/locations/states` currently returns a flat string list (`lagos`) rather than structured hierarchy data, so the frontend must keep the flat `location_id` picker until Phase I data work lands.
+- Live location hierarchy endpoints are public and wired on the frontend. Current production data remains sparse: one Lagos/Lekki/phase 1 row, so richer location coverage is a data-seeding concern rather than a frontend contract gap.
 
 ## Session template
 At session start, capture:

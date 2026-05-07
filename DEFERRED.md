@@ -59,15 +59,16 @@ Closed in Phase H F1. Backend B1 added and tested `property_type_id` on
 `GET /api/v1/properties/`; frontend filters now use the property type catalogue
 and persist `property_type_id` in URL search params.
 
-DEF-I-LOC-001 - Hierarchical location filter awaiting structured location data.
-Phase H F3 live Railway check on `/api/v1/locations/states` returned a flat
-string list with only `lagos`, not structured state/city/neighborhood records.
-I.7 production evidence on 2026-05-07: `/locations/` contains one
-Lagos/Lekki/phase 1 row, `/locations/states` returns `["lagos"]`,
-`/locations/cities?state=lagos` returns `["lekki"]`, and
-`/locations/neighborhoods?city=lagos` returns an empty list. Keep the existing
-flat `location_id` picker until the backend provides real hierarchical seed
-breadth.
+DEF-I-LOC-001 - Location hierarchy seed breadth remains sparse. The frontend
+cascade was wired in Phase J to the existing public location contracts rather
+than keeping the old flat picker. Live Railway evidence on 2026-05-07:
+`/locations/states` returns `["lagos"]`, `/locations/?limit=100` returns one
+record (`lagos` / `lekki` / `phase 1`, `location_id=2`), and the city and
+neighbourhood endpoints return only `lekki` and `phase 1`. The rich
+Nigeria-wide/global UX is now data-seeding work against the existing PostGIS
+location infrastructure. Current `GET /properties/` still filters by
+`location_id`, so state/city/neighbourhood URL params are UI state until they
+resolve to a concrete backend location row.
 
 H.1-EMAIL-RESEND - Closed in Phase H. Live email delivery is confirmed through
 Resend, the smoke passed, and Railway `RESEND_API_KEY` propagation on
