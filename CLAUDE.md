@@ -9,11 +9,14 @@
 - The area file owns stack rules and implementation-specific guidance.
 
 ## Current phase state
-- Phase H is closed. Phase I is opening from a clean Phase H baseline.
+- Phase I is closed as of 2026-05-07. Phase J is open.
 - Phase H backend B1-B3 are complete (`5a96191`, `59c6923`, `0d58594`): legacy membership aliases removed, `property_type_id` search filter live, agency-owner profile edit contract open for own agency, and agent directory filters support `agency_id` + `location_id`.
 - Phase H frontend F1-F3 are complete (`1660933`, `1c356e6`, `aced574`), with the public landing-page stale-auth redirect follow-up fixed in `ed11530`.
-- Phase I frontend I.4/I.5 is pushed in `2d8b0fb`: membership-history UI, post-revocation dashboard, generic review-request endpoints, stale `role_version` refresh handling, auth path correction, and single-agency revocation/review smoke. Multi-agency smoke remains deferred under `DEF-I-MEM-SMOKE-001` until a controlled two-agency test account exists.
-- Phase I I.6 mobile TBT is closed locally on 2026-05-07 after the public `(main)` layout RSC boundary fix and non-critical hydration deferral: `/properties` TBT 42ms, `/agencies` TBT 0ms, `/agents` TBT 0ms.
+- Phase I frontend I.4/I.5 is closed in `2d8b0fb`: membership-history UI, post-revocation dashboard, generic review-request endpoints, stale `role_version` refresh handling, auth path correction, and single-agency revocation/review smoke. Multi-agency smoke remains deferred under `DEF-I-MEM-SMOKE-001` until a controlled two-agency test account exists.
+- Phase I frontend closeout is pushed in `8e74e18`: horizontal property filters, featured analytics empty/error handling, Suspense boundary, review-request rewire consolidation, I.6 mobile TBT work, and I.7 operational updates.
+- Agency-owner session persistence is fixed and live in `c83e800`. Live Vercel browser verification confirmed `apineorbeenga@outlook.com` logs in to `/account/agency`, survives hard refresh, can access the protected dashboard, and only fetches `/agencies/9/agents/?status=all` after the Agent roster tab opens.
+- Phase I I.6 mobile TBT is closed on 2026-05-07 after the public `(main)` layout RSC boundary fix and non-critical hydration deferral: `/properties` TBT 42ms, `/agencies` TBT 0ms, `/agents` TBT 0ms.
+- Phase J opens with two explicit carry-forward items: `DEF-I-MEM-SMOKE-001` (multi-agency revocation smoke) and `DEF-I-COV-001` (backend coverage 94.15% vs 95% target).
 - H.1 live email is closed: Resend delivery confirmed, Railway variable propagation resolved, and smoke validation passed.
 - Frontend production: Next.js 16.2.1 on Vercel at `realtornet-web.vercel.app`.
 - Backend production: Railway at `realtornet-production.up.railway.app`.

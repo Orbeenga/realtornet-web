@@ -2,15 +2,19 @@
 
 ## Entry State
 
-Phase H is closed and Phase I is opening. Backend production runs on Railway at
+Phase I is closed as of 2026-05-07 and Phase J is open. Backend production runs on Railway at
 `realtornet-production.up.railway.app`; Railway service `imaginative-peace` must
 run with `ENV=production`.
 
 Phase I backend I.1, I.2, I.3, and I.5 are production-confirmed by handoff.
-Frontend I.4/I.5 is pushed in `2d8b0fb`; single-agency revocation/review smoke
-passed, while multi-agency revocation smoke remains tracked as
-`DEF-I-MEM-SMOKE-001` until a deliberate two-agency test account can be
-provisioned.
+Frontend I.4/I.5 is closed in `2d8b0fb`; single-agency revocation/review smoke
+passed. Phase I closeout is pushed in `8e74e18`, with agency-owner session
+persistence fixed and live in `c83e800`.
+
+Phase J opens with `DEF-I-MEM-SMOKE-001` and `DEF-I-COV-001`. Multi-agency
+revocation smoke remains tracked until a deliberate two-agency test account can
+be provisioned. Backend coverage is recorded at 94.15% against the Phase I 95%
+exit target and needs focused backend tests in Phase J.
 
 ## Email Contract
 

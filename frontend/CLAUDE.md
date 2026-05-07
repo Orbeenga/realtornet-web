@@ -4,7 +4,9 @@
 
 ## Entry State
 
-Next.js 16.2.1 is deployed on Vercel. Phase H is closed. Phase I frontend I.4/I.5 is pushed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live in source. I.6 mobile TBT is closed locally; I.7 operational cleanup is active.
+Next.js 16.2.1 is deployed on Vercel. Phase I is closed as of 2026-05-07 and Phase J is open. Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live. Phase I closeout is pushed in `8e74e18`, covering horizontal property filters, featured analytics empty/error handling, Suspense boundary work, review-request rewire consolidation, I.6 mobile TBT, and I.7 operational updates. Agency-owner session persistence is fixed and live in `c83e800`.
+
+Phase J opens with `DEF-I-MEM-SMOKE-001` (multi-agency revocation smoke) and `DEF-I-COV-001` (backend coverage 94.15% vs 95% target). Do not reopen Phase I work unless new production evidence contradicts the closeout.
 
 ## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
@@ -71,6 +73,7 @@ Next.js 16.2.1 is deployed on Vercel. Phase H is closed. Phase I frontend I.4/I.
 - I.7 production evidence on 2026-05-07: `/locations/` has one Lagos/Lekki/phase 1 row, `/locations/states` returns `["lagos"]`, `/locations/cities?state=lagos` returns `["lekki"]`, and `/locations/neighborhoods?city=lagos` is empty. Keep the flat `location_id` picker.
 - Frontend smoke users created by `scripts/e6-smoke.spec.js` are tracked for teardown. Set `SMOKE_ADMIN_EMAIL` and `SMOKE_ADMIN_PASSWORD` when running production smoke so cleanup can soft-delete generated users through the admin contract.
 - I.6 validation on 2026-05-07, local production build: `/properties` mobile performance 97, accessibility 100, LCP 2523ms, TBT 42ms, CLS 0; `/agencies` mobile performance 100, accessibility 100, LCP 1339ms, TBT 0ms, CLS 0; `/agents` mobile performance 100, accessibility 100, LCP 982ms, TBT 0ms, CLS 0.
+- Agency-owner live Vercel verification on 2026-05-07 after `c83e800`: `apineorbeenga@outlook.com` logs in to `/account/agency`, hard refresh preserves the session, protected agency-owner dashboard remains accessible, `/agencies/9/stats/` returns 200 with auth included, and `/agencies/9/agents/?status=all` is not called until the Agent roster tab is opened.
 
 ## April 22 / Phase E-H Follow-Up Audit
 
