@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgencies, useVisibleAgencyStats } from "@/features/agencies/hooks";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
-import { useIdleHydration } from "@/lib/useIdleHydration";
 import { cn } from "@/lib/utils";
 import type { Agency } from "@/types";
 
@@ -139,7 +138,6 @@ function AgencySearchInput({
 export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const hydrateStats = useIdleHydration({ delay: 8_000 });
   const agenciesQuery = useAgencies();
 
   const approvedAgencies = useMemo(
@@ -167,7 +165,7 @@ export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }
     compact ? 0 : (safePage - 1) * PAGE_SIZE,
     compact ? 3 : safePage * PAGE_SIZE,
   );
-  const statsByAgencyId = useVisibleAgencyStats(visibleAgencies, hydrateStats);
+  const statsByAgencyId = useVisibleAgencyStats(visibleAgencies, false);
 
   if (agenciesQuery.isLoading) {
     return (
@@ -221,7 +219,7 @@ export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }
                 agency={agency}
                 listingCount={stats?.listingCount}
                 agentCount={stats?.agentCount}
-                statsLoading={stats?.isLoading ?? true}
+                statsLoading={stats?.isLoading ?? false}
                 statsError={stats?.isError ?? false}
               />
             );
