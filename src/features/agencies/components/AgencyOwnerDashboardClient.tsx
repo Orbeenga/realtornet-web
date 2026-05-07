@@ -149,7 +149,11 @@ export function AgencyOwnerDashboardClient() {
   }, [agenciesQuery.data, agencyProfileQuery.data, userAgencyId, userEmail]);
 
   const agencyId = agency?.agency_id;
-  const agentsQuery = useAgencyAgents(agencyId ?? "", "all");
+  const agentsQuery = useAgencyAgents(
+    agencyId ?? "",
+    "all",
+    activeTab === "agents",
+  );
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
@@ -425,10 +429,10 @@ export function AgencyOwnerDashboardClient() {
   const agencyStats = agencyStatsQuery.data;
   const statsListingCount = getAgencyListingCount(agencyStats);
   const statsAgentCount = getAgencyAgentCount(agencyStats);
-  const tabCounts: Record<AgencyOwnerTab, number> = {
+  const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
     joinRequests: joinRequests.length,
     reviewRequests: reviewRequests.length,
-    agents: agents.length,
+    agents: agentsQuery.isSuccess ? agents.length : undefined,
     invitations: invitations.length,
   };
 
@@ -640,7 +644,8 @@ export function AgencyOwnerDashboardClient() {
             size="sm"
             onClick={() => setActiveTab(value)}
           >
-            {label} ({tabCounts[value]})
+            {label}
+            {typeof tabCounts[value] === "number" ? ` (${tabCounts[value]})` : null}
           </Button>
         ))}
       </div>

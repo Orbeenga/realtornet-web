@@ -22,6 +22,7 @@ interface PropertyCardProps {
   property: Property;
   onNavigateToDetail?: () => void;
   locationLabel?: string | null;
+  hydrateEnhancements?: boolean;
 }
 
 const statusVariant: Record<
@@ -40,12 +41,19 @@ export function PropertyCard({
   property,
   onNavigateToDetail,
   locationLabel,
+  hydrateEnhancements = true,
 }: PropertyCardProps) {
   const lastFavoriteToggleAtRef = useRef(0);
-  const favoriteCountQuery = useFavoriteCount(property.property_id);
-  const isFavoritedQuery = useIsFavorited(property.property_id);
+  const favoriteCountQuery = useFavoriteCount(
+    hydrateEnhancements ? property.property_id : undefined,
+  );
+  const isFavoritedQuery = useIsFavorited(
+    hydrateEnhancements ? property.property_id : undefined,
+  );
   const favoriteToggle = useFavoriteToggle();
-  const imagesQuery = usePropertyImages(property.property_id);
+  const imagesQuery = usePropertyImages(
+    hydrateEnhancements ? property.property_id : undefined,
+  );
   const displayImage = imagesQuery.data?.[0] ?? null;
   const isFavorited = isFavoritedQuery.data ?? false;
 
@@ -104,7 +112,7 @@ export function PropertyCard({
             <div
               className={cn(
                 "flex h-full w-full items-center justify-center",
-                imagesQuery.isLoading && "animate-pulse",
+                hydrateEnhancements && imagesQuery.isLoading && "animate-pulse",
               )}
             >
               <svg className="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -192,10 +200,12 @@ export function PropertyCard({
             {property.property_size != null ? (
               <span>{property.property_size} sqm</span>
             ) : null}
-            <span>
-              {favoriteCountQuery.data ?? 0} save
-              {(favoriteCountQuery.data ?? 0) === 1 ? "" : "s"}
-            </span>
+            {hydrateEnhancements ? (
+              <span>
+                {favoriteCountQuery.data ?? 0} save
+                {(favoriteCountQuery.data ?? 0) === 1 ? "" : "s"}
+              </span>
+            ) : null}
           </div>
         </CardBody>
       </Card>

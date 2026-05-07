@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { AgencyAgentRosterMember } from "@/types";
 
-export function useAgencyAgents(id: string | number, status?: "all") {
+export function useAgencyAgents(
+  id: string | number,
+  status?: "all",
+  enabled = true,
+) {
   const query = status ? `?status=${status}` : "";
 
   return useQuery({
@@ -13,6 +17,6 @@ export function useAgencyAgents(id: string | number, status?: "all") {
         status === "all" ? undefined : { authMode: "omit" },
       ),
     staleTime: 60_000,
-    enabled: Boolean(id),
+    enabled: enabled && Boolean(id),
   });
 }

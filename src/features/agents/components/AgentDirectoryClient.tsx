@@ -6,6 +6,7 @@ import { Badge, EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgencies } from "@/features/agencies/hooks";
 import { useAgentDirectory, useVisibleAgentStats } from "@/features/agents/hooks";
 import { useLocations } from "@/features/properties/hooks";
+import { useIdleHydration } from "@/lib/useIdleHydration";
 import type { Agent, Agency, Location } from "@/types";
 
 function readNumberParam(value: string | null) {
@@ -113,6 +114,8 @@ export function AgentDirectoryClient() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const hydrateFilterOptions = useIdleHydration({ delay: 1_800 });
+  const hydrateStats = useIdleHydration({ delay: 8_000 });
   const selectedAgencyId = readNumberParam(searchParams.get("agency_id"));
   const selectedLocationId = readNumberParam(searchParams.get("location_id"));
   const agentsQuery = useAgentDirectory({
@@ -120,10 +123,13 @@ export function AgentDirectoryClient() {
     location_id: selectedLocationId,
     limit: 24,
   });
-  const agenciesQuery = useAgencies();
-  const locationsQuery = useLocations();
+  const agenciesQuery = useAgencies(hydrateFilterOptions);
+  const locationsQuery = useLocations(hydrateFilterOptions);
   const agents = agentsQuery.data ?? [];
-  const statsByProfileId = useVisibleAgentStats(agents, agents.length > 0);
+  const statsByProfileId = useVisibleAgentStats(
+    agents.slice(0, 9),
+    hydrateStats && agents.length > 0,
+  );
   const agencyById = new Map(
     (agenciesQuery.data ?? []).map((agency) => [agency.agency_id, agency]),
   );
@@ -160,6 +166,11 @@ export function AgentDirectoryClient() {
             className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           >
             <option value="">All agencies</option>
+            {!hydrateFilterOptions ? (
+              <option value="" disabled>
+                Loading agencies...
+              </option>
+            ) : null}
             {(agenciesQuery.data ?? []).map((agency) => (
               <option key={agency.agency_id} value={agency.agency_id}>
                 {agency.name}
@@ -176,6 +187,11 @@ export function AgentDirectoryClient() {
             className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           >
             <option value="">All locations</option>
+            {!hydrateFilterOptions ? (
+              <option value="" disabled>
+                Loading locations...
+              </option>
+            ) : null}
             {(locationsQuery.data ?? []).map((location) => (
               <option key={location.location_id} value={location.location_id}>
                 {getLocationLabel(location)}

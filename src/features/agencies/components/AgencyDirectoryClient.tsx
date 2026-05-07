@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgencies, useVisibleAgencyStats } from "@/features/agencies/hooks";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
+import { useIdleHydration } from "@/lib/useIdleHydration";
 import { cn } from "@/lib/utils";
 import type { Agency } from "@/types";
 
@@ -138,7 +139,7 @@ function AgencySearchInput({
 export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [hydrateStats, setHydrateStats] = useState(false);
+  const hydrateStats = useIdleHydration({ delay: 8_000 });
   const agenciesQuery = useAgencies();
 
   const approvedAgencies = useMemo(
@@ -167,14 +168,6 @@ export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }
     compact ? 3 : safePage * PAGE_SIZE,
   );
   const statsByAgencyId = useVisibleAgencyStats(visibleAgencies, hydrateStats);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setHydrateStats(true);
-    }, 0);
-
-    return () => window.clearTimeout(timeout);
-  }, []);
 
   if (agenciesQuery.isLoading) {
     return (
