@@ -205,6 +205,7 @@ export async function apiClient<T>(
   const token = getStoredAccessToken();
   const isFormData = options?.body instanceof FormData;
   const { authMode = "include", ...requestOptions } = options ?? {};
+  const shouldManageAuth = authMode !== "omit";
 
   const res = await fetch(buildApiUrl(normalizedPath), {
     ...requestOptions,
@@ -220,6 +221,7 @@ export async function apiClient<T>(
     const detail = getErrorDetail(body);
 
     if (
+      shouldManageAuth &&
       res.status === 401 &&
       !isRetry &&
       isStaleRoleVersionDetail(detail) &&
@@ -233,6 +235,7 @@ export async function apiClient<T>(
     }
 
     if (
+      shouldManageAuth &&
       res.status === 401 &&
       !isRetry &&
       normalizedPath !== "/api/v1/auth/refresh" &&
@@ -254,7 +257,7 @@ export async function apiClient<T>(
       }
     }
 
-    if (res.status === 401) {
+    if (shouldManageAuth && res.status === 401) {
       await handleUnauthorized();
     }
 

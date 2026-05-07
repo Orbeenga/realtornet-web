@@ -157,7 +157,7 @@ export function AgencyOwnerDashboardClient() {
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
-  const agencyStatsQuery = useAgencyStats(agencyId, Boolean(agencyId));
+  const agencyStatsQuery = useAgencyStats(agencyId, Boolean(agencyId), "include");
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
   const suspendMembership = useSuspendAgencyMembership(agencyId);
