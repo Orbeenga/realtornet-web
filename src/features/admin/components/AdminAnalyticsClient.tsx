@@ -174,8 +174,14 @@ export function AdminAnalyticsClient() {
         />
         <MetricCard
           label="Featured property feed"
-          value={featuredPropertiesQuery.isError ? "Unavailable" : featuredProperties.length}
-          detail="From /analytics/properties/featured"
+          value={featuredProperties.length}
+          detail={
+            featuredPropertiesQuery.isError
+              ? "Endpoint error from /analytics/properties/featured"
+              : featuredProperties.length === 0
+                ? "No featured properties returned"
+                : "From /analytics/properties/featured"
+          }
         />
         <MetricCard
           label="Admin overview"

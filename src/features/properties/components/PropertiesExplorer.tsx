@@ -2,9 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { PropertyCard } from "@/features/properties/components/PropertyCard";
-import { SearchBar } from "@/features/properties/components/SearchBar";
 import { useLocations, useProperties } from "@/features/properties/hooks";
 import {
   restorePropertiesScrollPosition,
@@ -23,6 +22,7 @@ import { PropertyCardSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { Pagination } from "@/components/Pagination";
+import { useIdleHydration } from "@/lib/useIdleHydration";
 import type { Property } from "@/types";
 
 const PAGE_SIZE = 12;
@@ -39,11 +39,13 @@ const PropertyFilters = dynamic(
 
 function PropertyFiltersFallback() {
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-      <div className="h-4 w-20 rounded bg-gray-100 dark:bg-gray-800" />
-      <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
-      <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
-      <div className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
+    <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex gap-2">
+        <div className="h-11 min-w-0 flex-1 rounded-full bg-gray-100 dark:bg-gray-800" />
+        <div className="h-11 w-28 rounded-full bg-gray-100 dark:bg-gray-800" />
+        <div className="h-11 w-24 rounded-full bg-gray-100 dark:bg-gray-800" />
+        <div className="h-11 w-32 rounded-full bg-gray-100 dark:bg-gray-800" />
+      </div>
     </div>
   );
 }
@@ -52,9 +54,8 @@ export function PropertiesExplorer() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [hydrateDesktopFilters, setHydrateDesktopFilters] = useState(false);
-  const [hydrateLocationLabels, setHydrateLocationLabels] = useState(false);
+  const hydrateLocationLabels = useIdleHydration({ delay: 2_400 });
+  const hydrateCardEnhancements = useIdleHydration({ delay: 6_000 });
   const hasAttemptedScrollRestoreRef = useRef(false);
 
   const currentPage = Number(searchParams.get("page") ?? 1);
@@ -93,18 +94,6 @@ export function PropertiesExplorer() {
   const total = properties.length;
 
   useEffect(() => {
-    // The sidebar is useful, but it is not required for the first paint of the
-    // public listings feed. Location labels are also non-critical because
-    // cards can render without them and fill in once the lookup arrives.
-    const timeout = window.setTimeout(() => {
-      setHydrateDesktopFilters(true);
-      setHydrateLocationLabels(true);
-    }, 0);
-
-    return () => window.clearTimeout(timeout);
-  }, []);
-
-  useEffect(() => {
     hasAttemptedScrollRestoreRef.current = false;
   }, [currentListUrl]);
 
@@ -123,32 +112,10 @@ export function PropertiesExplorer() {
 
   return (
     <div>
-      <SearchBar />
+      <PropertyFilters />
 
-      <div className="mb-4 lg:hidden">
-        <button
-          type="button"
-          onClick={() => setShowMobileFilters((current) => !current)}
-          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500/40 dark:hover:text-blue-300"
-        >
-          {showMobileFilters ? "Hide filters" : "Show filters"}
-        </button>
-      </div>
-
-      {showMobileFilters ? (
-        <div className="mb-6 lg:hidden">
-          <PropertyFilters />
-        </div>
-      ) : null}
-
-      <div className="flex gap-8">
-        <aside className="hidden w-64 flex-shrink-0 lg:block">
-          <div className="sticky top-24">
-            {hydrateDesktopFilters ? <PropertyFilters /> : <PropertyFiltersFallback />}
-          </div>
-        </aside>
-
-        <div className="min-w-0 flex-1">
+      <div>
+        <div className="min-w-0">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -196,6 +163,7 @@ export function PropertiesExplorer() {
                   <PropertyCard
                     key={property.property_id}
                     property={property}
+                    hydrateEnhancements={hydrateCardEnhancements}
                     locationLabel={
                       property.location_id
                         ? locationLabels.get(property.location_id)

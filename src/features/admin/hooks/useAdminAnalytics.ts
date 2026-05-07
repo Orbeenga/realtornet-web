@@ -69,7 +69,7 @@ export function useAdminFeaturedProperties(enabled = true) {
   return useQuery({
     queryKey: ["adminAnalytics", "featuredProperties"],
     queryFn: () =>
-      apiClient<ActiveProperty[]>("/api/v1/analytics/properties/featured?limit=100"),
+      apiClient<ActiveProperty[]>("/api/v1/analytics/properties/featured?limit=10"),
     staleTime: 60_000,
     enabled,
   });

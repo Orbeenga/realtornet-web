@@ -6,6 +6,12 @@ Phase H is closed and Phase I is opening. Backend production runs on Railway at
 `realtornet-production.up.railway.app`; Railway service `imaginative-peace` must
 run with `ENV=production`.
 
+Phase I backend I.1, I.2, I.3, and I.5 are production-confirmed by handoff.
+Frontend I.4/I.5 is pushed in `2d8b0fb`; single-agency revocation/review smoke
+passed, while multi-agency revocation smoke remains tracked as
+`DEF-I-MEM-SMOKE-001` until a deliberate two-agency test account can be
+provisioned.
+
 ## Email Contract
 
 - Provider: Resend.
@@ -36,6 +42,9 @@ run with `ENV=production`.
 - `pyright`: 0 errors.
 - `pytest`: 1856 passed.
 - Coverage: 94.54%.
+- I.7 operational evidence on 2026-05-07: `/admin/stats` returned 7 users,
+  2 properties, and 4 inquiries, so audit retention remains evidence-deferred
+  rather than implemented without traffic volume.
 
 ## Locked Contracts
 

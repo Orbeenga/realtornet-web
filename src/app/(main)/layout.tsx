@@ -1,9 +1,3 @@
-"use client";
-
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { LoadingState } from "@/components";
-import { useAuth } from "@/features/auth/AuthContext";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { Navbar } from "@/components/Navbar";
 
@@ -12,25 +6,6 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const { user, loading } = useAuth();
-  const isProtectedRoute = pathname.startsWith("/account");
-
-  useEffect(() => {
-    if (isProtectedRoute && !loading && !user) {
-      router.replace("/login");
-    }
-  }, [isProtectedRoute, loading, router, user]);
-
-  if (isProtectedRoute && loading) {
-    return <LoadingState fullPage />;
-  }
-
-  if (isProtectedRoute && !user) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />

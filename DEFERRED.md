@@ -40,6 +40,15 @@ scope: public discovery pages need deeper server-component/island work and data
 payload timing reduction to consistently keep mobile LCP below 2.5s and TBT
 below 300ms across all three routes.
 
+Closed in Phase I I.6 on 2026-05-07. The shared `(main)` layout was restored
+to a server component, `/account` auth gating moved to its own client layout,
+and non-critical public-directory hydration was deferred past initial
+interactivity. Local production Lighthouse after rebuild: `/properties` mobile
+performance 97, accessibility 100, LCP 2523ms, TBT 42ms, CLS 0;
+`/agencies` mobile performance 100, accessibility 100, LCP 1339ms, TBT 0ms,
+CLS 0; `/agents` mobile performance 100, accessibility 100, LCP 982ms,
+TBT 0ms, CLS 0.
+
 DEF-H5-PROPERTY-TYPE-FILTER - Public listing filters can fetch the property
 type catalogue through `/api/v1/property-types/`, but live Railway OpenAPI for
 `GET /api/v1/properties/` does not accept a `property_type_id` query parameter.
@@ -53,9 +62,12 @@ and persist `property_type_id` in URL search params.
 DEF-I-LOC-001 - Hierarchical location filter awaiting structured location data.
 Phase H F3 live Railway check on `/api/v1/locations/states` returned a flat
 string list with only `lagos`, not structured state/city/neighborhood records.
-Keep the existing flat `location_id` picker until the backend provides real
-hierarchical data from `/locations/states`, `/locations/cities`, and
-`/locations/neighborhoods`.
+I.7 production evidence on 2026-05-07: `/locations/` contains one
+Lagos/Lekki/phase 1 row, `/locations/states` returns `["lagos"]`,
+`/locations/cities?state=lagos` returns `["lekki"]`, and
+`/locations/neighborhoods?city=lagos` returns an empty list. Keep the existing
+flat `location_id` picker until the backend provides real hierarchical seed
+breadth.
 
 H.1-EMAIL-RESEND - Closed in Phase H. Live email delivery is confirmed through
 Resend, the smoke passed, and Railway `RESEND_API_KEY` propagation on
@@ -72,3 +84,19 @@ two active agency memberships on one agent account with owner control over both
 agencies. Cannot be completed with current production seed data. Verify
 manually when a real multi-agency agent exists on the platform, or provision the
 scenario in the next backend session and re-smoke.
+
+DEF-I-OPS-AUDIT-001 - Audit log retention remains deferred to Phase J. I.7
+production evidence on 2026-05-07 shows low current volume (`/admin/stats`:
+7 users, 2 properties, 4 inquiries, 3 new users in the last 7 days). There is
+not enough traffic to size a retention window responsibly. Revisit after real
+usage growth or 60 days of production audit volume.
+
+DEF-I-DOMAIN-001 - Custom domain setup not started in I.7. Current documented
+production frontend remains `realtornet-web.vercel.app`; backend remains
+`realtornet-production.up.railway.app`; email sender remains
+`onboarding@resend.dev` until a verified sender domain is registered.
+
+DEF-I-COV-001 - Backend Phase I exit coverage gate remains below target.
+Current handoff coverage is 94.15% against a 95% target. This is backend-owned;
+add focused backend tests in the next backend session rather than masking the
+gate from the frontend.

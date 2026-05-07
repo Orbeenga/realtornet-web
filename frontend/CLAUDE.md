@@ -4,7 +4,7 @@
 
 ## Entry State
 
-Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration & Exit. Phase H is in progress: H.3 moderation UI consistency is complete, H.4 performance pass is complete with mobile TBT deferred, F1 foundation is pushed (`1660933`), F2 endpoint wiring is pushed (`1c356e6`), and F3 final UX wiring is active.
+Next.js 16.2.1 is deployed on Vercel. Phase H is closed. Phase I frontend I.4/I.5 is pushed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live in source. I.6 mobile TBT is closed locally; I.7 operational cleanup is active.
 
 ## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
@@ -57,7 +57,8 @@ Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration 
 - React Query Devtools are removed from production.
 - `.browserslistrc` targets modern browsers.
 - Residual `core-js` can still appear from third-party dependencies; track under future dependency audit, not Phase G exit.
-- H.4 desktop TBT target is met for `/properties` and `/agencies`; mobile TBT remains deferred to Phase I because the remaining cost is primarily shared Next/Turbopack runtime and polyfill boot cost.
+- H.4 desktop TBT target is met for `/properties` and `/agencies`; Phase I I.6 closed the mobile TBT gap by moving account auth gating out of the shared public layout and deferring non-critical public-directory hydration.
+- I.6 keeps agency/agent stats, property card enhancements, and secondary filter option data out of first mobile interactivity; do not reintroduce those fan-outs without a fresh trace.
 
 ## Latest Phase H Validation
 
@@ -67,11 +68,14 @@ Next.js 16.2.1 is deployed on Vercel. Phase G is closed through G.7 Integration 
 - H.4 local Railway-backed Lighthouse desktop TBT: `/properties` 66ms and `/agencies` 177ms.
 - Current Railway OpenAPI confirms: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/` with `agency_id` and `location_id`, `/api/v1/agent-profiles/{profile_id}/reviews`, `/api/v1/agent-profiles/{profile_id}/stats`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, `/api/v1/properties/` with `property_type_id`, `/api/v1/agencies/{agency_id}` owner-safe PUT, `/api/v1/favorites/count/{property_id}`, `/api/v1/favorites/is-favorited`, `/api/v1/reviews/by-user/property/`, `/api/v1/reviews/by-user/agent/`, `/api/v1/amenities/categories`, and listing status/type enum schemas.
 - Live `/api/v1/locations/states` currently returns a flat string list (`lagos`), so hierarchical location UI remains deferred under `DEF-I-LOC-001`.
+- I.7 production evidence on 2026-05-07: `/locations/` has one Lagos/Lekki/phase 1 row, `/locations/states` returns `["lagos"]`, `/locations/cities?state=lagos` returns `["lekki"]`, and `/locations/neighborhoods?city=lagos` is empty. Keep the flat `location_id` picker.
+- Frontend smoke users created by `scripts/e6-smoke.spec.js` are tracked for teardown. Set `SMOKE_ADMIN_EMAIL` and `SMOKE_ADMIN_PASSWORD` when running production smoke so cleanup can soft-delete generated users through the admin contract.
+- I.6 validation on 2026-05-07, local production build: `/properties` mobile performance 97, accessibility 100, LCP 2523ms, TBT 42ms, CLS 0; `/agencies` mobile performance 100, accessibility 100, LCP 1339ms, TBT 0ms, CLS 0; `/agents` mobile performance 100, accessibility 100, LCP 982ms, TBT 0ms, CLS 0.
 
 ## April 22 / Phase E-H Follow-Up Audit
 
 - Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), desktop H.4 TBT target, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, admin user demotion/deactivation reason gates, `property_type_id` search filtering, account reviews, received-inquiry embedded data wiring, richer admin analytics endpoints, and amenity category contract wiring.
-- Still open or deferred: mobile H.4 TBT remains above the revised 300ms target (`DEF-H4-MOBILE-TBT`), hierarchical location filtering awaits structured location data (`DEF-I-LOC-001`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), and production seed breadth remains a data-coverage concern.
+- Still open or deferred: hierarchical location filtering awaits structured location data (`DEF-I-LOC-001`), residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), multi-agency revocation smoke remains blocked by production seed shape (`DEF-I-MEM-SMOKE-001`), and production seed breadth remains a data-coverage concern.
 
 ## Type Generation
 

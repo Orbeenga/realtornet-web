@@ -2,9 +2,17 @@ import { test, expect } from "@playwright/test";
 
 const baseURL = "https://realtornet-web.vercel.app";
 const password = "Markets26_";
+const smokeAdminEmail = process.env.SMOKE_ADMIN_EMAIL;
+const smokeAdminPassword = process.env.SMOKE_ADMIN_PASSWORD;
 const propertiesUrlPattern = /\/properties\/?$/;
 const propertiesSearchPattern = /\/properties\/?\?search=lekki$/;
 const listingsUrlPattern = /\/account\/listings\/?$/;
+const loginUrlPattern = /\/login\/?$/;
+const createdUsers = new Map();
+
+function recordCreatedUser(email, userId) {
+  createdUsers.set(email, { email, userId });
+}
 
 function attachErrorTracking(page, errors) {
   page.on("pageerror", (error) => {
@@ -22,7 +30,31 @@ async function expectNoErrors(errors) {
   expect(errors, errors.join("\n")).toEqual([]);
 }
 
-async function registerBuyer(page) {
+async function loginThroughApi(request, email, accountPassword = password) {
+  const response = await request.post(`${baseURL}/api/v1/auth/login`, {
+    form: {
+      username: email,
+      password: accountPassword,
+      scope: "",
+    },
+  });
+
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return response.json();
+}
+
+async function getCurrentUser(request, token) {
+  const response = await request.get(`${baseURL}/api/v1/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return response.json();
+}
+
+async function registerBuyer(page, request) {
   const buyerEmail = `apineorbeenga+buyer-ui-e6-${Date.now()}@gmail.com`;
   await page.goto(`${baseURL}/register`, { waitUntil: "networkidle" });
   await page.getByPlaceholder("Apine").fill("E6");
@@ -32,6 +64,9 @@ async function registerBuyer(page) {
   await page.locator('input[type="password"]').nth(1).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL(propertiesUrlPattern);
+  const loginPayload = await loginThroughApi(request, buyerEmail);
+  const user = await getCurrentUser(request, loginPayload.access_token);
+  recordCreatedUser(buyerEmail, user.user_id);
 
   return buyerEmail;
 }
@@ -50,7 +85,68 @@ async function registerAccountThroughApi(request, userRole) {
   });
 
   expect(response.ok(), await response.text()).toBeTruthy();
+  const user = await response.json();
+  recordCreatedUser(email, user.user_id);
   return email;
+}
+
+async function cleanupRegisteredAccounts(request) {
+  if (createdUsers.size === 0) {
+    return;
+  }
+
+  let cleanupToken = null;
+
+  if (smokeAdminEmail && smokeAdminPassword) {
+    const adminLogin = await loginThroughApi(request, smokeAdminEmail, smokeAdminPassword);
+    cleanupToken = adminLogin.access_token;
+  }
+
+  const failures = [];
+
+  for (const account of createdUsers.values()) {
+    try {
+      let token = cleanupToken;
+      let userId = account.userId;
+
+      if (!token) {
+        const loginPayload = await loginThroughApi(request, account.email);
+        token = loginPayload.access_token;
+        const user = await getCurrentUser(request, token);
+        userId = user.user_id;
+      }
+
+      const response = await request.delete(`${baseURL}/api/v1/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok()) {
+        failures.push(`${account.email}: ${response.status()} ${await response.text()}`);
+      }
+    } catch (error) {
+      failures.push(
+        `${account.email}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  createdUsers.clear();
+
+  if (failures.length > 0 && smokeAdminEmail && smokeAdminPassword) {
+    throw new Error(`Smoke cleanup failed:\n${failures.join("\n")}`);
+  }
+
+  if (failures.length > 0) {
+    console.warn(
+      [
+        "Smoke cleanup could not remove all users.",
+        "Set SMOKE_ADMIN_EMAIL and SMOKE_ADMIN_PASSWORD to enable admin teardown.",
+        ...failures,
+      ].join("\n"),
+    );
+  }
 }
 
 async function login(page, email) {
@@ -61,6 +157,10 @@ async function login(page, email) {
 }
 
 test.use({ viewport: { width: 1440, height: 1200 } });
+
+test.afterEach(async ({ request }) => {
+  await cleanupRegisteredAccounts(request);
+});
 
 test("Journey 1: public properties page loads with seeded listings", async ({
   page,
@@ -93,11 +193,11 @@ for (const [index, route] of [
   });
 }
 
-test("Journey 5: buyer registration via the UI succeeds", async ({ page }) => {
+test("Journey 5: buyer registration via the UI succeeds", async ({ page, request }) => {
   const errors = [];
   attachErrorTracking(page, errors);
 
-  await registerBuyer(page);
+  await registerBuyer(page, request);
   await expect(page.getByRole("link", { name: "Favorites" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Saved searches" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Inquiries" })).toBeVisible();
