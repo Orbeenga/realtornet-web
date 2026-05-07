@@ -4,11 +4,87 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Popover({ children }: { children: React.ReactNode }) {
+interface PopoverContextValue {
+  open: boolean
+  setOpen: (open: boolean) => void
+  rootRef: React.RefObject<HTMLDivElement | null>
+}
+
+const PopoverContext = React.createContext<PopoverContextValue | null>(null)
+
+function usePopoverContext() {
+  const context = React.useContext(PopoverContext)
+
+  if (!context) {
+    throw new Error("Popover components must be used within Popover")
+  }
+
+  return context
+}
+
+function Popover({
+  children,
+  className,
+  open,
+  defaultOpen = false,
+  onOpenChange,
+}: {
+  children: React.ReactNode
+  className?: string
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
+  const isOpen = open ?? internalOpen
+  const setOpen = React.useCallback(
+    (nextOpen: boolean) => {
+      setInternalOpen(nextOpen)
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange],
+  )
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target
+
+      if (target instanceof Node && !rootRef.current?.contains(target)) {
+        setOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isOpen, setOpen])
+
   return (
-    <details data-slot="popover-root" className="group relative inline-flex">
-      {children}
-    </details>
+    <PopoverContext.Provider value={{ open: isOpen, setOpen, rootRef }}>
+      <div
+        ref={rootRef}
+        data-slot="popover-root"
+        data-state={isOpen ? "open" : "closed"}
+        className={cn("relative inline-flex", className)}
+      >
+        {children}
+      </div>
+    </PopoverContext.Provider>
   )
 }
 
@@ -19,13 +95,18 @@ function PopoverTrigger({
   className?: string
   children: React.ReactNode
 }) {
+  const { open, setOpen } = usePopoverContext()
+
   return (
-    <summary
+    <button
+      type="button"
       data-slot="popover-trigger"
-      className={cn("list-none marker:hidden [&::-webkit-details-marker]:hidden", className)}
+      aria-expanded={open}
+      className={className}
+      onClick={() => setOpen(!open)}
     >
       {children}
-    </summary>
+    </button>
   )
 }
 
@@ -43,6 +124,12 @@ function PopoverContent({
   align?: "start" | "center" | "end"
   sideOffset?: number
 }) {
+  const { open } = usePopoverContext()
+
+  if (!open) {
+    return null
+  }
+
   return (
     <div
       data-slot="popover-content"
