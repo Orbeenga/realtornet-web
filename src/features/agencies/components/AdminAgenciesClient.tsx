@@ -68,10 +68,10 @@ function getDecisionEmailStatus(agency: Agency) {
   }
 
   if (emailStatus === "failed") {
-    return "Decision saved — email delivery pending.";
+    return "Decision saved - email delivery needs retry.";
   }
 
-  return "Decision saved — confirmation email queued.";
+  return "Decision saved. Confirmation email delivery has started.";
 }
 
 function getInternalDecisionStatus(action: string) {

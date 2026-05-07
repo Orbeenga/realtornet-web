@@ -339,14 +339,9 @@ export function useInquiryDirectory(
     isLoading:
       (canFetch && inquiriesQuery.isLoading) ||
       relatedQueries.some((query) => query.isLoading),
-    isError:
-      inquiriesQuery.isError ||
-      (hasInquiries && relatedQueries.some((query) => query.isError)),
+    isError: inquiriesQuery.isError,
     hasLoadedEmpty,
-    error:
-      inquiriesQuery.error ??
-      relatedQueries.find((query) => query.error)?.error ??
-      null,
+    error: inquiriesQuery.error ?? null,
     refetch: async () => {
       await inquiriesQuery.refetch();
       await Promise.all(relatedQueries.map((query) => query.refetch()));
