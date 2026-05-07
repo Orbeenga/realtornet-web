@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/client";
+import { ApiError, apiClient } from "@/lib/api/client";
 import type { Agency } from "@/types";
 
 export interface AgencyStats {
@@ -78,12 +78,14 @@ export function useVisibleAgencyStats(agencies: Agency[], enabled = true) {
       agencies.forEach((agency, index) => {
         const result = results[index];
         const stats = result?.data;
+        const isAuthBlocked =
+          result?.error instanceof ApiError && result.error.status === 401;
 
         statsByAgencyId.set(agency.agency_id, {
           listingCount: getAgencyListingCount(stats),
           agentCount: getAgencyAgentCount(stats),
           isLoading: Boolean(result?.isLoading),
-          isError: Boolean(result?.isError),
+          isError: Boolean(result?.isError && !isAuthBlocked),
         });
       });
 
