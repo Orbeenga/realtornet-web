@@ -70,6 +70,13 @@ location infrastructure. Current `GET /properties/` still filters by
 `location_id`, so state/city/neighbourhood URL params are UI state until they
 resolve to a concrete backend location row.
 
+Closed in Phase J on 2026-05-08. Backend now exposes
+`GET /api/v1/locations/search?q=&limit=` and property create/update accepts
+`location_name`. The frontend autocomplete calls the backend search endpoint,
+and listing forms submit `location_name` when no existing `location_id` is
+selected. Location expansion is now dynamic through backend server-side
+resolution and `get_or_create()` storage; do not add browser-direct geocoding.
+
 H.1-EMAIL-RESEND - Closed in Phase H. Live email delivery is confirmed through
 Resend, the smoke passed, and Railway `RESEND_API_KEY` propagation on
 `imaginative-peace` is resolved. Temporary sender is `onboarding@resend.dev`

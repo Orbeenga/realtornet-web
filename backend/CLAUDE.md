@@ -40,6 +40,10 @@ exit target and needs focused backend tests in Phase J.
 - Agent directory filters support `agency_id` and `location_id`.
 - Email infrastructure uses Resend and production Railway variables.
 - Railway `ENV=production` is fixed and locked.
+- Location free-text resolution is backend-owned. Browser clients call
+  `GET /api/v1/locations/search?q=&limit=` or submit `location_name` on
+  property create/update; backend performs any Nominatim lookup server-side and
+  stores canonical rows through the existing location persistence layer.
 
 ## Latest Backend Quality Gate
 
@@ -54,6 +58,8 @@ exit target and needs focused backend tests in Phase J.
 
 - Backend remains source of truth for roles, permissions, property moderation,
   agency membership state, email dispatch, and location references.
+- Nominatim or other geocoding providers must not be called directly from the
+  frontend browser.
 - Public signup creates seeker behavior only; agent, agency owner, and admin
   roles remain backend-authoritative.
 - Admin-only lifecycle fields must not be opened to agency owners or agents.

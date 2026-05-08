@@ -70,7 +70,14 @@ export function CreateListingClient() {
       description: values.description,
       price: values.price,
       property_type_id: values.property_type_id,
-      location_id: values.location_id,
+      location_id:
+        values.location_id && values.location_id > 0
+          ? values.location_id
+          : undefined,
+      location_name:
+        values.location_id && values.location_id > 0
+          ? undefined
+          : values.location_name,
       bedrooms: values.bedrooms,
       bathrooms: values.bathrooms,
       property_size: values.property_size,

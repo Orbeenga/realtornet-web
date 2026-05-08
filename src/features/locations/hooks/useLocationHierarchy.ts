@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import type { Location } from "@/types";
 
@@ -96,6 +97,41 @@ export function useLocationsByHierarchy({
         { authMode: "omit" },
       ),
     enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
+function useDebouncedValue(value: string, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedValue(value);
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [delayMs, value]);
+
+  return debouncedValue;
+}
+
+export function useLocationSearch(term: string) {
+  const normalizedTerm = term.trim();
+  const debouncedTerm = useDebouncedValue(normalizedTerm, 300);
+  const params = new URLSearchParams({
+    q: debouncedTerm,
+    limit: "8",
+  });
+
+  return useQuery({
+    queryKey: ["locations", "search", debouncedTerm],
+    queryFn: () =>
+      apiClient<Location[]>(`/api/v1/locations/search?${params.toString()}`, {
+        authMode: "omit",
+      }),
+    enabled: debouncedTerm.length >= 2,
     staleTime: 10 * 60_000,
   });
 }

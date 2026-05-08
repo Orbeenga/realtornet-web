@@ -1680,6 +1680,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locations/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Locations
+         * @description Resolve free-text locations through the backend.
+         *
+         *     The browser never calls Nominatim directly. This endpoint performs the
+         *     server-side lookup, stores canonical rows through get_or_create(), and
+         *     returns reusable location records for autocomplete consumers.
+         */
+        get: operations["search_locations_api_v1_locations_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations/{location_id}": {
         parameters: {
             query?: never;
@@ -4745,6 +4769,8 @@ export interface components {
             property_type_id?: number | null;
             /** Location Id */
             location_id?: number | null;
+            /** Location Name */
+            location_name?: string | null;
             /** Price */
             price: number | string;
             /**
@@ -4910,6 +4936,8 @@ export interface components {
             property_type_id?: number | null;
             /** Location Id */
             location_id?: number | null;
+            /** Location Name */
+            location_name?: string | null;
             /** Price */
             price: string;
             /**
@@ -5121,6 +5149,8 @@ export interface components {
             property_type_id?: number | null;
             /** Location Id */
             location_id?: number | null;
+            /** Location Name */
+            location_name?: string | null;
             /** Price */
             price?: number | string | null;
             /** Price Currency */
@@ -8376,6 +8406,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_locations_api_v1_locations_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationResponse"][];
                 };
             };
             /** @description Validation Error */

@@ -10,6 +10,6 @@ export function useLocationDetail(locationId?: number | null) {
         authMode: "omit",
       }),
     staleTime: 60_000,
-    enabled: typeof locationId === "number",
+    enabled: typeof locationId === "number" && locationId > 0,
   });
 }
