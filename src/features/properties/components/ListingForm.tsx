@@ -31,23 +31,38 @@ const optionalNonNegativeInt = z.preprocess(
   z.coerce.number().int().min(0, "Value cannot be negative").nullable(),
 );
 
-const listingFormSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  price: z.coerce.number().positive("Price must be greater than zero"),
-  bedrooms: z.coerce.number().int().min(0, "Bedrooms cannot be negative"),
-  bathrooms: z.coerce.number().min(0, "Bathrooms cannot be negative"),
-  property_size: z.coerce.number().positive("Property size must be greater than zero"),
-  listing_type: z.enum(LISTING_TYPES),
-  listing_status: z.enum(LISTING_STATUSES),
-  property_type_id: z.coerce.number().int().positive("Select a property type"),
-  location_id: z.coerce.number().int().positive("Select a location"),
-  year_built: optionalNonNegativeInt,
-  parking_spaces: optionalNonNegativeInt,
-  has_garden: z.boolean(),
-  has_security: z.boolean(),
-  has_swimming_pool: z.boolean(),
-});
+const listingFormSchema = z
+  .object({
+    title: z.string().min(1, "Title is required"),
+    description: z.string().min(1, "Description is required"),
+    price: z.coerce.number().positive("Price must be greater than zero"),
+    bedrooms: z.coerce.number().int().min(0, "Bedrooms cannot be negative"),
+    bathrooms: z.coerce.number().min(0, "Bathrooms cannot be negative"),
+    property_size: z.coerce
+      .number()
+      .positive("Property size must be greater than zero"),
+    listing_type: z.enum(LISTING_TYPES),
+    listing_status: z.enum(LISTING_STATUSES),
+    property_type_id: z.coerce.number().int().positive("Select a property type"),
+    location_id: z.coerce.number().int().min(0).nullable(),
+    location_name: z.string().trim().optional(),
+    year_built: optionalNonNegativeInt,
+    parking_spaces: optionalNonNegativeInt,
+    has_garden: z.boolean(),
+    has_security: z.boolean(),
+    has_swimming_pool: z.boolean(),
+  })
+  .superRefine((values, context) => {
+    if ((values.location_id ?? 0) > 0 || values.location_name) {
+      return;
+    }
+
+    context.addIssue({
+      code: "custom",
+      path: ["location_name"],
+      message: "Search for a location or select one from the catalogue",
+    });
+  });
 
 type ListingFormInput = z.input<typeof listingFormSchema>;
 export type ListingFormValues = z.output<typeof listingFormSchema>;
@@ -76,6 +91,7 @@ const defaultValues: ListingFormValues = {
   listing_status: "available",
   property_type_id: 0,
   location_id: 0,
+  location_name: "",
   year_built: null,
   parking_spaces: null,
   has_garden: false,
@@ -143,13 +159,18 @@ export function ListingForm({
       neighborhood: "",
       locationId:
         initialLocationId && initialLocationId > 0 ? initialLocationId : undefined,
+      locationName: initialValues?.location_name ?? "",
     };
-  }, [initialLocationId, initialLocationQuery.data]);
+  }, [initialLocationId, initialLocationQuery.data, initialValues?.location_name]);
   const locationValue = locationOverride ?? initialLocationValue;
 
   const handleLocationChange = (value: LocationCascadeValue) => {
     setLocationOverride(value);
     setValue("location_id", value.locationId ?? 0, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("location_name", value.locationName ?? "", {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -377,6 +398,7 @@ export function ListingForm({
 
             <div className="w-full sm:w-[260px]">
               <input type="hidden" {...register("location_id")} />
+              <input type="hidden" {...register("location_name")} />
               <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Location
               </p>
@@ -386,7 +408,8 @@ export function ListingForm({
                 onChange={handleLocationChange}
                 required
                 compact
-                error={errors.location_id?.message}
+                allowFreeText
+                error={errors.location_id?.message ?? errors.location_name?.message}
               />
             </div>
           </div>

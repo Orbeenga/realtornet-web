@@ -53,6 +53,7 @@ export function EditListingClient({ id }: EditListingClientProps) {
             listing_status: normalizeListingStatus(propertyQuery.data.listing_status),
             property_type_id: propertyQuery.data.property_type_id ?? 0,
             location_id: propertyQuery.data.location_id ?? 0,
+            location_name: propertyQuery.data.location_name ?? "",
             year_built: propertyQuery.data.year_built ?? null,
             parking_spaces: propertyQuery.data.parking_spaces ?? null,
             has_garden: Boolean(propertyQuery.data.has_garden),
@@ -135,7 +136,14 @@ export function EditListingClient({ id }: EditListingClientProps) {
       listing_type: values.listing_type,
       listing_status: values.listing_status,
       property_type_id: values.property_type_id,
-      location_id: values.location_id,
+      location_id:
+        values.location_id && values.location_id > 0
+          ? values.location_id
+          : undefined,
+      location_name:
+        values.location_id && values.location_id > 0
+          ? undefined
+          : values.location_name,
       year_built: values.year_built,
       parking_spaces: values.parking_spaces,
       has_garden: values.has_garden,

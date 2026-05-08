@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   useLocationCities,
   useLocationNeighborhoods,
+  useLocationSearch,
   useLocationsByHierarchy,
   useLocationStates,
 } from "@/features/locations/hooks";
@@ -14,6 +15,7 @@ export interface LocationCascadeValue {
   city: string;
   neighborhood: string;
   locationId?: number;
+  locationName?: string;
 }
 
 interface LocationCascadeSelectorProps {
@@ -24,6 +26,7 @@ interface LocationCascadeSelectorProps {
   required?: boolean;
   error?: string;
   compact?: boolean;
+  allowFreeText?: boolean;
 }
 
 const selectClassName =
@@ -53,6 +56,13 @@ function getLocationIdForSelection(
   return match?.location_id;
 }
 
+function locationLabel(location: Location) {
+  return [location.neighborhood, location.city, location.state]
+    .filter(Boolean)
+    .map((value) => optionLabel(String(value)))
+    .join(", ");
+}
+
 function FieldLabel({ htmlFor, label }: { htmlFor: string; label: string }) {
   return (
     <label
@@ -72,10 +82,14 @@ export function LocationCascadeSelector({
   required = false,
   error,
   compact = false,
+  allowFreeText = false,
 }: LocationCascadeSelectorProps) {
+  const initialSearchTerm = value.locationName || "";
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const statesQuery = useLocationStates();
   const citiesQuery = useLocationCities(value.state);
   const neighborhoodsQuery = useLocationNeighborhoods(value.state, value.city);
+  const searchQuery = useLocationSearch(searchTerm);
   const matchingLocationsQuery = useLocationsByHierarchy({
     state: value.state,
     city: value.city,
@@ -101,19 +115,63 @@ export function LocationCascadeSelector({
     onChange({
       ...next,
       locationId: nextLocationId,
+      locationName: nextLocationId ? undefined : next.locationName,
     });
   };
 
   const updateState = (state: string) => {
-    onChange({ state, city: "", neighborhood: "", locationId: undefined });
+    setSearchTerm("");
+    onChange({
+      state,
+      city: "",
+      neighborhood: "",
+      locationId: undefined,
+      locationName: undefined,
+    });
   };
 
   const updateCity = (city: string) => {
-    onChange({ state: value.state, city, neighborhood: "", locationId: undefined });
+    setSearchTerm("");
+    onChange({
+      state: value.state,
+      city,
+      neighborhood: "",
+      locationId: undefined,
+      locationName: undefined,
+    });
   };
 
   const updateNeighborhood = (neighborhood: string) => {
+    setSearchTerm("");
     commit({ state: value.state, city: value.city, neighborhood });
+  };
+
+  const updateSearchTerm = (nextSearchTerm: string) => {
+    setSearchTerm(nextSearchTerm);
+
+    if (!allowFreeText) {
+      return;
+    }
+
+    onChange({
+      state: "",
+      city: "",
+      neighborhood: "",
+      locationId: undefined,
+      locationName: nextSearchTerm.trim() || undefined,
+    });
+  };
+
+  const selectSearchResult = (location: Location) => {
+    const nextLabel = locationLabel(location);
+    setSearchTerm(nextLabel);
+    onChange({
+      state: location.state,
+      city: location.city,
+      neighborhood: location.neighborhood ?? "",
+      locationId: location.location_id,
+      locationName: undefined,
+    });
   };
 
   const fields = (
@@ -210,11 +268,62 @@ export function LocationCascadeSelector({
 
   return (
     <div className="space-y-3">
+      <div>
+        <FieldLabel htmlFor={`${idPrefix}-location-search`} label="Search location" />
+        <input
+          id={`${idPrefix}-location-search`}
+          type="search"
+          value={searchTerm}
+          onChange={(event) => updateSearchTerm(event.target.value)}
+          disabled={disabled}
+          className={selectClassName}
+          placeholder="Type any city, neighbourhood, or address"
+          autoComplete="off"
+        />
+
+        {searchTerm.trim().length >= 2 ? (
+          <div className="mt-2 rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            {searchQuery.isLoading ? (
+              <p className="px-3 py-2 text-xs text-gray-500">
+                Resolving location...
+              </p>
+            ) : null}
+
+            {!searchQuery.isLoading && searchQuery.isError ? (
+              <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                Location search is unavailable right now.
+              </p>
+            ) : null}
+
+            {!searchQuery.isLoading &&
+            !searchQuery.isError &&
+            (searchQuery.data?.length ?? 0) === 0 ? (
+              <p className="px-3 py-2 text-xs text-gray-500">
+                {allowFreeText
+                  ? "No saved match yet. This typed location will be resolved when the listing is saved."
+                  : "No matching location found."}
+              </p>
+            ) : null}
+
+            {(searchQuery.data ?? []).map((location) => (
+              <button
+                key={location.location_id}
+                type="button"
+                onClick={() => selectSearchResult(location)}
+                className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
+              >
+                {locationLabel(location)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       <div className={compact ? "space-y-3" : "grid gap-3 sm:grid-cols-3"}>
         {fields}
       </div>
 
-      {value.state && value.city && !selectedLocationId ? (
+      {value.state && value.city && !selectedLocationId && !value.locationName ? (
         <p className="text-xs text-amber-700 dark:text-amber-300">
           Select the available neighbourhood to attach this listing to a backend
           location record.
@@ -223,8 +332,8 @@ export function LocationCascadeSelector({
 
       {isSparseLocationData ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          More locations coming soon. The live catalogue currently has limited
-          state, city, and neighbourhood coverage.
+          Use search for places outside the current catalogue. New listing
+          locations are resolved by the backend and saved for reuse.
         </p>
       ) : null}
 
