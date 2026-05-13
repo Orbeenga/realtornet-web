@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
-import { getRoleNavLinks, normalizeAppRole } from "@/features/auth/navigation";
+import {
+  authNavLinks,
+  getRoleNavLinks,
+  normalizeAppRole,
+} from "@/features/auth/navigation";
 import { useMyProfile } from "@/features/profile/hooks";
 import { getStoredJwtPayload } from "@/lib/jwt";
 import { cn } from "@/lib/utils";
@@ -31,6 +36,7 @@ export function Navbar() {
   const { user, loading, signOut } = useAuth();
   const profileQuery = useMyProfile(Boolean(user));
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const payload = getStoredJwtPayload();
   const role =
@@ -49,6 +55,7 @@ export function Navbar() {
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setIsAccountMenuOpen(false);
+      setIsMobileMenuOpen(false);
     }, 0);
 
     return () => window.clearTimeout(timeout);
@@ -75,8 +82,29 @@ export function Navbar() {
     };
   }, [isAccountMenuOpen]);
 
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
+
   const handleSignOut = async () => {
     await signOut();
+    setIsMobileMenuOpen(false);
     router.push("/login");
   };
 
@@ -176,7 +204,7 @@ export function Navbar() {
                 ) : null}
               </div>
             ) : !loading ? (
-              <>
+              <div className="hidden items-center gap-3 md:flex">
                 <Link
                   href="/login"
                   prefetch={false}
@@ -191,11 +219,123 @@ export function Navbar() {
                 >
                   Create account
                 </Link>
-              </>
+              </div>
             ) : null}
+            <button
+              type="button"
+              aria-label="Open navigation menu"
+              aria-expanded={isMobileMenuOpen}
+              onClick={() => setIsMobileMenuOpen((current) => !current)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none md:hidden dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              {isMobileMenuOpen ? (
+                <X className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <Menu className="h-5 w-5" aria-hidden="true" />
+              )}
+            </button>
           </div>
         </div>
       </div>
+
+      {isMobileMenuOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            className="absolute inset-0 h-full w-full bg-black/40"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-navigation-title"
+            className="absolute right-0 top-0 flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col bg-white shadow-2xl dark:bg-gray-900"
+          >
+            <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
+              <h2 id="mobile-navigation-title" className="sr-only">
+                Navigation menu
+              </h2>
+              <span className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">
+                RealtorNet
+              </span>
+              <button
+                type="button"
+                aria-label="Close navigation menu"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-5">
+              <div className="space-y-2">
+                {visibleNavLinks.map(({ href, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    prefetch={false}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={cn(
+                      "block rounded-xl px-4 py-3 text-base font-medium transition-colors",
+                      pathname.startsWith(href)
+                        ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
+                    )}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
+
+              <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800">
+                {user ? (
+                  <div className="space-y-2">
+                    <div className="px-4 pb-2">
+                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                        {displayName}
+                      </p>
+                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                        {user.email}
+                      </p>
+                    </div>
+                    <Link
+                      href="/account/profile"
+                      prefetch={false}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="block rounded-xl px-4 py-3 text-base font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                    >
+                      Profile Settings
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => void handleSignOut()}
+                      className="block w-full rounded-xl px-4 py-3 text-left text-base font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                ) : !loading ? (
+                  <div className="space-y-2">
+                    {authNavLinks.map(({ href, label }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        prefetch={false}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="block rounded-xl px-4 py-3 text-base font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </nav>
   );
 }

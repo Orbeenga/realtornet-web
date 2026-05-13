@@ -1,8 +1,24 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import {
   AgencyDirectoryActions,
   AgencyDirectoryClient,
 } from "@/features/agencies/components";
+
+export const metadata: Metadata = {
+  title: "Property Agencies in Lagos",
+  description:
+    "Discover verified real estate agencies operating in Lagos. Browse their listings and meet their agents.",
+  openGraph: {
+    title: "Property Agencies in Lagos | RealtorNet",
+    description:
+      "Discover verified real estate agencies operating in Lagos. Browse their listings and meet their agents.",
+    url: "/agencies",
+    siteName: "RealtorNet",
+    locale: "en_NG",
+    type: "website",
+  },
+};
 
 export default function AgenciesPage() {
   return (

@@ -16,6 +16,11 @@ interface FavoritesPageCopy {
   emptyDescription: string;
 }
 
+export const authNavLinks = [
+  { href: "/login", label: "Sign in" },
+  { href: "/register", label: "Create account" },
+] as const;
+
 export function normalizeAppRole(role: string | null | undefined): AppRole | null {
   if (role === "buyer") {
     return "seeker";
