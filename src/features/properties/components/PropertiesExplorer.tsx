@@ -18,14 +18,15 @@ import {
   isVerifiedModerationStatus,
 } from "@/features/properties/lib/moderation";
 import { buildLocationLabelMap } from "@/features/properties/lib/locationLabels";
+import { PROPERTIES_PAGE_SIZE } from "@/features/properties/lib/propertyPagination";
 import { PropertyCardSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { Pagination } from "@/components/Pagination";
 import { useIdleHydration } from "@/lib/useIdleHydration";
-import type { Property } from "@/types";
+import type { PaginatedProperties, Property } from "@/types";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = PROPERTIES_PAGE_SIZE;
 
 const PropertyFilters = dynamic(
   () =>
@@ -62,7 +63,12 @@ function PropertyFiltersFallback() {
   );
 }
 
-export function PropertiesExplorer() {
+
+export function PropertiesExplorer({
+  initialData,
+}: {
+  initialData?: PaginatedProperties | null;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -101,7 +107,7 @@ export function PropertiesExplorer() {
       : undefined,
   };
 
-  const { data, isLoading, isError, refetch } = useProperties(filters);
+  const { data, isLoading, isError, refetch } = useProperties(filters, initialData);
   const locationsQuery = useLocations(hydrateLocationLabels);
 
   const properties: Property[] = (data ?? []).filter((property) =>

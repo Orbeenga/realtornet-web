@@ -5,9 +5,16 @@ import { EmptyState, ErrorState, PropertyCardSkeleton } from "@/components";
 import { PropertyCard } from "@/features/properties/components/PropertyCard";
 import { useFeaturedProperties, useLocations } from "@/features/properties/hooks";
 import { buildLocationLabelMap } from "@/features/properties/lib/locationLabels";
+import type { PropertyList } from "@/types";
 
-export function FeaturedPropertiesSection() {
-  const featuredQuery = useFeaturedProperties(3);
+const FEATURED_PROPERTY_LIMIT = 3;
+
+export function FeaturedPropertiesSection({
+  initialData,
+}: {
+  initialData?: PropertyList | null;
+}) {
+  const featuredQuery = useFeaturedProperties(FEATURED_PROPERTY_LIMIT, initialData);
   const locationsQuery = useLocations();
   const properties = featuredQuery.data ?? [];
   const locationLabels = buildLocationLabelMap(locationsQuery.data ?? []);
