@@ -4,8 +4,12 @@ import { Providers } from "./providers";
 import SentryDeferredInit from "./SentryDeferredInit";
 
 export const metadata: Metadata = {
-  title: "RealtorNet",
-  description: "Property listings platform",
+  metadataBase: new URL("https://realtornet-web.vercel.app"),
+  title: {
+    default: "RealtorNet",
+    template: "%s | RealtorNet",
+  },
+  description: "Nigeria's trusted property marketplace.",
 };
 
 export default function RootLayout({

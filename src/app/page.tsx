@@ -1,23 +1,35 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
 import { FeaturedPropertiesSection } from "@/features/properties/components";
 
-const heroImage =
-  "https://i.pinimg.com/1200x/65/19/b2/6519b25a5dbbe6387b0a7166bd777b9f.jpg";
+export const metadata: Metadata = {
+  title: {
+    absolute: "RealtorNet — Find Verified Properties in Lagos",
+  },
+  description:
+    "Nigeria's trusted property marketplace. Browse agencies, explore listings, and connect with verified agents.",
+  openGraph: {
+    title: "RealtorNet — Find Verified Properties in Lagos",
+    description:
+      "Nigeria's trusted property marketplace. Browse agencies, explore listings, and connect with verified agents.",
+    url: "/",
+    siteName: "RealtorNet",
+    locale: "en_NG",
+    type: "website",
+  },
+};
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
       <main>
+        {/* TODO: replace with hosted hero image - see DEF-J-HERO-001 */}
         <section
-          className="relative min-h-[70vh] overflow-hidden bg-gray-950 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${heroImage})`,
-            backgroundPosition: "center center",
-          }}
+          className="relative min-h-[70vh] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950"
         >
           <div className="absolute inset-0 bg-black/55" />
           <div className="relative mx-auto grid min-h-[70vh] max-w-7xl content-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">

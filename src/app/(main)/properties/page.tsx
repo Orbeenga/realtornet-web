@@ -1,6 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { PropertiesExplorerShell } from "./PropertiesExplorerShell";
+
+export const metadata: Metadata = {
+  title: "Properties for Sale & Rent in Lagos",
+  description:
+    "Browse verified property listings across Lagos. Filter by price, bedrooms, location and property type.",
+  openGraph: {
+    title: "Properties for Sale & Rent in Lagos | RealtorNet",
+    description: "Browse verified property listings across Lagos.",
+    url: "/properties",
+    siteName: "RealtorNet",
+    locale: "en_NG",
+    type: "website",
+  },
+};
 
 export default function PropertiesPage() {
   return (
