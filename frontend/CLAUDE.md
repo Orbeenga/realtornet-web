@@ -4,7 +4,7 @@
 
 ## Entry State
 
-Next.js 16.2.1 is deployed on Vercel. Phase J is closed as of 2026-05-13 and Phase K is in progress. Railway is temporarily offline, so backend-dependent API/data-fetching work is held until `/healthz` returns 200. Phase K offline frontend work completed: mobile navigation drawer, route-specific SEO metadata, and homepage Pinterest hero hotlink removal.
+Next.js 16.2.1 is deployed on Vercel. Phase J is closed as of 2026-05-13 and Phase K is in progress. Phase K frontend work completed: mobile navigation drawer, route-specific SEO metadata, homepage Pinterest hero hotlink removal, and the `/properties` Leaflet/OpenStreetMap map view.
 
 Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live. Phase I closeout is pushed in `8e74e18`, covering horizontal property filters, featured analytics empty/error handling, Suspense boundary work, review-request rewire consolidation, I.6 mobile TBT, and I.7 operational updates. Agency-owner session persistence is fixed and live in `c83e800`. `DEF-I-MEM-SMOKE-001` is closed by production API smoke, and `DEF-I-COV-001` is closed at 95.03% backend coverage in commit `7e8fd35`.
 
@@ -72,13 +72,13 @@ Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, memb
 - Mobile navigation drawer is live in `src/components/Navbar.tsx`; it mirrors `getRoleNavLinks()` and closes on link click, backdrop click, and Escape.
 - Public route metadata is distinct for `/`, `/properties`, `/properties/[id]`, `/agencies`, `/agencies/[id]`, `/agents`, `/agents/[id]`, `/login`, `/register`, and `/agencies/apply`.
 - Homepage hero no longer hotlinks Pinterest; it uses a local Tailwind gradient fallback pending a hosted hero asset.
+- `DEF-J-MAP-001` is closed in `3c77776`: `/properties?view=map` uses Leaflet/OpenStreetMap, preserves URL-owned `view` state, shares the filtered property result set with the grid, renders mapped markers with popups, and lists unmapped results beside/below the map.
 
 ## Phase K Open Items
 
-- Public pages SSR/data hydration: backend required, hold until Railway is restored.
-- Form error-state audit against live validation responses: backend required, hold until Railway is restored.
+- Public pages SSR/data hydration: backend-coordinated follow-up.
+- Form error-state audit against live validation responses: backend-coordinated follow-up.
 - `DEF-J-EMAIL-DOMAIN-001`: real-user email delivery requires a verified Resend sender domain.
-- `DEF-J-MAP-001`: interactive `/properties` map view with backend-resolved coordinates.
 - `DEF-J-LOC-001`: location result-quality monitoring as usage grows; frontend must call backend location search and must never call Nominatim directly.
 
 ## Latest Phase H Validation
@@ -96,7 +96,7 @@ Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, memb
 ## April 22 / Phase E-H Follow-Up Audit
 
 - Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), desktop H.4 TBT target, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, admin user demotion/deactivation reason gates, `property_type_id` search filtering, account reviews, received-inquiry embedded data wiring, richer admin analytics endpoints, and amenity category contract wiring.
-- Still open or deferred: residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), real-user email delivery is blocked pending a verified Resend sender domain (`DEF-J-EMAIL-DOMAIN-001`), interactive map view is Phase K/backend-restored work (`DEF-J-MAP-001`), and location result-quality monitoring remains open as usage grows.
+- Still open or deferred: residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), real-user email delivery is blocked pending a verified Resend sender domain (`DEF-J-EMAIL-DOMAIN-001`), and location result-quality monitoring remains open as usage grows.
 
 ## Type Generation
 

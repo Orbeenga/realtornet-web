@@ -115,12 +115,19 @@ The Phase J workbook is attached at repository root as `RealtorNet_Phase_J_Workb
 
 Active Phase J items:
 - `DEF-J-EMAIL-DOMAIN-001`: real-user email delivery remains blocked until a verified Resend sender domain is configured and Railway `MAIL_FROM` is updated.
-- `DEF-J-MAP-001`: interactive `/properties` map view with Leaflet/OSM pins from backend-resolved coordinates.
 - `DEF-J-LOC-001`: location breadth/result-quality monitoring; frontend must call backend location search and must never call Nominatim directly.
 - `DEF-J-FREQ-001`: saved-search notification frequency preferences; current behavior remains immediate delivery.
 - `DEF-J-MSG-001`: in-app messaging / inquiry reply thread model.
 - `DEF-J-AGG-001`: agency public-directory aggregation optimization after traffic data.
 - `DEF-002`: audit log retention decision after enough production volume exists.
+
+DEF-J-MAP-001 - Closed in Phase K frontend map pass on 2026-05-13
+(`3c77776`). `/properties?view=map` now renders a Leaflet/OpenStreetMap map
+from the same filtered property result set as the grid view. Browser smoke
+against the live Railway API confirmed two mapped markers, OSM attribution,
+pin popup content and listing link, `/properties?view=grid` unaffected, mobile
+375px map rendering with the unmapped/sidebar section below the map, and
+`bedrooms=3` filtering reduced the map to one marker from one filtered result.
 
 DEF-J-HERO-001 - Closed in Phase K offline frontend pass on 2026-05-13.
 Homepage hero no longer hotlinks Pinterest; it uses a local Tailwind gradient
