@@ -1,6 +1,20 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { Skeleton } from "@/components";
 import { AgentDirectoryClient } from "@/features/agents/components";
+
+export const metadata: Metadata = {
+  title: "Property Agents in Lagos",
+  description: "Find verified real estate agents in Lagos on RealtorNet.",
+  openGraph: {
+    title: "Property Agents in Lagos | RealtorNet",
+    description: "Find verified real estate agents in Lagos on RealtorNet.",
+    url: "/agents",
+    siteName: "RealtorNet",
+    locale: "en_NG",
+    type: "website",
+  },
+};
 
 function AgentsPageFallback() {
   return (

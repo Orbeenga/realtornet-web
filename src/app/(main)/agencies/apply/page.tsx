@@ -1,5 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { AgencyApplyForm } from "@/features/agencies/components";
+
+export const metadata: Metadata = {
+  title: "Apply to List Your Agency",
+  description: "Submit your agency for review on RealtorNet.",
+  openGraph: {
+    title: "Apply to List Your Agency | RealtorNet",
+    description: "Submit your agency for review on RealtorNet.",
+    url: "/agencies/apply",
+    siteName: "RealtorNet",
+    locale: "en_NG",
+    type: "website",
+  },
+};
 
 export default function AgencyApplyPage() {
   return (

@@ -85,13 +85,14 @@ until the project custom domain is registered and verified.
 H.1-RAILWAY-ENV - Closed in Phase H. Railway production was running with a dev
 mode environment; `ENV=production` is fixed and locked for production deploys.
 
-DEF-I-MEM-SMOKE-001 - Multi-agency revocation smoke not confirmed. Backend
-Rule 2 logic is in place from Phase I I.3 (`4933915`). Frontend CTA logic
-branches on membership count in history. Full end-to-end verification requires
-two active agency memberships on one agent account with owner control over both
-agencies. Cannot be completed with current production seed data. Verify
-manually when a real multi-agency agent exists on the platform, or provision the
-scenario in the next backend session and re-smoke.
+DEF-I-MEM-SMOKE-001 - Closed in Phase J on 2026-05-08. Production API smoke
+verified Rule 2 of the membership resolution model: agent `user_id=90` retained
+`user_role=agent` and `role_version=6` after one of two active memberships was
+revoked. The original membership stayed active, the temporary membership became
+inactive, and temporary agency `12`, owner `92`, invite `4`, and membership `7`
+were soft-deleted after verification. UI-level browser smoke can be added later
+when a real multi-agency account exists, but the backend membership rule is
+closed with production evidence.
 
 DEF-I-OPS-AUDIT-001 - Audit log retention remains deferred to Phase J. I.7
 production evidence on 2026-05-07 shows low current volume (`/admin/stats`:
@@ -104,7 +105,23 @@ production frontend remains `realtornet-web.vercel.app`; backend remains
 `realtornet-production.up.railway.app`; email sender remains
 `onboarding@resend.dev` until a verified sender domain is registered.
 
-DEF-I-COV-001 - Backend Phase I exit coverage gate remains below target.
-Current handoff coverage is 94.15% against a 95% target. This is backend-owned;
-add focused backend tests in the next backend session rather than masking the
-gate from the frontend.
+DEF-I-COV-001 - Closed in Phase J on 2026-05-08. Backend commit `7e8fd35`
+raised coverage to 95.03%; `pyright` returned 0 errors and full `pytest -q`
+passed.
+
+## Phase J workbook and active backlog (May 13, 2026)
+
+The Phase J workbook is attached at repository root as `RealtorNet_Phase_J_Workbook.md` and is the current execution reference.
+
+Active Phase J items:
+- `DEF-J-EMAIL-DOMAIN-001`: real-user email delivery remains blocked until a verified Resend sender domain is configured and Railway `MAIL_FROM` is updated.
+- `DEF-J-MAP-001`: interactive `/properties` map view with Leaflet/OSM pins from backend-resolved coordinates.
+- `DEF-J-LOC-001`: location breadth/result-quality monitoring; frontend must call backend location search and must never call Nominatim directly.
+- `DEF-J-FREQ-001`: saved-search notification frequency preferences; current behavior remains immediate delivery.
+- `DEF-J-MSG-001`: in-app messaging / inquiry reply thread model.
+- `DEF-J-AGG-001`: agency public-directory aggregation optimization after traffic data.
+- `DEF-002`: audit log retention decision after enough production volume exists.
+
+DEF-J-HERO-001 - Closed in Phase K offline frontend pass on 2026-05-13.
+Homepage hero no longer hotlinks Pinterest; it uses a local Tailwind gradient
+fallback until a properly licensed hosted hero asset is selected.

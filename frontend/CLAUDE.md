@@ -4,9 +4,9 @@
 
 ## Entry State
 
-Next.js 16.2.1 is deployed on Vercel. Phase I is closed as of 2026-05-07 and Phase J is open. Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live. Phase I closeout is pushed in `8e74e18`, covering horizontal property filters, featured analytics empty/error handling, Suspense boundary work, review-request rewire consolidation, I.6 mobile TBT, and I.7 operational updates. Agency-owner session persistence is fixed and live in `c83e800`.
+Next.js 16.2.1 is deployed on Vercel. Phase J is closed as of 2026-05-13 and Phase K is in progress. Railway is temporarily offline, so backend-dependent API/data-fetching work is held until `/healthz` returns 200. Phase K offline frontend work completed: mobile navigation drawer, route-specific SEO metadata, and homepage Pinterest hero hotlink removal.
 
-Phase J opens with `DEF-I-MEM-SMOKE-001` (multi-agency revocation smoke) and `DEF-I-COV-001` (backend coverage 94.15% vs 95% target). Do not reopen Phase I work unless new production evidence contradicts the closeout.
+Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live. Phase I closeout is pushed in `8e74e18`, covering horizontal property filters, featured analytics empty/error handling, Suspense boundary work, review-request rewire consolidation, I.6 mobile TBT, and I.7 operational updates. Agency-owner session persistence is fixed and live in `c83e800`. `DEF-I-MEM-SMOKE-001` is closed by production API smoke, and `DEF-I-COV-001` is closed at 95.03% backend coverage in commit `7e8fd35`.
 
 ## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
@@ -21,7 +21,10 @@ Phase J opens with `DEF-I-MEM-SMOKE-001` (multi-agency revocation smoke) and `DE
 - `agency_owner` receives agent-style navigation plus `/account/agency`.
 - `/account/listings` admits `agent`, `agency_owner`, and `admin` where page-level role gates allow it.
 - `/account/agency` is agency-owner only.
+- `/account/agency` is the agency-owner dashboard for team roster, invite form, listing summary, and owner-safe public profile edits.
 - `/account/agency` includes owner-safe public profile edit through `PUT /api/v1/agencies/{agency_id}`.
+- `/account/admin/analytics` is the admin analytics page confirmed live in Phase H.
+- `/agencies/apply` is the public agency application form.
 - `/agents` is the public agent directory using backend `agency_id` and `location_id` filters.
 - `/account/reviews` is the account-owned property/agent reviews page.
 - `/account/users`, `/account/admin/agencies`, and `/account/admin/analytics` are admin only.
@@ -55,12 +58,28 @@ Phase J opens with `DEF-I-MEM-SMOKE-001` (multi-agency revocation smoke) and `DE
 ## Bundle Notes
 
 - `PropertiesExplorer` remains dynamically loaded through the client shell.
+- Zod and React Hook Form are kept off non-form discovery routes through route/component boundaries.
 - Toast initialization is deferred.
 - React Query Devtools are removed from production.
 - `.browserslistrc` targets modern browsers.
 - Residual `core-js` can still appear from third-party dependencies; track under future dependency audit, not Phase G exit.
 - H.4 desktop TBT target is met for `/properties` and `/agencies`; Phase I I.6 closed the mobile TBT gap by moving account auth gating out of the shared public layout and deferring non-critical public-directory hydration.
 - I.6 keeps agency/agent stats, property card enhancements, and secondary filter option data out of first mobile interactivity; do not reintroduce those fan-outs without a fresh trace.
+- Phase I confirmed mobile TBT below 300ms on `/properties`, `/agencies`, and `/agents`.
+
+## Phase K Completed Offline
+
+- Mobile navigation drawer is live in `src/components/Navbar.tsx`; it mirrors `getRoleNavLinks()` and closes on link click, backdrop click, and Escape.
+- Public route metadata is distinct for `/`, `/properties`, `/properties/[id]`, `/agencies`, `/agencies/[id]`, `/agents`, `/agents/[id]`, `/login`, `/register`, and `/agencies/apply`.
+- Homepage hero no longer hotlinks Pinterest; it uses a local Tailwind gradient fallback pending a hosted hero asset.
+
+## Phase K Open Items
+
+- Public pages SSR/data hydration: backend required, hold until Railway is restored.
+- Form error-state audit against live validation responses: backend required, hold until Railway is restored.
+- `DEF-J-EMAIL-DOMAIN-001`: real-user email delivery requires a verified Resend sender domain.
+- `DEF-J-MAP-001`: interactive `/properties` map view with backend-resolved coordinates.
+- `DEF-J-LOC-001`: location result-quality monitoring as usage grows; frontend must call backend location search and must never call Nominatim directly.
 
 ## Latest Phase H Validation
 
@@ -77,7 +96,7 @@ Phase J opens with `DEF-I-MEM-SMOKE-001` (multi-agency revocation smoke) and `DE
 ## April 22 / Phase E-H Follow-Up Audit
 
 - Closed in Phase G/H: property card agency branding (`DEF-G-AG-001`), full moderation enum UI consistency (`DEF-G-MOD-001` / H.3), desktop H.4 TBT target, deferred toast initialization, form-route Zod/RHF splitting on list routes, agency application API error detail surfacing, join-request and agency dashboard tabbed layouts, admin user demotion/deactivation reason gates, `property_type_id` search filtering, account reviews, received-inquiry embedded data wiring, richer admin analytics endpoints, and amenity category contract wiring.
-- Still open or deferred: residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), multi-agency revocation smoke remains blocked by production seed shape (`DEF-I-MEM-SMOKE-001`), and production seed breadth remains a data-coverage concern.
+- Still open or deferred: residual third-party `core-js` remains a dependency-audit item (`DEF-FE-004A`), audit log retention remains deferred (`DEF-002`), real-user email delivery is blocked pending a verified Resend sender domain (`DEF-J-EMAIL-DOMAIN-001`), interactive map view is Phase K/backend-restored work (`DEF-J-MAP-001`), and location result-quality monitoring remains open as usage grows.
 
 ## Type Generation
 
