@@ -15,6 +15,7 @@ import {
   LISTING_STATUS_LABELS,
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
+import { formatPrice } from "@/features/properties/lib/formatPrice";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -83,9 +84,7 @@ export function PropertyCard({
     }
   };
 
-  const price = property.price
-    ? `${property.price_currency ?? "NGN"} ${Number(property.price).toLocaleString()}`
-    : "Price on request";
+  const price = formatPrice(property.price, property.price_currency ?? "NGN");
 
   return (
     <Link
