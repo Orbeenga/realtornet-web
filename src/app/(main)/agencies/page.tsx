@@ -4,6 +4,8 @@ import {
   AgencyDirectoryActions,
   AgencyDirectoryClient,
 } from "@/features/agencies/components";
+import { serverPublicApi } from "@/lib/api/serverPublic";
+import type { Agency } from "@/types";
 
 export const metadata: Metadata = {
   title: "Property Agencies in Lagos",
@@ -20,7 +22,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AgenciesPage() {
+export default async function AgenciesPage() {
+  const initialData = await serverPublicApi<Agency[]>(
+    "/api/v1/agencies/",
+    60,
+  );
+
   return (
     <div className="space-y-8">
       <Link
@@ -46,7 +53,7 @@ export default function AgenciesPage() {
         <AgencyDirectoryActions />
       </div>
 
-      <AgencyDirectoryClient />
+      <AgencyDirectoryClient initialData={initialData} />
     </div>
   );
 }

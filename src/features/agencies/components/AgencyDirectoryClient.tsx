@@ -135,10 +135,16 @@ function AgencySearchInput({
   );
 }
 
-export function AgencyDirectoryClient({ compact = false }: { compact?: boolean }) {
+export function AgencyDirectoryClient({
+  compact = false,
+  initialData,
+}: {
+  compact?: boolean;
+  initialData?: Agency[] | null;
+}) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const agenciesQuery = useAgencies();
+  const agenciesQuery = useAgencies(true, initialData);
 
   const approvedAgencies = useMemo(
     () => (agenciesQuery.data ?? []).filter((agency) => agency.status === "approved"),

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PropertyCardSkeleton } from "@/components/Skeleton";
 import { PropertiesExplorer } from "@/features/properties/components/PropertiesExplorer";
+import type { PaginatedProperties } from "@/types";
 
 function PropertiesExplorerFallback() {
   return (
@@ -22,10 +23,14 @@ function PropertiesExplorerFallback() {
   );
 }
 
-export function PropertiesExplorerShell() {
+export function PropertiesExplorerShell({
+  initialData,
+}: {
+  initialData?: PaginatedProperties | null;
+}) {
   return (
     <Suspense fallback={<PropertiesExplorerFallback />}>
-      <PropertiesExplorer />
+      <PropertiesExplorer initialData={initialData} />
     </Suspense>
   );
 }

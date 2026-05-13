@@ -10,7 +10,7 @@ export interface AgentDirectoryFilters {
   limit?: number;
 }
 
-function buildAgentDirectoryPath(filters: AgentDirectoryFilters) {
+export function buildAgentDirectoryPath(filters: AgentDirectoryFilters) {
   const params = new URLSearchParams();
 
   if (typeof filters.agency_id === "number") {
@@ -27,12 +27,16 @@ function buildAgentDirectoryPath(filters: AgentDirectoryFilters) {
   return `/api/v1/agent-profiles/?${params.toString()}`;
 }
 
-export function useAgentDirectory(filters: AgentDirectoryFilters = {}) {
+export function useAgentDirectory(
+  filters: AgentDirectoryFilters = {},
+  initialData?: Agent[] | null,
+) {
   return useQuery({
     queryKey: ["agentDirectory", filters],
     queryFn: () =>
       apiClient<Agent[]>(buildAgentDirectoryPath(filters), { authMode: "omit" }),
     staleTime: 60_000,
+    initialData: initialData ?? undefined,
   });
 }
 

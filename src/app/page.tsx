@@ -4,6 +4,8 @@ import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
 import { FeaturedPropertiesSection } from "@/features/properties/components";
+import { serverPublicApi } from "@/lib/api/serverPublic";
+import type { Agency, PropertyList } from "@/types";
 
 export const metadata: Metadata = {
   title: {
@@ -22,7 +24,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
+export default async function Home() {
+  const [featuredProperties, featuredAgencies] = await Promise.allSettled([
+    serverPublicApi<PropertyList>("/api/v1/properties/featured?limit=3", 120),
+    serverPublicApi<Agency[]>("/api/v1/agencies/", 120),
+  ]);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
@@ -94,7 +101,13 @@ export default function Home() {
           </div>
         </section>
 
-        <FeaturedPropertiesSection />
+        <FeaturedPropertiesSection
+          initialData={
+            featuredProperties.status === "fulfilled"
+              ? featuredProperties.value
+              : null
+          }
+        />
 
         <section className="mx-auto max-w-7xl space-y-6 px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -113,7 +126,14 @@ export default function Home() {
               See all agencies
             </Link>
           </div>
-          <AgencyDirectoryClient compact />
+          <AgencyDirectoryClient
+            compact
+            initialData={
+              featuredAgencies.status === "fulfilled"
+                ? featuredAgencies.value
+                : null
+            }
+          />
         </section>
 
         <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
