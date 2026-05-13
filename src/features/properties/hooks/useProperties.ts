@@ -16,7 +16,12 @@ function buildPropertyQuery(filters: PropertyFilters) {
   return params.toString() ? `?${params.toString()}` : "";
 }
 
-export function useProperties(filters: PropertyFilters = {}) {
+export { buildPropertyQuery };
+
+export function useProperties(
+  filters: PropertyFilters = {},
+  initialData?: PaginatedProperties | null,
+) {
   const query = buildPropertyQuery(filters);
 
   return useQuery({
@@ -26,10 +31,14 @@ export function useProperties(filters: PropertyFilters = {}) {
         authMode: "omit",
       }),
     staleTime: 60_000,
+    initialData: initialData ?? undefined,
   });
 }
 
-export function useFeaturedProperties(limit = 3) {
+export function useFeaturedProperties(
+  limit = 3,
+  initialData?: PropertyList | null,
+) {
   return useQuery({
     queryKey: ["featuredProperties", limit],
     queryFn: () =>
@@ -37,5 +46,6 @@ export function useFeaturedProperties(limit = 3) {
         authMode: "omit",
       }),
     staleTime: 60_000,
+    initialData: initialData ?? undefined,
   });
 }

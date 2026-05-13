@@ -25,13 +25,14 @@ export function getAgencyAgentCount(stats?: AgencyStats) {
   return stats?.agent_count ?? stats?.total_agents;
 }
 
-export function useAgencies(enabled = true) {
+export function useAgencies(enabled = true, initialData?: Agency[] | null) {
   return useQuery({
     queryKey: ["agencies"],
     queryFn: () =>
       apiClient<Agency[]>("/api/v1/agencies/", { authMode: "omit" }),
     staleTime: 60_000,
     enabled,
+    initialData: initialData ?? undefined,
   });
 }
 

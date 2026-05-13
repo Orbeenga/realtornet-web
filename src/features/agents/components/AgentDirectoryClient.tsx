@@ -110,7 +110,11 @@ function AgentCard({
   );
 }
 
-export function AgentDirectoryClient() {
+export function AgentDirectoryClient({
+  initialData,
+}: {
+  initialData?: Agent[] | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -122,7 +126,7 @@ export function AgentDirectoryClient() {
     agency_id: selectedAgencyId,
     location_id: selectedLocationId,
     limit: 24,
-  });
+  }, initialData);
   const agenciesQuery = useAgencies(hydrateFilterOptions);
   const locationsQuery = useLocations(hydrateFilterOptions);
   const agents = agentsQuery.data ?? [];
