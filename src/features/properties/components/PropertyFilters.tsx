@@ -2,6 +2,7 @@
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,6 +119,7 @@ export function PropertyFilters() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const plainSearchParams = new URLSearchParams(searchParams.toString());
+  plainSearchParams.delete("view");
   const propertyTypesQuery = usePropertyTypes();
   const [openPanel, setOpenPanel] = useState<FilterPanel | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -176,7 +178,8 @@ export function PropertyFilters() {
   );
 
   const clearAll = () => {
-    router.push(pathname);
+    const view = searchParams.get("view");
+    router.push(view === "map" ? `${pathname}?view=map` : pathname);
     setOpenPanel(null);
     setMobileFiltersOpen(false);
   };
@@ -213,8 +216,42 @@ export function PropertyFilters() {
     locationValue.city ||
     locationValue.state ||
     null;
-  const hasFilters = searchParams.toString().length > 0;
+  const currentView = searchParams.get("view") === "map" ? "map" : "grid";
+  const hasFilters = Array.from(searchParams.keys()).some((key) => key !== "view");
   const selectClassName = SelectClassName();
+  const viewHref = (view: "grid" | "map") => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    params.set("view", view);
+    params.delete("page");
+
+    if (view === "grid") {
+      params.delete("view");
+    }
+
+    const query = params.toString();
+
+    return query ? `${pathname}?${query}` : pathname;
+  };
+  const viewToggle = (
+    <div className="inline-flex h-11 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      {(["grid", "map"] as const).map((view) => (
+        <Link
+          key={view}
+          href={viewHref(view)}
+          prefetch={false}
+          className={cn(
+            "inline-flex min-w-16 items-center justify-center px-3 text-sm font-medium transition",
+            currentView === view
+              ? "bg-blue-600 text-white"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
+          )}
+        >
+          {view === "grid" ? "Grid" : "Map"}
+        </Link>
+      ))}
+    </div>
+  );
 
   const propertyTypeField = (id = "property-type") => (
     <div>
@@ -364,15 +401,18 @@ export function PropertyFilters() {
         />
 
         <div className="flex flex-col gap-3 lg:hidden">
-          <Button
-            type="button"
-            variant="secondary"
-            className="h-11 w-full justify-center rounded-xl"
-            onClick={() => setMobileFiltersOpen(true)}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
-          </Button>
+          <div className="grid grid-cols-[1fr_auto] gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-11 w-full justify-center rounded-xl"
+              onClick={() => setMobileFiltersOpen(true)}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Filters
+            </Button>
+            {viewToggle}
+          </div>
           <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
         </div>
 
@@ -425,6 +465,7 @@ export function PropertyFilters() {
           <div className="shrink-0">
             <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
           </div>
+          {viewToggle}
         </div>
       </div>
 

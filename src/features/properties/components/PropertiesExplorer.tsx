@@ -36,6 +36,18 @@ const PropertyFilters = dynamic(
     loading: () => <PropertyFiltersFallback />,
   },
 );
+const PropertyMap = dynamic(
+  () =>
+    import("@/features/properties/components/PropertyMap").then(
+      (module) => module.PropertyMap,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[calc(100vh-220px)] min-h-[28rem] rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900" />
+    ),
+  },
+);
 
 function PropertyFiltersFallback() {
   return (
@@ -54,7 +66,9 @@ export function PropertiesExplorer() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const hydrateLocationLabels = useIdleHydration({ delay: 2_400 });
+  const currentView = searchParams.get("view") === "map" ? "map" : "grid";
+  const hydrateLocationLabelsIdle = useIdleHydration({ delay: 2_400 });
+  const hydrateLocationLabels = currentView === "map" || hydrateLocationLabelsIdle;
   const hydrateCardEnhancements = useIdleHydration({ delay: 6_000 });
   const hasAttemptedScrollRestoreRef = useRef(false);
 
@@ -161,22 +175,30 @@ export function PropertiesExplorer() {
 
           {!isLoading && !isError && properties.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {properties.map((property: Property) => (
-                  <PropertyCard
-                    key={property.property_id}
-                    property={property}
-                    hydrateEnhancements={hydrateCardEnhancements}
-                    locationLabel={
-                      property.location_id
-                        ? locationLabels.get(property.location_id)
-                        : undefined
-                    }
-                    onNavigateToDetail={handleNavigateToDetail}
-                  />
-                ))}
-              </div>
-              {total > PAGE_SIZE ? (
+              {currentView === "map" ? (
+                <PropertyMap
+                  properties={properties}
+                  filters={filters}
+                  locations={locationsQuery.data ?? []}
+                />
+              ) : (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {properties.map((property: Property) => (
+                    <PropertyCard
+                      key={property.property_id}
+                      property={property}
+                      hydrateEnhancements={hydrateCardEnhancements}
+                      locationLabel={
+                        property.location_id
+                          ? locationLabels.get(property.location_id)
+                          : undefined
+                      }
+                      onNavigateToDetail={handleNavigateToDetail}
+                    />
+                  ))}
+                </div>
+              )}
+              {currentView === "grid" && total > PAGE_SIZE ? (
                 <div className="mt-10">
                   <Pagination
                     total={total}
