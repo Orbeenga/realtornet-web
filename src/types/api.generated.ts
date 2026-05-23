@@ -3923,6 +3923,16 @@ export interface components {
             updated_by?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+            /**
+             * Agent Count
+             * @default 0
+             */
+            agent_count: number;
+            /**
+             * Property Count
+             * @default 0
+             */
+            property_count: number;
         };
         /** AgencyReviewRequestCreate */
         AgencyReviewRequestCreate: {
@@ -8598,6 +8608,7 @@ export interface operations {
                 bedrooms?: number | null;
                 bathrooms?: number | null;
                 property_type_id?: number | null;
+                agency_id?: number | null;
                 listing_type?: components["schemas"]["app__models__properties__ListingType"] | null;
                 listing_status?: components["schemas"]["app__models__properties__ListingStatus"] | null;
                 moderation_status?: components["schemas"]["ModerationStatus"] | null;
