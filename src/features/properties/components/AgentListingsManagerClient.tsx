@@ -10,9 +10,11 @@ import {
   LoadingState,
   Skeleton,
 } from "@/components";
+import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import {
+  useAgencyOwnerListings,
   useAgentProfileByUser,
   useAdminProperties,
   useDeleteProperty,
@@ -73,17 +75,27 @@ export function AgentListingsManagerClient() {
   const deleteProperty = useDeleteProperty();
   const verifyProperty = useVerifyProperty();
   const gate = useAgentRoleGate();
-  const profileQuery = useUserProfile(gate.isAllowed && !gate.isAdmin);
+  const { user } = useAuth();
+  const isAgencyOwner = gate.isAgencyOwner;
+  const needsAgentProfile = gate.isAllowed && !gate.isAdmin && !isAgencyOwner;
+  const profileQuery = useUserProfile(needsAgentProfile);
   const agentProfileQuery = useAgentProfileByUser(
-    gate.isAllowed && !gate.isAdmin ? profileQuery.data?.user_id : undefined,
+    needsAgentProfile ? profileQuery.data?.user_id : undefined,
   );
   const agentListingsQuery = useOwnerListings(
-    gate.isAllowed && !gate.isAdmin ? profileQuery.data?.user_id : undefined,
+    needsAgentProfile ? profileQuery.data?.user_id : undefined,
+  );
+  const agencyOwnerListingsQuery = useAgencyOwnerListings(
+    isAgencyOwner ? user?.agency_id : undefined,
   );
   const adminListingsQuery = useAdminProperties(gate.isAllowed && gate.isAdmin);
-  const listingsQuery = gate.isAdmin ? adminListingsQuery : agentListingsQuery;
-  const hasAgentProfileError = !gate.isAdmin && agentProfileQuery.isError;
-  const hasUserProfileError = !gate.isAdmin && profileQuery.isError;
+  const listingsQuery = gate.isAdmin
+    ? adminListingsQuery
+    : isAgencyOwner
+      ? agencyOwnerListingsQuery
+      : agentListingsQuery;
+  const hasAgentProfileError = needsAgentProfile && agentProfileQuery.isError;
+  const hasUserProfileError = needsAgentProfile && profileQuery.isError;
 
   if (gate.isChecking || gate.isMembershipChecking) {
     return (
@@ -108,7 +120,8 @@ export function AgentListingsManagerClient() {
   }
 
   if (
-    (!gate.isAdmin && (profileQuery.isLoading || agentProfileQuery.isLoading)) ||
+    (needsAgentProfile && (profileQuery.isLoading || agentProfileQuery.isLoading)) ||
+    (isAgencyOwner && agencyOwnerListingsQuery.isLoading) ||
     (gate.isAdmin && adminListingsQuery.isLoading)
   ) {
     return (
@@ -120,7 +133,8 @@ export function AgentListingsManagerClient() {
   }
 
   if (
-    (!gate.isAdmin && hasUserProfileError) ||
+    (needsAgentProfile && hasUserProfileError) ||
+    (isAgencyOwner && agencyOwnerListingsQuery.isError) ||
     (gate.isAdmin && adminListingsQuery.isError)
   ) {
     return (
@@ -239,7 +253,9 @@ export function AgentListingsManagerClient() {
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {gate.isAdmin
                 ? "Review every property, including pending listings, from one moderation queue."
-                : "Manage the properties you have published on RealtorNet."}
+                : isAgencyOwner
+                  ? "Manage listings published under your agency inventory."
+                  : "Manage the properties you have published on RealtorNet."}
             </p>
           </div>
           {!gate.isAdmin ? (

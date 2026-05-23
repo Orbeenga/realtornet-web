@@ -13,8 +13,14 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  LoadingState,
 } from "@/components";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { notify } from "@/lib/toast";
@@ -26,10 +32,7 @@ import {
   useAgencyProfile,
   useAgencyJoinRequests,
   useAgencyReviewRequests,
-  useAgencyStats,
   useUpdateAgencyProfile,
-  getAgencyAgentCount,
-  getAgencyListingCount,
   useAcceptAgencyReviewRequest,
   useApproveAgencyJoinRequest,
   useBlockAgencyMembership,
@@ -42,6 +45,11 @@ import {
 } from "@/features/agencies/hooks";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { MembershipHistoryList } from "./MembershipHistoryList";
+import {
+  AgencyOwnerDashboardSkeleton,
+  AgencyOwnerRosterSkeleton,
+  AgencyOwnerTabListSkeleton,
+} from "./AgencyOwnerDashboardSkeleton";
 
 const inviteSchema = z.object({
   email: z.email("Use a valid email address"),
@@ -157,7 +165,6 @@ export function AgencyOwnerDashboardClient() {
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
-  const agencyStatsQuery = useAgencyStats(agencyId, Boolean(agencyId), "include");
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
   const suspendMembership = useSuspendAgencyMembership(agencyId);
@@ -393,7 +400,7 @@ export function AgencyOwnerDashboardClient() {
       : agenciesQuery.isError;
 
   if (gate.isChecking || !gate.isAllowed || isAgencyLoading) {
-    return <LoadingState />;
+    return <AgencyOwnerDashboardSkeleton />;
   }
 
   if (isAgencyError) {
@@ -426,9 +433,8 @@ export function AgencyOwnerDashboardClient() {
   const agents = agentsQuery.data ?? [];
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
-  const agencyStats = agencyStatsQuery.data;
-  const statsListingCount = getAgencyListingCount(agencyStats);
-  const statsAgentCount = getAgencyAgentCount(agencyStats);
+  const statsListingCount = agency.property_count;
+  const statsAgentCount = agency.agent_count;
   const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
     joinRequests: joinRequests.length,
     reviewRequests: reviewRequests.length,
@@ -484,68 +490,6 @@ export function AgencyOwnerDashboardClient() {
             </Button>
           </div>
 
-          {isEditingAgencyProfile ? (
-            <form
-              className="space-y-4 rounded-lg border border-border p-4"
-              onSubmit={(event) =>
-                void agencyProfileForm.handleSubmit(handleUpdateAgencyProfile)(event)
-              }
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  label="Agency name"
-                  error={agencyProfileForm.formState.errors.name?.message}
-                  {...agencyProfileForm.register("name")}
-                />
-                <Input
-                  label="Website URL"
-                  placeholder="https://example.com"
-                  error={agencyProfileForm.formState.errors.website_url?.message}
-                  {...agencyProfileForm.register("website_url")}
-                />
-                <Input
-                  label="Logo URL"
-                  placeholder="https://example.com/logo.png"
-                  error={agencyProfileForm.formState.errors.logo_url?.message}
-                  {...agencyProfileForm.register("logo_url")}
-                />
-                <Input
-                  label="Address"
-                  error={agencyProfileForm.formState.errors.address?.message}
-                  {...agencyProfileForm.register("address")}
-                />
-              </div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Description
-                <textarea
-                  rows={4}
-                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                  {...agencyProfileForm.register("description")}
-                />
-              </label>
-              {agencyProfileForm.formState.errors.root?.message ? (
-                <p className="text-sm text-red-600" role="alert">
-                  {agencyProfileForm.formState.errors.root.message}
-                </p>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="submit"
-                  loading={updateAgencyProfile.isPending}
-                >
-                  Save profile
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleCancelAgencyProfileEdit}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          ) : null}
-
           <div className="grid gap-4 text-sm md:grid-cols-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -578,60 +522,91 @@ export function AgencyOwnerDashboardClient() {
               </p>
             </div>
           </div>
-          {agencyStatsQuery.isLoading ? (
-            <div className="border-t border-border pt-4">
-              <LoadingState message="Loading live agency stats..." />
-            </div>
-          ) : null}
-          {agencyStatsQuery.isError ? (
-            <div
-              className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
-              role="alert"
-            >
-              <p className="font-medium">Live agency stats could not be loaded.</p>
-              <p>
-                Profile details are still available, but listing and roster counts may be stale.
+          <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Active listings
               </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  void agencyStatsQuery.refetch();
-                }}
+              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                {statsListingCount}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Roster agents
+              </p>
+              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                {statsAgentCount}
+              </p>
+            </div>
+          </div>
+
+          <Sheet open={isEditingAgencyProfile} onOpenChange={setIsEditingAgencyProfile}>
+            <SheetContent side="right" className="sm:max-w-lg">
+              <SheetHeader>
+                <SheetTitle>Edit agency profile</SheetTitle>
+                <SheetDescription>
+                  Update public agency fields visible on your agency page.
+                </SheetDescription>
+              </SheetHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(event) =>
+                  void agencyProfileForm.handleSubmit(handleUpdateAgencyProfile)(event)
+                }
               >
-                Retry stats
-              </Button>
-            </div>
-          ) : null}
-          {!agencyStatsQuery.isLoading && !agencyStatsQuery.isError && agencyStats ? (
-            <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-3">
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Active listings
-                </p>
-                <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                  {statsListingCount ?? "Not recorded"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Roster agents
-                </p>
-                <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                  {statsAgentCount ?? "Not recorded"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Stats source
-                </p>
-                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-                  Live backend agency stats
-                </p>
-              </div>
-            </div>
-          ) : null}
+                <div className="grid gap-4">
+                  <Input
+                    label="Agency name"
+                    error={agencyProfileForm.formState.errors.name?.message}
+                    {...agencyProfileForm.register("name")}
+                  />
+                  <Input
+                    label="Website URL"
+                    placeholder="https://example.com"
+                    error={agencyProfileForm.formState.errors.website_url?.message}
+                    {...agencyProfileForm.register("website_url")}
+                  />
+                  <Input
+                    label="Logo URL"
+                    placeholder="https://example.com/logo.png"
+                    error={agencyProfileForm.formState.errors.logo_url?.message}
+                    {...agencyProfileForm.register("logo_url")}
+                  />
+                  <Input
+                    label="Address"
+                    error={agencyProfileForm.formState.errors.address?.message}
+                    {...agencyProfileForm.register("address")}
+                  />
+                </div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Description
+                  <textarea
+                    rows={4}
+                    className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    {...agencyProfileForm.register("description")}
+                  />
+                </label>
+                {agencyProfileForm.formState.errors.root?.message ? (
+                  <p className="text-sm text-red-600" role="alert">
+                    {agencyProfileForm.formState.errors.root.message}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" loading={updateAgencyProfile.isPending}>
+                    Save profile
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleCancelAgencyProfileEdit}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </SheetContent>
+          </Sheet>
         </CardBody>
       </Card>
 
@@ -662,7 +637,7 @@ export function AgencyOwnerDashboardClient() {
             </p>
           </div>
 
-          {joinRequestsQuery.isLoading ? <LoadingState /> : null}
+          {joinRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
           {joinRequestsQuery.isError ? (
             <ErrorState
               title="Could not load join requests"
@@ -788,7 +763,7 @@ export function AgencyOwnerDashboardClient() {
                 Review returning agents who asked for a membership decision to be reconsidered.
               </p>
             </div>
-            {reviewRequestsQuery.isLoading ? <LoadingState /> : null}
+            {reviewRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
             {reviewRequestsQuery.isError ? (
               <ErrorState
                 title="Could not load review requests"
@@ -911,7 +886,7 @@ export function AgencyOwnerDashboardClient() {
                 Manage active, suspended, inactive, and blocked agency memberships.
               </p>
             </div>
-            {agentsQuery.isLoading ? <LoadingState /> : null}
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
             {agentsQuery.isError ? (
               <ErrorState
                 title="Could not load agents"
@@ -1113,7 +1088,7 @@ export function AgencyOwnerDashboardClient() {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                 Sent invitations
               </h3>
-              {invitationsQuery.isLoading ? <LoadingState /> : null}
+              {invitationsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
               {invitationsQuery.isError ? (
                 <ErrorState
                   title="Could not load invitations"
