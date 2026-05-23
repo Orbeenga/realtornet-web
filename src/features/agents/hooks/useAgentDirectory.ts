@@ -57,6 +57,7 @@ export function useVisibleAgentStats(agents: Agent[], enabled = true) {
         {
           listingCount?: number | null;
           averageRating?: number | null;
+          reviewCount?: number | null;
           isLoading: boolean;
           isError: boolean;
         }
@@ -72,6 +73,8 @@ export function useVisibleAgentStats(agents: Agent[], enabled = true) {
             stats?.listing_count ??
             (typeof stats?.active_listings === "number" ? stats.active_listings : null),
           averageRating: stats?.average_rating ?? stats?.avg_rating ?? null,
+          reviewCount:
+            typeof stats?.review_count === "number" ? stats.review_count : null,
           isLoading: Boolean(result?.isLoading),
           isError: Boolean(result?.isError),
         });

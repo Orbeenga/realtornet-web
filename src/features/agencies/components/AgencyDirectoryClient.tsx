@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Skeleton } from "@/components";
-import { useAgencies, useVisibleAgencyStats } from "@/features/agencies/hooks";
+import { useAgencies } from "@/features/agencies/hooks";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { cn } from "@/lib/utils";
 import type { Agency } from "@/types";
@@ -19,81 +19,78 @@ function getInitials(name: string) {
     .join("");
 }
 
-function AgencyDirectoryCard({
-  agency,
-  listingCount,
-  agentCount,
-  statsLoading,
-  statsError,
-}: {
-  agency: Agency;
-  listingCount?: number;
-  agentCount?: number;
-  statsLoading: boolean;
-  statsError: boolean;
-}) {
+function hasAgencyCounts(agency: Agency) {
+  return (
+    typeof agency.agent_count === "number" &&
+    typeof agency.property_count === "number"
+  );
+}
+
+function AgencyDirectoryCard({ agency }: { agency: Agency }) {
   const initials = getInitials(agency.name);
+  const showStats = hasAgencyCounts(agency);
 
   return (
-    <Link href={`/agencies/${agency.agency_id}`} className="block h-full">
-      <Card hoverable className="h-full">
-        <CardBody className="flex h-full flex-col gap-5">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 text-base font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-              {agency.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={agency.logo_url} alt={agency.name} className="h-full w-full object-cover" />
-              ) : (
-                initials || "AG"
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="line-clamp-1 text-base font-semibold text-gray-900 dark:text-white">
-                  {agency.name}
-                </h2>
-                {isVerifiedAgency(agency) ? <Badge>Verified</Badge> : null}
-              </div>
-              {agency.address ? (
-                <p className="mt-1 line-clamp-1 text-sm text-gray-500 dark:text-gray-400">
-                  {agency.address}
-                </p>
-              ) : null}
-            </div>
+    <Card hoverable className="h-full">
+      <CardBody className="flex h-full flex-col gap-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 text-base font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+            {agency.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={agency.logo_url} alt={agency.name} className="h-full w-full object-cover" />
+            ) : (
+              initials || "AG"
+            )}
           </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="line-clamp-1 text-base font-semibold text-gray-900 dark:text-white">
+                {agency.name}
+              </h2>
+              {isVerifiedAgency(agency) ? <Badge>Verified</Badge> : null}
+            </div>
+            {agency.address ? (
+              <p className="mt-1 line-clamp-1 text-sm text-gray-500 dark:text-gray-400">
+                {agency.address}
+              </p>
+            ) : null}
+          </div>
+        </div>
 
-          {agency.description ? (
-            <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-gray-600 dark:text-gray-300">
-              {agency.description}
-            </p>
-          ) : (
-            <p className="min-h-[4.5rem] text-sm leading-6 text-gray-500 dark:text-gray-400">
-              Agency profile details are being prepared.
-            </p>
-          )}
+        {agency.description ? (
+          <p className="line-clamp-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+            {agency.description}
+          </p>
+        ) : null}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 text-sm">
+        {showStats ? (
+          <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
               <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                {statsLoading ? "..." : statsError ? "Unavailable" : listingCount ?? "Not recorded"}
+                {agency.property_count} listing{agency.property_count === 1 ? "" : "s"}
               </p>
             </div>
             <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
               <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                {statsLoading ? "..." : statsError ? "Unavailable" : agentCount ?? "Not recorded"}
+                {agency.agent_count} agent{agency.agent_count === 1 ? "" : "s"}
               </p>
             </div>
           </div>
-          {statsError ? (
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              Live agency stats could not be loaded.
-            </p>
-          ) : null}
-        </CardBody>
-      </Card>
-    </Link>
+        ) : null}
+
+        <div className="mt-auto">
+          <Link
+            href={`/agencies/${agency.agency_id}`}
+            prefetch={false}
+            className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            View agency
+          </Link>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -171,7 +168,6 @@ export function AgencyDirectoryClient({
     compact ? 0 : (safePage - 1) * PAGE_SIZE,
     compact ? 3 : safePage * PAGE_SIZE,
   );
-  const statsByAgencyId = useVisibleAgencyStats(visibleAgencies, false);
 
   if (agenciesQuery.isLoading) {
     return (
@@ -216,20 +212,9 @@ export function AgencyDirectoryClient({
         />
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {visibleAgencies.map((agency) => {
-            const stats = statsByAgencyId.get(agency.agency_id);
-
-            return (
-              <AgencyDirectoryCard
-                key={agency.agency_id}
-                agency={agency}
-                listingCount={stats?.listingCount}
-                agentCount={stats?.agentCount}
-                statsLoading={stats?.isLoading ?? false}
-                statsError={stats?.isError ?? false}
-              />
-            );
-          })}
+          {visibleAgencies.map((agency) => (
+            <AgencyDirectoryCard key={agency.agency_id} agency={agency} />
+          ))}
         </div>
       )}
 

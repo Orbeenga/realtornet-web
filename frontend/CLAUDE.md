@@ -10,16 +10,20 @@ Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, memb
 
 ## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
-| Role | Navbar items | Post-login redirect |
-|---|---|---|
-| Logged out | Agencies, Properties, Agents | n/a |
-| Seeker | Agencies, Properties, Agents, My Agencies, Favorites, Reviews, Saved searches, My Inquiries | `/properties` |
-| Agent | Agencies, Properties, Agents, My Agencies, My Listings, Inquiries, Favorites, Reviews | `/account/listings` |
-| Agency owner | Agencies, Properties, Agents, My Listings, Inquiries, Favorites, Reviews, Agency dashboard | `/account/agency` |
-| Admin | Properties, Agencies, Agents, Property moderation, Users, Inquiries, Agencies admin, Analytics | `/account/listings` |
+Public top nav for all users: Properties, Agencies, Agents.
 
-- `agency_owner` receives agent-style navigation plus `/account/agency`.
+| Role | Avatar dropdown | Post-login redirect |
+|---|---|---|
+| Logged out | Login, Register | n/a |
+| Seeker | My Favorites, Saved Searches, My Inquiries, Settings | `/properties` |
+| Agent | My Listings, My Inquiries, My Favorites, Settings | `/account/listings` |
+| Agency owner | My Listings, Agency Dashboard, My Inquiries, Settings | `/account/agency` |
+| Admin | Property Moderation, User Management, Analytics, Settings | `/account/listings` |
+
+- Use `publicNavLinks` for the top bar and `getAccountDropdownLinks()` for the avatar menu.
+- Mobile drawer mirrors the same two-tier contract: public links, separator, account links.
 - `/account/listings` admits `agent`, `agency_owner`, and `admin` where page-level role gates allow it.
+- Agency owner My Listings filters by current `user.agency_id` inventory, not historical `user_id` listings.
 - `/account/agency` is agency-owner only.
 - `/account/agency` is the agency-owner dashboard for team roster, invite form, listing summary, and owner-safe public profile edits.
 - `/account/agency` includes owner-safe public profile edit through `PUT /api/v1/agencies/{agency_id}`.
@@ -69,10 +73,11 @@ Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, memb
 
 ## Phase K Completed Offline
 
-- Mobile navigation drawer is live in `src/components/Navbar.tsx`; it mirrors `getRoleNavLinks()` and closes on link click, backdrop click, and Escape.
+- Mobile navigation drawer is live in `src/components/Navbar.tsx`; it mirrors `publicNavLinks` + `getAccountDropdownLinks()` and closes on link click, backdrop click, and Escape.
 - Public route metadata is distinct for `/`, `/properties`, `/properties/[id]`, `/agencies`, `/agencies/[id]`, `/agents`, `/agents/[id]`, `/login`, `/register`, and `/agencies/apply`.
 - Homepage hero no longer hotlinks Pinterest; it uses a local Tailwind gradient fallback pending a hosted hero asset.
 - `DEF-J-MAP-001` is closed in `3c77776`: `/properties?view=map` uses Leaflet/OpenStreetMap, preserves URL-owned `view` state, shares the filtered property result set with the grid, renders mapped markers with popups, and lists unmapped results beside/below the map.
+- Phase K dispatch (May 2026): two-tier navigation, search-led homepage hero, agent directory completeness gate, agency card counts from list API, agency-owner dashboard stats from `GET /api/v1/agencies/{id}/`, agency-owner My Listings scoped by `agency_id`, dashboard skeleton/sheet polish, properties-page auth-aware intro copy.
 
 ## Phase K Open Items
 
@@ -80,6 +85,7 @@ Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, memb
 - Form error-state audit against live validation responses: backend-coordinated follow-up.
 - `DEF-J-EMAIL-DOMAIN-001`: real-user email delivery requires a verified Resend sender domain.
 - `DEF-J-LOC-001`: location result-quality monitoring as usage grows; frontend must call backend location search and must never call Nominatim directly.
+- `DEF-K-AGENT-DIR-001`: public agent directory still depends on `company_name` + agency lookup until `AgentProfileResponse` exposes `display_name` and `agency_name` on `GET /api/v1/agent-profiles/`.
 
 ## Latest Phase H Validation
 

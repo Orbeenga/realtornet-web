@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge, EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgencies } from "@/features/agencies/hooks";
+import {
+  isPublicDisplayableAgent,
+  resolveAgentDisplayName,
+} from "@/features/agents/lib/agentDirectoryCompleteness";
 import { useAgentDirectory, useVisibleAgentStats } from "@/features/agents/hooks";
 import { useLocations } from "@/features/properties/hooks";
 import { useIdleHydration } from "@/lib/useIdleHydration";
@@ -16,10 +21,6 @@ function readNumberParam(value: string | null) {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function getAgentName(agent: Agent) {
-  return agent.company_name?.trim() || `Agent #${agent.profile_id}`;
 }
 
 function getLocationLabel(location: Location) {
@@ -40,40 +41,51 @@ function AgentDirectorySkeleton() {
 
 function AgentCard({
   agent,
-  agency,
+  agencyId,
+  agencyName,
   listingCount,
   averageRating,
+  reviewCount,
 }: {
   agent: Agent;
-  agency?: Agency;
+  agencyId: number;
+  agencyName: string;
   listingCount?: number | null;
   averageRating?: number | null;
+  reviewCount?: number | null;
 }) {
-  const name = getAgentName(agent);
-  const initials = name
+  const displayName = resolveAgentDisplayName(agent);
+  const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+  const extended = agent as Agent & {
+    phone_number?: string | null;
+    is_verified?: boolean;
+  };
 
   return (
-    <Link
-      href={`/agents/${agent.profile_id}`}
-      prefetch={false}
-      className="block rounded-lg border border-gray-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-950 dark:hover:border-blue-700"
-    >
+    <article className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
       <div className="flex items-start gap-4">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
           {initials || "A"}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold text-gray-950 dark:text-white">
-            {name}
-          </h2>
-          <p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300">
-            {agency?.name ?? "Independent agent"}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-lg font-semibold text-gray-950 dark:text-white">
+              {displayName}
+            </h2>
+            {extended.is_verified === true ? <Badge>Verified</Badge> : null}
+          </div>
+          <Link
+            href={`/agencies/${agencyId}`}
+            prefetch={false}
+            className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+          >
+            {agencyName}
+          </Link>
           {agent.specialization ? (
             <p className="mt-2 line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
               {agent.specialization}
@@ -82,31 +94,38 @@ function AgentCard({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Listings
+      <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+        {typeof listingCount === "number" ? (
+          <p>
+            {listingCount} active listing{listingCount === 1 ? "" : "s"}
           </p>
-          <p className="mt-1 font-semibold text-gray-950 dark:text-white">
-            {listingCount ?? "Not recorded"}
+        ) : null}
+        {typeof reviewCount === "number" && reviewCount > 0 && typeof averageRating === "number" ? (
+          <p className="font-semibold text-gray-950 dark:text-white">
+            {averageRating.toFixed(1)} rating
           </p>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Rating
-          </p>
-          <p className="mt-1 font-semibold text-gray-950 dark:text-white">
-            {typeof averageRating === "number" ? averageRating.toFixed(1) : "No reviews"}
-          </p>
-        </div>
+        ) : null}
+        {extended.phone_number?.trim() ? (
+          <p>{extended.phone_number}</p>
+        ) : null}
       </div>
 
       {agent.years_experience != null ? (
-        <Badge variant="outline" className="mt-4">
+        <Badge variant="outline" className="mt-4 w-fit">
           {agent.years_experience} years experience
         </Badge>
       ) : null}
-    </Link>
+
+      <div className="mt-auto pt-5">
+        <Link
+          href={`/agents/${agent.profile_id}`}
+          prefetch={false}
+          className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+        >
+          View profile
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -122,20 +141,33 @@ export function AgentDirectoryClient({
   const hydrateStats = useIdleHydration({ delay: 8_000 });
   const selectedAgencyId = readNumberParam(searchParams.get("agency_id"));
   const selectedLocationId = readNumberParam(searchParams.get("location_id"));
-  const agentsQuery = useAgentDirectory({
-    agency_id: selectedAgencyId,
-    location_id: selectedLocationId,
-    limit: 24,
-  }, initialData);
+  const agentsQuery = useAgentDirectory(
+    {
+      agency_id: selectedAgencyId,
+      location_id: selectedLocationId,
+      limit: 24,
+    },
+    initialData,
+  );
   const agenciesQuery = useAgencies(hydrateFilterOptions);
   const locationsQuery = useLocations(hydrateFilterOptions);
-  const agents = agentsQuery.data ?? [];
-  const statsByProfileId = useVisibleAgentStats(
-    agents.slice(0, 9),
-    hydrateStats && agents.length > 0,
+  const agencyById = useMemo(
+    () => new Map((agenciesQuery.data ?? []).map((agency) => [agency.agency_id, agency])),
+    [agenciesQuery.data],
   );
-  const agencyById = new Map(
-    (agenciesQuery.data ?? []).map((agency) => [agency.agency_id, agency]),
+  const displayableAgents = useMemo(() => {
+    return (agentsQuery.data ?? []).filter((agent) => {
+      const agency =
+        typeof agent.agency_id === "number"
+          ? agencyById.get(agent.agency_id)
+          : undefined;
+
+      return isPublicDisplayableAgent(agent, agency?.name);
+    });
+  }, [agencyById, agentsQuery.data]);
+  const statsByProfileId = useVisibleAgentStats(
+    displayableAgents.slice(0, 9),
+    hydrateStats && displayableAgents.length > 0,
   );
 
   const setFilter = (key: "agency_id" | "location_id", value: string) => {
@@ -217,29 +249,35 @@ export function AgentDirectoryClient({
         />
       ) : null}
 
-      {!agentsQuery.isLoading && !agentsQuery.isError && agents.length === 0 ? (
+      {!agentsQuery.isLoading && !agentsQuery.isError && displayableAgents.length === 0 ? (
         <EmptyState
           title="No agents found"
           description="Try another agency or location filter."
         />
       ) : null}
 
-      {agents.length > 0 ? (
+      {displayableAgents.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {agents.map((agent) => {
+          {displayableAgents.map((agent) => {
+            const agency =
+              typeof agent.agency_id === "number"
+                ? agencyById.get(agent.agency_id)
+                : undefined;
             const stats = statsByProfileId.get(agent.profile_id);
+
+            if (!agency || typeof agent.agency_id !== "number") {
+              return null;
+            }
 
             return (
               <AgentCard
                 key={agent.profile_id}
                 agent={agent}
-                agency={
-                  typeof agent.agency_id === "number"
-                    ? agencyById.get(agent.agency_id)
-                    : undefined
-                }
+                agencyId={agent.agency_id}
+                agencyName={agency.name}
                 listingCount={stats?.isError ? null : stats?.listingCount}
                 averageRating={stats?.isError ? null : stats?.averageRating}
+                reviewCount={stats?.isError ? null : stats?.reviewCount}
               />
             );
           })}
