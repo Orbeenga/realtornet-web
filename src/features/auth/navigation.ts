@@ -16,9 +16,15 @@ interface FavoritesPageCopy {
   emptyDescription: string;
 }
 
+export const publicNavLinks = [
+  { href: "/properties", label: "Properties" },
+  { href: "/agencies", label: "Agencies" },
+  { href: "/agents", label: "Agents" },
+] as const;
+
 export const authNavLinks = [
-  { href: "/login", label: "Sign in" },
-  { href: "/register", label: "Create account" },
+  { href: "/login", label: "Login" },
+  { href: "/register", label: "Register" },
 ] as const;
 
 export function normalizeAppRole(role: string | null | undefined): AppRole | null {
@@ -60,7 +66,7 @@ export function getInquiryNavigationConfig(
   if (normalizedRole === "agent" || normalizedRole === "agency_owner") {
     return {
       mode: "received",
-      navLabel: "Inquiries",
+      navLabel: "My Inquiries",
       canSendInquiry: false,
     };
   }
@@ -80,67 +86,55 @@ export function getInquiryNavigationConfig(
   };
 }
 
-export function getRoleNavLinks(role: string | null | undefined) {
+export function getAccountDropdownLinks(role: string | null | undefined) {
   const normalizedRole = normalizeAppRole(role);
   const inquiryConfig = getInquiryNavigationConfig(normalizedRole);
+  const settingsLink = { href: "/account/profile", label: "Settings" };
 
   if (normalizedRole === "admin") {
     return [
-      { href: "/properties", label: "Properties" },
-      { href: "/agencies", label: "Agencies" },
-      { href: "/agents", label: "Agents" },
-      { href: "/account/listings", label: "Property moderation" },
-      { href: "/account/users", label: "Users" },
-      { href: "/account/inquiries", label: inquiryConfig.navLabel },
-      { href: "/account/admin/agencies", label: "Agencies admin" },
+      { href: "/account/listings", label: "Property Moderation" },
+      { href: "/account/users", label: "User Management" },
       { href: "/account/admin/analytics", label: "Analytics" },
+      settingsLink,
     ];
   }
 
   if (normalizedRole === "agency_owner") {
     return [
-      { href: "/agencies", label: "Agencies" },
-      { href: "/properties", label: "Properties" },
-      { href: "/agents", label: "Agents" },
       { href: "/account/listings", label: "My Listings" },
+      { href: "/account/agency", label: "Agency Dashboard" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
-      { href: "/account/favorites", label: "Favorites" },
-      { href: "/account/reviews", label: "Reviews" },
-      { href: "/account/agency", label: "Agency dashboard" },
+      settingsLink,
     ];
   }
 
   if (normalizedRole === "agent") {
     return [
-      { href: "/agencies", label: "Agencies" },
-      { href: "/properties", label: "Properties" },
-      { href: "/agents", label: "Agents" },
-      { href: "/account/join-requests", label: "My Agencies" },
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
-      { href: "/account/favorites", label: "Favorites" },
-      { href: "/account/reviews", label: "Reviews" },
+      { href: "/account/favorites", label: "My Favorites" },
+      settingsLink,
     ];
   }
 
   if (normalizedRole === "seeker") {
     return [
-      { href: "/agencies", label: "Agencies" },
-      { href: "/properties", label: "Properties" },
-      { href: "/agents", label: "Agents" },
-      { href: "/account/join-requests", label: "My Agencies" },
-      { href: "/account/favorites", label: "Favorites" },
-      { href: "/account/reviews", label: "Reviews" },
-      { href: "/account/saved-searches", label: "Saved searches" },
+      { href: "/account/favorites", label: "My Favorites" },
+      { href: "/account/saved-searches", label: "Saved Searches" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
+      settingsLink,
     ];
   }
 
-  return [
-    { href: "/agencies", label: "Agencies" },
-    { href: "/properties", label: "Properties" },
-    { href: "/agents", label: "Agents" },
-  ];
+  return [];
+}
+
+/** @deprecated Use publicNavLinks + getAccountDropdownLinks for navigation UI. */
+export function getRoleNavLinks(role: string | null | undefined) {
+  const normalizedRole = normalizeAppRole(role);
+
+  return [...publicNavLinks, ...getAccountDropdownLinks(normalizedRole)];
 }
 
 export function getFavoritesPageCopy(

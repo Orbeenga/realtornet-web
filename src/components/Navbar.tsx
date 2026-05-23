@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/AuthContext";
 import {
   authNavLinks,
-  getRoleNavLinks,
+  getAccountDropdownLinks,
   normalizeAppRole,
+  publicNavLinks,
 } from "@/features/auth/navigation";
 import { useMyProfile } from "@/features/profile/hooks";
 import { getStoredJwtPayload } from "@/lib/jwt";
@@ -45,7 +47,8 @@ export function Navbar() {
       : typeof payload?.role === "string"
         ? payload.role
         : user?.user_role ?? null;
-  const visibleNavLinks = getRoleNavLinks(user ? normalizeAppRole(role) : null);
+  const normalizedRole = normalizeAppRole(role);
+  const accountLinks = getAccountDropdownLinks(normalizedRole);
   const displayName =
     [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() ||
     user?.email ||
@@ -108,6 +111,20 @@ export function Navbar() {
     router.push("/login");
   };
 
+  const linkClassName = (href: string, mobile = false) =>
+    cn(
+      mobile
+        ? "block rounded-xl px-4 py-3 text-base font-medium transition-colors"
+        : "inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+      pathname.startsWith(href)
+        ? mobile
+          ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
+          : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
+        : mobile
+          ? "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+          : "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white",
+    );
+
   return (
     <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -139,17 +156,12 @@ export function Navbar() {
               RealtorNet
             </Link>
             <div className="hidden items-center gap-1 md:flex">
-              {visibleNavLinks.map(({ href, label }) => (
+              {publicNavLinks.map(({ href, label }) => (
                 <Link
                   key={href}
                   href={href}
                   prefetch={false}
-                  className={cn(
-                    "inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    pathname.startsWith(href)
-                      ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
-                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white",
-                  )}
+                  className={linkClassName(href)}
                 >
                   {label}
                 </Link>
@@ -166,22 +178,27 @@ export function Navbar() {
                   aria-expanded={isAccountMenuOpen}
                   aria-haspopup="menu"
                   onClick={() => setIsAccountMenuOpen((current) => !current)}
-                  className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 transition hover:ring-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"
+                  className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 ring-1 ring-gray-200 transition hover:ring-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:ring-gray-700"
                 >
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    getInitials({
-                      firstName: user.first_name,
-                      lastName: user.last_name,
-                      email: user.email,
-                    })
-                  )}
+                  <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                    {avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      getInitials({
+                        firstName: user.first_name,
+                        lastName: user.last_name,
+                        email: user.email,
+                      })
+                    )}
+                  </span>
+                  <span className="hidden max-w-[10rem] truncate text-sm font-medium text-gray-700 md:inline dark:text-gray-200">
+                    {displayName}
+                  </span>
                 </button>
 
                 {isAccountMenuOpen ? (
@@ -197,14 +214,18 @@ export function Navbar() {
                         {user.email}
                       </p>
                     </div>
-                    <Link
-                      href="/account/profile"
-                      prefetch={false}
-                      role="menuitem"
-                      className="block px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
-                    >
-                      Profile Settings
-                    </Link>
+                    {accountLinks.map(({ href, label }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        prefetch={false}
+                        role="menuitem"
+                        className="block px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                        onClick={() => setIsAccountMenuOpen(false)}
+                      >
+                        {label}
+                      </Link>
+                    ))}
                     <button
                       type="button"
                       role="menuitem"
@@ -218,20 +239,21 @@ export function Navbar() {
               </div>
             ) : !loading ? (
               <div className="hidden items-center gap-3 md:flex">
-                <Link
-                  href="/login"
-                  prefetch={false}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  href="/register"
-                  prefetch={false}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-                >
-                  Create account
-                </Link>
+                {authNavLinks.map(({ href, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    prefetch={false}
+                    className={cn(
+                      "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      href === "/register"
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
+                    )}
+                  >
+                    {label}
+                  </Link>
+                ))}
               </div>
             ) : null}
           </div>
@@ -271,23 +293,40 @@ export function Navbar() {
 
             <div className="flex-1 overflow-y-auto px-4 py-5">
               <div className="space-y-2">
-                {visibleNavLinks.map(({ href, label }) => (
+                {publicNavLinks.map(({ href, label }) => (
                   <Link
                     key={href}
                     href={href}
                     prefetch={false}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={cn(
-                      "block rounded-xl px-4 py-3 text-base font-medium transition-colors",
-                      pathname.startsWith(href)
-                        ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
-                    )}
+                    className={linkClassName(href, true)}
                   >
                     {label}
                   </Link>
                 ))}
               </div>
+
+              {user && accountLinks.length > 0 ? (
+                <>
+                  <Separator className="my-5" />
+                  <div className="space-y-2">
+                    <p className="px-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Account
+                    </p>
+                    {accountLinks.map(({ href, label }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        prefetch={false}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={linkClassName(href, true)}
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              ) : null}
 
               <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800">
                 {user ? (
@@ -300,14 +339,6 @@ export function Navbar() {
                         {user.email}
                       </p>
                     </div>
-                    <Link
-                      href="/account/profile"
-                      prefetch={false}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="block rounded-xl px-4 py-3 text-base font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
-                    >
-                      Profile Settings
-                    </Link>
                     <button
                       type="button"
                       onClick={() => void handleSignOut()}
@@ -324,7 +355,7 @@ export function Navbar() {
                         href={href}
                         prefetch={false}
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className="block rounded-xl px-4 py-3 text-base font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                        className={linkClassName(href, true)}
                       >
                         {label}
                       </Link>

@@ -40,7 +40,7 @@ export function useAgencyJoinRequests(
       apiClient<AgencyJoinRequestResponse[]>(
         `/api/v1/agencies/${agencyId}/join-requests/?status=all&limit=100`,
       ),
-    staleTime: 30_000,
+    staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
   });
 }
@@ -146,7 +146,7 @@ export function useMyAgencyJoinRequests(enabled = true) {
     queryKey: ["myAgencyJoinRequests"],
     queryFn: () =>
       apiClient<MyAgencyJoinRequestResponse[]>("/api/v1/join-requests/mine/"),
-    staleTime: 30_000,
+    staleTime: 60_000,
     enabled,
   });
 }
@@ -161,7 +161,7 @@ export function useAgencyInvitations(
       apiClient<AgencyInvitationResponse[]>(
         `/api/v1/agencies/${agencyId}/invitations/?limit=100`,
       ),
-    staleTime: 30_000,
+    staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
   });
 }
@@ -171,7 +171,7 @@ export function useMyAgencyInvitations(enabled = true) {
     queryKey: ["myAgencyInvitations"],
     queryFn: () =>
       apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/"),
-    staleTime: 30_000,
+    staleTime: 60_000,
     enabled,
   });
 }

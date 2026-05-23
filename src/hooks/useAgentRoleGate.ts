@@ -51,6 +51,8 @@ export function useAgentRoleGate() {
     membershipStatus: membershipStatusQuery.data ?? null,
     isAllowed,
     isAdmin,
+    isAgencyOwner,
+    isAgent,
     role,
   };
 }
