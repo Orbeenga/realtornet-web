@@ -132,3 +132,16 @@ pin popup content and listing link, `/properties?view=grid` unaffected, mobile
 DEF-J-HERO-001 - Closed in Phase K offline frontend pass on 2026-05-13.
 Homepage hero no longer hotlinks Pinterest; it uses a local Tailwind gradient
 fallback until a properly licensed hosted hero asset is selected.
+
+DEF-K-AGENT-DIR-001 - Public agent directory completeness filtering currently
+derives display names from `company_name` and agency names from the agencies
+catalogue because live `GET /api/v1/agent-profiles/` does not yet return
+`display_name` or `agency_name` on each list item. Backend should add those
+fields to the directory response so the frontend can filter cards without
+joining auxiliary data.
+
+DEF-K-PROPS-AGENCY-FILTER-001 - Agency owner My Listings uses
+`GET /api/v1/agencies/{agency_id}/properties` because OpenAPI for
+`GET /api/v1/properties/` does not document an `agency_id` query param.
+If the list endpoint gains `agency_id`, the owner listings hook can switch to
+that canonical filter.
