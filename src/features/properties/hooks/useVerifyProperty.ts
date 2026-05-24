@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { MODERATION_STATUS, isVerifiedModerationStatus } from "@/features/properties/lib/moderation";
+import { isVerifiedModerationStatus } from "@/features/properties/lib/moderation";
 import type { ModerationStatus, Property, PropertyVerificationUpdate } from "@/types";
 
 interface UpdatePropertyModerationInput {
@@ -91,12 +91,6 @@ export function useVerifyProperty() {
       moderationStatus,
       moderationReason,
     }: UpdatePropertyModerationInput) => {
-      if (moderationStatus === MODERATION_STATUS.verified) {
-        return apiClient<Property>(`/api/v1/admin/properties/${propertyId}/verify`, {
-          method: "POST",
-        });
-      }
-
       const payload: PropertyVerificationUpdate = {
         moderation_status: moderationStatus,
         moderation_reason: moderationReason ?? null,

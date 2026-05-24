@@ -112,6 +112,7 @@ export default function InquiriesPage() {
           source="admin"
           emptyTitle="No inquiries found"
           emptyDescription="Inbound inquiries across the platform will appear here."
+          showStatusActions={false}
         />
       ) : null}
     </div>

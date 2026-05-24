@@ -67,6 +67,7 @@ export function HomeHeroSearch() {
                   <button
                     type="button"
                     role="option"
+                    aria-selected={selectedLocationId === location.location_id}
                     className="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
                     onClick={() => selectLocation(location)}
                   >

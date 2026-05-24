@@ -78,6 +78,7 @@ export interface PropertyFilters {
   listing_type?: ListingType;
   listing_status?: ListingStatus;
   moderation_status?: ModerationStatus;
+  agency_id?: number;
   location_id?: number;
   skip?: number;
   limit?: number;

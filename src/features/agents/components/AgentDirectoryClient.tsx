@@ -12,7 +12,7 @@ import {
 import { useAgentDirectory, useVisibleAgentStats } from "@/features/agents/hooks";
 import { useLocations } from "@/features/properties/hooks";
 import { useIdleHydration } from "@/lib/useIdleHydration";
-import type { Agent, Agency, Location } from "@/types";
+import type { Agent, Location } from "@/types";
 
 function readNumberParam(value: string | null) {
   if (!value) {
@@ -48,8 +48,8 @@ function AgentCard({
   reviewCount,
 }: {
   agent: Agent;
-  agencyId: number;
-  agencyName: string;
+  agencyId?: number | null;
+  agencyName?: string | null;
   listingCount?: number | null;
   averageRating?: number | null;
   reviewCount?: number | null;
@@ -79,13 +79,15 @@ function AgentCard({
             </h2>
             {extended.is_verified === true ? <Badge>Verified</Badge> : null}
           </div>
-          <Link
-            href={`/agencies/${agencyId}`}
-            prefetch={false}
-            className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
-          >
-            {agencyName}
-          </Link>
+          {typeof agencyId === "number" && agencyName ? (
+            <Link
+              href={`/agencies/${agencyId}`}
+              prefetch={false}
+              className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+            >
+              {agencyName}
+            </Link>
+          ) : null}
           {agent.specialization ? (
             <p className="mt-2 line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
               {agent.specialization}
@@ -156,15 +158,8 @@ export function AgentDirectoryClient({
     [agenciesQuery.data],
   );
   const displayableAgents = useMemo(() => {
-    return (agentsQuery.data ?? []).filter((agent) => {
-      const agency =
-        typeof agent.agency_id === "number"
-          ? agencyById.get(agent.agency_id)
-          : undefined;
-
-      return isPublicDisplayableAgent(agent, agency?.name);
-    });
-  }, [agencyById, agentsQuery.data]);
+    return (agentsQuery.data ?? []).filter((agent) => isPublicDisplayableAgent(agent));
+  }, [agentsQuery.data]);
   const statsByProfileId = useVisibleAgentStats(
     displayableAgents.slice(0, 9),
     hydrateStats && displayableAgents.length > 0,
@@ -265,16 +260,15 @@ export function AgentDirectoryClient({
                 : undefined;
             const stats = statsByProfileId.get(agent.profile_id);
 
-            if (!agency || typeof agent.agency_id !== "number") {
-              return null;
-            }
+            const agentAgencyName =
+              (agent as Agent & { agency_name?: string | null }).agency_name ?? agency?.name;
 
             return (
               <AgentCard
                 key={agent.profile_id}
                 agent={agent}
                 agencyId={agent.agency_id}
-                agencyName={agency.name}
+                agencyName={agentAgencyName}
                 listingCount={stats?.isError ? null : stats?.listingCount}
                 averageRating={stats?.isError ? null : stats?.averageRating}
                 reviewCount={stats?.isError ? null : stats?.reviewCount}
