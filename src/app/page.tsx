@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
-import { HomeHeroSearch } from "@/features/home/components/HomeHeroSearch";
+import {
+  HomeHeroSearch,
+  HomeHierarchyCard,
+} from "@/features/home/components/HomeHeroSearch";
 import { FeaturedPropertiesSection } from "@/features/properties/components";
 import { serverPublicApi } from "@/lib/api/serverPublic";
 import type { Agency, PropertyList } from "@/types";
@@ -64,39 +67,13 @@ export default async function Home() {
               </p>
             </div>
 
-            <HomeHeroSearch />
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p className="text-xs font-semibold tracking-[0.3em] text-emerald-600 uppercase dark:text-emerald-300">
-              Public hierarchy
-            </p>
-            <h2 className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
-              Agencies to listings to agents
-            </h2>
-            <div className="mt-6 grid gap-5 md:grid-cols-3">
-              {[
-                ["1. Choose a verified agency", "Start from an approved organization with visible ownership."],
-                ["2. Review its active listings", "Inspect available homes that belong to that agency inventory."],
-                ["3. Contact the listing agent", "Move from discovery to inquiry through the responsible agent."],
-              ].map(([title, description]) => (
-                <div
-                  key={title}
-                  className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950"
-                >
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                    {description}
-                  </p>
-                </div>
-              ))}
+            <div className="flex items-start justify-center lg:justify-end">
+              <HomeHierarchyCard />
             </div>
           </div>
         </section>
+
+        <HomeHeroSearch />
 
         {showFeaturedListings ? (
           <FeaturedPropertiesSection
