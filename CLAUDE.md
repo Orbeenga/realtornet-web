@@ -72,6 +72,12 @@
 - `DEF-K-AGENT-DIR-001`: Public `/agents/` is backend-blocked because production `GET /api/v1/agent-profiles/` returns blank display identity fields and no `agency_name` on list rows. Do not use frontend fallback joins, placeholders, or hardcoded names.
 - `DEF-K-AGENCY-COUNTS-001`: Public `/agencies/` counts are backend-blocked because production `GET /api/v1/agencies/` returns zero counts where verified properties exist. Do not use frontend aggregation or per-card fan-out.
 - `DEF-K-PROPERTY-TYPE-SEED-001`: Property type filter is wired to `GET /api/v1/property-types/`, but production seed data currently returns only `Apartment`; the 12-type acceptance criterion is backend seed-data blocked.
+
+## Phase K final polish status
+- G.1: Landing sections are titled Featured Properties and Featured Agencies; property section hides when empty and shows up to 6 cards.
+- G.2: Landing search is an intent-capture widget only: location autocomplete plus backend enum listing type, then navigation to /properties/?listing_type=&location_id=. No map on landing page.
+- G.3: /properties/ intro copy is auth-aware; logged-in users do not see before you sign in copy.
+
 ## Session template
 At session start, capture:
 - Goal for this session

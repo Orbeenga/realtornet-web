@@ -137,6 +137,14 @@ Filter is frontend-wired to `GET /api/v1/property-types/` and cached as referenc
 6. Fix property-type filter to fetch from `GET /api/v1/property-types/` and show all 12 types
 7. Confirm Vercel deployment of `89f2530` fully propagates before closing B.1 and B.3
 
+
+## Phase K Final Polish (2026-05-24)
+
+- G.1 complete: homepage sections use Featured Properties and Featured Agencies; featured properties render up to 6 cards and hide when empty.
+- G.2 complete: homepage search is location autocomplete + backend enum listing type only, navigates to /properties/ with URL params, and does not render a map.
+- G.3 complete: /properties/ intro copy is auth-aware and removes before you sign in for authenticated users.
+- Locked F.4 debounce was re-verified after touching PropertyFilters.tsx: 350ms debounced filter URL updates remain in place with scroll preservation.
+
 ## Latest Phase H Validation
 
 - After commit `1c356e6`, frontend F2 `tsc`, lint, and build gates were clean.
