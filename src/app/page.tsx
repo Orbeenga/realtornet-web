@@ -77,7 +77,7 @@ export default async function Home() {
 
         {showFeaturedListings ? (
           <FeaturedPropertiesSection
-            title="Latest Verified Listings"
+            title="Featured Properties"
             initialData={properties}
           />
         ) : null}
@@ -87,7 +87,7 @@ export default async function Home() {
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
                 <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  Trusted Agencies
+                  Featured Agencies
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                   Approved agencies are the public starting point for every listing journey.
