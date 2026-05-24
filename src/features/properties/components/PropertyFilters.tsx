@@ -17,7 +17,8 @@ import {
   LISTING_TYPES,
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
-import { usePropertyTypes } from "@/features/properties/hooks";
+import { useLocations, usePropertyTypes } from "@/features/properties/hooks";
+import { formatLocationLabel } from "@/features/properties/lib/locationLabels";
 import { LocationCascadeSelector } from "@/features/locations/components/LocationCascadeSelector";
 import { cn } from "@/lib/utils";
 import { PropertyFiltersSavedSearch } from "./PropertyFiltersSavedSearch";
@@ -121,6 +122,10 @@ export function PropertyFilters() {
   const plainSearchParams = new URLSearchParams(searchParams.toString());
   plainSearchParams.delete("view");
   const propertyTypesQuery = usePropertyTypes();
+  const locationId = searchParams.get("location_id")
+    ? Number(searchParams.get("location_id"))
+    : undefined;
+  const locationsQuery = useLocations(typeof locationId === "number");
   const [openPanel, setOpenPanel] = useState<FilterPanel | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,14 +249,16 @@ export function PropertyFilters() {
     state: searchParams.get("state") ?? "",
     city: searchParams.get("city") ?? "",
     neighborhood: searchParams.get("neighborhood") ?? "",
-    locationId: searchParams.get("location_id")
-      ? Number(searchParams.get("location_id"))
-      : undefined,
+    locationId,
   };
+  const selectedLocation = (locationsQuery.data ?? []).find(
+    (location) => location.location_id === locationId,
+  );
   const locationLabel =
     locationValue.neighborhood ||
     locationValue.city ||
     locationValue.state ||
+    formatLocationLabel(selectedLocation) ||
     null;
   const currentView = searchParams.get("view") === "map" ? "map" : "grid";
   const hasFilters = Array.from(searchParams.keys()).some((key) => key !== "view");

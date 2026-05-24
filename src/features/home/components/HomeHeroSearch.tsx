@@ -1,21 +1,16 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { useLocationSearch } from "@/features/locations/hooks";
 import {
   LISTING_TYPE_LABELS,
   LISTING_TYPES,
 } from "@/features/properties/lib/propertyOptions";
-import { usePropertyTypes } from "@/features/properties/hooks";
-import type { ListingType } from "@/types";
+import type { ListingType, Location } from "@/types";
 import { cn } from "@/lib/utils";
 
 const TAB_LABELS: Record<ListingType, string> = {
@@ -24,46 +19,48 @@ const TAB_LABELS: Record<ListingType, string> = {
   lease: "Lease",
 };
 
-function selectClassName() {
-  return "h-11 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100";
+function optionLabel(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function locationLabel(location: Location) {
+  return [location.neighborhood, location.city, location.state]
+    .filter(Boolean)
+    .map((value) => optionLabel(String(value)))
+    .join(", ");
 }
 
 export function HomeHeroSearch() {
   const router = useRouter();
-  const propertyTypesQuery = usePropertyTypes();
-  const [search, setSearch] = useState("");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState<number | undefined>();
   const [listingType, setListingType] = useState<ListingType>("sale");
-  const [propertyTypeId, setPropertyTypeId] = useState("");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [bedrooms, setBedrooms] = useState("");
+  const searchQuery = useLocationSearch(locationQuery);
+
+  const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
 
-    if (search.trim()) {
-      params.set("search", search.trim());
+    if (typeof selectedLocationId === "number") {
+      params.set("location_id", String(selectedLocationId));
     }
 
-    params.set("listing_type", listingType);
-
-    if (propertyTypeId) {
-      params.set("property_type_id", propertyTypeId);
+    if (listingType) {
+      params.set("listing_type", listingType);
     }
 
-    if (minPrice) {
-      params.set("min_price", minPrice);
-    }
+    const query = params.toString();
+    router.push(query ? `/properties/?${query}` : "/properties/");
+  };
 
-    if (maxPrice) {
-      params.set("max_price", maxPrice);
-    }
-
-    if (bedrooms) {
-      params.set("bedrooms", bedrooms);
-    }
-
-    router.push(`/properties?${params.toString()}`);
+  const selectLocation = (location: Location) => {
+    setLocationQuery(locationLabel(location));
+    setSelectedLocationId(location.location_id);
   };
 
   return (
@@ -95,115 +92,42 @@ export function HomeHeroSearch() {
           }}
         >
           <div className="relative min-w-0 flex-1">
+            <label htmlFor="home-location-search" className="sr-only">
+              Location
+            </label>
             <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
-              id="home-property-search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by title, keyword, or area"
+              id="home-location-search"
+              value={locationQuery}
+              onChange={(event) => {
+                setLocationQuery(event.target.value);
+                setSelectedLocationId(undefined);
+              }}
+              placeholder="Search neighbourhood or city in Nigeria"
               autoComplete="off"
               className="h-12 rounded-xl bg-white pl-11 dark:bg-gray-900"
             />
+            {suggestions.length > 0 && !selectedLocationId ? (
+              <ul
+                className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                role="listbox"
+              >
+                {suggestions.map((location) => (
+                  <li key={location.location_id}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={selectedLocationId === location.location_id}
+                      className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => selectLocation(location)}
+                    >
+                      {locationLabel(location)}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
-
-          <Popover>
-            <PopoverTrigger
-              className="inline-flex h-12 min-w-36 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            >
-              <span>Filters</span>
-              <span className="text-xs text-gray-400">v</span>
-            </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="home-property-type"
-                    className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
-                  >
-                    Property type
-                  </label>
-                  <select
-                    id="home-property-type"
-                    value={propertyTypeId}
-                    onChange={(event) => setPropertyTypeId(event.target.value)}
-                    disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
-                    className={selectClassName()}
-                  >
-                    <option value="">
-                      {propertyTypesQuery.isLoading
-                        ? "Loading property types..."
-                        : propertyTypesQuery.isError
-                          ? "Property types unavailable"
-                          : "All property types"}
-                    </option>
-                    {(propertyTypesQuery.data ?? []).map((propertyType) => (
-                      <option
-                        key={propertyType.property_type_id}
-                        value={propertyType.property_type_id}
-                      >
-                        {propertyType.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="home-min-price"
-                      className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
-                    >
-                      Min price
-                    </label>
-                    <Input
-                      id="home-min-price"
-                      type="number"
-                      value={minPrice}
-                      placeholder="0"
-                      onChange={(event) => setMinPrice(event.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="home-max-price"
-                      className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
-                    >
-                      Max price
-                    </label>
-                    <Input
-                      id="home-max-price"
-                      type="number"
-                      value={maxPrice}
-                      placeholder="Any"
-                      onChange={(event) => setMaxPrice(event.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="home-bedrooms"
-                    className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
-                  >
-                    Bedrooms
-                  </label>
-                  <select
-                    id="home-bedrooms"
-                    value={bedrooms}
-                    onChange={(event) => setBedrooms(event.target.value)}
-                    className={selectClassName()}
-                  >
-                    <option value="">Any</option>
-                    <option value="1">1+</option>
-                    <option value="2">2+</option>
-                    <option value="3">3+</option>
-                    <option value="4">4+</option>
-                    <option value="5">5+</option>
-                  </select>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
 
           <Button type="submit" className="h-12 shrink-0 px-6">
             Search properties
