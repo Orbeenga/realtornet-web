@@ -10,12 +10,12 @@ import { serverPublicApi } from "@/lib/api/serverPublic";
 import type { PaginatedProperties, PropertyFilters } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Properties for Sale & Rent in Lagos",
+  title: "Properties for Sale & Rent in Nigeria",
   description:
-    "Browse verified property listings across Lagos. Filter by price, bedrooms, location and property type.",
+    "Browse verified property listings across Nigeria. Filter by price, bedrooms, location and property type.",
   openGraph: {
-    title: "Properties for Sale & Rent in Lagos | RealtorNet",
-    description: "Browse verified property listings across Lagos.",
+    title: "Properties for Sale & Rent in Nigeria | RealtorNet",
+    description: "Browse verified property listings across Nigeria.",
     url: "/properties",
     siteName: "RealtorNet",
     locale: "en_NG",

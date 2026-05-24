@@ -10,12 +10,12 @@ import type { Agency, PropertyList } from "@/types";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "RealtorNet — Find Verified Properties in Lagos",
+    absolute: "RealtorNet — Find Verified Properties in Nigeria",
   },
   description:
     "Nigeria's trusted property marketplace. Browse agencies, explore listings, and connect with verified agents.",
   openGraph: {
-    title: "RealtorNet — Find Verified Properties in Lagos",
+    title: "RealtorNet — Find Verified Properties in Nigeria",
     description:
       "Nigeria's trusted property marketplace. Browse agencies, explore listings, and connect with verified agents.",
     url: "/",
@@ -27,7 +27,10 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const [featuredProperties, featuredAgencies] = await Promise.allSettled([
-    serverPublicApi<PropertyList>("/api/v1/properties/featured?limit=3", 120),
+    serverPublicApi<PropertyList>(
+      "/api/v1/properties/?page=1&page_size=6&limit=6&moderation_status=verified",
+      120,
+    ),
     serverPublicApi<Agency[]>("/api/v1/agencies/", 120),
   ]);
 
@@ -53,14 +56,45 @@ export default async function Home() {
                 RealtorNet
               </p>
               <h1 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
-                Find Your Next Property in Lagos
+                Find property through trusted real estate agencies
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-white/85">
-                Verified listings from trusted agencies
+                Browse approved agencies, inspect their listings, and move from discovery
+                to inquiry with visible ownership at every step.
               </p>
             </div>
 
             <HomeHeroSearch />
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <p className="text-xs font-semibold tracking-[0.3em] text-emerald-600 uppercase dark:text-emerald-300">
+              Public hierarchy
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
+              Agencies to listings to agents
+            </h2>
+            <div className="mt-6 grid gap-5 md:grid-cols-3">
+              {[
+                ["1. Choose a verified agency", "Start from an approved organization with visible ownership."],
+                ["2. Review its active listings", "Inspect available homes that belong to that agency inventory."],
+                ["3. Contact the listing agent", "Move from discovery to inquiry through the responsible agent."],
+              ].map(([title, description]) => (
+                <div
+                  key={title}
+                  className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950"
+                >
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                    {description}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -92,28 +126,6 @@ export default async function Home() {
             <AgencyDirectoryClient compact initialData={agencies} />
           </section>
         ) : null}
-
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-5 md:grid-cols-3">
-            {[
-              ["Apply", "Agencies submit ownership, contact, website, and profile details for review."],
-              ["Get approved", "Admins approve trusted organizations before they appear publicly."],
-              ["Publish listings", "Agents operate inside agency structures and manage inventory."],
-            ].map(([title, description]) => (
-              <div
-                key={title}
-                className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
-              >
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                  {description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
           <div className="grid gap-5 md:grid-cols-2">

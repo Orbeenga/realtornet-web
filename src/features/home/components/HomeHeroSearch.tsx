@@ -53,7 +53,7 @@ export function HomeHeroSearch() {
               setLocationQuery(event.target.value);
               setSelectedLocationId(undefined);
             }}
-            placeholder="Search neighbourhood or city in Lagos"
+            placeholder="Search neighbourhood or city in Nigeria"
             autoComplete="off"
             className="h-12 bg-white dark:bg-gray-900"
           />

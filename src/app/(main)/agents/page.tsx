@@ -7,11 +7,11 @@ import { serverPublicApi } from "@/lib/api/serverPublic";
 import type { Agent } from "@/types";
 
 export const metadata: Metadata = {
-  title: "Property Agents in Lagos",
-  description: "Find verified real estate agents in Lagos on RealtorNet.",
+  title: "Property Agents in Nigeria",
+  description: "Find verified real estate agents in Nigeria on RealtorNet.",
   openGraph: {
-    title: "Property Agents in Lagos | RealtorNet",
-    description: "Find verified real estate agents in Lagos on RealtorNet.",
+    title: "Property Agents in Nigeria | RealtorNet",
+    description: "Find verified real estate agents in Nigeria on RealtorNet.",
     url: "/agents",
     siteName: "RealtorNet",
     locale: "en_NG",
