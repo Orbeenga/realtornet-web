@@ -1,11 +1,12 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocationSearch } from "@/features/locations/hooks";
+import { usePropertyTypes } from "@/features/properties/hooks";
 import {
   LISTING_TYPE_LABELS,
   LISTING_TYPES,
@@ -18,6 +19,26 @@ const TAB_LABELS: Record<ListingType, string> = {
   rent: "Rent",
   lease: "Lease",
 };
+
+const PRICE_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "500000", label: "NGN 500k" },
+  { value: "1000000", label: "NGN 1m" },
+  { value: "2500000", label: "NGN 2.5m" },
+  { value: "5000000", label: "NGN 5m" },
+  { value: "10000000", label: "NGN 10m" },
+  { value: "25000000", label: "NGN 25m" },
+  { value: "50000000", label: "NGN 50m" },
+];
+
+const BEDROOM_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "1", label: "1+" },
+  { value: "2", label: "2+" },
+  { value: "3", label: "3+" },
+  { value: "4", label: "4+" },
+  { value: "5", label: "5+" },
+];
 
 function optionLabel(value: string) {
   return value
@@ -34,11 +55,47 @@ function locationLabel(location: Location) {
     .join(", ");
 }
 
+function HomeFilterSelect({
+  id,
+  label,
+  value,
+  onChange,
+  children,
+  disabled = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block min-w-0 flex-1" htmlFor={id}>
+      <span className="sr-only">{label}</span>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className="h-12 w-full rounded-xl border border-white/30 bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm outline-none transition hover:bg-blue-700 focus:ring-2 focus:ring-white/80 disabled:cursor-not-allowed disabled:opacity-70 dark:border-blue-400/30 dark:bg-blue-700"
+      >
+        {children}
+      </select>
+    </label>
+  );
+}
+
 export function HomeHeroSearch() {
   const router = useRouter();
+  const propertyTypesQuery = usePropertyTypes();
   const [locationQuery, setLocationQuery] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<number | undefined>();
   const [listingType, setListingType] = useState<ListingType>("sale");
+  const [propertyTypeId, setPropertyTypeId] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [bedrooms, setBedrooms] = useState("");
   const searchQuery = useLocationSearch(locationQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
@@ -46,12 +103,33 @@ export function HomeHeroSearch() {
   const handleSearch = () => {
     const params = new URLSearchParams();
 
+    if (locationQuery.trim()) {
+      params.set("search", locationQuery.trim());
+    }
+
     if (typeof selectedLocationId === "number") {
       params.set("location_id", String(selectedLocationId));
+      params.delete("search");
     }
 
     if (listingType) {
       params.set("listing_type", listingType);
+    }
+
+    if (propertyTypeId) {
+      params.set("property_type_id", propertyTypeId);
+    }
+
+    if (minPrice) {
+      params.set("min_price", minPrice);
+    }
+
+    if (maxPrice) {
+      params.set("max_price", maxPrice);
+    }
+
+    if (bedrooms) {
+      params.set("bedrooms", bedrooms);
     }
 
     const query = params.toString();
@@ -64,76 +142,153 @@ export function HomeHeroSearch() {
   };
 
   return (
-    <section className="bg-gray-50 px-4 py-5 dark:bg-gray-950 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="inline-flex h-12 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          {LISTING_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              className={cn(
-                "min-w-20 px-4 text-sm font-semibold transition",
-                listingType === type
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
-              )}
-              onClick={() => setListingType(type)}
-            >
-              {TAB_LABELS[type] ?? LISTING_TYPE_LABELS[type]}
-            </button>
-          ))}
+    <section className="bg-blue-600 px-4 py-5 dark:bg-blue-950 sm:px-6 lg:px-8">
+      <form
+        className="mx-auto max-w-7xl space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleSearch();
+        }}
+      >
+        <div className="overflow-hidden rounded-2xl bg-white p-2 shadow-xl dark:bg-gray-950">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="inline-flex h-14 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+              {LISTING_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={cn(
+                    "min-w-20 px-4 text-sm font-semibold transition",
+                    listingType === type
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
+                  )}
+                  onClick={() => setListingType(type)}
+                >
+                  {TAB_LABELS[type] ?? LISTING_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative min-w-0 flex-1">
+              <label htmlFor="home-location-search" className="sr-only">
+                Search location
+              </label>
+              <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-500" />
+              <Input
+                id="home-location-search"
+                value={locationQuery}
+                onChange={(event) => {
+                  setLocationQuery(event.target.value);
+                  setSelectedLocationId(undefined);
+                }}
+                placeholder="Search for a city, suburb or neighbourhood"
+                autoComplete="off"
+                className="h-14 border-0 bg-transparent pl-12 text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
+              />
+              {suggestions.length > 0 && !selectedLocationId ? (
+                <ul
+                  className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                  role="listbox"
+                >
+                  {suggestions.map((location) => (
+                    <li key={location.location_id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selectedLocationId === location.location_id}
+                        className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => selectLocation(location)}
+                      >
+                        {locationLabel(location)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <Button type="submit" className="h-14 shrink-0 rounded-xl px-8 text-base">
+              Search
+            </Button>
+          </div>
         </div>
 
-        <form
-          className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleSearch();
-          }}
-        >
-          <div className="relative min-w-0 flex-1">
-            <label htmlFor="home-location-search" className="sr-only">
-              Location
-            </label>
-            <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              id="home-location-search"
-              value={locationQuery}
-              onChange={(event) => {
-                setLocationQuery(event.target.value);
-                setSelectedLocationId(undefined);
-              }}
-              placeholder="Search neighbourhood or city in Nigeria"
-              autoComplete="off"
-              className="h-12 rounded-xl bg-white pl-11 dark:bg-gray-900"
-            />
-            {suggestions.length > 0 && !selectedLocationId ? (
-              <ul
-                className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-                role="listbox"
-              >
-                {suggestions.map((location) => (
-                  <li key={location.location_id}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={selectedLocationId === location.location_id}
-                      className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => selectLocation(location)}
-                    >
-                      {locationLabel(location)}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <HomeFilterSelect
+            id="home-property-type"
+            label="Property Type"
+            value={propertyTypeId}
+            onChange={setPropertyTypeId}
+            disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
+          >
+            <option value="">
+              {propertyTypesQuery.isLoading
+                ? "Loading property types..."
+                : propertyTypesQuery.isError
+                  ? "Property types unavailable"
+                  : "Property Type"}
+            </option>
+            {(propertyTypesQuery.data ?? []).map((propertyType) => (
+              <option key={propertyType.property_type_id} value={propertyType.property_type_id}>
+                {propertyType.name}
+              </option>
+            ))}
+          </HomeFilterSelect>
 
-          <Button type="submit" className="h-12 shrink-0 px-6">
-            Search properties
+          <HomeFilterSelect
+            id="home-min-price"
+            label="Min Price"
+            value={minPrice}
+            onChange={setMinPrice}
+          >
+            <option value="">Min Price</option>
+            {PRICE_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </HomeFilterSelect>
+
+          <HomeFilterSelect
+            id="home-max-price"
+            label="Max Price"
+            value={maxPrice}
+            onChange={setMaxPrice}
+          >
+            <option value="">Max Price</option>
+            {PRICE_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </HomeFilterSelect>
+
+          <HomeFilterSelect
+            id="home-bedrooms"
+            label="Bedrooms"
+            value={bedrooms}
+            onChange={setBedrooms}
+          >
+            <option value="">Bedrooms</option>
+            {BEDROOM_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </HomeFilterSelect>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 rounded-xl border-white/40 bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 hover:text-white dark:border-blue-400/30 dark:bg-blue-700"
+            onClick={handleSearch}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
           </Button>
-        </form>
-      </div>
+        </div>
+      </form>
     </section>
   );
 }
