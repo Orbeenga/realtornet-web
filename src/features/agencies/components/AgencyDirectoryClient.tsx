@@ -19,16 +19,11 @@ function getInitials(name: string) {
     .join("");
 }
 
-function hasAgencyCounts(agency: Agency) {
-  return (
-    typeof agency.agent_count === "number" &&
-    typeof agency.property_count === "number"
-  );
-}
-
 function AgencyDirectoryCard({ agency }: { agency: Agency }) {
   const initials = getInitials(agency.name);
-  const showStats = hasAgencyCounts(agency);
+  const hasPropertyCount =
+    agency.property_count !== null && agency.property_count !== undefined;
+  const hasAgentCount = agency.agent_count !== null && agency.agent_count !== undefined;
 
   return (
     <Card hoverable className="h-full">
@@ -63,20 +58,24 @@ function AgencyDirectoryCard({ agency }: { agency: Agency }) {
           </p>
         ) : null}
 
-        {showStats ? (
+        {hasPropertyCount || hasAgentCount ? (
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
-              <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                {agency.property_count} listing{agency.property_count === 1 ? "" : "s"}
-              </p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
-              <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                {agency.agent_count} agent{agency.agent_count === 1 ? "" : "s"}
-              </p>
-            </div>
+            {hasPropertyCount ? (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
+                <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                  {agency.property_count} listing{agency.property_count === 1 ? "" : "s"}
+                </p>
+              </div>
+            ) : null}
+            {hasAgentCount ? (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
+                <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                  {agency.agent_count} agent{agency.agent_count === 1 ? "" : "s"}
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

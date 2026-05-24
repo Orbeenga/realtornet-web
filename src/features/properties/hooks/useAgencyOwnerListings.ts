@@ -6,7 +6,7 @@ export function useAgencyOwnerListings(agencyId?: number | null) {
   return useQuery({
     queryKey: ["agencyOwnerListings", agencyId],
     queryFn: () =>
-      apiClient<PropertyList>(`/api/v1/agencies/${agencyId}/properties`, {
+      apiClient<PropertyList>(`/api/v1/properties/?agency_id=${agencyId}`, {
         authMode: "include",
       }),
     staleTime: 60_000,

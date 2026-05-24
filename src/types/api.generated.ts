@@ -774,7 +774,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agencies/{agency_id}/agents": {
+    "/api/v1/agencies/{agency_id}/agents/": {
         parameters: {
             query?: never;
             header?: never;
@@ -788,7 +788,7 @@ export interface paths {
          *     Public endpoint - useful for "Meet Our Team" pages.
          *     Returns active agents by default. Agency owners can request all membership states.
          */
-        get: operations["read_agency_agents_api_v1_agencies__agency_id__agents_get"];
+        get: operations["read_agency_agents_api_v1_agencies__agency_id__agents__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -835,6 +835,26 @@ export interface paths {
          * @description Suspend an active agency membership with an audit reason.
          */
         patch: operations["suspend_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__suspend__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/agents/by-user/{user_id}/suspend/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Suspend Agency Agent Membership By User
+         * @description Suspend an agency membership by member user ID.
+         */
+        patch: operations["suspend_agency_agent_membership_by_user_api_v1_agencies__agency_id__agents_by_user__user_id__suspend__patch"];
         trace?: never;
     };
     "/api/v1/agencies/{agency_id}/agents/{membership_id}/revoke/": {
@@ -4426,6 +4446,11 @@ export interface components {
             deleted_at?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+            /**
+             * Can Respond
+             * @default false
+             */
+            can_respond: boolean;
             user?: components["schemas"]["InquiryUserSummary"] | null;
             /** Property */
             property?: {
@@ -4461,6 +4486,11 @@ export interface components {
             deleted_at?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+            /**
+             * Can Respond
+             * @default false
+             */
+            can_respond: boolean;
         };
         /**
          * InquiryStatsBreakdown
@@ -6842,7 +6872,7 @@ export interface operations {
             };
         };
     };
-    read_agency_agents_api_v1_agencies__agency_id__agents_get: {
+    read_agency_agents_api_v1_agencies__agency_id__agents__get: {
         parameters: {
             query?: {
                 status?: string;
@@ -6923,6 +6953,42 @@ export interface operations {
             path: {
                 agency_id: number;
                 membership_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyAgentMembershipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_agency_agent_membership_by_user_api_v1_agencies__agency_id__agents_by_user__user_id__suspend__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                user_id: number;
             };
             cookie?: never;
         };
