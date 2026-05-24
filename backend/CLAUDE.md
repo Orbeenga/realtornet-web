@@ -64,3 +64,51 @@ exit target and needs focused backend tests in Phase J.
   roles remain backend-authoritative.
 - Admin-only lifecycle fields must not be opened to agency owners or agents.
 - Use generated OpenAPI types on the frontend after every backend schema change.
+
+## Phase K Stream B — Deployment and Data Findings (2026-05-24)
+
+### Deployment Propagation Issue
+
+Vercel deployment of commit `89f2530` is not fully propagated. Homepage is current, but `/properties/`, `/agencies/`, and `/agents/` still run `efbca07`. Blocks validation of B.1, B.3, and related changes. **Confirm full propagation before accepting Phase K Stream B.**
+
+### Agency Listing Count Issue
+
+All agencies show "0 listings" including agencies with live properties (e.g., Apine with property 6). Related to deployment propagation (B.3 fix in `89f2530` hasn't reached `/agencies/` yet). Once deployment propagates, verify that `property_count` on agency responses matches the canonical query: verified listings only, not deleted rows.
+
+## Phase L — Deferred: Three-Tier Listing Moderation (`DEF-L-MOD-001`)
+
+### Rationale
+
+Current flow: Agent creates → `pending_review` → Admin verifies → public immediately.
+
+Proposed flow (industry-standard for trust-layered marketplaces):
+- Agent creates listing → `pending_review`
+- Agency owner approves → `agency_approved` (agency roster only, not public)
+- Admin reviews agency-approved pool → publishes to `verified` (public feed)
+
+This scales better (admin not overwhelmed by raw agent submissions) and enables institutional accountability (agencies screen their own inventory first). Admin becomes a final gatekeeper, not a first-line reviewer.
+
+### Technical Requirements
+
+**New moderation state:** Add `agency_approved` to the enum. Current enum is `pending_review / verified / rejected / revoked`. `agency_approved` sits between `pending_review` and `verified`.
+
+**Visibility rules:**
+- `pending_review`: agency owner can see only their own (in private agency dashboard queue)
+- `agency_approved`: visible only in the agency's roster dashboard, excluded from public `/properties/` feed
+- `verified`: public `/properties/` feed
+- `rejected` / `revoked`: hidden from public and agency views
+
+**New surfaces:**
+- Agency owner sees queue of their own `pending_review` listings to approve/reject
+- Admin sees separate queue of `agency_approved` listings to promote to `verified` or reject
+- Both queues paginated and filterable
+
+### Implementation Scope
+
+- Migration: add `agency_approved` to enum
+- Visibility filters: public `/properties/` excludes `pending_review` and `agency_approved` (verified only)
+- Agency roster filters: include `pending_review` and `agency_approved` for owner visibility
+- Admin queue: new endpoint or filter to show `agency_approved` listings across all agencies
+- Agency owner action: approve/reject endpoint on listing (sets state, optional reason)
+- Admin action: promote to verified or reject from `agency_approved` state
+- Frontend: agency dashboard listing queue, admin moderation redesign with separate tabs or queues

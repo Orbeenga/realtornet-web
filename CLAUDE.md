@@ -68,6 +68,10 @@
 - Current Railway OpenAPI confirms: `/api/v1/agencies/{agency_id}/stats`, `/api/v1/agent-profiles/` with `agency_id` and `location_id`, `/api/v1/agent-profiles/{profile_id}/reviews`, `/api/v1/agent-profiles/{profile_id}/stats`, `/api/v1/agent-profiles/{profile_id}/properties`, `/api/v1/property-types/`, `/api/v1/properties/` with `property_type_id`, `/api/v1/agencies/{agency_id}` owner-safe PUT, `/api/v1/favorites/count/{property_id}`, `/api/v1/favorites/is-favorited`, `/api/v1/reviews/by-user/property/`, `/api/v1/reviews/by-user/agent/`, `/api/v1/amenities/categories`, and listing status/type enum schemas.
 - Live location hierarchy and search endpoints are public and wired on the frontend. `GET /api/v1/locations/search?q=&limit=` performs backend-side resolution; frontend consumers must use that contract rather than browser-direct geocoding.
 
+## Phase K Stream B deferred blockers
+- `DEF-K-AGENT-DIR-001`: Public `/agents/` is backend-blocked because production `GET /api/v1/agent-profiles/` returns blank display identity fields and no `agency_name` on list rows. Do not use frontend fallback joins, placeholders, or hardcoded names.
+- `DEF-K-AGENCY-COUNTS-001`: Public `/agencies/` counts are backend-blocked because production `GET /api/v1/agencies/` returns zero counts where verified properties exist. Do not use frontend aggregation or per-card fan-out.
+- `DEF-K-PROPERTY-TYPE-SEED-001`: Property type filter is wired to `GET /api/v1/property-types/`, but production seed data currently returns only `Apartment`; the 12-type acceptance criterion is backend seed-data blocked.
 ## Session template
 At session start, capture:
 - Goal for this session

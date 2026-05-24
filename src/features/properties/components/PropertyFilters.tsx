@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,28 @@ export function PropertyFilters() {
   const propertyTypesQuery = usePropertyTypes();
   const [openPanel, setOpenPanel] = useState<FilterPanel | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingScrollYRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingScrollYRef.current === null) {
+      return;
+    }
+
+    const scrollY = pendingScrollYRef.current;
+    pendingScrollYRef.current = null;
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  }, [searchParams]);
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -139,6 +161,21 @@ export function PropertyFilters() {
       router.push(query ? `${pathname}?${query}` : pathname);
     },
     [pathname, router, searchParams],
+  );
+
+  const updateFilterDebounced = useCallback(
+    (key: string, value: string) => {
+      pendingScrollYRef.current = window.scrollY;
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        updateFilter(key, value);
+      }, 350);
+    },
+    [updateFilter],
   );
 
   const updateLocationFilters = useCallback(
@@ -259,7 +296,7 @@ export function PropertyFilters() {
       <select
         id={id}
         value={propertyTypeId}
-        onChange={(event) => updateFilter("property_type_id", event.target.value)}
+        onChange={(event) => updateFilterDebounced("property_type_id", event.target.value)}
         disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
         className={selectClassName}
       >
@@ -290,7 +327,7 @@ export function PropertyFilters() {
         type="number"
         value={minPrice}
         placeholder="0"
-        onChange={(event) => updateFilter("min_price", event.target.value)}
+        onChange={(event) => updateFilterDebounced("min_price", event.target.value)}
       />
     </div>
   );
@@ -303,7 +340,7 @@ export function PropertyFilters() {
         type="number"
         value={maxPrice}
         placeholder="Any"
-        onChange={(event) => updateFilter("max_price", event.target.value)}
+        onChange={(event) => updateFilterDebounced("max_price", event.target.value)}
       />
     </div>
   );
@@ -314,7 +351,7 @@ export function PropertyFilters() {
       <select
         id={id}
         value={bedrooms}
-        onChange={(event) => updateFilter("bedrooms", event.target.value)}
+        onChange={(event) => updateFilterDebounced("bedrooms", event.target.value)}
         className={selectClassName}
       >
         <option value="">Any</option>
@@ -343,7 +380,7 @@ export function PropertyFilters() {
         <select
           id="listing-type"
           value={listingType}
-          onChange={(event) => updateFilter("listing_type", event.target.value)}
+          onChange={(event) => updateFilterDebounced("listing_type", event.target.value)}
           className={selectClassName}
         >
           <option value="">All listing types</option>
@@ -360,7 +397,7 @@ export function PropertyFilters() {
         <select
           id="listing-status"
           value={listingStatus}
-          onChange={(event) => updateFilter("listing_status", event.target.value)}
+          onChange={(event) => updateFilterDebounced("listing_status", event.target.value)}
           className={selectClassName}
         >
           <option value="">All statuses</option>

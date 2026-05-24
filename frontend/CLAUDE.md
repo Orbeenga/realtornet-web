@@ -87,6 +87,56 @@ Public top nav for all users: Properties, Agencies, Agents.
 - `DEF-J-LOC-001`: location result-quality monitoring as usage grows; frontend must call backend location search and must never call Nominatim directly.
 - `DEF-K-AGENT-DIR-001`: public agent directory still depends on `company_name` + agency lookup until `AgentProfileResponse` exposes `display_name` and `agency_name` on `GET /api/v1/agent-profiles/`.
 
+## Phase K Stream B — Live Site Findings (2026-05-24)
+
+### Deployment Propagation Issue (CRITICAL)
+
+Sentry release headers show homepage is running commit `89f2530` (latest), but `/properties/`, `/agencies/`, and `/agents/` still run `efbca07` (previous). This blocks validation of B.1 (agent directory), B.3 (agency counts), and other Stream B changes. **Confirm Vercel deployment of `89f2530` is fully propagated across all routes before closing B.1 and B.3.**
+
+### Landing Page Regressions
+
+**Headline regression:** Reverted from "Find property through trusted real estate agencies" to "Find Your Next Property in Lagos" — Lagos-specific, loses the platform model explanation. Original messaging told visitors what we are and how it works.
+
+**Missing subline:** "Browse approved agencies, inspect their listings, and move from discovery to inquiry with visible ownership at every step" was removed.
+
+**Explainer card deleted:** The "PUBLIC HIERARCHY — Agencies to listings to agents" card was replaced by the search widget instead of coexisting. Both should remain.
+
+**Missing "Latest Verified Listings":** Phase K Task 4 specified two featured sections (agencies + listings); only agencies section remains. Add it back.
+
+**Lagos-specific meta titles:** All page titles and meta descriptions hardcode "Lagos" (e.g., "Properties for Sale & Rent in Lagos"). Page body correctly says "Discover verified homes across Nigeria." Change all titles/meta to Nigeria-wide language.
+
+### Locked UI States Instruction
+
+**Do not remove existing sections during hero or discovery changes.** The agency-hierarchy explainer card and both featured sections (Agencies + Listings) are locked states and must survive any UI refresh. Add new sections alongside, not instead of.
+
+### Agents Page (`/agents`)
+
+**Backend-blocked:** "No agents found" persists after frontend `89f2530` because production `GET /api/v1/agent-profiles/` returns blank `display_name`, blank `company_name`, and no `agency_name` on list rows. Track under `DEF-K-AGENT-DIR-001`. Do not implement frontend fallback joins, placeholder cards, or hardcoded names.
+
+### Agency Counts (`/agencies`)
+
+**Backend-blocked:** Agency cards read `agent_count` and `property_count` from the agency list response, but production `GET /api/v1/agencies/` returns zero counts even where verified properties exist. Track under `DEF-K-AGENCY-COUNTS-001`. Do not implement frontend aggregation or per-card fan-out.
+
+### Filters — INP Performance Issue (248ms / 232ms)
+
+Bedrooms select and listing-type select both fire heavy event handlers on every change, triggering immediate API calls and full re-renders. User experiences scroll snap as page re-renders mid-scroll.
+
+**Fix:** Debounce filter changes (300-400ms). Ensure filter state updates do not trigger scroll position resets.
+
+### Property Type Filter
+
+Filter is frontend-wired to `GET /api/v1/property-types/` and cached as reference data. Production currently returns only `Apartment`, so the "12 types visible" acceptance criterion is backend seed-data blocked. Track under `DEF-K-PROPERTY-TYPE-SEED-001`.
+
+## Frontend Agent Dispatch (After Deployment Confirmed)
+
+1. Revert landing page headline to "Find property through trusted real estate agencies" and restore subline about the agency-first model
+2. Restore the agency-hierarchy explainer card alongside the search widget (not instead of)
+3. Add "Latest Verified Listings" section back to homepage (Phase K Task 4 specified both)
+4. Change all page titles and meta descriptions from "Lagos" to Nigeria-wide language
+5. Fix filter INP: debounce all filter change handlers, prevent scroll position resets
+6. Fix property-type filter to fetch from `GET /api/v1/property-types/` and show all 12 types
+7. Confirm Vercel deployment of `89f2530` fully propagates before closing B.1 and B.3
+
 ## Latest Phase H Validation
 
 - After commit `1c356e6`, frontend F2 `tsc`, lint, and build gates were clean.

@@ -36,15 +36,18 @@ export function useProperties(
 }
 
 export function useFeaturedProperties(
-  limit = 3,
+  limit = 6,
   initialData?: PropertyList | null,
 ) {
   return useQuery({
     queryKey: ["featuredProperties", limit],
     queryFn: () =>
-      apiClient<PropertyList>(`/api/v1/properties/featured?limit=${limit}`, {
-        authMode: "omit",
-      }),
+      apiClient<PropertyList>(
+        `/api/v1/properties/?page=1&page_size=${limit}&limit=${limit}&moderation_status=verified`,
+        {
+          authMode: "omit",
+        },
+      ),
     staleTime: 60_000,
     initialData: initialData ?? undefined,
   });

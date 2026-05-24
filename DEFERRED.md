@@ -145,3 +145,35 @@ DEF-K-PROPS-AGENCY-FILTER-001 - Agency owner My Listings uses
 `GET /api/v1/properties/` does not document an `agency_id` query param.
 If the list endpoint gains `agency_id`, the owner listings hook can switch to
 that canonical filter.
+
+Closed in Phase K frontend Stream B commit `89f2530`. Railway OpenAPI now
+documents `agency_id` on `GET /api/v1/properties/`, and agency-owner My
+Listings uses the canonical `/api/v1/properties/?agency_id=` filter.
+
+DEF-K-AGENT-DIR-001 - Public `/agents/` remains backend-blocked. Frontend
+commit `89f2530` removed the agency-association completeness requirement and
+requires only a valid public display name, but production
+`GET /api/v1/agent-profiles/` returns blank `display_name`, blank
+`company_name`, and no `agency_name` on list rows. Do not implement frontend
+fallback joins, placeholder cards, or hardcoded names. Backend should expose
+displayable agent identity and agency name on the agents list endpoint.
+
+DEF-K-AGENCY-COUNTS-001 - Public `/agencies/` agency counts remain
+backend-blocked. Frontend commit `89f2530` reads `agent_count` and
+`property_count` from the agency list contract, but production
+`GET /api/v1/agencies/` returns zero counts even when verified properties exist
+for agencies. Do not implement frontend aggregation or per-card fan-out.
+Backend should fix agency list aggregation for active agents and verified
+properties.
+
+DEF-K-PROPERTY-TYPE-SEED-001 - F.5 frontend wiring is complete because the
+property type filter is sourced from `GET /api/v1/property-types/` and cached
+as reference data, but production currently returns only `Apartment`. The
+"12 property types visible" acceptance criterion is backend seed-data blocked
+until production contains the missing property type rows.
+
+DEF-L-MOD-001 - Three-tier listing moderation: agent creates → agency approves
+(agency roster only, not public) → admin publishes (public feed). Requires an
+`agency_approved` enum state between `pending_review` and `verified`, updated
+visibility filters on public feed, agency dashboard queue UI, and admin
+moderation queue for agency-approved listings.
