@@ -94,6 +94,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
   if (normalizedRole === "admin") {
     return [
       { href: "/account/listings", label: "Property Moderation" },
+      { href: "/account/admin/agencies", label: "Agencies" },
       { href: "/account/users", label: "User Management" },
       { href: "/account/admin/analytics", label: "Analytics" },
       settingsLink,
@@ -105,6 +106,8 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/agency", label: "Agency Dashboard" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
+      { href: "/account/favorites", label: "My Favorites" },
+      { href: "/account/reviews", label: "My Reviews" },
       settingsLink,
     ];
   }
@@ -114,6 +117,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "My Favorites" },
+      { href: "/account/reviews", label: "My Reviews" },
       settingsLink,
     ];
   }
@@ -123,6 +127,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
       { href: "/account/favorites", label: "My Favorites" },
       { href: "/account/saved-searches", label: "Saved Searches" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
+      { href: "/account/reviews", label: "My Reviews" },
       settingsLink,
     ];
   }

@@ -21,6 +21,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { notify } from "@/lib/toast";
@@ -66,6 +75,12 @@ const agencyProfileSchema = z.object({
 type InviteFormValues = z.infer<typeof inviteSchema>;
 type AgencyProfileFormValues = z.infer<typeof agencyProfileSchema>;
 type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations";
+type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore";
+type PendingMembershipDecision = {
+  action: MembershipDecisionAction;
+  membershipId: number;
+  agentName: string;
+};
 
 const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "joinRequests", label: "Join requests" },
@@ -115,7 +130,7 @@ function getMembershipBadgeVariant(status: string) {
 }
 
 function getRequiredDecisionReasonMessage(
-  action: "suspend" | "revoke" | "block" | "restore",
+  action: MembershipDecisionAction,
 ) {
   const actionLabels = {
     suspend: "suspending",
@@ -127,6 +142,17 @@ function getRequiredDecisionReasonMessage(
   return `Enter a reason before ${actionLabels[action]} this agent.`;
 }
 
+function getMembershipDecisionLabel(action: MembershipDecisionAction) {
+  const labels = {
+    suspend: "Suspend agent",
+    revoke: "Remove from agency",
+    block: "Block agent",
+    restore: "Restore agent",
+  } as const;
+
+  return labels[action];
+}
+
 export function AgencyOwnerDashboardClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
@@ -134,6 +160,8 @@ export function AgencyOwnerDashboardClient() {
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const [isEditingAgencyProfile, setIsEditingAgencyProfile] = useState(false);
+  const [pendingMembershipDecision, setPendingMembershipDecision] =
+    useState<PendingMembershipDecision | null>(null);
   const userAgencyId = user?.agency_id;
   const userEmail = user?.email;
   const shouldLoadAgencyDirectory = gate.isAllowed && typeof userAgencyId !== "number";
@@ -292,7 +320,7 @@ export function AgencyOwnerDashboardClient() {
   };
 
   const handleMembershipAction = async (
-    action: "suspend" | "revoke" | "block",
+    action: Exclude<MembershipDecisionAction, "restore">,
     membershipId: number,
   ) => {
     const reason = membershipReasons[membershipId]?.trim() || null;
@@ -356,6 +384,23 @@ export function AgencyOwnerDashboardClient() {
           : "Could not restore agent membership.";
       notify.error(message);
     }
+  };
+
+  const handleConfirmMembershipDecision = async () => {
+    if (!pendingMembershipDecision) {
+      return;
+    }
+
+    if (pendingMembershipDecision.action === "restore") {
+      await handleRestoreMembership(pendingMembershipDecision.membershipId);
+    } else {
+      await handleMembershipAction(
+        pendingMembershipDecision.action,
+        pendingMembershipDecision.membershipId,
+      );
+    }
+
+    setPendingMembershipDecision(null);
   };
 
   const handleReviewDecision = async (action: "accept" | "decline", requestId: number) => {
@@ -441,6 +486,27 @@ export function AgencyOwnerDashboardClient() {
     agents: agentsQuery.isSuccess ? agents.length : undefined,
     invitations: invitations.length,
   };
+  const pendingDecisionReason = pendingMembershipDecision
+    ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
+    : "";
+  const isPendingDecisionSubmitting = pendingMembershipDecision
+    ? (
+        pendingMembershipDecision.action === "suspend" &&
+        suspendMembership.isPending
+      ) ||
+      (
+        pendingMembershipDecision.action === "revoke" &&
+        revokeMembership.isPending
+      ) ||
+      (
+        pendingMembershipDecision.action === "block" &&
+        blockMembership.isPending
+      ) ||
+      (
+        pendingMembershipDecision.action === "restore" &&
+        restoreMembership.isPending
+      )
+    : false;
 
   return (
     <div className="space-y-6">
@@ -989,7 +1055,13 @@ export function AgencyOwnerDashboardClient() {
                               suspendMembership.isPending &&
                               suspendMembership.variables?.membershipId === agent.membership_id
                             }
-                            onClick={() => void handleMembershipAction("suspend", agent.membership_id)}
+                            onClick={() =>
+                              setPendingMembershipDecision({
+                                action: "suspend",
+                                membershipId: agent.membership_id,
+                                agentName: agent.display_name || agent.company_name || "this agent",
+                              })
+                            }
                           >
                             Suspend
                           </Button>
@@ -1002,7 +1074,13 @@ export function AgencyOwnerDashboardClient() {
                               restoreMembership.isPending &&
                               restoreMembership.variables?.membershipId === agent.membership_id
                             }
-                            onClick={() => void handleRestoreMembership(agent.membership_id)}
+                            onClick={() =>
+                              setPendingMembershipDecision({
+                                action: "restore",
+                                membershipId: agent.membership_id,
+                                agentName: agent.display_name || agent.company_name || "this agent",
+                              })
+                            }
                           >
                             Restore
                           </Button>
@@ -1016,7 +1094,13 @@ export function AgencyOwnerDashboardClient() {
                               revokeMembership.isPending &&
                               revokeMembership.variables?.membershipId === agent.membership_id
                             }
-                            onClick={() => void handleMembershipAction("revoke", agent.membership_id)}
+                            onClick={() =>
+                              setPendingMembershipDecision({
+                                action: "revoke",
+                                membershipId: agent.membership_id,
+                                agentName: agent.display_name || agent.company_name || "this agent",
+                              })
+                            }
                           >
                             Revoke
                           </Button>
@@ -1030,7 +1114,13 @@ export function AgencyOwnerDashboardClient() {
                               blockMembership.isPending &&
                               blockMembership.variables?.membershipId === agent.membership_id
                             }
-                            onClick={() => void handleMembershipAction("block", agent.membership_id)}
+                            onClick={() =>
+                              setPendingMembershipDecision({
+                                action: "block",
+                                membershipId: agent.membership_id,
+                                agentName: agent.display_name || agent.company_name || "this agent",
+                              })
+                            }
                           >
                             Block
                           </Button>
@@ -1131,6 +1221,64 @@ export function AgencyOwnerDashboardClient() {
           </CardBody>
         </Card>
       ) : null}
+      <Dialog
+        open={Boolean(pendingMembershipDecision)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingMembershipDecision(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingMembershipDecision
+                ? getMembershipDecisionLabel(pendingMembershipDecision.action)
+                : "Confirm membership decision"}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingMembershipDecision
+                ? `Confirm this action for ${pendingMembershipDecision.agentName}. A reason is required and will be visible in membership history.`
+                : "Confirm this membership decision."}
+            </DialogDescription>
+          </DialogHeader>
+          {pendingMembershipDecision ? (
+            <Input
+              label="Reason"
+              placeholder="Required reason for this decision"
+              value={membershipReasons[pendingMembershipDecision.membershipId] ?? ""}
+              onChange={(event) =>
+                setMembershipReasons((current) => ({
+                  ...current,
+                  [pendingMembershipDecision.membershipId]: event.target.value,
+                }))
+              }
+            />
+          ) : null}
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="secondary" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              type="button"
+              variant={
+                pendingMembershipDecision?.action === "block" ||
+                pendingMembershipDecision?.action === "revoke" ||
+                pendingMembershipDecision?.action === "suspend"
+                  ? "destructive"
+                  : "primary"
+              }
+              loading={isPendingDecisionSubmitting}
+              disabled={!pendingDecisionReason}
+              onClick={() => void handleConfirmMembershipDecision()}
+            >
+              {pendingMembershipDecision
+                ? getMembershipDecisionLabel(pendingMembershipDecision.action)
+                : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

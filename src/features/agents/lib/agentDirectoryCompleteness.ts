@@ -14,24 +14,12 @@ export function isGenericAgentDisplayName(name: string) {
   return GENERIC_DISPLAY_NAME.test(name) || GENERIC_SHORT_NAME.test(name);
 }
 
-export function isPublicDisplayableAgent(
-  agent: Agent,
-  agencyName?: string | null,
-) {
+export function isPublicDisplayableAgent(agent: Agent) {
   const displayName = resolveAgentDisplayName(agent);
 
   if (!displayName || isGenericAgentDisplayName(displayName)) {
     return false;
   }
 
-  if (typeof agent.agency_id !== "number") {
-    return false;
-  }
-
-  const resolvedAgencyName =
-    (agent as Agent & { agency_name?: string | null }).agency_name?.trim() ||
-    agencyName?.trim() ||
-    "";
-
-  return Boolean(resolvedAgencyName);
+  return true;
 }
