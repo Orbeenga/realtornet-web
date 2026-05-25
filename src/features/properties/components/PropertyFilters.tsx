@@ -23,6 +23,17 @@ import { LocationCascadeSelector } from "@/features/locations/components/Locatio
 import { cn } from "@/lib/utils";
 import { PropertyFiltersSavedSearch } from "./PropertyFiltersSavedSearch";
 
+const PRICE_OPTIONS = [
+  { value: "500000", label: "NGN 500k" },
+  { value: "1000000", label: "NGN 1m" },
+  { value: "2500000", label: "NGN 2.5m" },
+  { value: "5000000", label: "NGN 5m" },
+  { value: "10000000", label: "NGN 10m" },
+  { value: "15000000", label: "NGN 15m" },
+  { value: "25000000", label: "NGN 25m" },
+  { value: "50000000", label: "NGN 50m" },
+];
+
 type FilterPanel = "propertyType" | "minPrice" | "maxPrice" | "bedrooms" | "more";
 
 interface SearchInputProps {
@@ -128,6 +139,8 @@ export function PropertyFilters() {
   const locationsQuery = useLocations(typeof locationId === "number");
   const [openPanel, setOpenPanel] = useState<FilterPanel | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [customMinMode, setCustomMinMode] = useState(false);
+  const [customMaxMode, setCustomMaxMode] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingScrollYRef = useRef<number | null>(null);
 
@@ -224,6 +237,8 @@ export function PropertyFilters() {
     router.push(view === "map" ? `${pathname}?view=map` : pathname);
     setOpenPanel(null);
     setMobileFiltersOpen(false);
+    setCustomMinMode(false);
+    setCustomMaxMode(false);
   };
 
   const listingType = searchParams.get("listing_type") ?? "";
@@ -326,29 +341,91 @@ export function PropertyFilters() {
     </div>
   );
 
+  const isMinCustomPreset = Boolean(minPrice) && !PRICE_OPTIONS.some((o) => o.value === minPrice);
+  const showCustomMin = customMinMode || isMinCustomPreset;
+  const minSelectValue = showCustomMin ? "custom" : minPrice;
+
+  const isMaxCustomPreset = Boolean(maxPrice) && !PRICE_OPTIONS.some((o) => o.value === maxPrice);
+  const showCustomMax = customMaxMode || isMaxCustomPreset;
+  const maxSelectValue = showCustomMax ? "custom" : maxPrice;
+
   const minPriceField = (id = "min-price") => (
-    <div>
+    <div className="space-y-2">
       <FieldLabel htmlFor={id}>Min price</FieldLabel>
-      <Input
+      <select
         id={id}
-        type="number"
-        value={minPrice}
-        placeholder="0"
-        onChange={(event) => updateFilterDebounced("min_price", event.target.value)}
-      />
+        value={minSelectValue}
+        onChange={(event) => {
+          if (event.target.value === "custom") {
+            setCustomMinMode(true);
+            updateFilterDebounced("min_price", "");
+            return;
+          }
+          setCustomMinMode(false);
+          updateFilterDebounced("min_price", event.target.value);
+        }}
+        className={selectClassName}
+      >
+        <option value="">Any</option>
+        {PRICE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+        <option value="custom">Custom Price</option>
+      </select>
+      {showCustomMin ? (
+        <Input
+          id={`${id}-custom`}
+          type="number"
+          min="0"
+          inputMode="numeric"
+          value={minPrice}
+          placeholder="Enter custom price"
+          onChange={(event) => updateFilterDebounced("min_price", event.target.value)}
+          aria-label="Min price custom value"
+        />
+      ) : null}
     </div>
   );
 
   const maxPriceField = (id = "max-price") => (
-    <div>
+    <div className="space-y-2">
       <FieldLabel htmlFor={id}>Max price</FieldLabel>
-      <Input
+      <select
         id={id}
-        type="number"
-        value={maxPrice}
-        placeholder="Any"
-        onChange={(event) => updateFilterDebounced("max_price", event.target.value)}
-      />
+        value={maxSelectValue}
+        onChange={(event) => {
+          if (event.target.value === "custom") {
+            setCustomMaxMode(true);
+            updateFilterDebounced("max_price", "");
+            return;
+          }
+          setCustomMaxMode(false);
+          updateFilterDebounced("max_price", event.target.value);
+        }}
+        className={selectClassName}
+      >
+        <option value="">Any</option>
+        {PRICE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+        <option value="custom">Custom Price</option>
+      </select>
+      {showCustomMax ? (
+        <Input
+          id={`${id}-custom`}
+          type="number"
+          min="0"
+          inputMode="numeric"
+          value={maxPrice}
+          placeholder="Enter custom price"
+          onChange={(event) => updateFilterDebounced("max_price", event.target.value)}
+          aria-label="Max price custom value"
+        />
+      ) : null}
     </div>
   );
 
