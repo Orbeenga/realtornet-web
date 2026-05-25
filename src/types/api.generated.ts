@@ -1492,6 +1492,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agents Directory
+         * @description Public agents directory.
+         *
+         *     Returns all non-deleted agents and agency_owners with their display name and agency affiliation.
+         *     Used to populate the frontend agents directory listing.
+         */
+        get: operations["read_agents_directory_api_v1_agents__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profiles/me": {
         parameters: {
             query?: never;
@@ -4038,6 +4061,24 @@ export interface components {
             rejection_reason?: string | null;
             /** Status Reason */
             status_reason?: string | null;
+        };
+        /**
+         * AgentDirectoryResponse
+         * @description Simplified agent response for public directory
+         */
+        AgentDirectoryResponse: {
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Agency Id */
+            agency_id?: number | null;
+            /** Agency Name */
+            agency_name?: string | null;
+            /** Bio */
+            bio?: string | null;
+            /** Profile Image Url */
+            profile_image_url?: string | null;
         };
         /** AgentMembershipAuditResponse */
         AgentMembershipAuditResponse: {
@@ -8159,6 +8200,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_agents_directory_api_v1_agents__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentDirectoryResponse"][];
                 };
             };
             /** @description Validation Error */
