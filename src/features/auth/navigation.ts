@@ -51,7 +51,11 @@ export function getPostLoginPath(role: string | null | undefined) {
     return "/account/agency";
   }
 
-  if (normalizedRole === "agent" || normalizedRole === "admin") {
+  if (normalizedRole === "admin") {
+    return "/account/admin/properties";
+  }
+
+  if (normalizedRole === "agent") {
     return "/account/listings";
   }
 
@@ -93,7 +97,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
 
   if (normalizedRole === "admin") {
     return [
-      { href: "/account/listings", label: "Property Moderation" },
+      { href: "/account/admin/properties", label: "Property Moderation" },
       { href: "/account/admin/agencies", label: "Agencies" },
       { href: "/account/users", label: "User Management" },
       { href: "/account/admin/analytics", label: "Analytics" },

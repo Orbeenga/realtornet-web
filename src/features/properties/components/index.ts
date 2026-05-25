@@ -10,6 +10,7 @@ export { PropertyAgentPanel } from "./PropertyAgentPanel";
 export { PropertyStaticMap } from "./PropertyStaticMap";
 export { ListingForm } from "./ListingForm";
 export { AgentListingsManagerClient } from "./AgentListingsManagerClient";
+export { AdminPropertiesClient } from "./AdminPropertiesClient";
 export { CreateListingClient } from "./CreateListingClient";
 export { EditListingClient } from "./EditListingClient";
 export { AmenitySelector } from "./AmenitySelector";
