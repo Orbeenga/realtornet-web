@@ -1,7 +1,7 @@
 "use client";
 
-import { Search, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,18 +21,17 @@ const TAB_LABELS: Record<ListingType, string> = {
 };
 
 const PRICE_OPTIONS = [
-  { value: "", label: "Any" },
   { value: "500000", label: "NGN 500k" },
   { value: "1000000", label: "NGN 1m" },
   { value: "2500000", label: "NGN 2.5m" },
   { value: "5000000", label: "NGN 5m" },
   { value: "10000000", label: "NGN 10m" },
+  { value: "15000000", label: "NGN 15m" },
   { value: "25000000", label: "NGN 25m" },
   { value: "50000000", label: "NGN 50m" },
 ];
 
 const BEDROOM_OPTIONS = [
-  { value: "", label: "Any" },
   { value: "1", label: "1+" },
   { value: "2", label: "2+" },
   { value: "3", label: "3+" },
@@ -67,7 +66,7 @@ function HomeFilterSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
   disabled?: boolean;
 }) {
   return (
@@ -78,11 +77,91 @@ function HomeFilterSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className="h-12 w-full rounded-xl border border-white/30 bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm outline-none transition hover:bg-blue-700 focus:ring-2 focus:ring-white/80 disabled:cursor-not-allowed disabled:opacity-70 dark:border-blue-400/30 dark:bg-blue-700"
+        className="h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-800 shadow-sm outline-none transition hover:border-blue-200 hover:text-blue-700 focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
       >
         {children}
       </select>
     </label>
+  );
+}
+
+function FilterField({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-xs font-bold text-slate-800 dark:text-slate-200"
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function PriceField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [customMode, setCustomMode] = useState(false);
+  const isCustomPreset = Boolean(value) && !PRICE_OPTIONS.some((option) => option.value === value);
+  const showCustom = customMode || isCustomPreset;
+  const selectValue = showCustom ? "custom" : value;
+
+  return (
+    <div className="space-y-2">
+      <FilterField id={id} label={label}>
+        <select
+          id={id}
+          value={selectValue}
+          onChange={(event) => {
+            if (event.target.value === "custom") {
+              setCustomMode(true);
+              onChange("");
+              return;
+            }
+            setCustomMode(false);
+            onChange(event.target.value);
+          }}
+          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+        >
+          <option value="">Any</option>
+          {PRICE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+          <option value="custom">Custom Price</option>
+        </select>
+      </FilterField>
+      {showCustom ? (
+        <Input
+          type="number"
+          min="0"
+          inputMode="numeric"
+          value={value}
+          placeholder="Enter custom price"
+          onChange={(event) => onChange(event.target.value)}
+          className="h-11"
+          aria-label={`${label} custom price`}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -96,11 +175,13 @@ export function HomeHeroSearch() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [bedrooms, setBedrooms] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [clearKey, setClearKey] = useState(0);
   const searchQuery = useLocationSearch(locationQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
 
-  const handleSearch = () => {
+  const buildQuery = () => {
     const params = new URLSearchParams();
 
     if (locationQuery.trim()) {
@@ -132,8 +213,20 @@ export function HomeHeroSearch() {
       params.set("bedrooms", bedrooms);
     }
 
-    const query = params.toString();
+    return params.toString();
+  };
+
+  const handleSearch = () => {
+    const query = buildQuery();
     router.push(query ? `/properties/?${query}` : "/properties/");
+  };
+
+  const clearFilters = () => {
+    setPropertyTypeId("");
+    setMinPrice("");
+    setMaxPrice("");
+    setBedrooms("");
+    setClearKey((k) => k + 1);
   };
 
   const selectLocation = (location: Location) => {
@@ -141,8 +234,48 @@ export function HomeHeroSearch() {
     setSelectedLocationId(location.location_id);
   };
 
+  const searchInput = (
+    <div className="relative min-w-0 flex-1">
+      <label htmlFor="home-location-search" className="sr-only">
+        Search location
+      </label>
+      <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-500" />
+      <Input
+        id="home-location-search"
+        value={locationQuery}
+        onChange={(event) => {
+          setLocationQuery(event.target.value);
+          setSelectedLocationId(undefined);
+        }}
+        placeholder="Search for a city, suburb or neighbourhood"
+        autoComplete="off"
+        className="h-14 border-0 bg-transparent pl-12 text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
+      />
+      {suggestions.length > 0 && !selectedLocationId ? (
+        <ul
+          className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          role="listbox"
+        >
+          {suggestions.map((location) => (
+            <li key={location.location_id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={selectedLocationId === location.location_id}
+                className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                onClick={() => selectLocation(location)}
+              >
+                {locationLabel(location)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+
   return (
-    <section className="bg-blue-600 px-4 py-5 dark:bg-blue-950 sm:px-6 lg:px-8">
+    <section className="px-4 py-5 sm:px-6 lg:px-8">
       <form
         className="mx-auto max-w-7xl space-y-5"
         onSubmit={(event) => {
@@ -150,67 +283,32 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="overflow-hidden rounded-2xl bg-white p-2 shadow-xl dark:bg-gray-950">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="inline-flex h-14 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-              {LISTING_TYPES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={cn(
-                    "min-w-20 px-4 text-sm font-semibold transition",
-                    listingType === type
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
-                  )}
-                  onClick={() => setListingType(type)}
-                >
-                  {TAB_LABELS[type] ?? LISTING_TYPE_LABELS[type]}
-                </button>
-              ))}
-            </div>
+        <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
+          <div className="inline-flex h-14 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-950 lg:w-auto">
+            {LISTING_TYPES.map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={cn(
+                  "min-w-20 flex-1 rounded-xl px-4 text-sm font-semibold transition lg:flex-none",
+                  listingType === type
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
+                )}
+                onClick={() => setListingType(type)}
+              >
+                {TAB_LABELS[type] ?? LISTING_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
 
-            <div className="relative min-w-0 flex-1">
-              <label htmlFor="home-location-search" className="sr-only">
-                Search location
-              </label>
-              <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-500" />
-              <Input
-                id="home-location-search"
-                value={locationQuery}
-                onChange={(event) => {
-                  setLocationQuery(event.target.value);
-                  setSelectedLocationId(undefined);
-                }}
-                placeholder="Search for a city, suburb or neighbourhood"
-                autoComplete="off"
-                className="h-14 border-0 bg-transparent pl-12 text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
-              />
-              {suggestions.length > 0 && !selectedLocationId ? (
-                <ul
-                  className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-                  role="listbox"
-                >
-                  {suggestions.map((location) => (
-                    <li key={location.location_id}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={selectedLocationId === location.location_id}
-                        className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
-                        onClick={() => selectLocation(location)}
-                      >
-                        {locationLabel(location)}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-700 dark:bg-gray-950">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+              {searchInput}
+              <Button type="submit" className="h-14 shrink-0 rounded-xl px-8 text-base">
+                Search
+              </Button>
             </div>
-
-            <Button type="submit" className="h-14 shrink-0 rounded-xl px-8 text-base">
-              Search
-            </Button>
           </div>
         </div>
 
@@ -243,7 +341,7 @@ export function HomeHeroSearch() {
             onChange={setMinPrice}
           >
             <option value="">Min Price</option>
-            {PRICE_OPTIONS.filter((option) => option.value).map((option) => (
+            {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -257,7 +355,7 @@ export function HomeHeroSearch() {
             onChange={setMaxPrice}
           >
             <option value="">Max Price</option>
-            {PRICE_OPTIONS.filter((option) => option.value).map((option) => (
+            {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -271,7 +369,7 @@ export function HomeHeroSearch() {
             onChange={setBedrooms}
           >
             <option value="">Bedrooms</option>
-            {BEDROOM_OPTIONS.filter((option) => option.value).map((option) => (
+            {BEDROOM_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -281,14 +379,121 @@ export function HomeHeroSearch() {
           <Button
             type="button"
             variant="outline"
-            className="h-12 rounded-xl border-white/40 bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 hover:text-white dark:border-blue-400/30 dark:bg-blue-700"
-            onClick={handleSearch}
+            className="h-12 rounded-xl border-gray-200 bg-white text-sm font-semibold text-gray-800 hover:border-blue-200 hover:bg-gray-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+            onClick={() => setFiltersOpen(true)}
           >
             <SlidersHorizontal className="h-4 w-4" />
             Filters
           </Button>
         </div>
       </form>
+
+      {filtersOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/50 px-4 py-6 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="home-filter-dialog-title"
+            className="mx-auto flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-950"
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+              <h2
+                id="home-filter-dialog-title"
+                className="text-lg font-semibold text-slate-950 dark:text-white"
+              >
+                Filters
+              </h2>
+              <button
+                type="button"
+                aria-label="Close filters"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+                onClick={() => setFiltersOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="border-b border-gray-100 px-6 py-6 dark:border-gray-800">{searchInput}</div>
+
+            <div className="space-y-6 overflow-y-auto px-6 py-5">
+              <FilterField id="home-modal-property-type" label="Property Type">
+                <select
+                  id="home-modal-property-type"
+                  value={propertyTypeId}
+                  onChange={(event) => setPropertyTypeId(event.target.value)}
+                  disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                >
+                  <option value="">Any</option>
+                  {(propertyTypesQuery.data ?? []).map((propertyType) => (
+                    <option
+                      key={propertyType.property_type_id}
+                      value={propertyType.property_type_id}
+                    >
+                      {propertyType.name}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+
+              <div>
+                <p className="mb-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Price
+                </p>
+                <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-start">
+                  <PriceField
+                    key={`min-${clearKey}`}
+                    id="home-modal-min-price"
+                    label="Min"
+                    value={minPrice}
+                    onChange={setMinPrice}
+                  />
+                  <span className="hidden pt-10 text-gray-400 sm:block">-</span>
+                  <PriceField
+                    key={`max-${clearKey}`}
+                    id="home-modal-max-price"
+                    label="Max"
+                    value={maxPrice}
+                    onChange={setMaxPrice}
+                  />
+                </div>
+              </div>
+
+              <FilterField id="home-modal-bedrooms" label="Bedrooms">
+                <select
+                  id="home-modal-bedrooms"
+                  value={bedrooms}
+                  onChange={(event) => setBedrooms(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                >
+                  <option value="">Any</option>
+                  {BEDROOM_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
+              <Button type="button" variant="ghost" onClick={clearFilters}>
+                Clear All
+              </Button>
+              <Button
+                type="button"
+                className="h-12 min-w-36 rounded-lg px-6"
+                onClick={() => {
+                  setFiltersOpen(false);
+                  handleSearch();
+                }}
+              >
+                Search
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
