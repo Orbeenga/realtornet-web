@@ -172,6 +172,13 @@ as reference data, but production currently returns only `Apartment`. The
 "12 property types visible" acceptance criterion is backend seed-data blocked
 until production contains the missing property type rows.
 
+DEF-L-ADMIN-AUDIT-001 - Closed in Phase L frontend pass. Added Audit Activity
+section to `/account/admin/analytics` using `useAdminAudit` TanStack Query hook.
+Displays `creation_count_30d` and `deletion_count_30d` via existing `MetricCard`
+components, plus a table of `recent_changes` showing entity type, action,
+timestamp, and actor. Section is gated to admin role only. Types regenerated
+from production OpenAPI. `tsc`, `lint`, and `build` gates passed clean.
+
 DEF-L-MOD-001 - Three-tier listing moderation: agent creates → agency approves
 (agency roster only, not public) → admin publishes (public feed). Requires an
 `agency_approved` enum state between `pending_review` and `verified`, updated

@@ -505,6 +505,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Audit Activity
+         * @description Admin-only audit activity summary.
+         *
+         *     Returns creation count (last 30 days), deletion count (last 30 days),
+         *     and a paginated list of recent changes from the audit views.
+         */
+        get: operations["get_audit_activity_api_v1_admin_audit__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/": {
         parameters: {
             query?: never;
@@ -4317,6 +4340,34 @@ export interface components {
             /** Description */
             description?: string | null;
         };
+        /** AuditActivityResponse */
+        AuditActivityResponse: {
+            /** Creation Count 30D */
+            creation_count_30d: number;
+            /** Deletion Count 30D */
+            deletion_count_30d: number;
+            /** Recent Changes */
+            recent_changes: components["schemas"]["AuditRecentChangeEntry"][];
+        };
+        /** AuditRecentChangeEntry */
+        AuditRecentChangeEntry: {
+            /** Table Name */
+            table_name: string;
+            /** Record Id */
+            record_id: number;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By */
+            created_by?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Updated By */
+            updated_by?: string | null;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Deleted By */
+            deleted_by?: string | null;
+        };
         /** Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post */
         Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post: {
             /** Agent User Id */
@@ -6410,6 +6461,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_audit_activity_api_v1_admin_audit__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditActivityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
