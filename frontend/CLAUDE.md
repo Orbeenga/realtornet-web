@@ -4,7 +4,7 @@
 
 ## Entry State
 
-Next.js 16.2.1 is deployed on Vercel. Phase J is closed as of 2026-05-13 and Phase K is in progress. Phase K frontend work completed: mobile navigation drawer, route-specific SEO metadata, homepage Pinterest hero hotlink removal, and the `/properties` Leaflet/OpenStreetMap map view.
+Next.js 16.2.1 is deployed on Vercel. Phase J is closed as of 2026-05-13. Phase K is closed May 2026. Phase L is active. Phase K frontend work completed: mobile navigation drawer, route-specific SEO metadata, homepage Pinterest hero hotlink removal, and the `/properties` Leaflet/OpenStreetMap map view.
 
 Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live. Phase I closeout is pushed in `8e74e18`, covering horizontal property filters, featured analytics empty/error handling, Suspense boundary work, review-request rewire consolidation, I.6 mobile TBT, and I.7 operational updates. Agency-owner session persistence is fixed and live in `c83e800`. `DEF-I-MEM-SMOKE-001` is closed by production API smoke, and `DEF-I-COV-001` is closed at 95.03% backend coverage in commit `7e8fd35`.
 
@@ -71,7 +71,7 @@ Public top nav for all users: Properties, Agencies, Agents.
 - I.6 keeps agency/agent stats, property card enhancements, and secondary filter option data out of first mobile interactivity; do not reintroduce those fan-outs without a fresh trace.
 - Phase I confirmed mobile TBT below 300ms on `/properties`, `/agencies`, and `/agents`.
 
-## Phase K Completed Offline
+## Phase K Frontend Completed
 
 - Mobile navigation drawer is live in `src/components/Navbar.tsx`; it mirrors `publicNavLinks` + `getAccountDropdownLinks()` and closes on link click, backdrop click, and Escape.
 - Public route metadata is distinct for `/`, `/properties`, `/properties/[id]`, `/agencies`, `/agencies/[id]`, `/agents`, `/agents/[id]`, `/login`, `/register`, and `/agencies/apply`.
@@ -79,13 +79,13 @@ Public top nav for all users: Properties, Agencies, Agents.
 - `DEF-J-MAP-001` is closed in `3c77776`: `/properties?view=map` uses Leaflet/OpenStreetMap, preserves URL-owned `view` state, shares the filtered property result set with the grid, renders mapped markers with popups, and lists unmapped results beside/below the map.
 - Phase K dispatch (May 2026): two-tier navigation, search-led homepage hero, agent directory completeness gate, agency card counts from list API, agency-owner dashboard stats from `GET /api/v1/agencies/{id}/`, agency-owner My Listings scoped by `agency_id`, dashboard skeleton/sheet polish, properties-page auth-aware intro copy.
 
-## Phase K Open Items
+## Phase L Open Items
 
 - Public pages SSR/data hydration: backend-coordinated follow-up.
 - Form error-state audit against live validation responses: backend-coordinated follow-up.
 - `DEF-J-EMAIL-DOMAIN-001`: real-user email delivery requires a verified Resend sender domain.
 - `DEF-J-LOC-001`: location result-quality monitoring as usage grows; frontend must call backend location search and must never call Nominatim directly.
-- `DEF-K-AGENT-DIR-001`: public agent directory still depends on `company_name` + agency lookup until `AgentProfileResponse` exposes `display_name` and `agency_name` on `GET /api/v1/agent-profiles/`.
+- `DEF-L-ADMIN-AUDIT-001`: frontend Audit Activity UI for `/account/admin/analytics` (backend endpoint is live; UI remains open).
 
 ## Phase K Stream B — Live Site Findings (2026-05-24)
 
