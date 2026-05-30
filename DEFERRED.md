@@ -201,3 +201,21 @@ DEF-L-MOD-001 - Three-tier listing moderation: agent creates → agency approves
 `agency_approved` enum state between `pending_review` and `verified`, updated
 visibility filters on public feed, agency dashboard queue UI, and admin
 moderation queue for agency-approved listings.
+
+DEF-L-REVIEW-001 - CLOSED (2026-05-30): Review system role correction implemented.
+`/account/reviews` now renders role-specific views:
+- Seeker: "My Reviews" with Property, Agent, and Agency review tabs. Agency
+  reviews tab shows placeholder because backend endpoint `/api/v1/reviews/agency/`
+  does not exist in generated types.
+- Agent: "Received Reviews" with "Reviews on listings" (batch-fetched via
+  `usePropertyReviewsBatch` over agent's properties) and "Reviews On me"
+  (fetched via `/api/v1/agent-profiles/{id}/reviews`). Read-only, no submit UI.
+- Agency owner: "Agency Reputation" with "Reviews on agents" (batch-fetched via
+  `useAgentReviewsBatch` over agency roster) and "Reviews on listings"
+  (batch-fetched via `usePropertyReviewsBatch` over agency properties). Read-only.
+  "Reviews on agency" tab shows placeholder because backend endpoint missing.
+- `ReviewSection.tsx` gated to hide "Leave a review" form for non-seeker roles.
+- `/agents/page.tsx` inspected — no routing bug found. Component correctly imports
+  `AgentDirectoryClient` from agents feature; `/agencies/page.tsx` correctly imports
+  `AgencyDirectoryClient`. No code change required for routing.
+- Quality gates: `tsc 0`, `lint 0`, `build 0`.
