@@ -1,15 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import type { PropertyList } from "@/types";
+import type { ModerationStatus, PropertyList } from "@/types";
 
-export function useAdminProperties(enabled: boolean) {
+export function useAdminProperties(
+  enabled: boolean,
+  moderationStatus?: ModerationStatus | null,
+) {
   return useQuery({
-    queryKey: ["adminProperties"],
+    queryKey: ["adminProperties", moderationStatus],
     queryFn: async () => {
-      // The admin dashboard needs every property, including pending ones, so it
-      // deliberately calls the privileged admin endpoint instead of the public feed.
+      const params = new URLSearchParams({ skip: "0", limit: "100" });
+      if (moderationStatus) {
+        params.set("moderation_status", moderationStatus);
+      }
       const response = await apiClient<{ items?: PropertyList } | PropertyList>(
-        "/api/v1/admin/properties?skip=0&limit=100",
+        `/api/v1/admin/properties?${params.toString()}`,
       );
 
       if (Array.isArray(response)) {

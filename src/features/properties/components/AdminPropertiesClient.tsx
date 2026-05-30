@@ -16,8 +16,8 @@ import type { ModerationStatus, Property } from "@/types";
 type ModerationTab = ModerationStatus | "all";
 
 const MODERATION_TABS: Array<{ value: ModerationTab; label: string }> = [
-  { value: MODERATION_STATUS.pendingReview, label: "Pending Review" },
-  { value: MODERATION_STATUS.verified, label: "Verified" },
+  { value: MODERATION_STATUS.agencyApproved, label: "Admin review" },
+  { value: MODERATION_STATUS.verified, label: "Live" },
   { value: MODERATION_STATUS.rejected, label: "Rejected" },
   { value: MODERATION_STATUS.revoked, label: "Revoked" },
   { value: "all", label: "All" },
@@ -66,7 +66,7 @@ function PropertyModerationCard({
   onReverify,
 }: PropertyModerationCardProps) {
   const status = property.moderation_status;
-  const isPending = status === MODERATION_STATUS.pendingReview;
+  const isAgencyApproved = status === MODERATION_STATUS.agencyApproved;
   const isVerified = status === MODERATION_STATUS.verified;
   const isRejectedOrRevoked =
     status === MODERATION_STATUS.rejected || status === MODERATION_STATUS.revoked;
@@ -101,7 +101,7 @@ function PropertyModerationCard({
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
-            {isPending ? (
+            {isAgencyApproved ? (
               <>
                 <Button
                   type="button"
@@ -181,15 +181,15 @@ function PropertyModerationCard({
           </div>
         </div>
 
-        {isPending || isVerified ? (
+        {isAgencyApproved || isVerified ? (
           <Input
             label={
-              isPending
+              isAgencyApproved
                 ? "Rejection reason (required to reject)"
                 : "Revocation reason (required to revoke)"
             }
             placeholder={
-              isPending ? "Required before rejecting" : "Required before revoking"
+              isAgencyApproved ? "Required before rejecting" : "Required before revoking"
             }
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
@@ -202,9 +202,10 @@ function PropertyModerationCard({
 
 export function AdminPropertiesClient() {
   const gate = useAdminRoleGate();
-  const adminPropertiesQuery = useAdminProperties(gate.isAllowed);
+  const [activeTab, setActiveTab] = useState<ModerationTab>(MODERATION_STATUS.agencyApproved);
+  const moderationStatusFilter = activeTab === "all" ? null : activeTab;
+  const adminPropertiesQuery = useAdminProperties(gate.isAllowed, moderationStatusFilter);
   const verifyProperty = useVerifyProperty();
-  const [activeTab, setActiveTab] = useState<ModerationTab>(MODERATION_STATUS.pendingReview);
   const [reasons, setReasons] = useState<Record<number, string>>({});
 
   if (gate.isChecking || !gate.isAllowed) {
@@ -225,25 +226,7 @@ export function AdminPropertiesClient() {
     );
   }
 
-  const allProperties = adminPropertiesQuery.data ?? [];
-
-  const propertiesByTab: Record<ModerationTab, Property[]> = {
-    [MODERATION_STATUS.pendingReview]: allProperties.filter(
-      (p) => p.moderation_status === MODERATION_STATUS.pendingReview,
-    ),
-    [MODERATION_STATUS.verified]: allProperties.filter(
-      (p) => p.moderation_status === MODERATION_STATUS.verified,
-    ),
-    [MODERATION_STATUS.rejected]: allProperties.filter(
-      (p) => p.moderation_status === MODERATION_STATUS.rejected,
-    ),
-    [MODERATION_STATUS.revoked]: allProperties.filter(
-      (p) => p.moderation_status === MODERATION_STATUS.revoked,
-    ),
-    all: allProperties,
-  };
-
-  const activeProperties = propertiesByTab[activeTab];
+  const activeProperties = adminPropertiesQuery.data ?? [];
 
   const setReason = (propertyId: number, value: string) => {
     setReasons((prev) => ({ ...prev, [propertyId]: value }));
@@ -274,7 +257,7 @@ export function AdminPropertiesClient() {
         propertyId,
         moderationStatus: MODERATION_STATUS.verified,
       });
-      notify.success("Listing verified.");
+      notify.success("Listing verified and published.");
       setActiveTab(MODERATION_STATUS.verified);
       clearReason(propertyId);
     } catch {
@@ -295,7 +278,7 @@ export function AdminPropertiesClient() {
         moderationStatus: MODERATION_STATUS.rejected,
         moderationReason: reason,
       });
-      notify.success("Listing rejected.");
+      notify.success("Listing rejected and returned to agent.");
       setActiveTab(MODERATION_STATUS.rejected);
       clearReason(propertyId);
     } catch {
@@ -360,14 +343,14 @@ export function AdminPropertiesClient() {
             size="sm"
             onClick={() => setActiveTab(value)}
           >
-            {label} ({propertiesByTab[value].length})
+            {label}
           </Button>
         ))}
       </div>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          {activeTabLabel} listings
+          {activeTabLabel}
         </h2>
         {activeProperties.length === 0 ? (
           <EmptyState

@@ -8,6 +8,7 @@ export type ModerationStatus = components["schemas"]["ModerationStatus"];
 export type ListingStatus = components["schemas"]["ListingStatus-Output"];
 export type ListingType = components["schemas"]["ListingType-Output"];
 export type PropertyVerificationUpdate = components["schemas"]["PropertyVerificationUpdate"];
+export type PropertyAgencyActionUpdate = components["schemas"]["PropertyAgencyActionUpdate"];
 export type PropertyImage = components["schemas"]["PropertyImageResponse"];
 export type Amenity = components["schemas"]["AmenityResponse"];
 export type PropertyType = components["schemas"]["PropertyTypeResponse"];
