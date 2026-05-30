@@ -12,6 +12,7 @@ import {
   useAdminTopAgents,
   useAdminUsageMetrics,
 } from "@/features/admin/hooks/useAdminAnalytics";
+import { useAdminAudit } from "@/features/admin/hooks/useAdminAudit";
 
 function formatNumber(value?: number | string | null) {
   if (value == null) {
@@ -109,6 +110,7 @@ export function AdminAnalyticsClient() {
   const activePropertiesQuery = useAdminActiveProperties(gate.isAllowed);
   const featuredPropertiesQuery = useAdminFeaturedProperties(gate.isAllowed);
   const overviewQuery = useAdminStatsOverview(gate.isAllowed);
+  const auditQuery = useAdminAudit(gate.isAllowed);
 
   if (gate.isChecking) {
     return <LoadingState fullPage message="Checking admin access..." />;
@@ -129,6 +131,7 @@ export function AdminAnalyticsClient() {
     overviewQuery.data && Object.keys(overviewQuery.data).length > 0
       ? overviewQuery.data
       : null;
+  const audit = auditQuery.data ?? null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -386,6 +389,98 @@ export function AdminAnalyticsClient() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Audit activity
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Creation and deletion counts (last 30 days) and recent changes from the audit trail.
+            </p>
+          </div>
+          {auditQuery.isLoading ? <LoadingState /> : null}
+          {auditQuery.isError ? (
+            <ErrorState
+              title="Could not load audit activity"
+              message="The admin audit endpoint did not respond successfully."
+              onRetry={() => {
+                void auditQuery.refetch();
+              }}
+            />
+          ) : null}
+          {audit ? (
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <MetricCard label="Creations (30d)" value={audit.creation_count_30d} />
+                <MetricCard label="Deletions (30d)" value={audit.deletion_count_30d} />
+              </div>
+              {audit.recent_changes.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="border-b border-border text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      <tr>
+                        <th className="py-3 pr-4">Entity</th>
+                        <th className="py-3 pr-4">Action</th>
+                        <th className="py-3 pr-4">Timestamp</th>
+                        <th className="py-3 pr-4">Actor</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {audit.recent_changes.map((change) => {
+                        let action: string;
+                        let timestamp: string | null | undefined;
+                        let actor: string | null | undefined;
+                        if (change.deleted_at) {
+                          action = "delete";
+                          timestamp = change.deleted_at;
+                          actor = change.deleted_by;
+                        } else if (change.created_at) {
+                          action = "create";
+                          timestamp = change.created_at;
+                          actor = change.created_by;
+                        } else if (change.updated_at) {
+                          action = "update";
+                          timestamp = change.updated_at;
+                          actor = change.updated_by;
+                        } else {
+                          action = "unknown";
+                          timestamp = null;
+                          actor = null;
+                        }
+                        return (
+                          <tr key={`${change.table_name}-${change.record_id}`}>
+                            <td className="py-3 pr-4 font-medium text-gray-900 dark:text-white">
+                              {change.table_name} #{change.record_id}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <Badge variant={action === "delete" ? "danger" : action === "create" ? "success" : "warning"}>
+                                {action}
+                              </Badge>
+                            </td>
+                            <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
+                              {timestamp ? new Date(timestamp).toLocaleString() : "—"}
+                            </td>
+                            <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
+                              {actor ?? "System"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EmptyState
+                  title="No recent changes"
+                  description="Audit activity will appear here after data changes occur."
+                />
+              )}
             </div>
           ) : null}
         </CardBody>
