@@ -20,6 +20,8 @@ export { useAdminProperties } from "./useAdminProperties";
 export { useVerifyProperty } from "./useVerifyProperty";
 export { useOwnerListings } from "./useOwnerListings";
 export { useAgencyOwnerListings } from "./useAgencyOwnerListings";
+export { useAgencyApproveProperty } from "./useAgencyApproveProperty";
+export { useAgencyRejectProperty } from "./useAgencyRejectProperty";
 export {
   useAmenityCategories,
   useAmenities,
