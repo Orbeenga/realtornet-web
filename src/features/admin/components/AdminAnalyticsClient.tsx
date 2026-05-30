@@ -435,23 +435,18 @@ export function AdminAnalyticsClient() {
                       {audit.recent_changes.map((change) => {
                         let action: string;
                         let timestamp: string | null | undefined;
-                        let actor: string | null | undefined;
                         if (change.deleted_at) {
                           action = "delete";
                           timestamp = change.deleted_at;
-                          actor = change.deleted_by;
                         } else if (change.created_at) {
                           action = "create";
                           timestamp = change.created_at;
-                          actor = change.created_by;
                         } else if (change.updated_at) {
                           action = "update";
                           timestamp = change.updated_at;
-                          actor = change.updated_by;
                         } else {
                           action = "unknown";
                           timestamp = null;
-                          actor = null;
                         }
                         return (
                           <tr key={`${change.table_name}-${change.record_id}`}>
@@ -467,7 +462,7 @@ export function AdminAnalyticsClient() {
                               {timestamp ? new Date(timestamp).toLocaleString() : "—"}
                             </td>
                             <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
-                              {actor ?? "System"}
+                              {change.actor_name}
                             </td>
                           </tr>
                         );
