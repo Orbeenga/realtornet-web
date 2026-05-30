@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Input } from "@/components";
 import { useAuth } from "@/features/auth/AuthContext";
+import { normalizeAppRole } from "@/features/auth/navigation";
 import { ApiError } from "@/lib/api/client";
 import { notify } from "@/lib/toast";
 import type { AgentReviewResponse, PropertyReviewResponse, ReviewUpdate } from "@/types";
@@ -119,6 +120,8 @@ function ReviewForm({
 
 export function ReviewSection({ target, targetId }: ReviewSectionProps) {
   const { user } = useAuth();
+  const role = normalizeAppRole(user?.user_role);
+  const canSubmitReview = role === "seeker";
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const propertyReviewsQuery = usePropertyReviews(target === "property" ? targetId : null);
   const agentReviewsQuery = useAgentReviews(target === "agent" ? targetId : null);
@@ -287,7 +290,7 @@ export function ReviewSection({ target, targetId }: ReviewSectionProps) {
         </div>
       ) : null}
 
-      {user && !ownReview ? (
+      {canSubmitReview && user && !ownReview ? (
         <Card>
           <CardBody className="space-y-4">
             <div>

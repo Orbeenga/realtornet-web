@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type {
   AgentReviewCreate,
@@ -150,6 +150,58 @@ export function useDeleteAgentReview(agentId?: number | null) {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["agentReviews", agentId] });
+    },
+  });
+}
+
+export function usePropertyReviewsBatch(propertyIds: number[]) {
+  return useQueries({
+    queries: propertyIds.map((propertyId) => ({
+      queryKey: ["propertyReviews", propertyId],
+      queryFn: () =>
+        apiClient<PropertyReviewResponse[]>(
+          `/api/v1/reviews/property/by-property/${propertyId}`,
+          { authMode: "omit" },
+        ),
+      staleTime: 30_000,
+      enabled: typeof propertyId === "number",
+    })),
+    combine: (results) => {
+      const allReviews = results
+        .flatMap((result) => result.data ?? [])
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+      const isLoading = results.some((result) => result.isLoading);
+      const isError = results.some((result) => result.isError);
+      return { data: allReviews, isLoading, isError };
+    },
+  });
+}
+
+export function useAgentReviewsBatch(agentIds: number[]) {
+  return useQueries({
+    queries: agentIds.map((agentId) => ({
+      queryKey: ["agentReviews", agentId],
+      queryFn: () =>
+        apiClient<AgentReviewResponse[]>(
+          `/api/v1/agent-profiles/${agentId}/reviews`,
+          { authMode: "omit" },
+        ),
+      staleTime: 30_000,
+      enabled: typeof agentId === "number",
+    })),
+    combine: (results) => {
+      const allReviews = results
+        .flatMap((result) => result.data ?? [])
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+      const isLoading = results.some((result) => result.isLoading);
+      const isError = results.some((result) => result.isError);
+      return { data: allReviews, isLoading, isError };
     },
   });
 }
