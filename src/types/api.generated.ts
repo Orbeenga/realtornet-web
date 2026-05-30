@@ -339,6 +339,9 @@ export interface paths {
          *     serialize through `PropertyResponse` instead of exposing the raw ORM model.
          *     That avoids production-only encoding failures from the database geometry
          *     column while keeping the response shape stable for the frontend.
+         *
+         *     Query params:
+         *     - moderation_status: filter by moderation status (e.g. agency_approved for queue).
          */
         get: operations["get_properties_api_v1_admin_properties_get"];
         put?: never;
@@ -1954,15 +1957,66 @@ export interface paths {
          * Verify Property
          * @description Update the public-verification state of a property listing.
          *
-         *     Permissions:
-         *     - Admins can set any moderation status
-         *     - The owning agent can verify or return their own listing to pending review
+         *     Permissions (three-tier moderation):
+         *     - Admins can set any moderation status; verifying to 'verified'
+         *       is only allowed from 'agency_approved' status.
+         *     - Agency owners and owning agents can return their listing to
+         *       pending_review, but can no longer directly publish.
          *
          *     This endpoint exists separately from the general update endpoint so the UI
          *     can expose a clear "verification" action without asking operators to edit
          *     raw listing fields or fall back to manual SQL.
          */
         patch: operations["verify_property_api_v1_properties__property_id__verify_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/agency-approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Agency Approve Property
+         * @description Agency owner approves a listing for admin review.
+         *
+         *     Permissions:
+         *     - Agency owner of the listing's agency only.
+         *     - Property must be at pending_review status.
+         */
+        patch: operations["agency_approve_property_api_v1_properties__property_id__agency_approve_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/agency-reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Agency Reject Property
+         * @description Agency owner rejects a listing back to the agent.
+         *
+         *     Permissions:
+         *     - Agency owner of the listing's agency only.
+         *     - Property must be at pending_review status.
+         *     - Requires a rejection reason.
+         */
+        patch: operations["agency_reject_property_api_v1_properties__property_id__agency_reject_patch"];
         trace?: never;
     };
     "/api/v1/properties/by-LocationResponse/{location_id}": {
@@ -4719,7 +4773,7 @@ export interface components {
          * @description Schema enum - values match moderation_status_enum exactly
          * @enum {string}
          */
-        ModerationStatus: "pending_review" | "verified" | "rejected" | "revoked";
+        ModerationStatus: "pending_review" | "agency_approved" | "verified" | "rejected" | "revoked";
         /** MyAgencyJoinRequestResponse */
         MyAgencyJoinRequestResponse: {
             /** Join Request Id */
@@ -4872,6 +4926,14 @@ export interface components {
             /** Bio */
             bio?: string | null;
             status?: components["schemas"]["ProfileStatus"] | null;
+        };
+        /**
+         * PropertyAgencyActionUpdate
+         * @description Schema for agency owner approve/reject actions.
+         */
+        PropertyAgencyActionUpdate: {
+            /** Moderation Reason */
+            moderation_reason?: string | null;
         };
         /**
          * PropertyAmenityBulkCreate
@@ -6229,6 +6291,7 @@ export interface operations {
     get_properties_api_v1_admin_properties_get: {
         parameters: {
             query?: {
+                moderation_status?: components["schemas"]["ModerationStatus"] | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
@@ -9045,6 +9108,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PropertyVerificationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agency_approve_property_api_v1_properties__property_id__agency_approve_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agency_reject_property_api_v1_properties__property_id__agency_reject_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyAgencyActionUpdate"];
             };
         };
         responses: {
