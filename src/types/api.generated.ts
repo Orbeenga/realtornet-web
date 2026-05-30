@@ -4367,6 +4367,11 @@ export interface components {
             deleted_at?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+            /**
+             * Actor Name
+             * @default System
+             */
+            actor_name: string;
         };
         /** Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post */
         Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post: {
