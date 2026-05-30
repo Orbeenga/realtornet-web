@@ -67,6 +67,8 @@ export type AgentPerformance = components["schemas"]["AgentPerformanceResponse"]
 export type DataIntegrity = components["schemas"]["DataIntegrityResponse"];
 export type SystemStats = components["schemas"]["SystemStatsResponse"];
 export type UsageMetrics = components["schemas"]["UsageMetricsResponse"];
+export type AuditActivity = components["schemas"]["AuditActivityResponse"];
+export type AuditRecentChange = components["schemas"]["AuditRecentChangeEntry"];
 export type PaginatedProperties = components["schemas"]["PropertyResponse"][];
 
 export interface PropertyFilters {
