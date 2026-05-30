@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
@@ -21,6 +22,8 @@ import {
   useOwnerListings,
   usePropertyImages,
   useVerifyProperty,
+  useAgencyApproveProperty,
+  useAgencyRejectProperty,
 } from "@/features/properties/hooks";
 import { notify } from "@/lib/toast";
 import {
@@ -70,13 +73,24 @@ function AgentMembershipRestrictedState({
   );
 }
 
+type AgencyOwnerListingTab = "all" | "pending" | "sentToAdmin";
+
+const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerListingTab; label: string }> = [
+  { value: "pending", label: "Pending queue" },
+  { value: "sentToAdmin", label: "Sent to admin" },
+  { value: "all", label: "All listings" },
+];
+
 export function AgentListingsManagerClient() {
   const router = useRouter();
   const deleteProperty = useDeleteProperty();
   const verifyProperty = useVerifyProperty();
+  const agencyApproveProperty = useAgencyApproveProperty();
+  const agencyRejectProperty = useAgencyRejectProperty();
   const gate = useAgentRoleGate();
   const { user } = useAuth();
   const isAgencyOwner = gate.isAgencyOwner;
+  const [agencyOwnerTab, setAgencyOwnerTab] = useState<AgencyOwnerListingTab>("pending");
   const needsAgentProfile = gate.isAllowed && !gate.isAdmin && !isAgencyOwner;
   const profileQuery = useUserProfile(needsAgentProfile);
   const agentProfileQuery = useAgentProfileByUser(
@@ -197,6 +211,40 @@ export function AgentListingsManagerClient() {
     }
   };
 
+  const handleAgencyApprove = async (propertyId: number) => {
+    try {
+      await agencyApproveProperty.mutateAsync(propertyId);
+      notify.success("Listing approved and sent to admin");
+    } catch {
+      notify.error("Could not approve listing");
+    }
+  };
+
+  const handleAgencyReject = (propertyId: number) => {
+    const reason = window.prompt("Reason for rejecting this listing?");
+
+    if (reason === null) {
+      return;
+    }
+
+    if (!reason.trim()) {
+      notify.error("A reason is required to reject a listing.");
+      return;
+    }
+
+    void (async () => {
+      try {
+        await agencyRejectProperty.mutateAsync({
+          propertyId,
+          reason: reason.trim(),
+        });
+        notify.success("Listing rejected");
+      } catch {
+        notify.error("Could not reject listing");
+      }
+    })();
+  };
+
   const handleReject = (propertyId: number) => {
     const reason = window.prompt("Reason for rejecting this listing?");
 
@@ -254,7 +302,7 @@ export function AgentListingsManagerClient() {
               {gate.isAdmin
                 ? "Review every property, including pending listings, from one moderation queue."
                 : isAgencyOwner
-                  ? "Manage listings published under your agency inventory."
+                  ? "Review agent listings before they reach admin. Approve to send to admin, or reject with a reason."
                   : "Manage the properties you have published on RealtorNet."}
             </p>
           </div>
@@ -288,6 +336,22 @@ export function AgentListingsManagerClient() {
         />
       ) : null}
 
+      {isAgencyOwner && !gate.isAdmin ? (
+        <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+          {AGENCY_OWNER_TABS.map(({ value, label }) => (
+            <Button
+              key={value}
+              type="button"
+              variant={agencyOwnerTab === value ? "primary" : "ghost"}
+              size="sm"
+              onClick={() => setAgencyOwnerTab(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
       {!hasAgentProfileError &&
       !listingsQuery.isLoading &&
       !listingsQuery.isError &&
@@ -296,7 +360,9 @@ export function AgentListingsManagerClient() {
           title={
             gate.isAdmin
               ? "There are no properties available for moderation right now."
-              : "You have no listings yet. Create your first one."
+              : isAgencyOwner
+                ? "No listings in this queue."
+                : "You have no listings yet. Create your first one."
           }
           action={
             !gate.isAdmin
@@ -314,43 +380,64 @@ export function AgentListingsManagerClient() {
       !listingsQuery.isError &&
       (listingsQuery.data ?? []).length > 0 ? (
         <div className="space-y-4">
-          {(listingsQuery.data ?? []).map((property) => (
-            <ListingRow
-              key={property.property_id}
-              property={property}
-              deleting={deleteProperty.isPending}
-              verifying={
-                verifyProperty.isPending &&
-                verifyProperty.variables?.propertyId === property.property_id
-              }
-              canManage={!gate.isAdmin}
-              onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
-              onDelete={() => void handleDelete(property.property_id)}
-              onVerify={
-                gate.isAdmin &&
-                property.moderation_status !== MODERATION_STATUS.verified
-                  ? () =>
-                      void handleSetModerationStatus(
-                        property.property_id,
-                        MODERATION_STATUS.verified,
-                        "Listing marked as verified",
-                      )
-                  : undefined
-              }
-              onReject={
-                gate.isAdmin &&
-                property.moderation_status === MODERATION_STATUS.pendingReview
-                  ? () => handleReject(property.property_id)
-                  : undefined
-              }
-              onRevoke={
-                gate.isAdmin &&
-                property.moderation_status === MODERATION_STATUS.verified
-                  ? () => handleRevoke(property.property_id)
-                  : undefined
-              }
-            />
-          ))}
+          {(listingsQuery.data ?? []).map((property) => {
+            const isPending = property.moderation_status === MODERATION_STATUS.pendingReview;
+            return (
+              <ListingRow
+                key={property.property_id}
+                property={property}
+                deleting={deleteProperty.isPending}
+                verifying={
+                  verifyProperty.isPending &&
+                  verifyProperty.variables?.propertyId === property.property_id
+                }
+                agencyActing={
+                  (agencyApproveProperty.isPending || agencyRejectProperty.isPending) &&
+                  (
+                    agencyApproveProperty.variables === property.property_id ||
+                    agencyRejectProperty.variables?.propertyId === property.property_id
+                  )
+                }
+                canManage={!gate.isAdmin}
+                showPendingNote={!gate.isAdmin && !isAgencyOwner && isPending}
+                onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
+                onDelete={() => void handleDelete(property.property_id)}
+                onVerify={
+                  gate.isAdmin &&
+                  property.moderation_status === MODERATION_STATUS.agencyApproved
+                    ? () =>
+                        void handleSetModerationStatus(
+                          property.property_id,
+                          MODERATION_STATUS.verified,
+                          "Listing marked as verified",
+                        )
+                    : undefined
+                }
+                onReject={
+                  gate.isAdmin &&
+                  property.moderation_status === MODERATION_STATUS.agencyApproved
+                    ? () => handleReject(property.property_id)
+                    : undefined
+                }
+                onRevoke={
+                  gate.isAdmin &&
+                  property.moderation_status === MODERATION_STATUS.verified
+                    ? () => handleRevoke(property.property_id)
+                    : undefined
+                }
+                onAgencyApprove={
+                  isAgencyOwner && isPending
+                    ? () => void handleAgencyApprove(property.property_id)
+                    : undefined
+                }
+                onAgencyReject={
+                  isAgencyOwner && isPending
+                    ? () => handleAgencyReject(property.property_id)
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
       ) : null}
     </div>
@@ -361,24 +448,32 @@ interface ListingRowProps {
   property: Property;
   deleting: boolean;
   verifying: boolean;
+  agencyActing?: boolean;
   canManage: boolean;
+  showPendingNote?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onVerify?: () => void;
   onReject?: () => void;
   onRevoke?: () => void;
+  onAgencyApprove?: () => void;
+  onAgencyReject?: () => void;
 }
 
 function ListingRow({
   property,
   deleting,
   verifying,
+  agencyActing,
   canManage,
+  showPendingNote,
   onEdit,
   onDelete,
   onVerify,
   onReject,
   onRevoke,
+  onAgencyApprove,
+  onAgencyReject,
 }: ListingRowProps) {
   const imagesQuery = usePropertyImages(property.property_id);
   const displayImage = imagesQuery.data?.[0] ?? null;
@@ -423,6 +518,11 @@ function ListingRow({
               </Badge>
               <span>{property.listing_type}</span>
             </div>
+            {showPendingNote ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                Awaiting agency review — your listing will be sent to admin after agency approval.
+              </p>
+            ) : null}
             {shouldShowModerationReason(property.moderation_status) &&
             property.moderation_reason ? (
               <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
@@ -435,6 +535,25 @@ function ListingRow({
       </div>
 
       <div className="flex flex-wrap gap-2 sm:ml-auto">
+        {onAgencyReject ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            loading={agencyActing}
+            onClick={onAgencyReject}
+          >
+            Reject
+          </Button>
+        ) : null}
+        {onAgencyApprove ? (
+          <Button
+            size="sm"
+            loading={agencyActing}
+            onClick={onAgencyApprove}
+          >
+            Approve
+          </Button>
+        ) : null}
         {onReject ? (
           <Button
             variant="destructive"

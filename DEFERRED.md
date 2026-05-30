@@ -179,6 +179,23 @@ components, plus a table of `recent_changes` showing entity type, action,
 timestamp, and actor. Section is gated to admin role only. Types regenerated
 from production OpenAPI. `tsc`, `lint`, and `build` gates passed clean.
 
+DEF-L-MOD-001 - CLOSED (2026-05-30): Backend L.2 deployed and frontend L.3
+implemented. `pnpm gen:types` confirmed `agency_approved` in `ModerationStatus`
+enum and agency-approve/reject endpoints. Frontend changes:
+- `moderation.ts`: added `agency_approved` constant, label "Admin review",
+  badge variant "warning".
+- Agent dashboard: updated pending_review label to "Agency review" and added
+  amber note "Awaiting agency review — your listing will be sent to admin after
+  agency approval."
+- Agency owner dashboard (`AgentListingsManagerClient`): added "Pending queue",
+  "Sent to admin", and "All listings" tabs with Approve/Reject actions calling
+  PATCH `/api/v1/properties/{id}/agency-approve` and `/agency-reject`.
+- Admin moderation page (`AdminPropertiesClient`): default tab changed to
+  `agency_approved`, server-side filtering via `?moderation_status=agency_approved`,
+  removed `pendingReview` tab, updated labels per new moderation flow.
+- New hooks: `useAgencyApproveProperty`, `useAgencyRejectProperty`.
+- Quality gates: `tsc 0`, `lint 0`, `build 0`.
+
 DEF-L-MOD-001 - Three-tier listing moderation: agent creates → agency approves
 (agency roster only, not public) → admin publishes (public feed). Requires an
 `agency_approved` enum state between `pending_review` and `verified`, updated
