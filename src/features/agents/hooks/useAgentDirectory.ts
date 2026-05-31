@@ -1,11 +1,9 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import type { Agent } from "@/types";
+import type { AgentDirectoryResponse } from "@/types";
 import type { AgentStats } from "./useAgentStats";
 
 export interface AgentDirectoryFilters {
-  agency_id?: number;
-  location_id?: number;
   skip?: number;
   limit?: number;
 }
@@ -13,34 +11,26 @@ export interface AgentDirectoryFilters {
 export function buildAgentDirectoryPath(filters: AgentDirectoryFilters) {
   const params = new URLSearchParams();
 
-  if (typeof filters.agency_id === "number") {
-    params.set("agency_id", String(filters.agency_id));
-  }
-
-  if (typeof filters.location_id === "number") {
-    params.set("location_id", String(filters.location_id));
-  }
-
   params.set("skip", String(filters.skip ?? 0));
   params.set("limit", String(filters.limit ?? 24));
 
-  return `/api/v1/agent-profiles/?${params.toString()}`;
+  return `/api/v1/agents/?${params.toString()}`;
 }
 
 export function useAgentDirectory(
   filters: AgentDirectoryFilters = {},
-  initialData?: Agent[] | null,
+  initialData?: AgentDirectoryResponse[] | null,
 ) {
   return useQuery({
     queryKey: ["agentDirectory", filters],
     queryFn: () =>
-      apiClient<Agent[]>(buildAgentDirectoryPath(filters), { authMode: "omit" }),
+      apiClient<AgentDirectoryResponse[]>(buildAgentDirectoryPath(filters), { authMode: "omit" }),
     staleTime: 60_000,
     initialData: initialData ?? undefined,
   });
 }
 
-export function useVisibleAgentStats(agents: Agent[], enabled = true) {
+export function useVisibleAgentStats(agents: AgentDirectoryResponse[], enabled = true) {
   return useQueries({
     queries: agents.map((agent) => ({
       queryKey: ["agentStats", agent.profile_id],
@@ -49,7 +39,7 @@ export function useVisibleAgentStats(agents: Agent[], enabled = true) {
           authMode: "omit",
         }),
       staleTime: 60_000,
-      enabled,
+      enabled: enabled && typeof agent.profile_id === "number",
     })),
     combine: (results) => {
       const statsByProfileId = new Map<
@@ -66,6 +56,10 @@ export function useVisibleAgentStats(agents: Agent[], enabled = true) {
       agents.forEach((agent, index) => {
         const result = results[index];
         const stats = result?.data;
+
+        if (typeof agent.profile_id !== "number") {
+          return;
+        }
 
         statsByProfileId.set(agent.profile_id, {
           listingCount:
