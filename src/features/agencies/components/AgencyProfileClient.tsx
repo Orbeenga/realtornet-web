@@ -12,6 +12,7 @@ import {
   AgencyListingsGrid,
   AgencyProfileHeader,
 } from "@/features/agencies/components";
+import { AgencyReviewSection } from "@/features/reviews/AgencyReviewSection";
 import { ApiError } from "@/lib/api/client";
 
 interface AgencyProfileClientProps {
@@ -34,6 +35,7 @@ function AgencyProfileSkeleton() {
 }
 
 export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
+  const numericAgencyId = Number(id);
   const agencyQuery = useAgencyProfile(id);
   const agentsQuery = useAgencyAgents(id);
   const listingsQuery = useAgencyListings(id);
@@ -100,6 +102,10 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
         properties={listingsQuery.data ?? []}
         isLoading={listingsQuery.isLoading}
       />
+
+      {!Number.isNaN(numericAgencyId) && (
+        <AgencyReviewSection agencyId={numericAgencyId} />
+      )}
     </div>
   );
 }
