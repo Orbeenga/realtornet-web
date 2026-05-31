@@ -180,7 +180,7 @@ export function PropertiesExplorer({
           ) : null}
 
           {!isLoading && !isError && properties.length > 0 ? (
-            <>
+            <div className="min-h-[28rem]">
               {currentView === "map" ? (
                 <PropertyMap
                   properties={properties}
@@ -213,7 +213,7 @@ export function PropertiesExplorer({
                   />
                 </div>
               ) : null}
-            </>
+            </div>
           ) : null}
         </div>
       </div>

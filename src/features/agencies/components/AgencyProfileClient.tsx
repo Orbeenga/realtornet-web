@@ -40,6 +40,15 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
   const agentsQuery = useAgencyAgents(id);
   const listingsQuery = useAgencyListings(id);
 
+  if (Number.isNaN(numericAgencyId)) {
+    return (
+      <EmptyState
+        title="Invalid agency ID"
+        description="The agency identifier in the URL is not valid."
+      />
+    );
+  }
+
   if (agencyQuery.isLoading) {
     return <AgencyProfileSkeleton />;
   }
