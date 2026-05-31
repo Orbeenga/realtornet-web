@@ -9,13 +9,16 @@ import { useAgentProfileByUser } from "@/features/properties/hooks";
 import {
   useMyAgentReviews,
   useMyPropertyReviews,
+  useMyAgencyReviews,
   usePropertyReviewsBatch,
   useAgentReviews,
   useAgentReviewsBatch,
+  useAgencyReviews,
 } from "@/features/reviews/hooks";
 import { useAgencyOwnerListings, useOwnerListings } from "@/features/properties/hooks";
 import { cn } from "@/lib/utils";
 import type {
+  AgencyReviewResponse,
   AgentReviewResponse,
   PropertyReviewResponse,
 } from "@/types";
@@ -41,7 +44,7 @@ function ReviewCard({
   review,
   label,
 }: {
-  review: PropertyReviewResponse | AgentReviewResponse;
+  review: PropertyReviewResponse | AgentReviewResponse | AgencyReviewResponse;
   label: string;
 }) {
   return (
@@ -74,14 +77,15 @@ function SeekerReviewsView() {
   const [activeTab, setActiveTab] = useState<SeekerTab>("property");
   const propertyReviewsQuery = useMyPropertyReviews();
   const agentReviewsQuery = useMyAgentReviews();
+  const agencyReviewsQuery = useMyAgencyReviews();
 
   const activeQuery =
     activeTab === "property"
       ? propertyReviewsQuery
       : activeTab === "agent"
         ? agentReviewsQuery
-        : null;
-  const reviews = activeQuery?.data ?? [];
+        : agencyReviewsQuery;
+  const reviews = activeQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -122,49 +126,39 @@ function SeekerReviewsView() {
         ))}
       </div>
 
-      {activeTab === "agency" ? (
-        <EmptyState
-          title="Agency reviews coming soon"
-          description="Agency review support is not yet available. Check back after the next backend update."
+      {activeQuery.isLoading ? <ReviewSkeleton /> : null}
+
+      {!activeQuery.isLoading && activeQuery.isError ? (
+        <ErrorState
+          title="Could not load reviews"
+          message="There was a problem loading your reviews. Please try again."
         />
-      ) : (
-        <>
-          {activeQuery?.isLoading ? <ReviewSkeleton /> : null}
+      ) : null}
 
-          {!activeQuery?.isLoading && activeQuery?.isError ? (
-            <ErrorState
-              title="Could not load reviews"
-              message="There was a problem loading your reviews. Please try again."
-              onRetry={() => {
-                void activeQuery.refetch();
-              }}
+      {!activeQuery.isLoading && !activeQuery.isError && reviews.length === 0 ? (
+        <EmptyState
+          title="No reviews yet"
+          description="Reviews you submit will appear here."
+        />
+      ) : null}
+
+      {!activeQuery.isLoading && !activeQuery.isError && reviews.length > 0 ? (
+        <div className="space-y-3">
+          {reviews.map((review) => (
+            <ReviewCard
+              key={review.review_id}
+              review={review}
+              label={
+                activeTab === "property"
+                  ? `Property #${(review as PropertyReviewResponse).property_id}`
+                  : activeTab === "agent"
+                    ? `Agent #${(review as AgentReviewResponse).agent_id}`
+                    : `Agency #${(review as AgencyReviewResponse).agency_id}`
+              }
             />
-          ) : null}
-
-          {!activeQuery?.isLoading && !activeQuery?.isError && reviews.length === 0 ? (
-            <EmptyState
-              title="No reviews yet"
-              description="Reviews you submit will appear here."
-            />
-          ) : null}
-
-          {!activeQuery?.isLoading && !activeQuery?.isError && reviews.length > 0 ? (
-            <div className="space-y-3">
-              {reviews.map((review) => (
-                <ReviewCard
-                  key={review.review_id}
-                  review={review}
-                  label={
-                    activeTab === "property"
-                      ? `Property #${(review as PropertyReviewResponse).property_id}`
-                      : `Agent #${(review as AgentReviewResponse).agent_id}`
-                  }
-                />
-              ))}
-            </div>
-          ) : null}
-        </>
-      )}
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -297,13 +291,15 @@ function AgencyReputationView() {
   );
   const listingsReviews = usePropertyReviewsBatch(propertyIds);
 
+  const agencyReviews = useAgencyReviews(agencyId ?? null);
+
   const activeQuery =
     activeTab === "agency"
-      ? null
+      ? agencyReviews
       : activeTab === "agents"
         ? agentsReviews
         : listingsReviews;
-  const reviews = activeQuery?.data ?? [];
+  const reviews = activeQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -344,51 +340,39 @@ function AgencyReputationView() {
         ))}
       </div>
 
-      {activeTab === "agency" ? (
-        <EmptyState
-          title="Agency reviews coming soon"
-          description="Agency-level review support is not yet available. Check back after the next backend update."
+      {activeQuery.isLoading ? <ReviewSkeleton /> : null}
+
+      {!activeQuery.isLoading && activeQuery.isError ? (
+        <ErrorState
+          title="Could not load reviews"
+          message="There was a problem loading reputation data. Please try again."
         />
-      ) : (
-        <>
-          {(activeTab === "agents" && agencyAgentsQuery.isLoading) ||
-          (activeTab === "listings" && agencyListingsQuery.isLoading) ? (
-            <ReviewSkeleton />
-          ) : activeQuery?.isLoading ? (
-            <ReviewSkeleton />
-          ) : null}
+      ) : null}
 
-          {!activeQuery?.isLoading && activeQuery?.isError ? (
-            <ErrorState
-              title="Could not load reviews"
-              message="There was a problem loading reputation data. Please try again."
+      {!activeQuery.isLoading && !activeQuery.isError && reviews.length === 0 ? (
+        <EmptyState
+          title="No reviews yet"
+          description="Reviews from seekers will appear here when submitted."
+        />
+      ) : null}
+
+      {!activeQuery.isLoading && !activeQuery.isError && reviews.length > 0 ? (
+        <div className="space-y-3">
+          {reviews.map((review) => (
+            <ReviewCard
+              key={review.review_id}
+              review={review}
+              label={
+                activeTab === "agency"
+                  ? `Agency #${(review as AgencyReviewResponse).agency_id}`
+                  : activeTab === "agents"
+                    ? `Agent #${(review as AgentReviewResponse).agent_id}`
+                    : `Property #${(review as PropertyReviewResponse).property_id}`
+              }
             />
-          ) : null}
-
-          {!activeQuery?.isLoading && !activeQuery?.isError && reviews.length === 0 ? (
-            <EmptyState
-              title="No reviews yet"
-              description="Reviews from seekers will appear here when submitted."
-            />
-          ) : null}
-
-          {!activeQuery?.isLoading && !activeQuery?.isError && reviews.length > 0 ? (
-            <div className="space-y-3">
-              {reviews.map((review) => (
-                <ReviewCard
-                  key={review.review_id}
-                  review={review}
-                  label={
-                    activeTab === "agents"
-                      ? `Agent #${(review as AgentReviewResponse).agent_id}`
-                      : `Property #${(review as PropertyReviewResponse).property_id}`
-                  }
-                />
-              ))}
-            </div>
-          ) : null}
-        </>
-      )}
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -3260,6 +3260,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/agency/{agency_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Reviews By Agency
+         * @description Retrieve all reviews for a specific agency.
+         *
+         *     Public endpoint - returns only non-deleted reviews.
+         */
+        get: operations["read_reviews_by_agency_api_v1_reviews_agency__agency_id__get"];
+        put?: never;
+        /**
+         * Create Agency Review
+         * @description Create a new agency review.
+         *
+         *     - Validates agency exists and is approved
+         *     - Prevents duplicate reviews (one per user per agency)
+         *     - Seeker-only endpoint
+         *     - Rating validation handled by schema
+         */
+        post: operations["create_agency_review_api_v1_reviews_agency__agency_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reviews/by-user/property/": {
         parameters: {
             query?: never;
@@ -4054,6 +4085,16 @@ export interface components {
              */
             property_count: number;
         };
+        /**
+         * AgencyReviewCreate
+         * @description Schema for creating an agency review
+         */
+        AgencyReviewCreate: {
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+        };
         /** AgencyReviewRequestCreate */
         AgencyReviewRequestCreate: {
             /** Message */
@@ -4101,6 +4142,40 @@ export interface components {
          * @enum {string}
          */
         AgencyReviewRequestStatus: "pending" | "accepted" | "declined";
+        /**
+         * AgencyReviewResponse
+         * @description Response for agency reviews
+         */
+        AgencyReviewResponse: {
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Review Id */
+            review_id: number;
+            /** User Id */
+            user_id?: number | null;
+            /** Property Id */
+            property_id?: number | null;
+            /** Agent Id */
+            agent_id?: number | null;
+            /** Agency Id */
+            agency_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Deleted By */
+            deleted_by?: string | null;
+        };
         /**
          * AgencyStatus
          * @enum {string}
@@ -4335,6 +4410,8 @@ export interface components {
             property_id?: number | null;
             /** Agent Id */
             agent_id: number;
+            /** Agency Id */
+            agency_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -5237,6 +5314,8 @@ export interface components {
             property_id: number;
             /** Agent Id */
             agent_id?: number | null;
+            /** Agency Id */
+            agency_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -11380,6 +11459,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_reviews_by_agency_api_v1_reviews_agency__agency_id__get: {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_agency_review_api_v1_reviews_agency__agency_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyReviewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewResponse"];
                 };
             };
             /** @description Validation Error */
