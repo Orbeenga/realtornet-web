@@ -221,3 +221,28 @@ review backend fully wired.
   POST `/api/v1/reviews/agency/{agency_id}`.
 - `/agents/page.tsx` inspected — no routing bug found.
 - Quality gates: `tsc 0`, `lint 0`, `build 0`.
+
+DEF-L-FRONT-001 - CLOSED (2026-05-31): Phase L Frontend Dispatch — UI gaps,
+moderation wiring, and site-wide polish.
+- P.4 `PropertyCard.tsx`: location display now prefers `property.location_name`
+  before falling back to `locationLabel` prop or raw `location_id`.
+- P.2 `PropertiesExplorer.tsx`: added `min-h-[28rem]` wrapper around grid/map
+  content to prevent viewport snap when toggling between views.
+- H.1 `HomeHeroSearch.tsx`: Buy/Rent/Lease toggle and search bar now share equal
+  width on desktop (`lg:grid-cols-2`, toggle buttons `flex-1`).
+- H.3 `HomeHeroSearch.tsx`: Filters popover deduplicated — removed Property Type,
+  Price, and Bedrooms from popover body (already in quick filter row). Added
+  Listing Status select. Removed unused `PriceField` component and `clearKey` state.
+- L3.2 `AgentListingsManagerClient.tsx`: agency owner reject action now uses
+  `shadcn/ui Dialog` with a textarea reason input instead of `window.prompt`.
+- AG.2 `AgentDirectoryClient.tsx`: added page hero consistent with `/agencies/`,
+  client-side search input filtering by `display_name`, single-row flex layout
+  for search + agency dropdown.
+- AG.3 `AgentDirectoryClient.tsx`: empty state now differentiates between
+  "no matching filters" and "no verified agents" with contextual messages.
+- A.1 `AgencyProfileClient.tsx`: added early `Number.isNaN(numericAgencyId)`
+  guard before API calls to prevent blank pages on invalid agency IDs.
+- L3.4 sitewide moderation label verification: grep confirmed no raw
+  `pending_review` / `agency_approved` strings in `.tsx/.ts` source outside
+  generated types; all labels flow through `moderationStatusLabel` map.
+- Quality gates: `tsc 0`, `lint 0`, `build 0`.

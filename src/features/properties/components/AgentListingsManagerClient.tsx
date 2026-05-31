@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import {
   Badge,
@@ -91,6 +99,9 @@ export function AgentListingsManagerClient() {
   const { user } = useAuth();
   const isAgencyOwner = gate.isAgencyOwner;
   const [agencyOwnerTab, setAgencyOwnerTab] = useState<AgencyOwnerListingTab>("pending");
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectPropertyId, setRejectPropertyId] = useState<number | null>(null);
   const needsAgentProfile = gate.isAllowed && !gate.isAdmin && !isAgencyOwner;
   const profileQuery = useUserProfile(needsAgentProfile);
   const agentProfileQuery = useAgentProfileByUser(
@@ -221,28 +232,33 @@ export function AgentListingsManagerClient() {
   };
 
   const handleAgencyReject = (propertyId: number) => {
-    const reason = window.prompt("Reason for rejecting this listing?");
+    setRejectPropertyId(propertyId);
+    setRejectReason("");
+    setRejectDialogOpen(true);
+  };
 
-    if (reason === null) {
-      return;
-    }
-
-    if (!reason.trim()) {
+  const handleConfirmAgencyReject = async () => {
+    if (!rejectReason.trim()) {
       notify.error("A reason is required to reject a listing.");
       return;
     }
 
-    void (async () => {
-      try {
-        await agencyRejectProperty.mutateAsync({
-          propertyId,
-          reason: reason.trim(),
-        });
-        notify.success("Listing rejected");
-      } catch {
-        notify.error("Could not reject listing");
-      }
-    })();
+    if (rejectPropertyId === null) {
+      return;
+    }
+
+    try {
+      await agencyRejectProperty.mutateAsync({
+        propertyId: rejectPropertyId,
+        reason: rejectReason.trim(),
+      });
+      notify.success("Listing rejected");
+      setRejectDialogOpen(false);
+      setRejectPropertyId(null);
+      setRejectReason("");
+    } catch {
+      notify.error("Could not reject listing");
+    }
   };
 
   const handleReject = (propertyId: number) => {
@@ -440,6 +456,46 @@ export function AgentListingsManagerClient() {
           })}
         </div>
       ) : null}
+
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject listing</DialogTitle>
+            <DialogDescription>
+              Enter a reason for rejecting this listing. This will be visible to the agent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label htmlFor="reject-reason" className="text-sm font-medium">
+              Reason
+            </label>
+            <textarea
+              id="reject-reason"
+              rows={3}
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="Required before rejecting"
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setRejectDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleConfirmAgencyReject()}
+            >
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
