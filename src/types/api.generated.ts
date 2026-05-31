@@ -3335,6 +3335,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/by-user/agency/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read User Agency Reviews
+         * @description Retrieve agency reviews by the current user.
+         *
+         *     Returns only non-deleted reviews.
+         */
+        get: operations["read_user_agency_reviews_api_v1_reviews_by_user_agency__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/properties/active": {
         parameters: {
             query?: never;
@@ -11592,6 +11614,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentReviewResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_user_agency_reviews_api_v1_reviews_by_user_agency__get: {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyReviewResponse"][];
                 };
             };
             /** @description Validation Error */
