@@ -1,6 +1,8 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type {
+  AgencyReviewCreate,
+  AgencyReviewResponse,
   AgentReviewCreate,
   AgentReviewResponse,
   PropertyReviewCreate,
@@ -202,6 +204,50 @@ export function useAgentReviewsBatch(agentIds: number[]) {
       const isLoading = results.some((result) => result.isLoading);
       const isError = results.some((result) => result.isError);
       return { data: allReviews, isLoading, isError };
+    },
+  });
+}
+
+export function useAgencyReviews(agencyId?: number | null) {
+  return useQuery({
+    queryKey: ["agencyReviews", agencyId],
+    queryFn: () =>
+      apiClient<AgencyReviewResponse[]>(`/api/v1/reviews/agency/${agencyId}`, {
+        authMode: "omit",
+      }),
+    enabled: typeof agencyId === "number",
+    staleTime: 30_000,
+  });
+}
+
+export function useMyAgencyReviews() {
+  return useQuery({
+    queryKey: ["myAgencyReviews"],
+    queryFn: () =>
+      apiClient<AgencyReviewResponse[]>("/api/v1/reviews/by-user/agency/"),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateAgencyReview() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      agencyId,
+      payload,
+    }: {
+      agencyId: number;
+      payload: AgencyReviewCreate;
+    }) =>
+      apiClient<AgencyReviewResponse>(`/api/v1/reviews/agency/${agencyId}`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["agencyReviews", variables.agencyId],
+      });
     },
   });
 }
