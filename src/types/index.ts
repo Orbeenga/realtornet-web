@@ -15,6 +15,7 @@ export type PropertyType = components["schemas"]["PropertyTypeResponse"];
 export type PropertyCreate = components["schemas"]["PropertyCreate"];
 export type PropertyUpdate = components["schemas"]["PropertyUpdate"];
 export type Agent = components["schemas"]["AgentProfileResponse"];
+export type AgentDirectoryResponse = components["schemas"]["AgentDirectoryResponse"];
 export type AgencyAgentMembershipActionRequest = components["schemas"]["AgencyAgentMembershipActionRequest"];
 export type AgencyAgentMembershipResponse = components["schemas"]["AgencyAgentMembershipResponse"];
 export type AgencyAgentMembershipStatus = components["schemas"]["AgencyAgentMembershipStatus"];
