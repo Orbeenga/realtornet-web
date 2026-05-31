@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState, Skeleton } from "@/components";
 import { useAgencies } from "@/features/agencies/hooks";
@@ -10,6 +10,7 @@ import {
 } from "@/features/agents/lib/agentDirectoryCompleteness";
 import { useAgentDirectory, useVisibleAgentStats } from "@/features/agents/hooks";
 import { useIdleHydration } from "@/lib/useIdleHydration";
+import { cn } from "@/lib/utils";
 import type { AgentDirectoryResponse } from "@/types";
 
 function readNumberParam(value: string | null) {
@@ -115,6 +116,7 @@ export function AgentDirectoryClient({
   const searchParams = useSearchParams();
   const hydrateFilterOptions = useIdleHydration({ delay: 1_800 });
   const hydrateStats = useIdleHydration({ delay: 8_000 });
+  const [search, setSearch] = useState("");
   const selectedAgencyId = readNumberParam(searchParams.get("agency_id"));
   const agentsQuery = useAgentDirectory(
     { limit: 24 },
@@ -125,11 +127,18 @@ export function AgentDirectoryClient({
     const all = (agentsQuery.data ?? []).filter((agent) =>
       isPublicDisplayableAgentDirectory(agent),
     );
-    if (typeof selectedAgencyId === "number") {
-      return all.filter((agent) => agent.agency_id === selectedAgencyId);
+    const query = search.trim().toLowerCase();
+    let filtered = all;
+    if (query) {
+      filtered = filtered.filter((agent) =>
+        agent.display_name.toLowerCase().includes(query),
+      );
     }
-    return all;
-  }, [agentsQuery.data, selectedAgencyId]);
+    if (typeof selectedAgencyId === "number") {
+      filtered = filtered.filter((agent) => agent.agency_id === selectedAgencyId);
+    }
+    return filtered;
+  }, [agentsQuery.data, selectedAgencyId, search]);
   const statsByProfileId = useVisibleAgentStats(
     displayableAgents.slice(0, 9),
     hydrateStats && displayableAgents.length > 0,
@@ -150,21 +159,51 @@ export function AgentDirectoryClient({
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <div className="space-y-3">
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+          Verified agents
+        </p>
         <h1 className="text-3xl font-bold tracking-tight text-gray-950 dark:text-white">
-          Agents
+          Browse verified real estate agents
         </h1>
         <p className="max-w-2xl text-sm text-gray-600 dark:text-gray-300">
-          Browse verified agent profiles by agency affiliation.
+          Find the right agent by agency, location, or name.
         </p>
       </div>
 
-      <div className="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950 md:grid-cols-2">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-          Agency
+      <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <svg
+            className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
+            />
+          </svg>
+          <input
+            type="text"
+            aria-label="Search agents"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by agent name..."
+            className={cn(
+              "h-12 w-full rounded-xl border bg-white pl-12 pr-4 text-base text-gray-900 shadow-sm transition-shadow duration-150",
+              "border-[1.5px] border-gray-200 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none focus:shadow-md",
+              "placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500",
+            )}
+          />
+        </div>
+        <label className="min-w-0 flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+          <span className="sr-only">Agency</span>
           <select
             value={selectedAgencyId ?? ""}
             onChange={(event) => setAgencyFilter(event.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+            className="mt-0 block h-12 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           >
             <option value="">All agencies</option>
             {!hydrateFilterOptions ? (
@@ -195,8 +234,12 @@ export function AgentDirectoryClient({
 
       {!agentsQuery.isLoading && !agentsQuery.isError && displayableAgents.length === 0 ? (
         <EmptyState
-          title="No agents found"
-          description="Try another agency filter."
+          title={search.trim() || typeof selectedAgencyId === "number" ? "No agents match your filters" : "No verified agents found"}
+          description={
+            search.trim() || typeof selectedAgencyId === "number"
+              ? "Try clearing your search or selecting a different agency."
+              : "Agents will appear here once they complete their public profiles."
+          }
         />
       ) : null}
 

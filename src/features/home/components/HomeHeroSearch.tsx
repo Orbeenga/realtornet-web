@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { useLocationSearch } from "@/features/locations/hooks";
 import { usePropertyTypes } from "@/features/properties/hooks";
 import {
+  LISTING_STATUSES,
+  LISTING_STATUS_LABELS,
   LISTING_TYPE_LABELS,
   LISTING_TYPES,
 } from "@/features/properties/lib/propertyOptions";
@@ -107,63 +109,6 @@ function FilterField({
   );
 }
 
-function PriceField({
-  id,
-  label,
-  value,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [customMode, setCustomMode] = useState(false);
-  const isCustomPreset = Boolean(value) && !PRICE_OPTIONS.some((option) => option.value === value);
-  const showCustom = customMode || isCustomPreset;
-  const selectValue = showCustom ? "custom" : value;
-
-  return (
-    <div className="space-y-2">
-      <FilterField id={id} label={label}>
-        <select
-          id={id}
-          value={selectValue}
-          onChange={(event) => {
-            if (event.target.value === "custom") {
-              setCustomMode(true);
-              onChange("");
-              return;
-            }
-            setCustomMode(false);
-            onChange(event.target.value);
-          }}
-          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-        >
-          <option value="">Any</option>
-          {PRICE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          <option value="custom">Custom Price</option>
-        </select>
-      </FilterField>
-      {showCustom ? (
-        <Input
-          type="number"
-          min="0"
-          inputMode="numeric"
-          value={value}
-          placeholder="Enter custom price"
-          onChange={(event) => onChange(event.target.value)}
-          className="h-11"
-          aria-label={`${label} custom price`}
-        />
-      ) : null}
-    </div>
-  );
-}
 
 export function HomeHeroSearch() {
   const router = useRouter();
@@ -175,8 +120,8 @@ export function HomeHeroSearch() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [bedrooms, setBedrooms] = useState("");
+  const [listingStatus, setListingStatus] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [clearKey, setClearKey] = useState(0);
   const searchQuery = useLocationSearch(locationQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
@@ -213,6 +158,10 @@ export function HomeHeroSearch() {
       params.set("bedrooms", bedrooms);
     }
 
+    if (listingStatus) {
+      params.set("listing_status", listingStatus);
+    }
+
     return params.toString();
   };
 
@@ -226,7 +175,7 @@ export function HomeHeroSearch() {
     setMinPrice("");
     setMaxPrice("");
     setBedrooms("");
-    setClearKey((k) => k + 1);
+    setListingStatus("");
   };
 
   const selectLocation = (location: Location) => {
@@ -283,14 +232,14 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
-          <div className="inline-flex h-14 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-950 lg:w-auto">
+        <div className="grid gap-3 lg:grid-cols-2 lg:items-center">
+          <div className="inline-flex h-14 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-950">
             {LISTING_TYPES.map((type) => (
               <button
                 key={type}
                 type="button"
                 className={cn(
-                  "min-w-20 flex-1 rounded-xl px-4 text-sm font-semibold transition lg:flex-none",
+                  "min-w-20 flex-1 rounded-xl px-4 text-sm font-semibold transition",
                   listingType === type
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
@@ -416,60 +365,17 @@ export function HomeHeroSearch() {
             <div className="border-b border-gray-100 px-6 py-6 dark:border-gray-800">{searchInput}</div>
 
             <div className="space-y-6 overflow-y-auto px-6 py-5">
-              <FilterField id="home-modal-property-type" label="Property Type">
+              <FilterField id="home-modal-listing-status" label="Listing Status">
                 <select
-                  id="home-modal-property-type"
-                  value={propertyTypeId}
-                  onChange={(event) => setPropertyTypeId(event.target.value)}
-                  disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                >
-                  <option value="">Any</option>
-                  {(propertyTypesQuery.data ?? []).map((propertyType) => (
-                    <option
-                      key={propertyType.property_type_id}
-                      value={propertyType.property_type_id}
-                    >
-                      {propertyType.name}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-
-              <div>
-                <p className="mb-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Price
-                </p>
-                <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-start">
-                  <PriceField
-                    key={`min-${clearKey}`}
-                    id="home-modal-min-price"
-                    label="Min"
-                    value={minPrice}
-                    onChange={setMinPrice}
-                  />
-                  <span className="hidden pt-10 text-gray-400 sm:block">-</span>
-                  <PriceField
-                    key={`max-${clearKey}`}
-                    id="home-modal-max-price"
-                    label="Max"
-                    value={maxPrice}
-                    onChange={setMaxPrice}
-                  />
-                </div>
-              </div>
-
-              <FilterField id="home-modal-bedrooms" label="Bedrooms">
-                <select
-                  id="home-modal-bedrooms"
-                  value={bedrooms}
-                  onChange={(event) => setBedrooms(event.target.value)}
+                  id="home-modal-listing-status"
+                  value={listingStatus}
+                  onChange={(event) => setListingStatus(event.target.value)}
                   className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 >
-                  <option value="">Any</option>
-                  {BEDROOM_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  <option value="">All statuses</option>
+                  {LISTING_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {LISTING_STATUS_LABELS[status]}
                     </option>
                   ))}
                 </select>
