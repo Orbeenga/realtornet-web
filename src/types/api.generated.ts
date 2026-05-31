@@ -4243,6 +4243,8 @@ export interface components {
         AgentDirectoryResponse: {
             /** User Id */
             user_id: number;
+            /** Profile Id */
+            profile_id?: number | null;
             /** Display Name */
             display_name: string;
             /** Agency Id */

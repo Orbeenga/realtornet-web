@@ -1,4 +1,4 @@
-import type { Agent } from "@/types";
+import type { Agent, AgentDirectoryResponse } from "@/types";
 
 const GENERIC_DISPLAY_NAME = /^Agent\s*#?\d+$/i;
 const GENERIC_SHORT_NAME = /^A#\d+$/i;
@@ -22,4 +22,8 @@ export function isPublicDisplayableAgent(agent: Agent) {
   }
 
   return true;
+}
+
+export function isPublicDisplayableAgentDirectory(agent: AgentDirectoryResponse) {
+  return !isGenericAgentDisplayName(agent.display_name);
 }

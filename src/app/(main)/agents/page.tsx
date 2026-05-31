@@ -4,7 +4,7 @@ import { Skeleton } from "@/components";
 import { AgentDirectoryClient } from "@/features/agents/components";
 import { buildAgentDirectoryPath } from "@/features/agents/hooks/useAgentDirectory";
 import { serverPublicApi } from "@/lib/api/serverPublic";
-import type { Agent } from "@/types";
+import type { AgentDirectoryResponse } from "@/types";
 
 export const metadata: Metadata = {
   title: "Property Agents in Nigeria",
@@ -36,37 +36,14 @@ function AgentsPageFallback() {
   );
 }
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-function readSearchValue(searchParams: SearchParams, key: string) {
-  const value = searchParams[key];
-
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function readNumberSearchValue(searchParams: SearchParams, key: string) {
-  const value = readSearchValue(searchParams, key);
-
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 interface AgentsPageProps {
-  searchParams?: Promise<SearchParams>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function AgentsPage({ searchParams }: AgentsPageProps) {
-  const resolvedSearchParams = (await searchParams) ?? {};
-  const initialData = await serverPublicApi<Agent[]>(
-    buildAgentDirectoryPath({
-      agency_id: readNumberSearchValue(resolvedSearchParams, "agency_id"),
-      location_id: readNumberSearchValue(resolvedSearchParams, "location_id"),
-      limit: 24,
-    }),
+  await searchParams;
+  const initialData = await serverPublicApi<AgentDirectoryResponse[]>(
+    buildAgentDirectoryPath({ limit: 24 }),
     60,
   );
 
