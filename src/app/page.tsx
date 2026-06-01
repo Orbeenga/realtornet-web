@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   },
   description:
     "Nigeria's trusted property marketplace. Browse agencies, explore listings, and connect with verified agents.",
+  alternates: {
+    canonical: "https://realtornet-web.vercel.app/",
+  },
   openGraph: {
     title: "RealtorNet — Find Verified Properties in Nigeria",
     description:
@@ -45,10 +48,23 @@ export default async function Home() {
   const showFeaturedListings = (properties?.length ?? 0) > 0;
   const showFeaturedAgencies = approvedAgencies.length > 0;
 
+  const ldOrg = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "RealtorNet",
+    url: "https://realtornet-web.vercel.app/",
+    logo: "https://realtornet-web.vercel.app/favicon.ico",
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
       <main>
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ldOrg) }}
+        />
         <section className="relative min-h-[70vh] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
           <div className="absolute inset-0 bg-black/55" />
           <div className="absolute top-6 left-6 z-10">

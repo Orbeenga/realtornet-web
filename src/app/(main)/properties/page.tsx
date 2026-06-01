@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   title: "Properties for Sale & Rent in Nigeria",
   description:
     "Browse verified property listings across Nigeria. Filter by price, bedrooms, location and property type.",
+  alternates: {
+    canonical: "https://realtornet-web.vercel.app/properties/",
+  },
   openGraph: {
     title: "Properties for Sale & Rent in Nigeria | RealtorNet",
     description: "Browse verified property listings across Nigeria.",
@@ -88,6 +91,30 @@ export default async function PropertiesPage({
 
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: "https://realtornet-web.vercel.app/",
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Properties",
+                item: "https://realtornet-web.vercel.app/properties/",
+              },
+            ],
+          }),
+        }}
+      />
       <Link
         href="/"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"

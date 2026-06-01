@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "Property Agencies in Nigeria",
   description:
     "Discover verified real estate agencies operating across Nigeria. Browse their listings and meet their agents.",
+  alternates: {
+    canonical: "https://realtornet-web.vercel.app/agencies/",
+  },
   openGraph: {
     title: "Property Agencies in Nigeria | RealtorNet",
     description:
@@ -30,6 +33,30 @@ export default async function AgenciesPage() {
 
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: "https://realtornet-web.vercel.app/",
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Agencies",
+                item: "https://realtornet-web.vercel.app/agencies/",
+              },
+            ],
+          }),
+        }}
+      />
       <Link
         href="/"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
