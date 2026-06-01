@@ -90,3 +90,24 @@ At session end, capture:
 - What was verified
 - What is still open
 - Whether production deploy or live validation is still pending
+
+
+## Production accounts (Phase L lock)
+
+The following production identities are confirmed in the current Supabase project `fobvnshrqxduuhzgflvd` and should be treated as real accounts for operational work. Do not delete in production.
+
+Agencies
+
+| name              | email | is_verified |
+| ----------------- | ----- | ----------- |
+| Apine Real Estate | null  | true        |
+
+Users
+
+| user_id | first_name | last_name | email                       | is_verified |
+| ------- | ---------- | --------- | --------------------------- | ----------- |
+| 1       | Orbeenga   | Apine     | apineorbeenga@gmail.com     | true        |
+| 2       | Orbeenga   | Apine     | apineorbeenga@outlook.com   | true        |
+| 3       | Orbeenga   | Apine     | apineorbeenga@yahoo.com     | true        |
+| 4       | Terngu     | Apine     | apineterngu19@gmail.com     | true        |
+
