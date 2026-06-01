@@ -159,6 +159,9 @@ export function PropertyFilters() {
   const [customMaxMode, setCustomMaxMode] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingScrollYRef = useRef<number | null>(null);
+  // Local staged values for custom price inputs (initialized after reading URL params below)
+  const _localMinPriceInit = "";
+  const _localMaxPriceInit = "";
 
   useEffect(() => {
     return () => {
@@ -179,6 +182,8 @@ export function PropertyFilters() {
       window.scrollTo(0, scrollY);
     });
   }, [searchParams]);
+
+  // Effects syncing local price values are defined after minPrice/maxPrice declarations below.
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -275,6 +280,8 @@ export function PropertyFilters() {
   );
   const minPrice = searchParams.get("min_price") ?? "";
   const maxPrice = searchParams.get("max_price") ?? "";
+  const [localMinPrice, setLocalMinPrice] = useState(minPrice ?? _localMinPriceInit);
+  const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice ?? _localMaxPriceInit);
   const bedrooms = searchParams.get("bedrooms") ?? "";
   const locationValue = {
     state: searchParams.get("state") ?? "",
@@ -292,6 +299,14 @@ export function PropertyFilters() {
     formatLocationLabel(selectedLocation) ||
     null;
   const currentView = searchParams.get("view") === "map" ? "map" : "grid";
+  // Keep staged inputs in sync when URL-owned values change externally
+  useEffect(() => {
+    setLocalMinPrice(minPrice);
+  }, [minPrice]);
+
+  useEffect(() => {
+    setLocalMaxPrice(maxPrice);
+  }, [maxPrice]);
   const hasFilters = Array.from(searchParams.keys()).some((key) => key !== "view");
   const selectClassName = SelectClassName();
   const viewHref = (view: "grid" | "map") => {
@@ -391,19 +406,46 @@ export function PropertyFilters() {
         <option value="custom">Custom Price</option>
       </select>
       {showCustomMin ? (
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
-          <Input
-            id={`${id}-custom`}
-            type="number"
-            min="0"
-            inputMode="numeric"
-            value={minPrice}
-            placeholder="Enter custom price"
-            onChange={(event) => updateFilterDebounced("min_price", event.target.value)}
-            aria-label="Min price custom value"
-            className="pl-12"
-          />
+        <div className="space-y-2">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+            <Input
+              id={`${id}-custom`}
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={localMinPrice}
+              placeholder="Enter custom price"
+              onChange={(event) => setLocalMinPrice(event.target.value)}
+              onBlur={() => updateFilter("min_price", localMinPrice)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  updateFilter("min_price", localMinPrice);
+                }
+              }}
+              aria-label="Min price custom value"
+              className="pl-12"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setLocalMinPrice("");
+                updateFilter("min_price", "");
+              }}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              onClick={() => updateFilter("min_price", localMinPrice)}
+            >
+              Apply
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>
@@ -435,19 +477,46 @@ export function PropertyFilters() {
         <option value="custom">Custom Price</option>
       </select>
       {showCustomMax ? (
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
-          <Input
-            id={`${id}-custom`}
-            type="number"
-            min="0"
-            inputMode="numeric"
-            value={maxPrice}
-            placeholder="Enter custom price"
-            onChange={(event) => updateFilterDebounced("max_price", event.target.value)}
-            aria-label="Max price custom value"
-            className="pl-12"
-          />
+        <div className="space-y-2">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+            <Input
+              id={`${id}-custom`}
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={localMaxPrice}
+              placeholder="Enter custom price"
+              onChange={(event) => setLocalMaxPrice(event.target.value)}
+              onBlur={() => updateFilter("max_price", localMaxPrice)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  updateFilter("max_price", localMaxPrice);
+                }
+              }}
+              aria-label="Max price custom value"
+              className="pl-12"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setLocalMaxPrice("");
+                updateFilter("max_price", "");
+              }}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              onClick={() => updateFilter("max_price", localMaxPrice)}
+            >
+              Apply
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>
