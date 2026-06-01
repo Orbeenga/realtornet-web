@@ -252,7 +252,7 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="grid gap-3 lg:grid-cols-1 lg:items-center">
+        <div className="mx-auto w-full max-w-2xl">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
             <Button type="submit" className="h-12 shrink-0 rounded-xl px-5 text-sm">
@@ -261,130 +261,232 @@ export function HomeHeroSearch() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setPtOutsideDraft(propertyTypeIds);
-                setPtOutsideOpen((v) => !v);
-              }}
-              className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            >
-              <span className="truncate">
-                {propertyTypeIds.length === 0
-                  ? "Property Type"
-                  : `${propertyTypeIds.length} Selected`}
-              </span>
-              <span className="shrink-0 text-xs text-gray-400">v</span>
-            </button>
-            {ptOutsideOpen ? (
-              <div className="absolute z-20 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-                <div className="max-h-64 overflow-y-auto">
-                  <button
-                    type="button"
-                    className="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
-                    onClick={() => setPtOutsideDraft([])}
-                  >
-                    <span>All property types</span>
-                    <span className="text-xs text-gray-400">{ptOutsideDraft.length === 0 ? "✓" : ""}</span>
-                  </button>
-                  {(propertyTypesQuery.data ?? []).map((type) => {
-                    const id = String(type.property_type_id);
-                    const checked = ptOutsideDraft.includes(id);
-                    return (
-                      <label
-                        key={id}
-                        className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            setPtOutsideDraft((prev) =>
-                              e.target.checked ? [...prev, id] : prev.filter((v) => v !== id),
-                            );
-                          }}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
-                        />
-                        <span className="min-w-0 flex-1 truncate">{type.name}</span>
-                      </label>
-                    );
-                  })}
+        <div className="mx-auto w-full max-w-2xl lg:max-w-7xl">
+          {/* Mobile: Property Type full width, others in 2 columns */}
+          <div className="space-y-3 lg:hidden">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setPtOutsideDraft(propertyTypeIds);
+                  setPtOutsideOpen((v) => !v);
+                }}
+                className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              >
+                <span className="truncate">
+                  {propertyTypeIds.length === 0
+                    ? "Property Type"
+                    : `${propertyTypeIds.length} Selected`}
+                </span>
+                <span className="shrink-0 text-xs text-gray-400">v</span>
+              </button>
+              {ptOutsideOpen ? (
+                <div className="absolute z-20 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                  <div className="max-h-64 overflow-y-auto">
+                    <button
+                      type="button"
+                      className="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                      onClick={() => setPtOutsideDraft([])}
+                    >
+                      <span>All property types</span>
+                      <span className="text-xs text-gray-400">{ptOutsideDraft.length === 0 ? "✓" : ""}</span>
+                    </button>
+                    {(propertyTypesQuery.data ?? []).map((type) => {
+                      const id = String(type.property_type_id);
+                      const checked = ptOutsideDraft.includes(id);
+                      return (
+                        <label
+                          key={id}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setPtOutsideDraft((prev) =>
+                                e.target.checked ? [...prev, id] : prev.filter((v) => v !== id),
+                              );
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{type.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="sticky bottom-0 z-10 mt-2 flex items-center justify-end gap-2 bg-white py-2 dark:bg-gray-900">
+                    <button
+                      type="button"
+                      className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                      onClick={() => setPtOutsideOpen(false)}
+                    >
+                      Cancel
+                    </button>
+                    <Button
+                      type="button"
+                      className="h-9 px-4 text-sm"
+                      onClick={() => {
+                        setPropertyTypeIds(ptOutsideDraft);
+                        setPtOutsideOpen(false);
+                      }}
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
-                <div className="sticky bottom-0 z-10 mt-2 flex items-center justify-end gap-2 bg-white py-2 dark:bg-gray-900">
-                  <button
-                    type="button"
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    onClick={() => setPtOutsideOpen(false)}
-                  >
-                    Cancel
-                  </button>
-                  <Button
-                    type="button"
-                    className="h-9 px-4 text-sm"
-                    onClick={() => {
-                      setPropertyTypeIds(ptOutsideDraft);
-                      setPtOutsideOpen(false);
-                    }}
-                  >
-                    Done
-                  </Button>
-                </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <HomeFilterSelect id="home-min-price" label="Min Price" value={minPrice} onChange={setMinPrice}>
+                <option value="">Min Price</option>
+                {PRICE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </HomeFilterSelect>
+
+              <HomeFilterSelect id="home-max-price" label="Max Price" value={maxPrice} onChange={setMaxPrice}>
+                <option value="">Max Price</option>
+                {PRICE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </HomeFilterSelect>
+
+              <HomeFilterSelect id="home-bedrooms" label="Bedrooms" value={bedrooms} onChange={setBedrooms}>
+                <option value="">Bedrooms</option>
+                {BEDROOM_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </HomeFilterSelect>
+
+              <button
+                type="button"
+                className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                onClick={() => setFiltersOpen(true)}
+              >
+                <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
+                <span className="shrink-0 text-xs text-gray-400">v</span>
+              </button>
+            </div>
           </div>
 
-          <HomeFilterSelect
-            id="home-min-price"
-            label="Min Price"
-            value={minPrice}
-            onChange={setMinPrice}
-          >
-            <option value="">Min Price</option>
-            {PRICE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </HomeFilterSelect>
+          {/* Desktop unchanged layout */}
+          <div className="hidden lg:grid lg:grid-cols-5 lg:gap-3">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setPtOutsideDraft(propertyTypeIds);
+                  setPtOutsideOpen((v) => !v);
+                }}
+                className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              >
+                <span className="truncate">
+                  {propertyTypeIds.length === 0
+                    ? "Property Type"
+                    : `${propertyTypeIds.length} Selected`}
+                </span>
+                <span className="shrink-0 text-xs text-gray-400">v</span>
+              </button>
+              {ptOutsideOpen ? (
+                <div className="absolute z-20 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                  <div className="max-h-64 overflow-y-auto">
+                    <button
+                      type="button"
+                      className="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                      onClick={() => setPtOutsideDraft([])}
+                    >
+                      <span>All property types</span>
+                      <span className="text-xs text-gray-400">{ptOutsideDraft.length === 0 ? "✓" : ""}</span>
+                    </button>
+                    {(propertyTypesQuery.data ?? []).map((type) => {
+                      const id = String(type.property_type_id);
+                      const checked = ptOutsideDraft.includes(id);
+                      return (
+                        <label
+                          key={id}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setPtOutsideDraft((prev) =>
+                                e.target.checked ? [...prev, id] : prev.filter((v) => v !== id),
+                              );
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{type.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="sticky bottom-0 z-10 mt-2 flex items-center justify-end gap-2 bg-white py-2 dark:bg-gray-900">
+                    <button
+                      type="button"
+                      className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                      onClick={() => setPtOutsideOpen(false)}
+                    >
+                      Cancel
+                    </button>
+                    <Button
+                      type="button"
+                      className="h-9 px-4 text-sm"
+                      onClick={() => {
+                        setPropertyTypeIds(ptOutsideDraft);
+                        setPtOutsideOpen(false);
+                      }}
+                    >
+                      Done
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
-          <HomeFilterSelect
-            id="home-max-price"
-            label="Max Price"
-            value={maxPrice}
-            onChange={setMaxPrice}
-          >
-            <option value="">Max Price</option>
-            {PRICE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </HomeFilterSelect>
+            <HomeFilterSelect id="home-min-price" label="Min Price" value={minPrice} onChange={setMinPrice}>
+              <option value="">Min Price</option>
+              {PRICE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </HomeFilterSelect>
 
-          <HomeFilterSelect
-            id="home-bedrooms"
-            label="Bedrooms"
-            value={bedrooms}
-            onChange={setBedrooms}
-          >
-            <option value="">Bedrooms</option>
-            {BEDROOM_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </HomeFilterSelect>
+            <HomeFilterSelect id="home-max-price" label="Max Price" value={maxPrice} onChange={setMaxPrice}>
+              <option value="">Max Price</option>
+              {PRICE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </HomeFilterSelect>
 
-          <button
-            type="button"
-            className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            onClick={() => setFiltersOpen(true)}
-          >
-            <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
-            <span className="shrink-0 text-xs text-gray-400">v</span>
-          </button>
+            <HomeFilterSelect id="home-bedrooms" label="Bedrooms" value={bedrooms} onChange={setBedrooms}>
+              <option value="">Bedrooms</option>
+              {BEDROOM_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </HomeFilterSelect>
+
+            <button
+              type="button"
+              className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              onClick={() => setFiltersOpen(true)}
+            >
+              <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
+              <span className="shrink-0 text-xs text-gray-400">v</span>
+            </button>
+          </div>
         </div>
       </form>
 

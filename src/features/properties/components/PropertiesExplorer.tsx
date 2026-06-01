@@ -52,8 +52,8 @@ const PropertyMap = dynamic(
 
 function PropertyFiltersFallback() {
   return (
-    <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-      <div className="flex gap-2">
+    <div className="mb-8">
+      <div className="mx-auto flex w-full max-w-2xl gap-2">
         <div className="h-11 min-w-0 flex-1 rounded-full bg-gray-100 dark:bg-gray-800" />
         <div className="h-11 w-28 rounded-full bg-gray-100 dark:bg-gray-800" />
         <div className="h-11 w-24 rounded-full bg-gray-100 dark:bg-gray-800" />
