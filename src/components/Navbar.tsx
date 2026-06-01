@@ -272,7 +272,7 @@ export function Navbar() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-navigation-title"
-            className="absolute right-0 top-0 flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col bg-white shadow-2xl dark:bg-gray-900"
+            className="absolute left-0 top-0 flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col bg-white shadow-2xl dark:bg-gray-900 animate-in slide-in-from-left duration-150"
           >
             <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
               <h2 id="mobile-navigation-title" className="sr-only">
