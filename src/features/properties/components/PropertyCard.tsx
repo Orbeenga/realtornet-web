@@ -173,21 +173,23 @@ export function PropertyCard({
               {property.agency_name}
             </p>
           ) : null}
-          <p className="flex items-center gap-1 text-xs text-gray-500">
-            <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
-              />
-            </svg>
-            {property.location_name ||
-              locationLabel ||
-              (property.location_id
-                ? `Location #${property.location_id}`
-                : "Location available on detail page")}
-          </p>
+          {(() => {
+            const loc = property.location_name || locationLabel || null;
+            if (!loc) return null;
+            return (
+              <p className="flex items-center gap-1 text-xs text-gray-500">
+                <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
+                  />
+                </svg>
+                {loc}
+              </p>
+            );
+          })()}
           <div className="flex items-center gap-3 pt-1 text-xs text-gray-500">
             {property.bedrooms != null ? (
               <span>{property.bedrooms} bed{property.bedrooms !== 1 ? "s" : ""}</span>
