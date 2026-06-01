@@ -20,7 +20,17 @@ export default function RootLayout({
   return (
     <html lang="en" className="font-sans">
       <body>
-        <Providers>{children}</Providers>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only fixed top-2 left-2 z-[1000] rounded bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+        >
+          Skip to content
+        </a>
+        <Providers>
+          <div id="main-content" tabIndex={-1}>
+            {children}
+          </div>
+        </Providers>
         <SentryDeferredInit />
       </body>
     </html>

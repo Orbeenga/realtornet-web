@@ -166,6 +166,16 @@ export function HomeHeroSearch() {
       params.set("listing_status", listingStatus);
     }
 
+    // Persist user's last sort/view when navigating from the homepage
+    try {
+      if (typeof window !== "undefined") {
+        const savedSort = localStorage.getItem("rn_sort");
+        if (savedSort && !params.has("sort")) params.set("sort", savedSort);
+        const savedView = localStorage.getItem("rn_view");
+        if (savedView === "map" && !params.has("view")) params.set("view", "map");
+      }
+    } catch {}
+
     return params.toString();
   };
 
