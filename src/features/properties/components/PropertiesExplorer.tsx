@@ -104,9 +104,18 @@ export function PropertiesExplorer({
     location_id: searchParams.get("location_id")
       ? Number(searchParams.get("location_id"))
       : undefined,
-    property_type_id: searchParams.get("property_type_id")
-      ? Number(searchParams.get("property_type_id"))
-      : undefined,
+    property_type_id: (() => {
+      const all = searchParams.getAll("property_type_id");
+      if (all.length > 0) {
+        const nums = all
+          .flatMap((v) => v.split(","))
+          .map((v) => Number(v))
+          .filter((n) => Number.isFinite(n));
+        return nums.length > 0 ? nums : undefined;
+      }
+      const single = searchParams.get("property_type_id");
+      return single ? Number(single) : undefined;
+    })(),
   };
 
   const { data, isLoading, isError, refetch } = useProperties(filters, initialData);
@@ -183,12 +192,23 @@ export function PropertiesExplorer({
     const br = searchParams.get("bedrooms");
     if (br) addChip("bedrooms", `${br}+ beds`);
 
-    const ptId = searchParams.get("property_type_id");
-    if (ptId) {
-      const name = (propertyTypesQuery.data ?? []).find(
-        (t) => String(t.property_type_id) === ptId,
-      )?.name;
-      addChip("property_type_id", name ?? `Type #${ptId}`);
+    const ptIds = searchParams.getAll("property_type_id");
+    if (ptIds.length > 0) {
+      const expanded = ptIds.flatMap((v) => v.split(","));
+      expanded.forEach((id) => {
+        const name = (propertyTypesQuery.data ?? []).find(
+          (t) => String(t.property_type_id) === id,
+        )?.name;
+        addChip("property_type_id", name ?? `Type #${id}`);
+      });
+    } else {
+      const ptId = searchParams.get("property_type_id");
+      if (ptId) {
+        const name = (propertyTypesQuery.data ?? []).find(
+          (t) => String(t.property_type_id) === ptId,
+        )?.name;
+        addChip("property_type_id", name ?? `Type #${ptId}`);
+      }
     }
 
     const state = searchParams.get("state");
