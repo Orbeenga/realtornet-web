@@ -81,12 +81,15 @@ function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
       <div className="relative min-w-0 flex-1">
         <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
-          type="text"
+          type="search"
           aria-label="Search properties"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onBlur={() => onCommit(value)}
           placeholder="Search by title, keyword, or area"
+          autoComplete="off"
+          enterKeyHint="search"
+          inputMode="search"
           className="h-12 w-full rounded-xl border border-gray-200 bg-white pr-4 pl-11 text-sm text-gray-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
         />
       </div>
@@ -170,6 +173,16 @@ export function PropertyFilters() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const { style } = document.body;
+    const prev = style.overflow;
+    style.overflow = "hidden";
+    return () => {
+      style.overflow = prev;
+    };
+  }, [mobileFiltersOpen]);
 
   useEffect(() => {
     if (pendingScrollYRef.current === null) {
@@ -689,7 +702,7 @@ export function PropertyFilters() {
             role="dialog"
             aria-modal="true"
             aria-label="Property filters"
-            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border border-border bg-white p-5 pb-20 shadow-2xl dark:bg-gray-900"
+            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-2xl border border-border bg-white p-5 pb-20 shadow-2xl dark:bg-gray-900"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -707,7 +720,7 @@ export function PropertyFilters() {
             {mobileFilterFields}
 
             <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center p-4">
-              <div className="pointer-events-auto flex w-full max-w-2xl items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900">
+              <div className="pointer-events-auto flex w-full max-w-2xl items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
                 <p className="text-xs text-gray-600 dark:text-gray-300">
                   {hasFilters ? "Filters applied" : "No filters"}
                 </p>

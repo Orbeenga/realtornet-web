@@ -117,7 +117,7 @@ export default async function PropertiesPage({
       />
       <Link
         href="/"
-        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg px-2 py-1"
       >
         Home
       </Link>

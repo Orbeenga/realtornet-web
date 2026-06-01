@@ -59,7 +59,7 @@ export default async function AgenciesPage() {
       />
       <Link
         href="/"
-        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg px-2 py-1"
       >
         Home
       </Link>
@@ -69,7 +69,7 @@ export default async function AgenciesPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
             Verified agencies
           </p>
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-white">
             Browse trusted real estate agencies
           </h1>
           <p className="text-base leading-7 text-gray-600 dark:text-gray-300">

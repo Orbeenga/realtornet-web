@@ -6,12 +6,15 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  await params;
+  const { id } = await params;
 
   return {
     title: "Property Listing",
     description:
       "View property details, photos, price and agent contact on RealtorNet.",
+    alternates: {
+      canonical: `https://realtornet-web.vercel.app/properties/${id}/`,
+    },
     openGraph: {
       title: "Property Listing | RealtorNet",
       description:

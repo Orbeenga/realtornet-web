@@ -105,6 +105,7 @@ export function HomeHeroSearch() {
   const router = useRouter();
   const propertyTypesQuery = usePropertyTypes();
   const [locationQuery, setLocationQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<number | undefined>();
   const [listingType] = useState<ListingType>("sale");
   const [propertyTypeIds, setPropertyTypeIds] = useState<string[]>([]);
@@ -116,7 +117,7 @@ export function HomeHeroSearch() {
   const [ptOpen, setPtOpen] = useState(false);
   const [ptOutsideOpen, setPtOutsideOpen] = useState(false);
   const [ptOutsideDraft, setPtOutsideDraft] = useState<string[]>([]);
-  const searchQuery = useLocationSearch(locationQuery);
+  const searchQuery = useLocationSearch(debouncedQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
 
@@ -129,6 +130,11 @@ export function HomeHeroSearch() {
       style.overflow = prev;
     };
   }, [filtersOpen]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(locationQuery), 150);
+    return () => clearTimeout(t);
+  }, [locationQuery]);
 
   const buildQuery = () => {
     const params = new URLSearchParams();
@@ -273,7 +279,7 @@ export function HomeHeroSearch() {
               <span className="shrink-0 text-xs text-gray-400">v</span>
             </button>
             {ptOutsideOpen ? (
-              <div className="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+              <div className="absolute z-20 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                 <div className="max-h-64 overflow-y-auto">
                   <button
                     type="button"
@@ -306,7 +312,7 @@ export function HomeHeroSearch() {
                     );
                   })}
                 </div>
-                <div className="mt-2 flex items-center justify-end gap-2">
+                <div className="sticky bottom-0 z-10 mt-2 flex items-center justify-end gap-2 bg-white py-2 dark:bg-gray-900">
                   <button
                     type="button"
                     className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"

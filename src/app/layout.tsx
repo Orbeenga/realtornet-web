@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import SentryDeferredInit from "./SentryDeferredInit";
@@ -10,6 +10,16 @@ export const metadata: Metadata = {
     template: "%s | RealtorNet",
   },
   description: "Nigeria's trusted property marketplace.",
+  other: {
+    "color-scheme": "light dark",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2563eb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+  ],
 };
 
 export default function RootLayout({
