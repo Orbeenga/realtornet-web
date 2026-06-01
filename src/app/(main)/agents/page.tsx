@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Skeleton } from "@/components";
+import Link from "next/link";
 import { AgentDirectoryClient } from "@/features/agents/components";
 import { buildAgentDirectoryPath } from "@/features/agents/hooks/useAgentDirectory";
 import { serverPublicApi } from "@/lib/api/serverPublic";
@@ -26,7 +27,7 @@ function AgentsPageFallback() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <div className="space-y-3">
-        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-8 w-40 sm:h-9" />
         <Skeleton className="h-5 w-96 max-w-full" />
       </div>
       <Skeleton className="h-28 rounded-lg" />
@@ -52,6 +53,9 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
 
   return (
     <Suspense fallback={<AgentsPageFallback />}>
+      <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg px-2 py-1">
+        Home
+      </Link>
       <script
         type="application/ld+json"
         suppressHydrationWarning
