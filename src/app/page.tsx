@@ -53,20 +53,22 @@ export default async function Home() {
       <main>
         <section className="relative min-h-[70vh] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
           <div className="absolute inset-0 bg-black/55" />
+          <div className="absolute top-6 left-1/2 z-10 -translate-x-1/2">
+            <div className="flex items-center gap-2">
+              {(["sale","rent","lease"] as const).map((type) => (
+                <Link
+                  key={type}
+                  href={`/properties?listing_type=${type}`}
+                  prefetch={false}
+                  className="rounded-full border border-white/30 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                >
+                  {type === "sale" ? "Buy" : type === "rent" ? "Rent" : "Lease"}
+                </Link>
+              ))}
+            </div>
+          </div>
           <div className="relative mx-auto grid min-h-[70vh] max-w-7xl content-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
             <div className="flex flex-col justify-center gap-6 text-white">
-              <div className="inline-flex h-12 w-full max-w-md overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-1 shadow-sm backdrop-blur-md">
-                {(["sale","rent","lease"] as const).map((type) => (
-                  <Link
-                    key={type}
-                    href={`/properties?listing_type=${type}`}
-                    prefetch={false}
-                    className="min-w-20 flex-1 rounded-xl px-4 text-sm font-semibold text-white/90 transition hover:bg-white/15 hover:text-white"
-                  >
-                    {type === "sale" ? "Buy" : type === "rent" ? "Rent" : "Lease"}
-                  </Link>
-                ))}
-              </div>
               <h1 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
                 Find property through trusted real estate agencies
               </h1>

@@ -113,6 +113,7 @@ export function HomeHeroSearch() {
   const [bedrooms, setBedrooms] = useState("");
   const [listingStatus, setListingStatus] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [ptOpen, setPtOpen] = useState(false);
   const searchQuery = useLocationSearch(locationQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
@@ -245,24 +246,27 @@ export function HomeHeroSearch() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="relative sm:col-span-2">
-            <label className="mb-2 block text-xs font-bold text-slate-800 dark:text-slate-200">
-              Property Type
-            </label>
-            <button
-              type="button"
-              onClick={() => setFiltersOpen(true)}
-              className="h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-semibold text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          <div className="sm:col-span-2">
+            <HomeFilterSelect
+              id="home-property-type"
+              label="Property Type"
+              value={propertyTypeIds[0] ?? ""}
+              onChange={(val) => setPropertyTypeIds(val ? [val] : [])}
+              disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
             >
-              {propertyTypeIds.length === 0
-                ? "Property Type"
-                : (() => {
-                    const names = (propertyTypesQuery.data ?? [])
-                      .filter((t) => propertyTypeIds.includes(String(t.property_type_id)))
-                      .map((t) => t.name);
-                    return names.length <= 2 ? names.join(", ") : `${names.length} selected`;
-                  })()}
-            </button>
+              <option value="">
+                {propertyTypesQuery.isLoading
+                  ? "Loading property types..."
+                  : propertyTypesQuery.isError
+                    ? "Property types unavailable"
+                    : "Property Type"}
+              </option>
+              {(propertyTypesQuery.data ?? []).map((propertyType) => (
+                <option key={propertyType.property_type_id} value={String(propertyType.property_type_id)}>
+                  {propertyType.name}
+                </option>
+              ))}
+            </HomeFilterSelect>
           </div>
 
           <HomeFilterSelect
@@ -344,7 +348,11 @@ export function HomeHeroSearch() {
               </button>
             </div>
 
-            <div className="border-b border-gray-100 px-6 py-6 dark:border-gray-800">{searchInput}</div>
+            <div className="border-b border-gray-100 px-6 py-6 dark:border-gray-800">
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                {searchInput}
+              </div>
+            </div>
 
             <div className="space-y-6 overflow-y-auto px-6 py-5">
               <div>
@@ -354,33 +362,36 @@ export function HomeHeroSearch() {
                 <div className="relative">
                   <button
                     type="button"
+                    onClick={() => setPtOpen((v) => !v)}
                     className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-left text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     aria-haspopup="listbox"
-                    aria-expanded="true"
+                    aria-expanded={ptOpen ? "true" : "false"}
                   >
                     {propertyTypeIds.length === 0 ? "Any" : `${propertyTypeIds.length} selected`}
                   </button>
-                  <div className="absolute z-10 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-                    {(propertyTypesQuery.data ?? []).map((type) => {
-                      const id = String(type.property_type_id);
-                      const checked = propertyTypeIds.includes(id);
-                      return (
-                        <label key={id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setPropertyTypeIds((prev) =>
-                                e.target.checked ? [...prev, id] : prev.filter((v) => v !== id),
-                              );
-                            }}
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
-                          />
-                          <span className="min-w-0 flex-1 truncate">{type.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {ptOpen ? (
+                    <div className="absolute z-10 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                      {(propertyTypesQuery.data ?? []).map((type) => {
+                        const id = String(type.property_type_id);
+                        const checked = propertyTypeIds.includes(id);
+                        return (
+                          <label key={id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setPropertyTypeIds((prev) =>
+                                  e.target.checked ? [...prev, id] : prev.filter((v) => v !== id),
+                                );
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
+                            />
+                            <span className="min-w-0 flex-1 truncate">{type.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
