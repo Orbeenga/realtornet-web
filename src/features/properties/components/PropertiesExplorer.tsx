@@ -139,6 +139,54 @@ export function PropertiesExplorer({
   const locationLabels = buildLocationLabelMap(locationsQuery.data ?? []);
   const total = sortedProperties.length;
 
+  // Persist user's sort/view preferences
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("rn_sort", sort);
+      }
+    } catch {}
+  }, [sort]);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("rn_view", currentView);
+      }
+    } catch {}
+  }, [currentView]);
+
+  // Restore saved sort/view if not present in URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(searchParams.toString());
+    let changed = false;
+
+    try {
+      const savedSort = localStorage.getItem("rn_sort");
+      if (savedSort && !params.has("sort")) {
+        params.set("sort", savedSort);
+        changed = true;
+      }
+    } catch {}
+
+    try {
+      const savedView = localStorage.getItem("rn_view");
+      // Only persist map via URL; grid is the default when 'view' is absent
+      if (savedView === "map" && !params.has("view")) {
+        params.set("view", "map");
+        changed = true;
+      }
+    } catch {}
+
+    if (changed) {
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname);
+    }
+    // Run once on mount for restoration
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     hasAttemptedScrollRestoreRef.current = false;
   }, [currentListUrl]);
