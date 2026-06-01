@@ -35,6 +35,23 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: "upgrade-insecure-requests",
           },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            // Deny powerful features we don't use by default; relax per-route if needed
+            key: "Permissions-Policy",
+            value: "geolocation=(), microphone=(), camera=(), payment=()",
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000",
+          },
         ],
       },
     ];
