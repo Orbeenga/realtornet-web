@@ -29,6 +29,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="font-sans">
+      <head>
+        <link rel="preconnect" href="https://realtornet-production.up.railway.app" crossOrigin="" />
+      </head>
       <body>
         <a
           href="#main-content"

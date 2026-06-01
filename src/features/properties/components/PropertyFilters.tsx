@@ -618,16 +618,18 @@ export function PropertyFilters() {
   );
 
   return (
-    <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <div className="mb-8">
       <div className="space-y-3">
-        <SearchInput
-          key={searchParams.get("search") ?? ""}
-          initialValue={searchParams.get("search") ?? ""}
-          onCommit={(value) => updateFilter("search", value)}
-          className="w-full"
-        />
+        <div className="mx-auto w-full max-w-2xl">
+          <SearchInput
+            key={searchParams.get("search") ?? ""}
+            initialValue={searchParams.get("search") ?? ""}
+            onCommit={(value) => updateFilter("search", value)}
+            className="w-full"
+          />
+        </div>
 
-        <div className="flex flex-col gap-3 lg:hidden">
+        <div className="mx-auto w-full max-w-2xl flex flex-col gap-3 lg:hidden">
           <div className="grid grid-cols-[1fr_auto] gap-3">
             <Button
               type="button"
@@ -643,7 +645,7 @@ export function PropertyFilters() {
           <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
         </div>
 
-        <div className="hidden min-w-0 items-center gap-3 lg:flex">
+        <div className="mx-auto hidden w-full max-w-2xl min-w-0 items-center gap-3 lg:flex">
           <FilterPopover
             id="propertyType"
             label="Property Type"

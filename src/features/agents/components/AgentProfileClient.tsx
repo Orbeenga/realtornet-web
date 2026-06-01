@@ -121,8 +121,22 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
     },
   ];
 
+  const ldPerson = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: fullName,
+    url: `https://realtornet-web.vercel.app/agents/${id}/`,
+    ...(agentQuery.data.specialization ? { jobTitle: agentQuery.data.specialization } : {}),
+    ...(agentQuery.data.website ? { sameAs: [agentQuery.data.website] } : {}),
+  };
+
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(ldPerson) }}
+      />
       <Link
         href="/agencies"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"

@@ -83,8 +83,25 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
     );
   }
 
+  const agency = agencyQuery.data;
+
+  const ldOrganization = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: agency.name,
+    url: `https://realtornet-web.vercel.app/agencies/${agency.agency_id}/`,
+    ...(agency.logo_url ? { logo: agency.logo_url } : {}),
+    ...(agency.description ? { description: agency.description } : {}),
+    ...(agency.address ? { address: agency.address } : {}),
+  };
+
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(ldOrganization) }}
+      />
       <Link
         href="/agencies"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
