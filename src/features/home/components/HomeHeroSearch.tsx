@@ -1,26 +1,17 @@
 "use client";
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocationSearch } from "@/features/locations/hooks";
 import { usePropertyTypes } from "@/features/properties/hooks";
-import {
-  LISTING_STATUSES,
-  LISTING_STATUS_LABELS,
-  LISTING_TYPE_LABELS,
-  LISTING_TYPES,
-} from "@/features/properties/lib/propertyOptions";
+import { LISTING_STATUSES, LISTING_STATUS_LABELS } from "@/features/properties/lib/propertyOptions";
 import type { ListingType, Location } from "@/types";
-import { cn } from "@/lib/utils";
+ 
 
-const TAB_LABELS: Record<ListingType, string> = {
-  sale: "Buy",
-  rent: "Rent",
-  lease: "Lease",
-};
+// Toggle moved to the hero section on the homepage
 
 const PRICE_OPTIONS = [
   { value: "500000", label: "NGN 500k" },
@@ -115,7 +106,7 @@ export function HomeHeroSearch() {
   const propertyTypesQuery = usePropertyTypes();
   const [locationQuery, setLocationQuery] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<number | undefined>();
-  const [listingType, setListingType] = useState<ListingType>("sale");
+  const [listingType] = useState<ListingType>("sale");
   const [propertyTypeId, setPropertyTypeId] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
@@ -125,6 +116,16 @@ export function HomeHeroSearch() {
   const searchQuery = useLocationSearch(locationQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const { style } = document.body;
+    const prev = style.overflow;
+    style.overflow = "hidden";
+    return () => {
+      style.overflow = prev;
+    };
+  }, [filtersOpen]);
 
   const buildQuery = () => {
     const params = new URLSearchParams();
@@ -232,25 +233,7 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="grid gap-3 lg:grid-cols-2 lg:items-center">
-          <div className="inline-flex h-14 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-950">
-            {LISTING_TYPES.map((type) => (
-              <button
-                key={type}
-                type="button"
-                className={cn(
-                  "min-w-20 flex-1 rounded-xl px-4 text-sm font-semibold transition",
-                  listingType === type
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white",
-                )}
-                onClick={() => setListingType(type)}
-              >
-                {TAB_LABELS[type] ?? LISTING_TYPE_LABELS[type]}
-              </button>
-            ))}
-          </div>
-
+        <div className="grid gap-3 lg:grid-cols-1 lg:items-center">
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-700 dark:bg-gray-950">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
               {searchInput}
@@ -261,14 +244,15 @@ export function HomeHeroSearch() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <HomeFilterSelect
-            id="home-property-type"
-            label="Property Type"
-            value={propertyTypeId}
-            onChange={setPropertyTypeId}
-            disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
-          >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <HomeFilterSelect
+              id="home-property-type"
+              label="Property Type"
+              value={propertyTypeId}
+              onChange={setPropertyTypeId}
+              disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
+            >
             <option value="">
               {propertyTypesQuery.isLoading
                 ? "Loading property types..."
@@ -281,7 +265,8 @@ export function HomeHeroSearch() {
                 {propertyType.name}
               </option>
             ))}
-          </HomeFilterSelect>
+            </HomeFilterSelect>
+          </div>
 
           <HomeFilterSelect
             id="home-min-price"
@@ -365,21 +350,94 @@ export function HomeHeroSearch() {
             <div className="border-b border-gray-100 px-6 py-6 dark:border-gray-800">{searchInput}</div>
 
             <div className="space-y-6 overflow-y-auto px-6 py-5">
-              <FilterField id="home-modal-listing-status" label="Listing Status">
+              <FilterField id="home-modal-property-type" label="Property Type">
                 <select
-                  id="home-modal-listing-status"
-                  value={listingStatus}
-                  onChange={(event) => setListingStatus(event.target.value)}
+                  id="home-modal-property-type"
+                  value={propertyTypeId}
+                  onChange={(event) => setPropertyTypeId(event.target.value)}
+                  disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
                   className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 >
-                  <option value="">All statuses</option>
-                  {LISTING_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {LISTING_STATUS_LABELS[status]}
+                  <option value="">
+                    {propertyTypesQuery.isLoading
+                      ? "Loading property types..."
+                      : propertyTypesQuery.isError
+                        ? "Property types unavailable"
+                        : "Any"}
+                  </option>
+                  {(propertyTypesQuery.data ?? []).map((type) => (
+                    <option key={type.property_type_id} value={type.property_type_id}>
+                      {type.name}
                     </option>
                   ))}
                 </select>
               </FilterField>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FilterField id="home-modal-min-price" label="Min Price">
+                  <select
+                    id="home-modal-min-price"
+                    value={minPrice}
+                    onChange={(event) => setMinPrice(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">Min</option>
+                    {PRICE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FilterField>
+                <FilterField id="home-modal-max-price" label="Max Price">
+                  <select
+                    id="home-modal-max-price"
+                    value={maxPrice}
+                    onChange={(event) => setMaxPrice(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">Max</option>
+                    {PRICE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FilterField>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FilterField id="home-modal-bedrooms" label="Bedrooms">
+                  <select
+                    id="home-modal-bedrooms"
+                    value={bedrooms}
+                    onChange={(event) => setBedrooms(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">Any</option>
+                    {BEDROOM_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FilterField>
+                <FilterField id="home-modal-listing-status" label="Listing Status">
+                  <select
+                    id="home-modal-listing-status"
+                    value={listingStatus}
+                    onChange={(event) => setListingStatus(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">All statuses</option>
+                    {LISTING_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {LISTING_STATUS_LABELS[status]}
+                      </option>
+                    ))}
+                  </select>
+                </FilterField>
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-4 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
