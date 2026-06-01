@@ -210,8 +210,36 @@ export function PropertyDetailClient({ id }: PropertyDetailClientProps) {
     .filter(Boolean)
     .join(", ");
 
+  const ldListing = (() => {
+    const images = (imagesQuery.data ?? []).map((img) => img.image_url).filter(Boolean);
+    const address = {
+      "@type": "PostalAddress",
+      ...(locationQuery.data?.city ? { addressLocality: locationQuery.data.city } : {}),
+      ...(locationQuery.data?.state ? { addressRegion: locationQuery.data.state } : {}),
+    };
+    return {
+      "@context": "https://schema.org",
+      "@type": "RealEstateListing",
+      name: property.title,
+      url: `https://realtornet-web.vercel.app/properties/${property.property_id}/`,
+      image: images.length > 0 ? images : undefined,
+      address,
+      offers: {
+        "@type": "Offer",
+        price: Number(property.price) || property.price,
+        priceCurrency: property.price_currency ?? "NGN",
+        availability: "https://schema.org/InStock",
+      },
+    };
+  })();
+
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(ldListing) }}
+      />
       <Link
         href="/properties"
         prefetch={false}
