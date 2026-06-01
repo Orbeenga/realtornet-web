@@ -9,6 +9,9 @@ import type { AgentDirectoryResponse } from "@/types";
 export const metadata: Metadata = {
   title: "Property Agents in Nigeria",
   description: "Find verified real estate agents in Nigeria on RealtorNet.",
+  alternates: {
+    canonical: "https://realtornet-web.vercel.app/agents/",
+  },
   openGraph: {
     title: "Property Agents in Nigeria | RealtorNet",
     description: "Find verified real estate agents in Nigeria on RealtorNet.",
@@ -49,6 +52,30 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
 
   return (
     <Suspense fallback={<AgentsPageFallback />}>
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: "https://realtornet-web.vercel.app/",
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Agents",
+                item: "https://realtornet-web.vercel.app/agents/",
+              },
+            ],
+          }),
+        }}
+      />
       <AgentDirectoryClient initialData={initialData} />
     </Suspense>
   );
