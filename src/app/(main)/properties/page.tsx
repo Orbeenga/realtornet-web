@@ -31,6 +31,16 @@ function readSearchValue(searchParams: SearchParams, key: string) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function readNumberList(searchParams: SearchParams, key: string) {
+  const value = searchParams[key];
+  const values = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  const numbers = values
+    .flatMap((v) => v.split(","))
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n));
+  return numbers.length > 0 ? numbers : undefined;
+}
+
 function readNumberSearchValue(searchParams: SearchParams, key: string) {
   const value = readSearchValue(searchParams, key);
 
@@ -56,7 +66,9 @@ function buildInitialPropertyFilters(searchParams: SearchParams): PropertyFilter
     max_price: readNumberSearchValue(searchParams, "max_price"),
     bedrooms: readNumberSearchValue(searchParams, "bedrooms"),
     location_id: readNumberSearchValue(searchParams, "location_id"),
-    property_type_id: readNumberSearchValue(searchParams, "property_type_id"),
+    property_type_id:
+      readNumberList(searchParams, "property_type_id") ??
+      readNumberSearchValue(searchParams, "property_type_id"),
   };
 }
 
