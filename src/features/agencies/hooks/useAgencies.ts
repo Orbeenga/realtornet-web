@@ -27,9 +27,9 @@ export function getAgencyAgentCount(stats?: AgencyStats) {
 
 export function useAgencies(enabled = true, initialData?: Agency[] | null) {
   return useQuery({
-    queryKey: ["agencies"],
+    queryKey: ["agencies", { is_verified: true }],
     queryFn: () =>
-      apiClient<Agency[]>("/api/v1/agencies/", { authMode: "omit" }),
+      apiClient<Agency[]>("/api/v1/agencies/?is_verified=true", { authMode: "omit" }),
     staleTime: 60_000,
     enabled,
     initialData: initialData ?? undefined,

@@ -143,7 +143,7 @@ export function AgencyDirectoryClient({
   const agenciesQuery = useAgencies(true, initialData);
 
   const approvedAgencies = useMemo(
-    () => (agenciesQuery.data ?? []).filter((agency) => agency.status === "approved"),
+    () => (agenciesQuery.data ?? []).filter((agency) => agency.is_verified),
     [agenciesQuery.data],
   );
 
