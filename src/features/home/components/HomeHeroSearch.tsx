@@ -114,6 +114,8 @@ export function HomeHeroSearch() {
   const [listingStatus, setListingStatus] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [ptOpen, setPtOpen] = useState(false);
+  const [ptOutsideOpen, setPtOutsideOpen] = useState(false);
+  const [ptOutsideDraft, setPtOutsideDraft] = useState<string[]>([]);
   const searchQuery = useLocationSearch(locationQuery);
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
@@ -244,10 +246,13 @@ export function HomeHeroSearch() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-          <div>
+          <div className="relative">
             <button
               type="button"
-              onClick={() => setFiltersOpen(true)}
+              onClick={() => {
+                setPtOutsideDraft(propertyTypeIds);
+                setPtOutsideOpen((v) => !v);
+              }}
               className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             >
               <span className="truncate">
@@ -257,6 +262,61 @@ export function HomeHeroSearch() {
               </span>
               <span className="shrink-0 text-xs text-gray-400">v</span>
             </button>
+            {ptOutsideOpen ? (
+              <div className="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="max-h-64 overflow-y-auto">
+                  <button
+                    type="button"
+                    className="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                    onClick={() => setPtOutsideDraft([])}
+                  >
+                    <span>All property types</span>
+                    <span className="text-xs text-gray-400">{ptOutsideDraft.length === 0 ? "✓" : ""}</span>
+                  </button>
+                  {(propertyTypesQuery.data ?? []).map((type) => {
+                    const id = String(type.property_type_id);
+                    const checked = ptOutsideDraft.includes(id);
+                    return (
+                      <label
+                        key={id}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            setPtOutsideDraft((prev) =>
+                              e.target.checked ? [...prev, id] : prev.filter((v) => v !== id),
+                            );
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
+                        />
+                        <span className="min-w-0 flex-1 truncate">{type.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    onClick={() => setPtOutsideOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <Button
+                    type="button"
+                    className="h-9 px-4 text-sm"
+                    onClick={() => {
+                      setPropertyTypeIds(ptOutsideDraft);
+                      setPtOutsideOpen(false);
+                    }}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <HomeFilterSelect
