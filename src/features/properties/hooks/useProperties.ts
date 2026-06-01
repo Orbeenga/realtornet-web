@@ -10,6 +10,15 @@ function buildPropertyQuery(filters: PropertyFilters) {
       return;
     }
 
+    if (Array.isArray(value)) {
+      value.forEach((v) => {
+        if (v !== undefined && v !== null && String(v) !== "") {
+          params.append(key, String(v));
+        }
+      });
+      return;
+    }
+
     params.set(key, String(value));
   });
 

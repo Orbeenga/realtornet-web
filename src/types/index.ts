@@ -80,7 +80,7 @@ export interface PropertyFilters {
   min_price?: number;
   max_price?: number;
   bedrooms?: number;
-  property_type_id?: number;
+  property_type_id?: number | number[];
   listing_type?: ListingType;
   listing_status?: ListingStatus;
   moderation_status?: ModerationStatus;
