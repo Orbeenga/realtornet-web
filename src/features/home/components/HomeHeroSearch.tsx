@@ -190,7 +190,7 @@ export function HomeHeroSearch() {
       <label htmlFor="home-location-search" className="sr-only">
         Search location
       </label>
-      <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-500" />
+      <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
       <Input
         id="home-location-search"
         value={locationQuery}
@@ -198,9 +198,9 @@ export function HomeHeroSearch() {
           setLocationQuery(event.target.value);
           setSelectedLocationId(undefined);
         }}
-        placeholder="Search for a city, suburb or neighbourhood"
+        placeholder="Search by title, keyword, or area"
         autoComplete="off"
-        className="h-14 border-0 bg-transparent pl-12 text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
+        className="h-12 w-full rounded-xl border border-gray-200 bg-white pr-4 pl-11 text-sm text-gray-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
       />
       {suggestions.length > 0 && !selectedLocationId ? (
         <ul
@@ -235,38 +235,28 @@ export function HomeHeroSearch() {
         }}
       >
         <div className="grid gap-3 lg:grid-cols-1 lg:items-center">
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-700 dark:bg-gray-950">
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-              {searchInput}
-              <Button type="submit" className="h-14 shrink-0 rounded-xl px-8 text-base">
-                Search
-              </Button>
-            </div>
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            {searchInput}
+            <Button type="submit" className="h-12 shrink-0 rounded-xl px-5 text-sm">
+              Search
+            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <HomeFilterSelect
-              id="home-property-type"
-              label="Property Type"
-              value={propertyTypeIds[0] ?? ""}
-              onChange={(val) => setPropertyTypeIds(val ? [val] : [])}
-              disabled={propertyTypesQuery.isLoading || propertyTypesQuery.isError}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+          <div>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             >
-              <option value="">
-                {propertyTypesQuery.isLoading
-                  ? "Loading property types..."
-                  : propertyTypesQuery.isError
-                    ? "Property types unavailable"
-                    : "Property Type"}
-              </option>
-              {(propertyTypesQuery.data ?? []).map((propertyType) => (
-                <option key={propertyType.property_type_id} value={String(propertyType.property_type_id)}>
-                  {propertyType.name}
-                </option>
-              ))}
-            </HomeFilterSelect>
+              <span className="truncate">
+                {propertyTypeIds.length === 0
+                  ? "Property Type"
+                  : `${propertyTypeIds.length} Selected`}
+              </span>
+              <span className="shrink-0 text-xs text-gray-400">v</span>
+            </button>
           </div>
 
           <HomeFilterSelect
@@ -311,15 +301,14 @@ export function HomeHeroSearch() {
             ))}
           </HomeFilterSelect>
 
-          <Button
+          <button
             type="button"
-            variant="outline"
-            className="h-12 rounded-xl border-gray-200 bg-white text-sm font-semibold text-gray-800 hover:border-blue-200 hover:bg-gray-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+            className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             onClick={() => setFiltersOpen(true)}
           >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
-          </Button>
+            <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
+            <span className="shrink-0 text-xs text-gray-400">v</span>
+          </button>
         </div>
       </form>
 

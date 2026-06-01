@@ -53,7 +53,7 @@ export default async function Home() {
       <main>
         <section className="relative min-h-[70vh] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
           <div className="absolute inset-0 bg-black/55" />
-          <div className="absolute top-6 left-1/2 z-10 -translate-x-1/2">
+          <div className="absolute top-6 left-6 z-10">
             <div className="flex items-center gap-2">
               {(["sale","rent","lease"] as const).map((type) => (
                 <Link
