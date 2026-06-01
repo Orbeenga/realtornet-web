@@ -53,6 +53,22 @@ interface FilterPopoverProps {
 
 function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
   const [value, setValue] = useState(initialValue);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      onCommit(value);
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [value, onCommit]);
 
   return (
     <form
@@ -375,16 +391,20 @@ export function PropertyFilters() {
         <option value="custom">Custom Price</option>
       </select>
       {showCustomMin ? (
-        <Input
-          id={`${id}-custom`}
-          type="number"
-          min="0"
-          inputMode="numeric"
-          value={minPrice}
-          placeholder="Enter custom price"
-          onChange={(event) => updateFilterDebounced("min_price", event.target.value)}
-          aria-label="Min price custom value"
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+          <Input
+            id={`${id}-custom`}
+            type="number"
+            min="0"
+            inputMode="numeric"
+            value={minPrice}
+            placeholder="Enter custom price"
+            onChange={(event) => updateFilterDebounced("min_price", event.target.value)}
+            aria-label="Min price custom value"
+            className="pl-12"
+          />
+        </div>
       ) : null}
     </div>
   );
@@ -415,16 +435,20 @@ export function PropertyFilters() {
         <option value="custom">Custom Price</option>
       </select>
       {showCustomMax ? (
-        <Input
-          id={`${id}-custom`}
-          type="number"
-          min="0"
-          inputMode="numeric"
-          value={maxPrice}
-          placeholder="Enter custom price"
-          onChange={(event) => updateFilterDebounced("max_price", event.target.value)}
-          aria-label="Max price custom value"
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+          <Input
+            id={`${id}-custom`}
+            type="number"
+            min="0"
+            inputMode="numeric"
+            value={maxPrice}
+            placeholder="Enter custom price"
+            onChange={(event) => updateFilterDebounced("max_price", event.target.value)}
+            aria-label="Max price custom value"
+            className="pl-12"
+          />
+        </div>
       ) : null}
     </div>
   );
@@ -596,7 +620,7 @@ export function PropertyFilters() {
             role="dialog"
             aria-modal="true"
             aria-label="Property filters"
-            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border border-border bg-white p-5 shadow-2xl dark:bg-gray-900"
+            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border border-border bg-white p-5 pb-20 shadow-2xl dark:bg-gray-900"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -612,6 +636,26 @@ export function PropertyFilters() {
               </button>
             </div>
             {mobileFilterFields}
+
+            <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center p-4">
+              <div className="pointer-events-auto flex w-full max-w-2xl items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  {hasFilters ? "Filters applied" : "No filters"}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="ghost" onClick={clearAll} disabled={!hasFilters}>
+                    Clear
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="min-w-28"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
