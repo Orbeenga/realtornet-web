@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,6 +121,9 @@ export function HomeHeroSearch() {
   const [ptOutsideDraft, setPtOutsideDraft] = useState<string[]>([]);
   const searchQuery = useLocationSearch(debouncedQuery);
 
+  const homeSearchRowRef = useRef<HTMLDivElement | null>(null);
+  const homeFilterRowRef = useRef<HTMLDivElement | null>(null);
+
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
 
   useEffect(() => {
@@ -137,6 +140,63 @@ export function HomeHeroSearch() {
     const t = setTimeout(() => setDebouncedQuery(locationQuery), 150);
     return () => clearTimeout(t);
   }, [locationQuery]);
+
+  // Desktop-only: apply exact width X to homepage search and filter rows.
+  // Priority order: stored width from /properties -> union width of homepage filter row -> parent width.
+  useEffect(() => {
+    const measureUnionWidth = (el: HTMLElement) => {
+      const children = Array.from(el.children) as HTMLElement[];
+      let minLeft = Number.POSITIVE_INFINITY;
+      let maxRight = Number.NEGATIVE_INFINITY;
+      children.forEach((ch) => {
+        const r = ch.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          if (r.left < minLeft) minLeft = r.left;
+          if (r.right > maxRight) maxRight = r.right;
+        }
+      });
+      if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) return 0;
+      return Math.max(0, Math.round(maxRight - minLeft));
+    };
+
+    const apply = () => {
+      if (typeof window === "undefined") return;
+      const isDesktop = window.innerWidth >= 1024;
+      const s = homeSearchRowRef.current;
+      const f = homeFilterRowRef.current;
+      if (!s || !f) return;
+      if (!isDesktop) {
+        s.style.width = "";
+        f.style.width = "";
+        return;
+      }
+      let widthPx = 0;
+      try {
+        const stored = localStorage.getItem("rn_desktop_row_w");
+        widthPx = stored ? Number(stored) : 0;
+      } catch {}
+      const parentWidth = Math.round(f.getBoundingClientRect().width);
+      if (!widthPx) {
+        const union = measureUnionWidth(f);
+        widthPx = Math.min(union || parentWidth, parentWidth);
+      }
+      const clamped = Math.min(Math.max(0, widthPx), parentWidth);
+      if (clamped > 0) {
+        s.style.width = `${clamped}px`;
+        f.style.width = `${clamped}px`;
+      }
+    };
+
+    const onLoad = () => apply();
+    if (document.readyState === "complete") apply();
+    else window.addEventListener("load", onLoad, { once: true } as AddEventListenerOptions);
+    window.addEventListener("resize", apply);
+    const t = setTimeout(apply, 0);
+    return () => {
+      window.removeEventListener("resize", apply);
+      clearTimeout(t);
+    };
+  }, []);
 
   // Dev-only: log rendered widths for homepage search and filter rows
   useEffect(() => {
@@ -294,7 +354,7 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="mx-auto w-full max-w-7xl" data-rn-home-search-row>
+        <div ref={homeSearchRowRef} className="mx-auto w-full max-w-7xl" data-rn-home-search-row>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
             <Button type="submit" className="hidden h-12 shrink-0 rounded-xl px-5 text-sm lg:inline-flex">
@@ -303,7 +363,7 @@ export function HomeHeroSearch() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-7xl" data-rn-home-filter-row>
+        <div ref={homeFilterRowRef} className="mx-auto w-full max-w-7xl" data-rn-home-filter-row>
           {/* Mobile: Property Type full width, others in 2 columns */}
           <div className="space-y-3 lg:hidden">
             <div className="relative">
@@ -467,7 +527,7 @@ export function HomeHeroSearch() {
           </div>
 
           {/* Mobile: primary search submit placed outside the drawer, below filters */}
-          <Button type="submit" className="h-12 w-full rounded-xl px-5 text-sm lg:hidden">
+          <Button type="submit" className="mt-4 h-12 w-full rounded-xl px-5 text-sm lg:hidden">
             Search
           </Button>
 
@@ -739,19 +799,9 @@ export function HomeHeroSearch() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
+            <div className="flex items-center justify-start gap-4 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
               <Button type="button" variant="ghost" onClick={clearFilters}>
                 Clear All
-              </Button>
-              <Button
-                type="button"
-                className="h-12 min-w-36 rounded-lg px-6"
-                onClick={() => {
-                  setFiltersOpen(false);
-                  handleSearch();
-                }}
-              >
-                Search
               </Button>
             </div>
           </div>
