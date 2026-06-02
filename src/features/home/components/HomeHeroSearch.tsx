@@ -138,6 +138,42 @@ export function HomeHeroSearch() {
     return () => clearTimeout(t);
   }, [locationQuery]);
 
+  // Dev-only: log rendered widths for homepage search and filter rows
+  useEffect(() => {
+    const log = () => {
+      try {
+        const s = document.querySelector('[data-rn-home-search-row]') as HTMLElement | null;
+        const f = document.querySelector('[data-rn-home-filter-row]') as HTMLElement | null;
+        if (!s || !f) return;
+        const sw = Math.round(s.getBoundingClientRect().width);
+        const fw = Math.round(f.getBoundingClientRect().width);
+        const form = s.closest('form') as HTMLElement | null;
+        const pw = Math.round((form ?? s).getBoundingClientRect().width);
+        const pr = (form ?? s).getBoundingClientRect();
+        console.log('RN: home widths', { parent: pw, search: sw, filter: fw });
+        [s, f].forEach((el) => {
+          Array.from(el.children).forEach((ch) => {
+            const r = (ch as HTMLElement).getBoundingClientRect();
+            if (r.right > pr.right + 1 || r.left < pr.left - 1) {
+              console.log('RN: home overflow child', { className: (ch as HTMLElement).className, left: r.left, right: r.right, parentLeft: pr.left, parentRight: pr.right });
+            }
+          });
+        });
+      } catch {}
+    };
+    const onLoad = () => log();
+    if (typeof window !== 'undefined') {
+      if (document.readyState === 'complete') log(); else window.addEventListener('load', onLoad, { once: true } as AddEventListenerOptions);
+      window.addEventListener('resize', log);
+      setTimeout(log, 0);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', log);
+      }
+    };
+  }, []);
+
   const buildQuery = () => {
     const params = new URLSearchParams();
 
@@ -258,7 +294,7 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="mx-auto w-full max-w-7xl">
+        <div className="mx-auto w-full max-w-7xl" data-rn-home-search-row>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
             <Button type="submit" className="hidden h-12 shrink-0 rounded-xl px-5 text-sm lg:inline-flex">
@@ -267,7 +303,7 @@ export function HomeHeroSearch() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-7xl">
+        <div className="mx-auto w-full max-w-7xl" data-rn-home-filter-row>
           {/* Mobile: Property Type full width, others in 2 columns */}
           <div className="space-y-3 lg:hidden">
             <div className="relative">

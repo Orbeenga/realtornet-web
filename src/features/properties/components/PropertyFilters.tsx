@@ -618,10 +618,47 @@ export function PropertyFilters() {
 
   const [mobileInlineMoreOpen, setMobileInlineMoreOpen] = useState(false);
 
+  // Dev-only: log rendered widths to the console for verification
+  useEffect(() => {
+    const log = () => {
+      try {
+        const s = document.querySelector('[data-rn-prop-search-row]') as HTMLElement | null;
+        const f = document.querySelector('[data-rn-prop-filter-row]') as HTMLElement | null;
+        if (!s || !f) return;
+        const sw = Math.round(s.getBoundingClientRect().width);
+        const fw = Math.round(f.getBoundingClientRect().width);
+        const pw = Math.round((s.parentElement as HTMLElement)?.getBoundingClientRect().width || 0);
+        // Detect overflow children relative to parent bounds
+        const pr = (s.parentElement as HTMLElement)?.getBoundingClientRect() || s.getBoundingClientRect();
+        [s, f].forEach((el) => {
+          Array.from(el.children).forEach((ch) => {
+            const r = (ch as HTMLElement).getBoundingClientRect();
+            if (r.right > pr.right + 1 || r.left < pr.left - 1) {
+              console.log('RN: properties overflow child', { className: (ch as HTMLElement).className, left: r.left, right: r.right, parentLeft: pr.left, parentRight: pr.right });
+            }
+          });
+        });
+        console.log('RN: properties widths', { parent: pw, search: sw, filter: fw });
+      } catch {}
+    };
+    const onLoad = () => log();
+    if (typeof window !== 'undefined') {
+      if (document.readyState === 'complete') log(); else window.addEventListener('load', onLoad, { once: true } as AddEventListenerOptions);
+      window.addEventListener('resize', log);
+      // initial async log after mount
+      setTimeout(log, 0);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', log);
+      }
+    };
+  }, []);
+
   return (
     <div className="mb-8">
       <div className="space-y-3">
-        <div className="mx-auto w-full max-w-7xl">
+        <div className="mx-auto w-full max-w-7xl" data-rn-prop-search-row>
           <SearchInput
             key={searchParams.get("search") ?? ""}
             initialValue={searchParams.get("search") ?? ""}
@@ -631,10 +668,10 @@ export function PropertyFilters() {
         </div>
 
         <div className="mx-auto w-full max-w-2xl flex flex-col gap-3 lg:hidden">
-          <div className="flex justify-end">{viewToggle}</div>
+          <div className="flex justify-center">{viewToggle}</div>
         </div>
 
-        <div className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap">
+        <div className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap" data-rn-prop-filter-row>
           <FilterPopover
             id="propertyType"
             label="Property Type"
@@ -717,7 +754,7 @@ export function PropertyFilters() {
 
       {/* Mobile saved search moved below filters console */}
       <div className="mx-auto mt-3 w-full max-w-2xl lg:hidden">
-        <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
+        <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact fullWidth />
       </div>
 
       {/* Mobile drawer removed in favor of inline expanded section above */}

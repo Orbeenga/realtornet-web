@@ -13,6 +13,7 @@ import { getSavableSearchParams } from "@/features/properties/lib/savedSearchPar
 interface PropertyFiltersSavedSearchProps {
   searchParams: URLSearchParams;
   compact?: boolean;
+  fullWidth?: boolean;
 }
 
 /**
@@ -24,6 +25,7 @@ interface PropertyFiltersSavedSearchProps {
 export function PropertyFiltersSavedSearch({
   searchParams,
   compact = false,
+  fullWidth = false,
 }: PropertyFiltersSavedSearchProps) {
   const { user } = useAuth();
   const createSavedSearch = useCreateSavedSearch();
@@ -64,7 +66,10 @@ export function PropertyFiltersSavedSearch({
     return (
       <Link
         href="/login"
-        className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+        className={[
+          "inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none",
+          fullWidth ? "w-full" : "",
+        ].join(" ")}
       >
         Save search
       </Link>
@@ -84,7 +89,7 @@ export function PropertyFiltersSavedSearch({
           variant="secondary"
           onClick={() => setShowSaveForm((current) => !current)}
           disabled={!hasSavableFilters}
-          className="h-11 rounded-full px-4"
+          className={["h-11 rounded-full px-4", fullWidth ? "w-full justify-center" : ""].join(" ")}
         >
           {showSaveForm ? "Cancel" : "Save search"}
         </Button>
