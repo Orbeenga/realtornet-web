@@ -714,7 +714,7 @@ export function PropertyFilters() {
     <div className="mb-8">
       <div className="space-y-3">
         <div ref={searchRowRef} className="mx-auto w-full max-w-7xl" data-rn-prop-search-row>
-          <div ref={searchInnerRef} className="mx-auto">
+          <div ref={searchInnerRef} className="min-w-0">
             <SearchInput
               key={searchParams.get("search") ?? ""}
               initialValue={searchParams.get("search") ?? ""}
