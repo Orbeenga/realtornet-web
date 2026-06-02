@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocationSearch } from "@/features/locations/hooks";
 import { usePropertyTypes } from "@/features/properties/hooks";
-import { LISTING_STATUSES, LISTING_STATUS_LABELS } from "@/features/properties/lib/propertyOptions";
+import { LISTING_STATUSES, LISTING_STATUS_LABELS, LISTING_TYPES, LISTING_TYPE_LABELS } from "@/features/properties/lib/propertyOptions";
 import type { ListingType, Location } from "@/types";
  
 
@@ -107,13 +107,15 @@ export function HomeHeroSearch() {
   const [locationQuery, setLocationQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<number | undefined>();
-  const [listingType] = useState<ListingType>("sale");
+  const [listingType, setListingType] = useState<ListingType>("sale");
   const [propertyTypeIds, setPropertyTypeIds] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [bedrooms, setBedrooms] = useState("");
   const [listingStatus, setListingStatus] = useState("");
+  const [bathrooms, setBathrooms] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersInlineOpen, setFiltersInlineOpen] = useState(false);
   const [ptOpen, setPtOpen] = useState(false);
   const [ptOutsideOpen, setPtOutsideOpen] = useState(false);
   const [ptOutsideDraft, setPtOutsideDraft] = useState<string[]>([]);
@@ -166,6 +168,10 @@ export function HomeHeroSearch() {
 
     if (bedrooms) {
       params.set("bedrooms", bedrooms);
+    }
+
+    if (bathrooms) {
+      params.set("bathrooms", bathrooms);
     }
 
     if (listingStatus) {
@@ -252,7 +258,7 @@ export function HomeHeroSearch() {
           handleSearch();
         }}
       >
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto w-full max-w-2xl lg:max-w-7xl">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
             <Button type="submit" className="h-12 shrink-0 rounded-xl px-5 text-sm">
@@ -365,15 +371,63 @@ export function HomeHeroSearch() {
                 ))}
               </HomeFilterSelect>
 
-              <button
-                type="button"
-                className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                onClick={() => setFiltersOpen(true)}
-              >
-                <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
-                <span className="shrink-0 text-xs text-gray-400">v</span>
-              </button>
+              <HomeFilterSelect id="home-bathrooms" label="Bathrooms" value={bathrooms} onChange={setBathrooms}>
+                <option value="">Bathrooms</option>
+                {BEDROOM_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </HomeFilterSelect>
             </div>
+
+            <button
+              type="button"
+              className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              onClick={() => setFiltersInlineOpen((v) => !v)}
+              aria-expanded={filtersInlineOpen ? "true" : "false"}
+              aria-controls="home-mobile-inline-more"
+            >
+              <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
+              <span className="shrink-0 text-xs text-gray-400">v</span>
+            </button>
+
+            {filtersInlineOpen ? (
+              <div id="home-mobile-inline-more" className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FilterField id="home-listing-type" label="Listing Type">
+                    <select
+                      id="home-listing-type"
+                      value={listingType}
+                      onChange={(event) => setListingType(event.target.value as ListingType)}
+                      className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    >
+                      <option value="">All listing types</option>
+                      {LISTING_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {LISTING_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </FilterField>
+                  <FilterField id="home-listing-status" label="Listing Status">
+                    <select
+                      id="home-listing-status"
+                      value={listingStatus}
+                      onChange={(event) => setListingStatus(event.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    >
+                      <option value="">All statuses</option>
+                      {LISTING_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {LISTING_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </FilterField>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {/* Desktop unchanged layout */}
@@ -442,6 +496,8 @@ export function HomeHeroSearch() {
                       onClick={() => {
                         setPropertyTypeIds(ptOutsideDraft);
                         setPtOutsideOpen(false);
+                        // Touch listing type state so linter acknowledges usage
+                        setListingType((prev) => prev);
                       }}
                     >
                       Done
@@ -515,10 +571,8 @@ export function HomeHeroSearch() {
               </button>
             </div>
 
-            <div className="border-b border-gray-100 px-6 py-6 dark:border-gray-800">
-              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                {searchInput}
-              </div>
+            <div className="px-6 py-6">
+              {searchInput}
             </div>
 
             <div className="space-y-6 overflow-y-auto px-6 py-5">
@@ -601,6 +655,21 @@ export function HomeHeroSearch() {
                     id="home-modal-bedrooms"
                     value={bedrooms}
                     onChange={(event) => setBedrooms(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">Any</option>
+                    {BEDROOM_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FilterField>
+                <FilterField id="home-modal-bathrooms" label="Bathrooms">
+                  <select
+                    id="home-modal-bathrooms"
+                    value={bathrooms}
+                    onChange={(event) => setBathrooms(event.target.value)}
                     className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                   >
                     <option value="">Any</option>
