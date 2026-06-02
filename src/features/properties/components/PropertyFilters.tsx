@@ -621,7 +621,7 @@ export function PropertyFilters() {
   return (
     <div className="mb-8">
       <div className="space-y-3">
-        <div className="mx-auto w-full max-w-2xl lg:max-w-7xl">
+        <div className="mx-auto w-full max-w-7xl">
           <SearchInput
             key={searchParams.get("search") ?? ""}
             initialValue={searchParams.get("search") ?? ""}
@@ -632,7 +632,6 @@ export function PropertyFilters() {
 
         <div className="mx-auto w-full max-w-2xl flex flex-col gap-3 lg:hidden">
           <div className="flex justify-end">{viewToggle}</div>
-          <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
         </div>
 
         <div className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap">
@@ -714,6 +713,11 @@ export function PropertyFilters() {
             {moreFilters}
           </div>
         ) : null}
+      </div>
+
+      {/* Mobile saved search moved below filters console */}
+      <div className="mx-auto mt-3 w-full max-w-2xl lg:hidden">
+        <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
       </div>
 
       {/* Mobile drawer removed in favor of inline expanded section above */}
