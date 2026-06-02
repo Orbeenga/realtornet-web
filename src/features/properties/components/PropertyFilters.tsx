@@ -617,6 +617,60 @@ export function PropertyFilters() {
   );
 
   const [mobileInlineMoreOpen, setMobileInlineMoreOpen] = useState(false);
+  const searchRowRef = useRef<HTMLDivElement | null>(null);
+  const searchInnerRef = useRef<HTMLDivElement | null>(null);
+  const filterRowRef = useRef<HTMLDivElement | null>(null);
+
+  // Desktop-only: make search row exact same visible width as the desktop filter row
+  useEffect(() => {
+    const measureUnionWidth = (el: HTMLElement) => {
+      const children = Array.from(el.children) as HTMLElement[];
+      let minLeft = Number.POSITIVE_INFINITY;
+      let maxRight = Number.NEGATIVE_INFINITY;
+      children.forEach((ch) => {
+        const r = ch.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          if (r.left < minLeft) minLeft = r.left;
+          if (r.right > maxRight) maxRight = r.right;
+        }
+      });
+      if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) return 0;
+      return Math.max(0, Math.round(maxRight - minLeft));
+    };
+
+    const applyWidth = () => {
+      if (typeof window === "undefined") return;
+      const isDesktop = window.innerWidth >= 1024;
+      const s = searchInnerRef.current;
+      const f = filterRowRef.current;
+      if (!s) return;
+      if (!isDesktop) {
+        s.style.width = "";
+        return;
+      }
+      if (!f) return;
+
+      const union = measureUnionWidth(f);
+      if (union > 0) {
+        const parentWidth = Math.round(f.getBoundingClientRect().width);
+        const widthPx = Math.min(union, parentWidth); // clamp to parent container
+        s.style.width = `${widthPx}px`;
+        try {
+          localStorage.setItem("rn_desktop_row_w", String(widthPx));
+        } catch {}
+      }
+    };
+
+    const onLoad = () => applyWidth();
+    if (document.readyState === "complete") applyWidth();
+    else window.addEventListener("load", onLoad, { once: true } as AddEventListenerOptions);
+    window.addEventListener("resize", applyWidth);
+    const t = setTimeout(applyWidth, 0);
+    return () => {
+      window.removeEventListener("resize", applyWidth);
+      clearTimeout(t);
+    };
+  }, []);
 
   // Dev-only: log rendered widths to the console for verification
   useEffect(() => {
@@ -627,9 +681,9 @@ export function PropertyFilters() {
         if (!s || !f) return;
         const sw = Math.round(s.getBoundingClientRect().width);
         const fw = Math.round(f.getBoundingClientRect().width);
-        const pw = Math.round((s.parentElement as HTMLElement)?.getBoundingClientRect().width || 0);
+        const pw = Math.round((searchRowRef.current as HTMLElement)?.getBoundingClientRect().width || 0);
         // Detect overflow children relative to parent bounds
-        const pr = (s.parentElement as HTMLElement)?.getBoundingClientRect() || s.getBoundingClientRect();
+        const pr = (searchRowRef.current as HTMLElement)?.getBoundingClientRect() || s.getBoundingClientRect();
         [s, f].forEach((el) => {
           Array.from(el.children).forEach((ch) => {
             const r = (ch as HTMLElement).getBoundingClientRect();
@@ -638,7 +692,8 @@ export function PropertyFilters() {
             }
           });
         });
-        console.log('RN: properties widths', { parent: pw, search: sw, filter: fw });
+        const siw = Math.round((searchInnerRef.current as HTMLElement)?.getBoundingClientRect().width || 0);
+        console.log('RN: properties widths', { parent: pw, searchWrapper: sw, searchInner: siw, filter: fw });
       } catch {}
     };
     const onLoad = () => log();
@@ -658,20 +713,22 @@ export function PropertyFilters() {
   return (
     <div className="mb-8">
       <div className="space-y-3">
-        <div className="mx-auto w-full max-w-7xl" data-rn-prop-search-row>
-          <SearchInput
-            key={searchParams.get("search") ?? ""}
-            initialValue={searchParams.get("search") ?? ""}
-            onCommit={(value) => updateFilter("search", value)}
-            className="w-full"
-          />
+        <div ref={searchRowRef} className="mx-auto w-full max-w-7xl" data-rn-prop-search-row>
+          <div ref={searchInnerRef} className="mx-auto">
+            <SearchInput
+              key={searchParams.get("search") ?? ""}
+              initialValue={searchParams.get("search") ?? ""}
+              onCommit={(value) => updateFilter("search", value)}
+              className="w-full"
+            />
+          </div>
         </div>
 
         <div className="mx-auto w-full max-w-2xl flex flex-col gap-3 lg:hidden">
           <div className="flex justify-center">{viewToggle}</div>
         </div>
 
-        <div className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap" data-rn-prop-filter-row>
+        <div ref={filterRowRef} className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap" data-rn-prop-filter-row>
           <FilterPopover
             id="propertyType"
             label="Property Type"
