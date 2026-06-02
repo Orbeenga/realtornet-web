@@ -774,10 +774,14 @@ export function PropertyFilters() {
           >
             {moreFilters}
           </FilterPopover>
+        </div>
+
+        {/* Desktop utility row: Grid/Map (left) and Save Search (right) */}
+        <div className="mx-auto hidden w-full max-w-7xl items-center justify-between lg:flex">
+          <div>{viewToggle}</div>
           <div className="shrink-0">
             <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
           </div>
-          {viewToggle}
         </div>
       </div>
 
