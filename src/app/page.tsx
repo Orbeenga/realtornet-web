@@ -37,7 +37,7 @@ export default async function Home() {
       "/api/v1/properties/?page=1&page_size=6&limit=6&moderation_status=verified",
       120,
     ),
-    serverPublicApi<Agency[]>("/api/v1/agencies/?is_verified=true", 120),
+    serverPublicApi<Agency[]>("/api/v1/agencies/", 120),
   ]);
 
   const properties =

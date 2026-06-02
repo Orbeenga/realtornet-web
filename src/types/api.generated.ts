@@ -6939,6 +6939,7 @@ export interface operations {
     read_agencies_api_v1_agencies__get: {
         parameters: {
             query?: {
+                is_verified?: boolean | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */

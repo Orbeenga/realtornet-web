@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -114,15 +114,15 @@ function FilterPopover({
     <Popover
       open={isOpen}
       onOpenChange={(open) => onOpenPanelChange(open ? id : null)}
-      className="min-w-0 flex-1"
+      className="shrink-0"
     >
       <PopoverTrigger
         className={cn(
-          "inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
+          "inline-flex h-11 w-auto items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
           isOpen && "border-blue-300 text-blue-700 dark:border-blue-500/60",
         )}
       >
-        <span className="truncate">{value || label}</span>
+        <span>{value || label}</span>
         <span className="shrink-0 text-xs text-gray-400">v</span>
       </PopoverTrigger>
       <PopoverContent className="w-80">{children}</PopoverContent>
@@ -157,7 +157,7 @@ export function PropertyFilters() {
     : undefined;
   const locationsQuery = useLocations(typeof locationId === "number");
   const [openPanel, setOpenPanel] = useState<FilterPanel | null>(null);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  // Mobile inline approach replaces previous drawer
   const [customMinMode, setCustomMinMode] = useState(false);
   const [customMaxMode, setCustomMaxMode] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,15 +174,7 @@ export function PropertyFilters() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!mobileFiltersOpen) return;
-    const { style } = document.body;
-    const prev = style.overflow;
-    style.overflow = "hidden";
-    return () => {
-      style.overflow = prev;
-    };
-  }, [mobileFiltersOpen]);
+  // Removed body scroll lock: no full-screen drawer anymore on mobile
 
   useEffect(() => {
     if (pendingScrollYRef.current === null) {
@@ -270,7 +262,6 @@ export function PropertyFilters() {
     const view = searchParams.get("view");
     router.push(view === "map" ? `${pathname}?view=map` : pathname);
     setOpenPanel(null);
-    setMobileFiltersOpen(false);
     setCustomMinMode(false);
     setCustomMaxMode(false);
   };
@@ -296,6 +287,7 @@ export function PropertyFilters() {
   const [localMinPrice, setLocalMinPrice] = useState(minPrice ?? _localMinPriceInit);
   const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice ?? _localMaxPriceInit);
   const bedrooms = searchParams.get("bedrooms") ?? "";
+  const bathrooms = searchParams.get("bathrooms") ?? "";
   const locationValue = {
     state: searchParams.get("state") ?? "",
     city: searchParams.get("city") ?? "",
@@ -554,6 +546,25 @@ export function PropertyFilters() {
     </div>
   );
 
+  const bathroomsField = (id = "bathrooms") => (
+    <div>
+      <FieldLabel htmlFor={id}>Bathrooms</FieldLabel>
+      <select
+        id={id}
+        value={bathrooms}
+        onChange={(event) => updateFilterDebounced("bathrooms", event.target.value)}
+        className={selectClassName}
+      >
+        <option value="">Any</option>
+        <option value="1">1+</option>
+        <option value="2">2+</option>
+        <option value="3">3+</option>
+        <option value="4">4+</option>
+        <option value="5">5+</option>
+      </select>
+    </div>
+  );
+
   const moreFilters = (
     <div className="space-y-4">
       <div>
@@ -605,22 +616,12 @@ export function PropertyFilters() {
     </div>
   );
 
-  const mobileFilterFields = (
-    <div className="space-y-4">
-      {propertyTypeField("mobile-property-type")}
-      <div className="grid grid-cols-2 gap-3">
-        {minPriceField("mobile-min-price")}
-        {maxPriceField("mobile-max-price")}
-      </div>
-      {bedroomsField("mobile-bedrooms")}
-      {moreFilters}
-    </div>
-  );
+  const [mobileInlineMoreOpen, setMobileInlineMoreOpen] = useState(false);
 
   return (
     <div className="mb-8">
       <div className="space-y-3">
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto w-full max-w-2xl lg:max-w-7xl">
           <SearchInput
             key={searchParams.get("search") ?? ""}
             initialValue={searchParams.get("search") ?? ""}
@@ -630,22 +631,11 @@ export function PropertyFilters() {
         </div>
 
         <div className="mx-auto w-full max-w-2xl flex flex-col gap-3 lg:hidden">
-          <div className="grid grid-cols-[1fr_auto] gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-11 w-full justify-center rounded-xl"
-              onClick={() => setMobileFiltersOpen(true)}
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-            </Button>
-            {viewToggle}
-          </div>
+          <div className="flex justify-end">{viewToggle}</div>
           <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
         </div>
 
-        <div className="mx-auto hidden w-full max-w-2xl min-w-0 items-center gap-3 lg:flex">
+        <div className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap">
           <FilterPopover
             id="propertyType"
             label="Property Type"
@@ -698,51 +688,35 @@ export function PropertyFilters() {
         </div>
       </div>
 
-      {mobileFiltersOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/35 lg:hidden">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Property filters"
-            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-2xl border border-border bg-white p-5 pb-20 shadow-2xl dark:bg-gray-900"
-          >
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                Filters
-              </h2>
-              <button
-                type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:hover:bg-gray-800 dark:hover:text-white"
-                aria-label="Close filters"
-                onClick={() => setMobileFiltersOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {mobileFilterFields}
-
-            <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center p-4">
-              <div className="pointer-events-auto flex w-full max-w-2xl items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-                <p className="text-xs text-gray-600 dark:text-gray-300">
-                  {hasFilters ? "Filters applied" : "No filters"}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="ghost" onClick={clearAll} disabled={!hasFilters}>
-                    Clear
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => setMobileFiltersOpen(false)}
-                    className="min-w-28"
-                  >
-                    Apply
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Mobile inline filters layout */}
+      <div className="mx-auto mt-3 w-full max-w-2xl space-y-3 lg:hidden">
+        {propertyTypeField("mobile-property-type")}
+        <div className="grid grid-cols-2 gap-3">
+          {minPriceField("mobile-min-price")}
+          {maxPriceField("mobile-max-price")}
         </div>
-      ) : null}
+        <div className="grid grid-cols-2 gap-3">
+          {bedroomsField("mobile-bedrooms")}
+          {bathroomsField("mobile-bathrooms")}
+        </div>
+        <button
+          type="button"
+          className="inline-flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          onClick={() => setMobileInlineMoreOpen((v) => !v)}
+          aria-expanded={mobileInlineMoreOpen ? "true" : "false"}
+          aria-controls="mobile-inline-more"
+        >
+          <span>Filters</span>
+          <ChevronDown className={cn("h-4 w-4 transition-transform", mobileInlineMoreOpen ? "rotate-180" : "rotate-0")} />
+        </button>
+        {mobileInlineMoreOpen ? (
+          <div id="mobile-inline-more" className="space-y-4">
+            {moreFilters}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Mobile drawer removed in favor of inline expanded section above */}
     </div>
   );
 }

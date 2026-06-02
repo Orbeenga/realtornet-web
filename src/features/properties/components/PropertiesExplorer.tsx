@@ -101,6 +101,9 @@ export function PropertiesExplorer({
     bedrooms: searchParams.get("bedrooms")
       ? Number(searchParams.get("bedrooms"))
       : undefined,
+    bathrooms: searchParams.get("bathrooms")
+      ? Number(searchParams.get("bathrooms"))
+      : undefined,
     location_id: searchParams.get("location_id")
       ? Number(searchParams.get("location_id"))
       : undefined,
@@ -239,6 +242,9 @@ export function PropertiesExplorer({
 
     const br = searchParams.get("bedrooms");
     if (br) addChip("bedrooms", `${br}+ beds`);
+
+    const ba = searchParams.get("bathrooms");
+    if (ba) addChip("bathrooms", `${ba}+ baths`);
 
     const ptIds = searchParams.getAll("property_type_id");
     if (ptIds.length > 0) {

@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 const baseUrl = (
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.API_URL ||
-  "http://localhost:8000"
+  "https://realtornet-production.up.railway.app"
 ).replace(/\/$/, "");
 
 const target = `${baseUrl}/api/v1/openapi.json`;
