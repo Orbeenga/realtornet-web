@@ -252,13 +252,13 @@ export function HomeHeroSearch() {
   return (
     <section className="px-4 py-5 sm:px-6 lg:px-8">
       <form
-        className="mx-auto max-w-7xl space-y-5"
+        className="mx-auto w-full max-w-7xl space-y-5"
         onSubmit={(event) => {
           event.preventDefault();
           handleSearch();
         }}
       >
-        <div className="mx-auto w-full max-w-2xl lg:max-w-7xl">
+        <div className="mx-auto w-full max-w-7xl">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
             <Button type="submit" className="h-12 shrink-0 rounded-xl px-5 text-sm">
@@ -267,7 +267,7 @@ export function HomeHeroSearch() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-2xl lg:max-w-7xl">
+        <div className="mx-auto w-full max-w-7xl">
           {/* Mobile: Property Type full width, others in 2 columns */}
           <div className="space-y-3 lg:hidden">
             <div className="relative">
@@ -394,7 +394,7 @@ export function HomeHeroSearch() {
 
             {filtersInlineOpen ? (
               <div id="home-mobile-inline-more" className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4">
                   <FilterField id="home-listing-type" label="Listing Type">
                     <select
                       id="home-listing-type"
@@ -426,6 +426,9 @@ export function HomeHeroSearch() {
                     </select>
                   </FilterField>
                 </div>
+                <Button type="submit" className="h-12 w-full rounded-xl px-5 text-sm">
+                  Search
+                </Button>
               </div>
             ) : null}
           </div>
