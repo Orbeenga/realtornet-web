@@ -621,56 +621,6 @@ export function PropertyFilters() {
   const searchInnerRef = useRef<HTMLDivElement | null>(null);
   const filterRowRef = useRef<HTMLDivElement | null>(null);
 
-  // Desktop-only: make search row exact same visible width as the desktop filter row
-  useEffect(() => {
-    const measureUnionWidth = (el: HTMLElement) => {
-      const children = Array.from(el.children) as HTMLElement[];
-      let minLeft = Number.POSITIVE_INFINITY;
-      let maxRight = Number.NEGATIVE_INFINITY;
-      children.forEach((ch) => {
-        const r = ch.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-          if (r.left < minLeft) minLeft = r.left;
-          if (r.right > maxRight) maxRight = r.right;
-        }
-      });
-      if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) return 0;
-      return Math.max(0, Math.round(maxRight - minLeft));
-    };
-
-    const applyWidth = () => {
-      if (typeof window === "undefined") return;
-      const isDesktop = window.innerWidth >= 1024;
-      const s = searchInnerRef.current;
-      const f = filterRowRef.current;
-      if (!s) return;
-      if (!isDesktop) {
-        s.style.width = "";
-        return;
-      }
-      if (!f) return;
-
-      const union = measureUnionWidth(f);
-      if (union > 0) {
-        const parentWidth = Math.round(f.getBoundingClientRect().width);
-        const widthPx = Math.min(union, parentWidth); // clamp to parent container
-        s.style.width = `${widthPx}px`;
-        try {
-          localStorage.setItem("rn_desktop_row_w", String(widthPx));
-        } catch {}
-      }
-    };
-
-    const onLoad = () => applyWidth();
-    if (document.readyState === "complete") applyWidth();
-    else window.addEventListener("load", onLoad, { once: true } as AddEventListenerOptions);
-    window.addEventListener("resize", applyWidth);
-    const t = setTimeout(applyWidth, 0);
-    return () => {
-      window.removeEventListener("resize", applyWidth);
-      clearTimeout(t);
-    };
-  }, []);
 
   // Dev-only: log rendered widths to the console for verification
   useEffect(() => {
@@ -714,7 +664,7 @@ export function PropertyFilters() {
     <div className="mb-8">
       <div className="space-y-3">
         <div ref={searchRowRef} className="mx-auto w-full max-w-7xl" data-rn-prop-search-row>
-          <div ref={searchInnerRef} className="min-w-0">
+          <div ref={searchInnerRef} className="mx-auto w-full max-w-2xl">
             <SearchInput
               key={searchParams.get("search") ?? ""}
               initialValue={searchParams.get("search") ?? ""}
@@ -728,8 +678,9 @@ export function PropertyFilters() {
           <div className="flex justify-center">{viewToggle}</div>
         </div>
 
-        <div ref={filterRowRef} className="mx-auto hidden w-full max-w-7xl min-w-0 items-center gap-3 lg:flex flex-wrap" data-rn-prop-filter-row>
-          <FilterPopover
+        <div className="mx-auto hidden w-full max-w-7xl lg:flex" data-rn-prop-filter-row>
+          <div ref={filterRowRef} className="mx-auto flex w-full max-w-2xl min-w-0 items-center gap-3 flex-wrap">
+            <FilterPopover
             id="propertyType"
             label="Property Type"
             value={selectedPropertyType?.name ?? null}
@@ -738,7 +689,7 @@ export function PropertyFilters() {
           >
             {propertyTypeField("property-type-popover")}
           </FilterPopover>
-          <FilterPopover
+            <FilterPopover
             id="minPrice"
             label="Min Price"
             value={minPrice ? `NGN ${Number(minPrice).toLocaleString()}` : null}
@@ -747,7 +698,7 @@ export function PropertyFilters() {
           >
             {minPriceField("min-price-popover")}
           </FilterPopover>
-          <FilterPopover
+            <FilterPopover
             id="maxPrice"
             label="Max Price"
             value={maxPrice ? `NGN ${Number(maxPrice).toLocaleString()}` : null}
@@ -756,7 +707,7 @@ export function PropertyFilters() {
           >
             {maxPriceField("max-price-popover")}
           </FilterPopover>
-          <FilterPopover
+            <FilterPopover
             id="bedrooms"
             label="Bedrooms"
             value={bedrooms ? `${bedrooms}+ beds` : null}
@@ -765,7 +716,7 @@ export function PropertyFilters() {
           >
             {bedroomsField("bedrooms-popover")}
           </FilterPopover>
-          <FilterPopover
+            <FilterPopover
             id="more"
             label="Filters"
             value={locationLabel ?? listingStatusLabel ?? listingTypeLabel}
@@ -774,13 +725,16 @@ export function PropertyFilters() {
           >
             {moreFilters}
           </FilterPopover>
+          </div>
         </div>
 
         {/* Desktop utility row: Grid/Map (left) and Save Search (right) */}
-        <div className="mx-auto hidden w-full max-w-7xl items-center justify-between lg:flex">
-          <div>{viewToggle}</div>
-          <div className="shrink-0">
-            <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
+        <div className="mx-auto hidden w-full max-w-7xl lg:flex">
+          <div className="mx-auto flex w-full max-w-2xl items-center justify-between">
+            <div>{viewToggle}</div>
+            <div className="shrink-0">
+              <PropertyFiltersSavedSearch searchParams={plainSearchParams} compact />
+            </div>
           </div>
         </div>
       </div>
