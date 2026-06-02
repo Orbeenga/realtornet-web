@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   },
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function AgenciesPage() {
   const initialData = await serverPublicApi<Agency[]>(
     "/api/v1/agencies/",

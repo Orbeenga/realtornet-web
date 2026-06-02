@@ -261,7 +261,7 @@ export function HomeHeroSearch() {
         <div className="mx-auto w-full max-w-7xl">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
-            <Button type="submit" className="h-12 shrink-0 rounded-xl px-5 text-sm">
+            <Button type="submit" className="hidden h-12 shrink-0 rounded-xl px-5 text-sm lg:inline-flex">
               Search
             </Button>
           </div>
@@ -426,12 +426,14 @@ export function HomeHeroSearch() {
                     </select>
                   </FilterField>
                 </div>
-                <Button type="submit" className="h-12 w-full rounded-xl px-5 text-sm">
-                  Search
-                </Button>
               </div>
             ) : null}
           </div>
+
+          {/* Mobile: primary search submit placed outside the drawer, below filters */}
+          <Button type="submit" className="h-12 w-full rounded-xl px-5 text-sm lg:hidden">
+            Search
+          </Button>
 
           {/* Desktop unchanged layout */}
           <div className="hidden lg:grid lg:grid-cols-5 lg:gap-3">
