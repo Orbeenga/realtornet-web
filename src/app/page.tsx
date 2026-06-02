@@ -31,6 +31,8 @@ export const metadata: Metadata = {
   },
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   const [featuredProperties, featuredAgencies] = await Promise.allSettled([
     serverPublicApi<PropertyList>(
@@ -67,8 +69,8 @@ export default async function Home() {
         />
         <section className="relative min-h-[55vh] sm:min-h-[60vh] lg:min-h-[65vh] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
           <div className="absolute inset-0 bg-black/55" />
-          <div className="absolute top-6 left-6 z-10">
-            <div className="flex items-center gap-2">
+          <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10">
+            <div className="flex items-center gap-2 sm:mt-0 mt-2">
               {(["sale","rent","lease"] as const).map((type) => (
                 <Link
                   key={type}
