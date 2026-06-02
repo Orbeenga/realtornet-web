@@ -674,9 +674,7 @@ export function PropertyFilters() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-2xl flex flex-col gap-3 lg:hidden">
-          <div className="flex justify-center">{viewToggle}</div>
-        </div>
+        
 
         <div className="mx-auto hidden w-full max-w-7xl lg:flex" data-rn-prop-filter-row>
           <div ref={filterRowRef} className="mx-auto flex w-full max-w-2xl min-w-0 items-center gap-3 flex-wrap">
@@ -765,6 +763,11 @@ export function PropertyFilters() {
             {moreFilters}
           </div>
         ) : null}
+      </div>
+
+      {/* Mobile utility row: move Grid/Map directly below filters, above Save Search */}
+      <div className="mx-auto mt-3 w-full max-w-2xl lg:hidden">
+        <div className="flex justify-center">{viewToggle}</div>
       </div>
 
       {/* Mobile saved search moved below filters console */}
