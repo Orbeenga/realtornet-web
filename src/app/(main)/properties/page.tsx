@@ -68,6 +68,7 @@ function buildInitialPropertyFilters(searchParams: SearchParams): PropertyFilter
     min_price: readNumberSearchValue(searchParams, "min_price"),
     max_price: readNumberSearchValue(searchParams, "max_price"),
     bedrooms: readNumberSearchValue(searchParams, "bedrooms"),
+    bathrooms: readNumberSearchValue(searchParams, "bathrooms"),
     location_id: readNumberSearchValue(searchParams, "location_id"),
     property_type_id:
       readNumberList(searchParams, "property_type_id") ??

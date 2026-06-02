@@ -85,6 +85,19 @@ export function AgencyProfileClient({ id }: AgencyProfileClientProps) {
 
   const agency = agencyQuery.data;
 
+  // Defensive: if API returns an unexpected shape without required fields, show a recoverable error
+  if (typeof agency.agency_id !== "number" || !agency.name) {
+    return (
+      <ErrorState
+        title="Could not load agency profile"
+        message="There was a problem loading this agency. Please try again."
+        onRetry={() => {
+          void agencyQuery.refetch();
+        }}
+      />
+    );
+  }
+
   const ldOrganization = {
     "@context": "https://schema.org",
     "@type": "Organization",
