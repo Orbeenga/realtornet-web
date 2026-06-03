@@ -71,7 +71,7 @@ export default async function Home() {
           <div className="absolute inset-0 bg-black/55" />
           <div className="relative mx-auto grid min-h-[40vh] md:min-h-[50vh] lg:min-h-[60vh] max-w-7xl content-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
             <div className="flex flex-col justify-center gap-6 text-white md:-mt-2 lg:-mt-3">
-              <div className="flex items-center gap-2 -ml-1 sm:ml-0">
+              <div className="flex items-center gap-2 -mt-1">
                 {(["sale","rent","lease"] as const).map((type) => (
                   <Link
                     key={type}
