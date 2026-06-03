@@ -159,6 +159,36 @@ export function PropertiesExplorer({
     } catch {}
   }, [currentView]);
 
+  useEffect(() => {
+    const compute = () => {
+      if (typeof window === "undefined") return;
+      const isDesktop = window.innerWidth >= 1024;
+      if (!isDesktop) return;
+      const sWrap = document.querySelector('[data-rn-prop-search-row]') as HTMLElement | null;
+      const fWrap = document.querySelector('[data-rn-prop-filter-row]') as HTMLElement | null;
+      const sInner = sWrap ? (sWrap.querySelector(":scope > div") as HTMLElement | null) : null;
+      const fInner = fWrap ? (fWrap.querySelector(":scope > div") as HTMLElement | null) : null;
+      const sw = sInner ? Math.round(sInner.getBoundingClientRect().width) : 0;
+      const fw = fInner ? Math.round(fInner.getBoundingClientRect().width) : 0;
+      const widthPx = Math.max(sw, fw);
+      if (widthPx > 0) {
+        try {
+          localStorage.setItem("rn_desktop_row_w", String(widthPx));
+        } catch {}
+      }
+    };
+    const onLoad = () => compute();
+    if (typeof window !== "undefined") {
+      if (document.readyState === "complete") compute(); else window.addEventListener("load", onLoad, { once: true } as AddEventListenerOptions);
+      window.addEventListener("resize", compute);
+      const t = setTimeout(compute, 0);
+      return () => {
+        window.removeEventListener("resize", compute);
+        clearTimeout(t);
+      };
+    }
+  }, []);
+
   // Restore saved sort/view if not present in URL
   useEffect(() => {
     if (typeof window === "undefined") return;
