@@ -23,6 +23,7 @@ export function useAgencyRejectProperty() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"] });
+      queryClient.invalidateQueries({ queryKey: ["agentListings"] });
       queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
       queryClient.invalidateQueries({ queryKey: ["properties"] });
       queryClient.invalidateQueries({ queryKey: ["adminProperties"] });

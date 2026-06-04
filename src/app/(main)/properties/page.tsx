@@ -64,7 +64,7 @@ function buildInitialPropertyFilters(searchParams: SearchParams): PropertyFilter
     search: readSearchValue(searchParams, "search") ?? undefined,
     listing_type: parseListingType(readSearchValue(searchParams, "listing_type") ?? null),
     listing_status: parseListingStatus(readSearchValue(searchParams, "listing_status") ?? null),
-    moderation_status: MODERATION_STATUS.verified,
+    moderation_status: MODERATION_STATUS.live,
     min_price: readNumberSearchValue(searchParams, "min_price"),
     max_price: readNumberSearchValue(searchParams, "max_price"),
     bedrooms: readNumberSearchValue(searchParams, "bedrooms"),

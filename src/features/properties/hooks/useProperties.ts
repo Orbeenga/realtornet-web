@@ -52,7 +52,7 @@ export function useFeaturedProperties(
     queryKey: ["featuredProperties", limit],
     queryFn: () =>
       apiClient<PropertyList>(
-        `/api/v1/properties/?page=1&page_size=${limit}&limit=${limit}&moderation_status=verified`,
+        `/api/v1/properties/?page=1&page_size=${limit}&limit=${limit}&moderation_status=live`,
         {
           authMode: "omit",
         },
