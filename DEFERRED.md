@@ -246,3 +246,10 @@ moderation wiring, and site-wide polish.
   `pending_review` / `agency_approved` strings in `.tsx/.ts` source outside
   generated types; all labels flow through `moderationStatusLabel` map.
 - Quality gates: `tsc 0`, `lint 0`, `build 0`.
+
+DEF-M-LISTING-EVENTS-001 - RESOLVED (2026-06-04): Backend committed
+`366eedd` and deployed `GET /api/v1/properties/{property_id}/events` with
+`ListingEventResponse` schema. Frontend `pnpm gen:types` picked up the
+endpoint. `AdminPropertiesClient` now renders an expandable "View history"
+section per listing card via `useListingEvents` hook, showing status transitions,
+timestamps, reasons, and actor IDs.
