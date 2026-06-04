@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import SentryDeferredInit from "./SentryDeferredInit";
+import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://realtornet-web.vercel.app"),
@@ -44,6 +45,7 @@ export default function RootLayout({
             {children}
           </div>
         </Providers>
+        <Footer />
         <SentryDeferredInit />
       </body>
     </html>

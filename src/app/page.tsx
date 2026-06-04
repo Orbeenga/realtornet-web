@@ -4,6 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
 import { HomeHeroSearch } from "@/features/home/components/HomeHeroSearch";
+import { PublicGuidePopover } from "@/features/home/components/PublicGuidePopover";
 import { FeaturedPropertiesSection } from "@/features/properties/components";
 import { serverPublicApi } from "@/lib/api/serverPublic";
 import type { Agency, PropertyList } from "@/types";
@@ -67,7 +68,7 @@ export default async function Home() {
         <section className="relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
           <div className="absolute inset-0 bg-black/55" />
           <div className="relative mx-auto flex min-h-[360px] max-w-7xl flex-col justify-between gap-6 px-4 py-6 sm:px-6 md:min-h-[420px] md:py-8 lg:min-h-[480px] lg:px-8">
-            <div className="flex flex-col items-center gap-4 text-center text-white">
+            <div className="flex flex-col items-start gap-4 text-left text-white">
               <div className="flex items-center gap-1 sm:gap-2">
                 {(["sale","rent","lease"] as const).map((type) => (
                   <Link
@@ -79,6 +80,9 @@ export default async function Home() {
                     {type === "sale" ? "Buy" : type === "rent" ? "Rent" : "Lease"}
                   </Link>
                 ))}
+                <div className="ml-2">
+                  <PublicGuidePopover />
+                </div>
               </div>
               <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl md:text-6xl">
                 Find property through trusted real estate agencies
@@ -89,29 +93,8 @@ export default async function Home() {
               </p>
             </div>
 
-            <div className="w-full rounded-2xl border border-white/10 bg-white/95 p-3 shadow-2xl backdrop-blur dark:border-gray-700/50 dark:bg-gray-950/90 sm:p-4 lg:p-5">
+            <div className="w-full">
               <HomeHeroSearch />
-            </div>
-          </div>
-        </section>
-
-        <section className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-          <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[
-                { step: 1, label: "Choose a verified agency" },
-                { step: 2, label: "Review its active listings" },
-                { step: 3, label: "Contact the listing agent" },
-              ].map(({ step, label }) => (
-                <div key={step} className="flex items-center gap-3">
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200">
-                    {step}
-                  </span>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {label}
-                  </span>
-                </div>
-              ))}
             </div>
           </div>
         </section>
