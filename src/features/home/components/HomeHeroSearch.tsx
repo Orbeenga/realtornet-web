@@ -346,7 +346,6 @@ export function HomeHeroSearch() {
   );
 
   return (
-    <section className="px-4 py-5 sm:px-6 lg:px-8">
       <form
         className="mx-auto w-full max-w-7xl space-y-5"
         onSubmit={(event) => {
@@ -645,7 +644,6 @@ export function HomeHeroSearch() {
             </button>
           </div>
         </div>
-      </form>
 
       {filtersOpen ? (
         <div className="fixed inset-0 z-50 bg-black/50 px-4 py-6 backdrop-blur-sm">
@@ -807,7 +805,7 @@ export function HomeHeroSearch() {
           </div>
         </div>
       ) : null}
-    </section>
+    </form>
   );
 }
 
