@@ -91,7 +91,7 @@ export function PropertiesExplorer({
     search: searchParams.get("search") ?? undefined,
     listing_type: parseListingType(searchParams.get("listing_type")),
     listing_status: parseListingStatus(searchParams.get("listing_status")),
-    moderation_status: MODERATION_STATUS.verified,
+    moderation_status: MODERATION_STATUS.live,
     min_price: searchParams.get("min_price")
       ? Number(searchParams.get("min_price"))
       : undefined,

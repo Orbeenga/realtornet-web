@@ -73,6 +73,7 @@ export type SystemStats = components["schemas"]["SystemStatsResponse"];
 export type UsageMetrics = components["schemas"]["UsageMetricsResponse"];
 export type AuditActivity = components["schemas"]["AuditActivityResponse"];
 export type AuditRecentChange = components["schemas"]["AuditRecentChangeEntry"];
+export type ListingEventResponse = components["schemas"]["ListingEventResponse"];
 export type PaginatedProperties = components["schemas"]["PropertyResponse"][];
 
 export interface PropertyFilters {

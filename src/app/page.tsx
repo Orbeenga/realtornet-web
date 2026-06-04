@@ -36,7 +36,7 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   const [featuredProperties, featuredAgencies] = await Promise.allSettled([
     serverPublicApi<PropertyList>(
-      "/api/v1/properties/?page=1&page_size=6&limit=6&moderation_status=verified",
+      "/api/v1/properties/?page=1&page_size=6&limit=6&moderation_status=live",
       120,
     ),
     serverPublicApi<Agency[]>("/api/v1/agencies/", 120),

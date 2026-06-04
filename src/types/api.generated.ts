@@ -1940,6 +1940,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/properties/{property_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Property Listing Events
+         * @description Get ordered listing event history for a property.
+         *
+         *     Access:
+         *     - Admin: any listing
+         *     - Agent: their own listings
+         *     - Agency owner: listings in their agency
+         */
+        get: operations["read_property_listing_events_api_v1_properties__property_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/properties/{property_id}/verify": {
         parameters: {
             query?: never;
@@ -1970,6 +1995,46 @@ export interface paths {
         patch: operations["verify_property_api_v1_properties__property_id__verify_patch"];
         trace?: never;
     };
+    "/api/v1/properties/{property_id}/submit-for-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Submit Property For Review
+         * @description Agent submits a draft listing for agency review (draft → agency_review).
+         */
+        patch: operations["submit_property_for_review_api_v1_properties__property_id__submit_for_review_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/submit-to-admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Submit Property To Admin
+         * @description Agency owner submits a draft listing directly to admin review (draft → admin_review).
+         */
+        patch: operations["submit_property_to_admin_api_v1_properties__property_id__submit_to_admin_patch"];
+        trace?: never;
+    };
     "/api/v1/properties/{property_id}/agency-approve": {
         parameters: {
             query?: never;
@@ -1985,11 +2050,7 @@ export interface paths {
         head?: never;
         /**
          * Agency Approve Property
-         * @description Agency owner approves a listing for admin review.
-         *
-         *     Permissions:
-         *     - Agency owner of the listing's agency only.
-         *     - Property must be at pending_review status.
+         * @description Agency owner approves a listing for admin review (agency_review → admin_review).
          */
         patch: operations["agency_approve_property_api_v1_properties__property_id__agency_approve_patch"];
         trace?: never;
@@ -2009,14 +2070,173 @@ export interface paths {
         head?: never;
         /**
          * Agency Reject Property
-         * @description Agency owner rejects a listing back to the agent.
-         *
-         *     Permissions:
-         *     - Agency owner of the listing's agency only.
-         *     - Property must be at pending_review status.
-         *     - Requires a rejection reason.
+         * @description Agency owner rejects a listing back to the agent (agency_review → agency_rejected).
          */
         patch: operations["agency_reject_property_api_v1_properties__property_id__agency_reject_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Withdraw Property From Review
+         * @description Agent withdraws a listing from agency review (agency_review → draft).
+         */
+        patch: operations["withdraw_property_from_review_api_v1_properties__property_id__withdraw_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/resubmit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Resubmit Property After Agency Rejection
+         * @description Agent resubmits a previously agency-rejected listing (agency_rejected → agency_review).
+         */
+        patch: operations["resubmit_property_after_agency_rejection_api_v1_properties__property_id__resubmit_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/recall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Recall Property From Admin Review
+         * @description Agency owner recalls a listing from admin review (admin_review → agency_review).
+         */
+        patch: operations["recall_property_from_admin_review_api_v1_properties__property_id__recall_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/admin-reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Reject Property
+         * @description Admin rejects a listing from admin review (admin_review → admin_rejected).
+         */
+        patch: operations["admin_reject_property_api_v1_properties__property_id__admin_reject_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/reinstate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reinstate Property From Admin Rejected
+         * @description Admin reinstates a listing to admin review (admin_rejected → admin_review).
+         */
+        patch: operations["reinstate_property_from_admin_rejected_api_v1_properties__property_id__reinstate_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Revoke Property
+         * @description Admin revokes a live listing (live → revoked).
+         */
+        patch: operations["revoke_property_api_v1_properties__property_id__revoke_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Restore Property From Revoked
+         * @description Admin restores a revoked listing to live (revoked → live).
+         */
+        patch: operations["restore_property_from_revoked_api_v1_properties__property_id__restore_patch"];
+        trace?: never;
+    };
+    "/api/v1/properties/{property_id}/pull-back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Pull Back Property To Draft
+         * @description Agent pulls back a revoked or admin-rejected listing to draft.
+         *
+         *     Legal transitions via the central guard:
+         *     - revoked → draft
+         *     - admin_rejected → draft
+         */
+        patch: operations["pull_back_property_to_draft_api_v1_properties__property_id__pull_back_patch"];
         trace?: never;
     };
     "/api/v1/properties/by-LocationResponse/{location_id}": {
@@ -4792,6 +5012,29 @@ export interface components {
             email: string;
         };
         /**
+         * ListingEventResponse
+         * @description Schema for listing moderation transition events (Phase M audit).
+         */
+        ListingEventResponse: {
+            /** Event Id */
+            event_id: number;
+            /** Listing Id */
+            listing_id: number;
+            /** Actor Id */
+            actor_id: number;
+            /** From Status */
+            from_status?: string | null;
+            /** To Status */
+            to_status: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
          * ListingStatus
          * @description Schema enum - lowercase values match DB
          * @enum {string}
@@ -4871,10 +5114,13 @@ export interface components {
         };
         /**
          * ModerationStatus
-         * @description Schema enum - values match moderation_status_enum exactly
+         * @description Schema enum - values match moderation_status_enum exactly.
+         *
+         *     Phase M expands the moderation lifecycle with new governance states while
+         *     retaining legacy values for safe migrations against existing data.
          * @enum {string}
          */
-        ModerationStatus: "pending_review" | "agency_approved" | "verified" | "rejected" | "revoked";
+        ModerationStatus: "draft" | "agency_review" | "agency_rejected" | "admin_review" | "admin_rejected" | "live" | "pending_review" | "agency_approved" | "verified" | "rejected" | "revoked";
         /** MyAgencyJoinRequestResponse */
         MyAgencyJoinRequestResponse: {
             /** Join Request Id */
@@ -5284,7 +5530,7 @@ export interface components {
             listing_status: components["schemas"]["ListingStatus-Output"];
             /** Is Verified */
             is_verified: boolean;
-            /** @default pending_review */
+            /** @default draft */
             moderation_status: components["schemas"]["ModerationStatus"];
             /** Moderation Reason */
             moderation_reason?: string | null;
@@ -9200,6 +9446,37 @@ export interface operations {
             };
         };
     };
+    read_property_listing_events_api_v1_properties__property_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     verify_property_api_v1_properties__property_id__verify_patch: {
         parameters: {
             query?: never;
@@ -9214,6 +9491,68 @@ export interface operations {
                 "application/json": components["schemas"]["PropertyVerificationUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_property_for_review_api_v1_properties__property_id__submit_for_review_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_property_to_admin_api_v1_properties__property_id__submit_to_admin_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -9280,6 +9619,262 @@ export interface operations {
                 "application/json": components["schemas"]["PropertyAgencyActionUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_property_from_review_api_v1_properties__property_id__withdraw_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resubmit_property_after_agency_rejection_api_v1_properties__property_id__resubmit_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recall_property_from_admin_review_api_v1_properties__property_id__recall_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_property_api_v1_properties__property_id__admin_reject_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyAgencyActionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reinstate_property_from_admin_rejected_api_v1_properties__property_id__reinstate_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_property_api_v1_properties__property_id__revoke_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyAgencyActionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_property_from_revoked_api_v1_properties__property_id__restore_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pull_back_property_to_draft_api_v1_properties__property_id__pull_back_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

@@ -4,21 +4,29 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Input, LoadingState } from "@/components";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
-import { useAdminProperties, useVerifyProperty } from "@/features/properties/hooks";
+import {
+  useAdminApproveProperty,
+  useAdminProperties,
+  useAdminRejectProperty,
+  useListingEvents,
+  useReinstateProperty,
+  useRestoreProperty,
+  useRevokeProperty,
+} from "@/features/properties/hooks";
 import {
   MODERATION_STATUS,
   moderationStatusBadgeVariant,
   moderationStatusLabel,
 } from "@/features/properties/lib/moderation";
 import { notify } from "@/lib/toast";
-import type { ModerationStatus, Property } from "@/types";
+import type { ListingEventResponse, ModerationStatus, Property } from "@/types";
 
 type ModerationTab = ModerationStatus | "all";
 
 const MODERATION_TABS: Array<{ value: ModerationTab; label: string }> = [
-  { value: MODERATION_STATUS.agencyApproved, label: "Admin review" },
-  { value: MODERATION_STATUS.verified, label: "Live" },
-  { value: MODERATION_STATUS.rejected, label: "Rejected" },
+  { value: MODERATION_STATUS.adminReview, label: "Review Queue" },
+  { value: MODERATION_STATUS.live, label: "Live" },
+  { value: MODERATION_STATUS.adminRejected, label: "Rejected" },
   { value: MODERATION_STATUS.revoked, label: "Revoked" },
   { value: "all", label: "All" },
 ];
@@ -44,6 +52,60 @@ function formatPrice(price: string, currency: string | null) {
   return `${currency ?? "NGN"} ${amount.toLocaleString()}`;
 }
 
+function ListingEventHistory({ propertyId }: { propertyId: number }) {
+  const eventsQuery = useListingEvents(propertyId);
+
+  if (eventsQuery.isLoading) {
+    return <p className="text-sm text-gray-500">Loading history...</p>;
+  }
+
+  if (eventsQuery.isError) {
+    return <p className="text-sm text-red-600">Could not load event history.</p>;
+  }
+
+  const events = eventsQuery.data ?? [];
+
+  if (events.length === 0) {
+    return <p className="text-sm text-gray-500">No recorded events for this listing.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {events.map((event: ListingEventResponse) => (
+        <div
+          key={event.event_id}
+          className="flex flex-col gap-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-950"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-gray-700 dark:text-gray-200">
+              {event.from_status ? (
+                <>
+                  <span className="font-medium">
+                    {moderationStatusLabel[event.from_status as ModerationStatus] ?? event.from_status}
+                  </span>
+                  {" → "}
+                  <span className="font-medium">
+                    {moderationStatusLabel[event.to_status as ModerationStatus] ?? event.to_status}
+                  </span>
+                </>
+              ) : (
+                <span className="font-medium">
+                  {moderationStatusLabel[event.to_status as ModerationStatus] ?? event.to_status}
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-gray-500">{formatDateTime(event.created_at)}</span>
+          </div>
+          {event.reason ? (
+            <p className="text-xs text-gray-600 dark:text-gray-400">Reason: {event.reason}</p>
+          ) : null}
+          <p className="text-xs text-gray-500">Actor ID: {event.actor_id}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface PropertyModerationCardProps {
   property: Property;
   reason: string;
@@ -52,7 +114,8 @@ interface PropertyModerationCardProps {
   onVerify: () => void;
   onReject: () => void;
   onRevoke: () => void;
-  onReverify: () => void;
+  onReinstate: () => void;
+  onRestore: () => void;
 }
 
 function PropertyModerationCard({
@@ -63,13 +126,15 @@ function PropertyModerationCard({
   onVerify,
   onReject,
   onRevoke,
-  onReverify,
+  onReinstate,
+  onRestore,
 }: PropertyModerationCardProps) {
+  const [showHistory, setShowHistory] = useState(false);
   const status = property.moderation_status;
-  const isAgencyApproved = status === MODERATION_STATUS.agencyApproved;
-  const isVerified = status === MODERATION_STATUS.verified;
-  const isRejectedOrRevoked =
-    status === MODERATION_STATUS.rejected || status === MODERATION_STATUS.revoked;
+  const isAdminReview = status === MODERATION_STATUS.adminReview;
+  const isLive = status === MODERATION_STATUS.live;
+  const isAdminRejected = status === MODERATION_STATUS.adminRejected;
+  const isRevoked = status === MODERATION_STATUS.revoked;
 
   return (
     <Card>
@@ -101,7 +166,7 @@ function PropertyModerationCard({
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
-            {isAgencyApproved ? (
+            {isAdminReview ? (
               <>
                 <Button
                   type="button"
@@ -122,7 +187,7 @@ function PropertyModerationCard({
                 </Button>
               </>
             ) : null}
-            {isVerified ? (
+            {isLive ? (
               <Button
                 type="button"
                 size="sm"
@@ -133,14 +198,24 @@ function PropertyModerationCard({
                 Revoke
               </Button>
             ) : null}
-            {isRejectedOrRevoked ? (
+            {isAdminRejected ? (
               <Button
                 type="button"
                 size="sm"
                 loading={isActing}
-                onClick={onReverify}
+                onClick={onReinstate}
               >
-                Re-verify
+                Reinstate
+              </Button>
+            ) : null}
+            {isRevoked ? (
+              <Button
+                type="button"
+                size="sm"
+                loading={isActing}
+                onClick={onRestore}
+              >
+                Restore
               </Button>
             ) : null}
           </div>
@@ -181,20 +256,36 @@ function PropertyModerationCard({
           </div>
         </div>
 
-        {isAgencyApproved || isVerified ? (
+        {isAdminReview || isLive ? (
           <Input
             label={
-              isAgencyApproved
+              isAdminReview
                 ? "Rejection reason (required to reject)"
                 : "Revocation reason (required to revoke)"
             }
             placeholder={
-              isAgencyApproved ? "Required before rejecting" : "Required before revoking"
+              isAdminReview ? "Required before rejecting" : "Required before revoking"
             }
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
           />
         ) : null}
+
+        <div className="border-t border-gray-200 pt-3 dark:border-gray-800">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowHistory((prev) => !prev)}
+          >
+            {showHistory ? "Hide history" : "View history"}
+          </Button>
+          {showHistory ? (
+            <div className="mt-3">
+              <ListingEventHistory propertyId={property.property_id} />
+            </div>
+          ) : null}
+        </div>
       </CardBody>
     </Card>
   );
@@ -202,10 +293,14 @@ function PropertyModerationCard({
 
 export function AdminPropertiesClient() {
   const gate = useAdminRoleGate();
-  const [activeTab, setActiveTab] = useState<ModerationTab>(MODERATION_STATUS.agencyApproved);
+  const [activeTab, setActiveTab] = useState<ModerationTab>(MODERATION_STATUS.adminReview);
   const moderationStatusFilter = activeTab === "all" ? null : activeTab;
   const adminPropertiesQuery = useAdminProperties(gate.isAllowed, moderationStatusFilter);
-  const verifyProperty = useVerifyProperty();
+  const adminApproveProperty = useAdminApproveProperty();
+  const adminRejectProperty = useAdminRejectProperty();
+  const revokeProperty = useRevokeProperty();
+  const reinstateProperty = useReinstateProperty();
+  const restoreProperty = useRestoreProperty();
   const [reasons, setReasons] = useState<Record<number, string>>({});
 
   if (gate.isChecking || !gate.isAllowed) {
@@ -253,12 +348,9 @@ export function AdminPropertiesClient() {
 
   const handleVerify = async (propertyId: number) => {
     try {
-      await verifyProperty.mutateAsync({
-        propertyId,
-        moderationStatus: MODERATION_STATUS.verified,
-      });
-      notify.success("Listing verified and published.");
-      setActiveTab(MODERATION_STATUS.verified);
+      await adminApproveProperty.mutateAsync(propertyId);
+      notify.success("Listing approved and published.");
+      setActiveTab(MODERATION_STATUS.live);
       clearReason(propertyId);
     } catch {
       notify.error("Could not verify listing.");
@@ -273,13 +365,12 @@ export function AdminPropertiesClient() {
     }
 
     try {
-      await verifyProperty.mutateAsync({
+      await adminRejectProperty.mutateAsync({
         propertyId,
-        moderationStatus: MODERATION_STATUS.rejected,
-        moderationReason: reason,
+        reason,
       });
       notify.success("Listing rejected and returned to agent.");
-      setActiveTab(MODERATION_STATUS.rejected);
+      setActiveTab(MODERATION_STATUS.adminRejected);
       clearReason(propertyId);
     } catch {
       notify.error("Could not reject listing.");
@@ -294,10 +385,9 @@ export function AdminPropertiesClient() {
     }
 
     try {
-      await verifyProperty.mutateAsync({
+      await revokeProperty.mutateAsync({
         propertyId,
-        moderationStatus: MODERATION_STATUS.revoked,
-        moderationReason: reason,
+        reason,
       });
       notify.success("Listing revoked.");
       setActiveTab(MODERATION_STATUS.revoked);
@@ -307,17 +397,25 @@ export function AdminPropertiesClient() {
     }
   };
 
-  const handleReverify = async (propertyId: number) => {
+  const handleReinstate = async (propertyId: number) => {
     try {
-      await verifyProperty.mutateAsync({
-        propertyId,
-        moderationStatus: MODERATION_STATUS.verified,
-      });
-      notify.success("Listing re-verified.");
-      setActiveTab(MODERATION_STATUS.verified);
+      await reinstateProperty.mutateAsync(propertyId);
+      notify.success("Listing reinstated to admin review.");
+      setActiveTab(MODERATION_STATUS.adminReview);
       clearReason(propertyId);
     } catch {
-      notify.error("Could not re-verify listing.");
+      notify.error("Could not reinstate listing.");
+    }
+  };
+
+  const handleRestore = async (propertyId: number) => {
+    try {
+      await restoreProperty.mutateAsync(propertyId);
+      notify.success("Listing restored.");
+      setActiveTab(MODERATION_STATUS.live);
+      clearReason(propertyId);
+    } catch {
+      notify.error("Could not restore listing.");
     }
   };
 
@@ -366,13 +464,22 @@ export function AdminPropertiesClient() {
                 reason={reasons[property.property_id] ?? ""}
                 onReasonChange={(value) => setReason(property.property_id, value)}
                 isActing={
-                  verifyProperty.isPending &&
-                  verifyProperty.variables?.propertyId === property.property_id
+                  (adminApproveProperty.isPending &&
+                    adminApproveProperty.variables === property.property_id) ||
+                  (adminRejectProperty.isPending &&
+                    adminRejectProperty.variables?.propertyId === property.property_id) ||
+                  (revokeProperty.isPending &&
+                    revokeProperty.variables?.propertyId === property.property_id) ||
+                  (reinstateProperty.isPending &&
+                    reinstateProperty.variables === property.property_id) ||
+                  (restoreProperty.isPending &&
+                    restoreProperty.variables === property.property_id)
                 }
                 onVerify={() => void handleVerify(property.property_id)}
                 onReject={() => void handleReject(property.property_id)}
                 onRevoke={() => void handleRevoke(property.property_id)}
-                onReverify={() => void handleReverify(property.property_id)}
+                onReinstate={() => void handleReinstate(property.property_id)}
+                onRestore={() => void handleRestore(property.property_id)}
               />
             ))}
           </div>
