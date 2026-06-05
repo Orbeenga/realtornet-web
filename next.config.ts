@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   // Keep the trailing slash so Vercel serves the same canonical route shape
   // the API proxy and earlier Lighthouse baselines were measured against.
   trailingSlash: true,
+  compress: false,
   typescript: {
     ignoreBuildErrors: true,
   },

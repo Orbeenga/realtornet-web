@@ -58,7 +58,11 @@ export function PublicGuidePopover() {
           <HelpCircle className="h-4 w-4" />
           <span>How it works</span>
         </button>
-        {open ? <PopoverContent onDismiss={handleDismiss} /> : null}
+        {open ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <PopoverContent onDismiss={handleDismiss} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
