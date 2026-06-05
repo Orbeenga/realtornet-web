@@ -211,6 +211,7 @@ export async function apiClient<T>(
     ...requestOptions,
     headers: {
       ...(!isFormData ? { "Content-Type": "application/json" } : {}),
+      "Accept-Encoding": "identity",
       ...(token && authMode !== "omit" ? { Authorization: `Bearer ${token}` } : {}),
       ...requestOptions.headers,
     },
