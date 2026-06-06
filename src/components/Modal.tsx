@@ -44,7 +44,7 @@ export function Modal({
         }
       }}
     >
-      <DialogContent className={sizeClasses[size]}>
+      <DialogContent finalFocus={false} className={sizeClasses[size]}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
