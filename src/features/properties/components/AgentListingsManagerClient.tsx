@@ -176,8 +176,12 @@ export function AgentListingsManagerClient() {
   const agentListingsQuery = useOwnerListings(
     needsAgentProfile ? profileQuery.data?.user_id : undefined,
   );
+  const agencyOwnerTabStatuses = isAgencyOwner
+    ? (AGENCY_OWNER_TABS.find((tab) => tab.value === agencyOwnerTab)?.statuses ?? null)
+    : null;
   const agencyOwnerListingsQuery = useAgencyOwnerListings(
     isAgencyOwner ? user?.agency_id : undefined,
+    agencyOwnerTabStatuses,
   );
   const adminListingsQuery = useAdminProperties(
     gate.isAllowed && gate.isAdmin,

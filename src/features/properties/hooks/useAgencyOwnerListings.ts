@@ -3,18 +3,22 @@ import { apiClient } from "@/lib/api/client";
 import type { ModerationStatus, PropertyList } from "@/types";
 
 export function useAgencyOwnerListings(
-  agencyId?: number | null,
+  agencyId?: number | string | null,
   moderationStatuses?: ModerationStatus[] | null,
 ) {
+  const numericAgencyId =
+    agencyId != null && agencyId !== "" ? Number(agencyId) : null;
+  const isEnabled =
+    numericAgencyId != null && !Number.isNaN(numericAgencyId);
   const singleStatus =
     moderationStatuses?.length === 1 ? moderationStatuses[0] : null;
 
   return useQuery({
-    queryKey: ["agencyOwnerListings", agencyId, moderationStatuses],
+    queryKey: ["agencyOwnerListings", numericAgencyId, moderationStatuses],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (typeof agencyId === "number") {
-        params.set("agency_id", String(agencyId));
+      if (isEnabled) {
+        params.set("agency_id", String(numericAgencyId));
       }
       if (singleStatus) {
         params.set("moderation_status", singleStatus);
@@ -28,6 +32,6 @@ export function useAgencyOwnerListings(
         ? items.filter((item) => moderationStatuses.includes(item.moderation_status))
         : items,
     staleTime: 60_000,
-    enabled: typeof agencyId === "number",
+    enabled: isEnabled,
   });
 }
