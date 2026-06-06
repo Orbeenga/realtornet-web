@@ -13,7 +13,7 @@ export function useAmenities() {
   return useQuery({
     queryKey: ["amenities"],
     queryFn: () =>
-      apiClient<Amenity[]>("/api/v1/amenities/", { authMode: "omit" }),
+      apiClient<Amenity[]>("/api/v1/amenities/", { authMode: "include" }),
     staleTime: 300_000,
   });
 }
@@ -22,7 +22,7 @@ export function useAmenityCategories() {
   return useQuery({
     queryKey: ["amenity-categories"],
     queryFn: () =>
-      apiClient<string[]>("/api/v1/amenities/categories", { authMode: "omit" }),
+      apiClient<string[]>("/api/v1/amenities/categories", { authMode: "include" }),
     staleTime: 300_000,
   });
 }
@@ -33,7 +33,7 @@ export function usePropertyAmenities(propertyId?: number | null) {
     queryFn: () =>
       apiClient<Amenity[]>(
         `/api/v1/property-amenities/property/${propertyId}`,
-        { authMode: "omit" },
+        { authMode: "include" },
       ),
     enabled: typeof propertyId === "number",
     staleTime: 60_000,
