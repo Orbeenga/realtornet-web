@@ -178,7 +178,7 @@ export function Navbar() {
                   aria-expanded={isAccountMenuOpen}
                   aria-haspopup="menu"
                   onClick={() => setIsAccountMenuOpen((current) => !current)}
-                  className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 ring-1 ring-gray-200 transition hover:ring-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:ring-gray-700"
+                  className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                 >
                   <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                     {avatarUrl ? (
