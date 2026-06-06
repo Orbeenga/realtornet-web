@@ -589,7 +589,7 @@ export function AgentListingsManagerClient() {
       ) : null}
 
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
+        <DialogContent finalFocus={false}>
           <DialogHeader>
             <DialogTitle>Reject listing</DialogTitle>
             <DialogDescription>

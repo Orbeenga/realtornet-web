@@ -1229,7 +1229,7 @@ export function AgencyOwnerDashboardClient() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent finalFocus={false}>
           <DialogHeader>
             <DialogTitle>
               {pendingMembershipDecision
