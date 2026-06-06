@@ -64,16 +64,24 @@ export function EditListingClient({ id }: EditListingClientProps) {
     [propertyQuery.data],
   );
 
+  const isPropertyOwner =
+    propertyQuery.data?.user_id === profileQuery.data?.user_id;
+  const isSameAgency =
+    gate.isAgencyOwner &&
+    profileQuery.data?.agency_id != null &&
+    propertyQuery.data?.agency_id === profileQuery.data.agency_id;
+  const canEdit = isPropertyOwner || isSameAgency;
+
   useEffect(() => {
     if (
       gate.isAllowed &&
       profileQuery.data &&
       propertyQuery.data &&
-      propertyQuery.data.user_id !== profileQuery.data.user_id
+      !canEdit
     ) {
       router.replace("/account/listings");
     }
-  }, [gate.isAllowed, profileQuery.data, propertyQuery.data, router]);
+  }, [gate.isAllowed, profileQuery.data, propertyQuery.data, canEdit, router]);
 
   useEffect(() => {
     if (searchParams.get("created") !== "true") {
@@ -121,7 +129,7 @@ export function EditListingClient({ id }: EditListingClientProps) {
     );
   }
 
-  if (propertyQuery.data.user_id !== profileQuery.data.user_id) {
+  if (!canEdit) {
     return null;
   }
 
