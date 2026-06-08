@@ -118,7 +118,7 @@ const AGENT_TABS: Array<{
     statuses: [MODERATION_STATUS.agencyRejected, MODERATION_STATUS.adminRejected],
   },
   { value: "live", label: "Live", statuses: [MODERATION_STATUS.live] },
-  { value: "agencyInventory", label: "Agency Inventory", statuses: null },
+  { value: "agencyInventory", label: "Agency Inventory", statuses: [MODERATION_STATUS.live] },
   { value: "marketplace", label: "Public Marketplace", statuses: [MODERATION_STATUS.live] },
 ];
 
