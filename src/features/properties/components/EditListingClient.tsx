@@ -37,7 +37,7 @@ export function EditListingClient({ id }: EditListingClientProps) {
   );
   const gate = useAgentRoleGate();
   const profileQuery = useUserProfile(gate.isAllowed);
-  const propertyQuery = usePropertyDetail(id, gate.isAllowed);
+  const propertyQuery = usePropertyDetail(id, gate.isAllowed, "include");
   const updateProperty = useUpdateProperty();
   const initialValues = useMemo(
     () =>
