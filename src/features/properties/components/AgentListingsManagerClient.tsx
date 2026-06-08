@@ -128,7 +128,7 @@ const AGENCY_OWNER_TABS: Array<{
   statuses: ModerationStatus[] | null;
 }> = [
   { value: "drafts", label: "Drafts", statuses: [MODERATION_STATUS.draft] },
-  { value: "agencyQueue", label: "Agency Queue", statuses: [MODERATION_STATUS.agencyReview] },
+  { value: "agencyQueue", label: "Pending Agency", statuses: [MODERATION_STATUS.agencyReview] },
   { value: "pendingAdmin", label: "Pending Admin", statuses: [MODERATION_STATUS.adminReview] },
   {
     value: "rejected",
