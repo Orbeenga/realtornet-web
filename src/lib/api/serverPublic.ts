@@ -7,11 +7,7 @@ function normalizeApiPath(path: string) {
 
   const [, pathname, suffix] = match;
 
-  if (!pathname || pathname.endsWith("/")) {
-    return path;
-  }
-
-  return `${pathname}/${suffix}`;
+  return `${pathname}${suffix}`;
 }
 
 function buildServerApiUrl(path: string) {
