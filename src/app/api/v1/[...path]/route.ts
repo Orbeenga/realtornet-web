@@ -5,9 +5,10 @@ export const dynamic = "force-dynamic";
 const backendOrigin = (process.env.API_URL ?? "http://localhost:8000")
   .replace(/^http:\/\//, "https://")
   .replace(/\/$/, "");
+const backendHost = new URL(backendOrigin).host;
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
-  const url = new URL(`/api/v1/${path.join("/")}`, backendOrigin);
+  const url = new URL(`/api/v1/${path.join("/")}/`, backendOrigin);
   url.search = request.nextUrl.search;
   return url;
 }
@@ -32,19 +33,37 @@ async function proxyRequest(
       ? undefined
       : new Uint8Array(await request.arrayBuffer());
 
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers: buildHeaders(request),
-    body: requestBody,
-    cache: "no-store",
-  });
+  const sendRequest = (url: URL) =>
+    fetch(url, {
+      method: request.method,
+      headers: buildHeaders(request),
+      body: requestBody,
+      redirect: "manual",
+      cache: "no-store",
+    });
+
+  let response = await sendRequest(targetUrl);
+
+  for (let i = 0; i < 5; i++) {
+    if (response.status !== 0) {
+      break;
+    }
+
+    const nextUrl = new URL(response.url);
+
+    if (nextUrl.host === backendHost) {
+      nextUrl.protocol = "https:";
+    }
+
+    response = await sendRequest(nextUrl);
+  }
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
 
   return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
+    status: response.status === 0 ? 502 : response.status,
+    statusText: response.status === 0 ? "Bad Gateway" : response.statusText,
     headers,
   });
 }
