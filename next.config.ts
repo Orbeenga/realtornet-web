@@ -9,9 +9,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
-  // Keep the trailing slash so Vercel serves the same canonical route shape
-  // the API proxy and earlier Lighthouse baselines were measured against.
-  trailingSlash: true,
+  trailingSlash: false,
   compress: false,
   typescript: {
     ignoreBuildErrors: true,
