@@ -10,7 +10,7 @@ const navLinks = [
 const legalLinks = [
   { label: "MIT License", href: "https://opensource.org/licenses/MIT" },
   { label: "Privacy Policy", href: "/privacy" },
-  { label: "Terms of Service", href: "/terms" },
+  { label: "Terms of Service", href: "#" },
 ];
 
 export function Footer() {
