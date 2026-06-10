@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 const backendOrigin = (process.env.API_URL ?? "http://localhost:8000")
   .replace(/^http:\/\//, "https://")
   .replace(/\/$/, "");
-const backendHost = new URL(backendOrigin).host;
+const backendBaseUrl = new URL(backendOrigin);
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
   const url = new URL(`/api/v1/${path.join("/")}/`, backendOrigin);
@@ -20,6 +20,21 @@ function buildHeaders(request: NextRequest) {
   headers.delete("content-length");
 
   return headers;
+}
+
+function normalizeRedirectLocation(location: string, requestUrl: URL) {
+  try {
+    const target = new URL(location, requestUrl);
+
+    if (target.host === backendBaseUrl.host) {
+      target.protocol = backendBaseUrl.protocol;
+      return target;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 async function proxyRequest(
@@ -44,26 +59,33 @@ async function proxyRequest(
 
   let response = await sendRequest(targetUrl);
 
-  for (let i = 0; i < 5; i++) {
-    if (response.status !== 0) {
+  for (let redirectCount = 0; redirectCount < 3; redirectCount += 1) {
+    if (response.status < 300 || response.status >= 400) {
       break;
     }
 
-    const nextUrl = new URL(response.url);
+    const location = response.headers.get("location");
 
-    if (nextUrl.host === backendHost) {
-      nextUrl.protocol = "https:";
+    if (!location) {
+      break;
     }
 
-    response = await sendRequest(nextUrl);
+    const normalizedLocation = normalizeRedirectLocation(location, targetUrl);
+
+    if (!normalizedLocation) {
+      break;
+    }
+
+    response = await sendRequest(normalizedLocation);
   }
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
+  headers.delete("location");
 
   return new Response(response.body, {
-    status: response.status === 0 ? 502 : response.status,
-    statusText: response.status === 0 ? "Bad Gateway" : response.statusText,
+    status: response.status,
+    statusText: response.statusText,
     headers,
   });
 }
