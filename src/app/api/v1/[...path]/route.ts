@@ -60,6 +60,17 @@ async function proxyRequest(
   let response = await sendRequest(targetUrl);
 
   for (let redirectCount = 0; redirectCount < 3; redirectCount += 1) {
+    if (response.status === 0) {
+      const nextUrl = new URL(response.url);
+
+      if (nextUrl.host === backendBaseUrl.host) {
+        nextUrl.protocol = backendBaseUrl.protocol;
+      }
+
+      response = await sendRequest(nextUrl);
+      continue;
+    }
+
     if (response.status < 300 || response.status >= 400) {
       break;
     }
@@ -84,8 +95,8 @@ async function proxyRequest(
   headers.delete("location");
 
   return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
+    status: response.status === 0 ? 502 : response.status,
+    statusText: response.status === 0 ? "Bad Gateway" : response.statusText,
     headers,
   });
 }
