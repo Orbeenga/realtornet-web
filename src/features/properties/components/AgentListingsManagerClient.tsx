@@ -714,6 +714,11 @@ function ListingRow({
                 {moderationStatusLabel[property.moderation_status]}
               </Badge>
               <span>{property.listing_type}</span>
+              {property.agency_name ? (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  {property.agency_name}
+                </span>
+              ) : null}
             </div>
             {showPendingNote ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
