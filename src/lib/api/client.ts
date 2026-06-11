@@ -214,7 +214,8 @@ export async function apiClient<T>(
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: "Unknown error" }));
+    const textBody = await res.text().catch(() => null);
+    const body = textBody ? (() => { try { return JSON.parse(textBody); } catch { return { detail: textBody }; } })() : { detail: "An unexpected error occurred" };
     const detail = getErrorDetail(body);
 
     if (
