@@ -13,7 +13,11 @@ function buildBackendUrl(request: NextRequest, path: string[]) {
 }
 
 function buildHeaders(request: NextRequest) {
-  const headers = new Headers(request.headers);
+  const headers = new Headers();
+
+  request.headers.forEach((value, key) => {
+    headers.set(key, value);
+  });
 
   headers.delete("host");
   headers.delete("content-length");
