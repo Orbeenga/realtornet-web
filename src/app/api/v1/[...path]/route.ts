@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 const backendOrigin = (process.env.API_URL ?? "http://localhost:8000")
   .replace(/^http:\/\//, "https://")
   .replace(/\/$/, "");
-const backendBaseUrl = new URL(backendOrigin);
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
   const url = new URL(`/api/v1/${path.join("/")}/`, backendOrigin);
@@ -22,71 +21,34 @@ function buildHeaders(request: NextRequest) {
   return headers;
 }
 
-function normalizeRedirectLocation(location: string, requestUrl: URL) {
-  try {
-    const target = new URL(location, requestUrl);
-
-    if (target.host === backendBaseUrl.host) {
-      target.protocol = backendBaseUrl.protocol;
-      return target;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 async function proxyRequest(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await context.params;
-  const targetUrl = buildBackendUrl(request, path);
+  const backendUrl = buildBackendUrl(request, path);
   const requestBody =
     request.method === "GET" || request.method === "HEAD"
       ? undefined
       : new Uint8Array(await request.arrayBuffer());
 
-  const sendRequest = (url: URL) =>
-    fetch(url, {
-      method: request.method,
-      headers: buildHeaders(request),
-      body: requestBody,
-      redirect: "manual",
-      cache: "no-store",
-    });
+  const requestHeaders = buildHeaders(request);
 
-  let response = await sendRequest(targetUrl);
+  const response = await fetch(backendUrl, {
+    method: request.method,
+    headers: requestHeaders,
+    body: requestBody,
+    redirect: "follow",
+  });
 
-  for (let redirectCount = 0; redirectCount < 3; redirectCount += 1) {
-    if (response.status < 300 || response.status >= 400) {
-      break;
-    }
-
-    const location = response.headers.get("location");
-
-    if (!location) {
-      break;
-    }
-
-    const normalizedLocation = normalizeRedirectLocation(location, targetUrl);
-
-    if (!normalizedLocation) {
-      break;
-    }
-
-    response = await sendRequest(normalizedLocation);
-  }
-
-  const headers = new Headers(response.headers);
-  headers.delete("content-length");
-  headers.delete("location");
+  const responseHeaders = new Headers(response.headers);
+  responseHeaders.delete("content-encoding");
+  responseHeaders.delete("transfer-encoding");
 
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers,
+    headers: responseHeaders,
   });
 }
 
