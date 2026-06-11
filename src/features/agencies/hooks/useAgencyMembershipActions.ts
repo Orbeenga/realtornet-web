@@ -28,7 +28,7 @@ function useAgencyMembershipAction(
   return useMutation({
     mutationFn: ({ membershipId, payload }: MembershipMutationVariables) =>
       apiClient<AgencyAgentMembershipResponse>(
-        `/api/v1/agencies/${agencyId}/agents/${membershipId}/${action}/`,
+        `/api/v1/agencies/${agencyId}/agents/${membershipId}/${action}`,
         {
           method: "PATCH",
           body: JSON.stringify(payload),
@@ -82,7 +82,7 @@ export function useCreateAgencyReviewRequest() {
   return useMutation({
     mutationFn: ({ agencyId, payload }: ReviewRequestVariables) =>
       apiClient<AgencyReviewRequestResponse>(
-        `/api/v1/agencies/${agencyId}/review-requests/`,
+        `/api/v1/agencies/${agencyId}/review-requests`,
         {
           method: "POST",
           body: JSON.stringify(payload),
@@ -106,7 +106,7 @@ export function useAgencyReviewRequests(
     queryKey: ["agencyReviewRequests", agencyId],
     queryFn: () =>
       apiClient<AgencyReviewRequestResponse[]>(
-        `/api/v1/agencies/${agencyId}/review-requests/`,
+        `/api/v1/agencies/${agencyId}/review-requests`,
       ),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId),
@@ -128,7 +128,7 @@ function useAgencyReviewRequestDecision(
       payload: AgencyReviewRequestDecisionRequest;
     }) =>
       apiClient<AgencyReviewRequestResponse>(
-        `/api/v1/agencies/${agencyId}/review-requests/${requestId}/${action}/`,
+        `/api/v1/agencies/${agencyId}/review-requests/${requestId}/${action}`,
         {
           method: "PATCH",
           body: JSON.stringify(payload),
@@ -165,7 +165,7 @@ export function useMembershipHistory(enabled = true) {
   return useQuery({
     queryKey: ["membershipHistory", "me"],
     queryFn: () =>
-      apiClient<AgentMembershipAudit[]>("/api/v1/users/me/membership-history/"),
+      apiClient<AgentMembershipAudit[]>("/api/v1/users/me/membership-history"),
     staleTime: 30_000,
     enabled,
   });
@@ -180,7 +180,7 @@ export function useAgencyMemberHistory(
     queryKey: ["agencyMemberHistory", agencyId, userId],
     queryFn: () =>
       apiClient<AgentMembershipAudit[]>(
-        `/api/v1/agencies/${agencyId}/member-history/${userId}/`,
+        `/api/v1/agencies/${agencyId}/member-history/${userId}`,
       ),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId) && Boolean(userId),
@@ -199,7 +199,7 @@ export function useLeaveAgencyMembership() {
       reason?: string | null;
     }) =>
       apiClient<MyAgencyMembershipResponse>(
-        `/api/v1/agency-memberships/${membershipId}/leave/`,
+        `/api/v1/agency-memberships/${membershipId}/leave`,
         {
           method: "PATCH",
           body: JSON.stringify({ reason: reason ?? null }),
@@ -230,7 +230,7 @@ export function useMyAgencyMemberships(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyMemberships"],
     queryFn: () =>
-      apiClient<MyAgencyMembershipResponse[]>("/api/v1/agency-memberships/mine/"),
+      apiClient<MyAgencyMembershipResponse[]>("/api/v1/agency-memberships/mine"),
     staleTime: 30_000,
     enabled,
   });

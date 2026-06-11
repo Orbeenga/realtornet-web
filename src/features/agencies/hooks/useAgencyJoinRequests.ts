@@ -18,7 +18,7 @@ export function useCreateAgencyJoinRequest(agencyId: string | number) {
   return useMutation({
     mutationFn: (payload: AgencyJoinRequestCreate) =>
       apiClient<AgencyJoinRequestResponse>(
-        `/api/v1/agencies/${agencyId}/join-request/`,
+        `/api/v1/agencies/${agencyId}/join-request`,
         {
           method: "POST",
           body: JSON.stringify(payload),
@@ -38,7 +38,7 @@ export function useAgencyJoinRequests(
     queryKey: ["agencyJoinRequests", agencyId, "all"],
     queryFn: () =>
       apiClient<AgencyJoinRequestResponse[]>(
-        `/api/v1/agencies/${agencyId}/join-requests/?status=all&limit=100`,
+        `/api/v1/agencies/${agencyId}/join-requests?status=all&limit=100`,
       ),
     staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
@@ -51,7 +51,7 @@ export function useApproveAgencyJoinRequest(agencyId?: string | number | null) {
   return useMutation({
     mutationFn: (requestId: number) =>
       apiClient<AgencyJoinRequestResponse>(
-        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/approve/`,
+        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/approve`,
         { method: "PATCH" },
       ),
     onSuccess: async (_data, requestId) => {
@@ -84,7 +84,7 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
       payload: AgencyJoinRequestRejectRequest;
     }) =>
       apiClient<AgencyJoinRequestResponse>(
-        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/reject/`,
+        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/reject`,
         {
           method: "PATCH",
           body: JSON.stringify(payload),
@@ -113,7 +113,7 @@ export function useInviteAgencyAgent(agencyId?: string | number | null) {
 
   return useMutation({
     mutationFn: (payload: AgencyInviteCreate) =>
-      apiClient<AgencyInviteResponse>(`/api/v1/agencies/${agencyId}/invite/`, {
+      apiClient<AgencyInviteResponse>(`/api/v1/agencies/${agencyId}/invite`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -128,7 +128,7 @@ export function useAcceptAgencyInvite() {
 
   return useMutation({
     mutationFn: (payload: AgencyInviteAcceptRequest) =>
-      apiClient<AgencyInviteAcceptResponse>("/api/v1/agencies/accept-invite/", {
+      apiClient<AgencyInviteAcceptResponse>("/api/v1/agencies/accept-invite", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -145,7 +145,7 @@ export function useMyAgencyJoinRequests(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyJoinRequests"],
     queryFn: () =>
-      apiClient<MyAgencyJoinRequestResponse[]>("/api/v1/join-requests/mine/"),
+      apiClient<MyAgencyJoinRequestResponse[]>("/api/v1/join-requests/mine"),
     staleTime: 60_000,
     enabled,
   });
@@ -159,7 +159,7 @@ export function useAgencyInvitations(
     queryKey: ["agencyInvitations", agencyId],
     queryFn: () =>
       apiClient<AgencyInvitationResponse[]>(
-        `/api/v1/agencies/${agencyId}/invitations/?limit=100`,
+        `/api/v1/agencies/${agencyId}/invitations?limit=100`,
       ),
     staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
@@ -170,7 +170,7 @@ export function useMyAgencyInvitations(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyInvitations"],
     queryFn: () =>
-      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/"),
+      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine"),
     staleTime: 60_000,
     enabled,
   });
@@ -182,7 +182,7 @@ export function useAcceptAgencyInvitation() {
   return useMutation({
     mutationFn: (invitationId: number) =>
       apiClient<AgencyInviteAcceptResponse>(
-        `/api/v1/agency-invitations/${invitationId}/accept/`,
+        `/api/v1/agency-invitations/${invitationId}/accept`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {
@@ -202,7 +202,7 @@ export function useRejectAgencyInvitation() {
   return useMutation({
     mutationFn: (invitationId: number) =>
       apiClient<AgencyInvitationResponse>(
-        `/api/v1/agency-invitations/${invitationId}/reject/`,
+        `/api/v1/agency-invitations/${invitationId}/reject`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {
