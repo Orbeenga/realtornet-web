@@ -38,18 +38,19 @@ async function proxyRequest(
 
   const requestHeaders = buildHeaders(request);
 
-  let response = await fetch(backendUrl, {
+  const response = await fetch(backendUrl, {
     method: request.method,
     headers: requestHeaders,
     body: requestBody,
     redirect: "manual",
   });
 
+  let finalResponse = response;
   if (response.status === 307 || response.status === 308) {
     const location = response.headers.get("location");
     if (location) {
-      const redirectUrl = new URL(location, backendUrl);
-      response = await fetch(redirectUrl, {
+      const redirectUrl = location.replace(/^http:\/\//, "https://");
+      finalResponse = await fetch(redirectUrl, {
         method: request.method,
         headers: requestHeaders,
         body: requestBody,
@@ -58,13 +59,14 @@ async function proxyRequest(
     }
   }
 
-  const responseHeaders = new Headers(response.headers);
+  const responseHeaders = new Headers(finalResponse.headers);
   responseHeaders.delete("content-encoding");
   responseHeaders.delete("transfer-encoding");
+  responseHeaders.delete("location");
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
+  return new Response(finalResponse.body, {
+    status: finalResponse.status,
+    statusText: finalResponse.statusText,
     headers: responseHeaders,
   });
 }
