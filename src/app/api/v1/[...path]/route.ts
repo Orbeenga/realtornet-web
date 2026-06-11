@@ -38,12 +38,25 @@ async function proxyRequest(
 
   const requestHeaders = buildHeaders(request);
 
-  const response = await fetch(backendUrl, {
+  let response = await fetch(backendUrl, {
     method: request.method,
     headers: requestHeaders,
     body: requestBody,
-    redirect: "follow",
+    redirect: "manual",
   });
+
+  if (response.status === 307 || response.status === 308) {
+    const location = response.headers.get("location");
+    if (location) {
+      const redirectUrl = new URL(location, backendUrl);
+      response = await fetch(redirectUrl, {
+        method: request.method,
+        headers: requestHeaders,
+        body: requestBody,
+        redirect: "manual",
+      });
+    }
+  }
 
   const responseHeaders = new Headers(response.headers);
   responseHeaders.delete("content-encoding");
