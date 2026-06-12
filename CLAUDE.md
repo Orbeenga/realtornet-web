@@ -24,6 +24,7 @@
 - Production Supabase project: `fobvnshrqxduuhzgflvd`.
 - Dev Supabase project: `umhtnqxdvffpifqbdtjs`; do not use for production work.
 - Railway production service must run with `ENV=production`.
+- **Phase M frontend locked state**: Frontend HEAD `2743550`; `trailingSlash: false` in `next.config.ts` — locked; proxy (`src/app/api/v1/[...path]/route.ts`) — redirect:manual, server-side follow with HTTPS normalization, location header stripped — locked; `normalizeApiPath` in `client.ts` is a no-op — do not restore trailing-slash behavior; `Cache-Control: no-transform` middleware on FastAPI resolves Vercel proxy content-encoding failures — locked; Silent JWT refresh on 401 in `apiClient.ts` — locked; agency owner session stability restored — join-requests, invitations, review-requests call sites use no trailing slash; `/privacy` and `/terms` stubbed; Phase M dashboard tabs live: agent (6 tabs), agency owner (6 tabs), admin (5 tabs); Known frontend Phase N gaps: agent name tags on creator-aware tabs (blocked on `owner_display_name` propagation), agency listing count on public cards.
 
 ## Locked architecture decisions
 - Agency-first public hierarchy is locked: Agencies -> Listings -> Agents.
