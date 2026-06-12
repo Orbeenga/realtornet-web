@@ -5525,6 +5525,8 @@ export interface components {
             agency_id?: number | null;
             /** Agency Name */
             agency_name?: string | null;
+            /** Owner Display Name */
+            owner_display_name?: string | null;
             /** Is Featured */
             is_featured: boolean;
             listing_status: components["schemas"]["ListingStatus-Output"];
