@@ -2130,7 +2130,10 @@ export interface paths {
         head?: never;
         /**
          * Recall Property From Admin Review
-         * @description Agency owner recalls a listing from admin review (admin_review → agency_review).
+         * @description Agency owner recalls a listing from admin review.
+         *
+         *     - Own listing: admin_review → draft (bypass agency_review)
+         *     - Agent's listing: admin_review → agency_review
          */
         patch: operations["recall_property_from_admin_review_api_v1_properties__property_id__recall_patch"];
         trace?: never;
