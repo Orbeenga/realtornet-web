@@ -11,11 +11,13 @@ export function useAgencyApproveProperty() {
         method: "PATCH",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"] });
-      queryClient.invalidateQueries({ queryKey: ["agentListings"] });
-      queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
-      queryClient.invalidateQueries({ queryKey: ["properties"] });
-      queryClient.invalidateQueries({ queryKey: ["adminProperties"] });
+      const opts = { refetchType: "all" as const };
+      queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agentListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["ownerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["properties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
     },
   });
 }

@@ -32,9 +32,11 @@ export function useCreateProperty() {
           return [property, ...current.filter((item) => item.property_id !== property.property_id)];
         },
       );
-      queryClient.invalidateQueries({ queryKey: ["properties"] });
-      queryClient.invalidateQueries({ queryKey: ["agentListings"] });
-      queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
+      queryClient.invalidateQueries({ queryKey: ["properties"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["agentListings"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["ownerListings"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["featuredProperties"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["adminProperties"], refetchType: "all" });
     },
   });
 }

@@ -45,6 +45,16 @@ export const moderationStatusBadgeVariant: Record<
   [MODERATION_STATUS.rejected]: "danger",
 };
 
+export const AGENCY_NAME_STATES: ModerationStatus[] = [
+  "admin_review",
+  "admin_rejected",
+  "live",
+  "revoked",
+];
+
+export const shouldShowAgencyName = (status: ModerationStatus) =>
+  AGENCY_NAME_STATES.includes(status);
+
 export function isVerifiedModerationStatus(status: ModerationStatus) {
   return status === MODERATION_STATUS.live || status === MODERATION_STATUS.verified;
 }

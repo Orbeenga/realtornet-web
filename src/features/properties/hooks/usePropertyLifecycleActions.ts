@@ -15,12 +15,17 @@ function useLifecycleMutation<TInput>(
   return useMutation({
     mutationFn,
     onSuccess: (property) => {
-      queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"] });
-      queryClient.invalidateQueries({ queryKey: ["agentListings"] });
-      queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
-      queryClient.invalidateQueries({ queryKey: ["properties"] });
-      queryClient.invalidateQueries({ queryKey: ["adminProperties"] });
-      queryClient.invalidateQueries({ queryKey: ["property", property.property_id] });
+      // Invalidate all actor perspectives referencing the same listing pool.
+      // Use refetchType: "all" so that inactive cached queries (e.g. an agent's
+      // cached tab data not currently mounted) are refetched immediately.
+      const opts = { refetchType: "all" as const };
+      queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agentListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["ownerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["properties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["property", property.property_id], ...opts });
     },
   });
 }

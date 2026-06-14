@@ -120,13 +120,13 @@ export function useVerifyProperty() {
       });
     },
     onSettled: (_data, _error, { propertyId }) => {
-      // Refresh both moderation and public-facing queries so the dashboard
-      // badge and /properties visibility stay aligned after moderation.
-      queryClient.invalidateQueries({ queryKey: ["adminProperties"] });
-      queryClient.invalidateQueries({ queryKey: ["properties"] });
-      queryClient.invalidateQueries({ queryKey: ["agentListings"] });
-      queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
-      queryClient.invalidateQueries({ queryKey: ["property", propertyId] });
+      const opts = { refetchType: "all" as const };
+      queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["properties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agentListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["ownerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["property", propertyId], ...opts });
     },
   });
 }
