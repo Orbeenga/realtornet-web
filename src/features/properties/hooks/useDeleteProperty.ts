@@ -10,9 +10,13 @@ export function useDeleteProperty() {
         method: "DELETE",
       }),
     onSuccess: (_data, propertyId) => {
-      queryClient.invalidateQueries({ queryKey: ["properties"] });
-      queryClient.invalidateQueries({ queryKey: ["agentListings"] });
-      queryClient.invalidateQueries({ queryKey: ["ownerListings"] });
+      const opts = { refetchType: "all" as const };
+      queryClient.invalidateQueries({ queryKey: ["properties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agentListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["ownerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"], ...opts });
       queryClient.removeQueries({ queryKey: ["property", propertyId] });
     },
   });
