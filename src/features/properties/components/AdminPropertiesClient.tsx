@@ -8,6 +8,8 @@ import {
   useAdminApproveProperty,
   useAdminProperties,
   useAdminRejectProperty,
+  useAdminRevocationHistory,
+  useAdminRejectionHistory,
   useListingEvents,
   useReinstateProperty,
   useRestoreProperty,
@@ -15,6 +17,8 @@ import {
 } from "@/features/properties/hooks";
 import {
   MODERATION_STATUS,
+  getAdminRevocationCta,
+  getAdminRejectionCta,
   moderationStatusBadgeVariant,
   moderationStatusLabel,
 } from "@/features/properties/lib/moderation";
@@ -116,6 +120,8 @@ interface PropertyModerationCardProps {
   onRevoke: () => void;
   onReinstate: () => void;
   onRestore: () => void;
+  derivedCta?: { label: string; action: string | null } | null;
+  onRejectPermanent?: () => void;
 }
 
 function PropertyModerationCard({
@@ -128,6 +134,8 @@ function PropertyModerationCard({
   onRevoke,
   onReinstate,
   onRestore,
+  derivedCta,
+  onRejectPermanent,
 }: PropertyModerationCardProps) {
   const [showHistory, setShowHistory] = useState(false);
   const status = property.moderation_status;
@@ -135,7 +143,6 @@ function PropertyModerationCard({
   const isLive = status === MODERATION_STATUS.live;
   const isAdminRejected = status === MODERATION_STATUS.adminRejected;
   const isRevoked = status === MODERATION_STATUS.revoked;
-
   return (
     <Card>
       <CardBody className="space-y-4">
@@ -166,56 +173,90 @@ function PropertyModerationCard({
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
-            {isAdminReview ? (
+            {derivedCta ? (
+              derivedCta.action ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  loading={isActing}
+                  onClick={
+                    derivedCta.action === 'restore' ? onRestore :
+                    derivedCta.action === 'reinstate' ? onReinstate :
+                    undefined
+                  }
+                >
+                  {derivedCta.label}
+                </Button>
+              ) : (
+                <span className="inline-flex h-7 items-center rounded-lg bg-gray-100 px-2.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  {derivedCta.label}
+                </span>
+              )
+            ) : (
               <>
-                <Button
-                  type="button"
-                  size="sm"
-                  loading={isActing}
-                  onClick={onVerify}
-                >
-                  Verify
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  loading={isActing}
-                  onClick={onReject}
-                >
-                  Reject
-                </Button>
+                {isAdminReview ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      loading={isActing}
+                      onClick={onVerify}
+                    >
+                      Verify
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      loading={isActing}
+                      onClick={onReject}
+                    >
+                      Reject
+                    </Button>
+                  </>
+                ) : null}
+                {isLive ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    loading={isActing}
+                    onClick={onRevoke}
+                  >
+                    Revoke
+                  </Button>
+                ) : null}
+                {isAdminRejected ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    loading={isActing}
+                    onClick={onReinstate}
+                  >
+                    Reinstate
+                  </Button>
+                ) : null}
+                {isRevoked ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    loading={isActing}
+                    onClick={onRestore}
+                  >
+                    Restore
+                  </Button>
+                ) : null}
               </>
-            ) : null}
-            {isLive ? (
+            )}
+            {isRevoked && onRejectPermanent ? (
               <Button
                 type="button"
                 size="sm"
                 variant="destructive"
                 loading={isActing}
-                onClick={onRevoke}
+                onClick={onRejectPermanent}
               >
-                Revoke
-              </Button>
-            ) : null}
-            {isAdminRejected ? (
-              <Button
-                type="button"
-                size="sm"
-                loading={isActing}
-                onClick={onReinstate}
-              >
-                Reinstate
-              </Button>
-            ) : null}
-            {isRevoked ? (
-              <Button
-                type="button"
-                size="sm"
-                loading={isActing}
-                onClick={onRestore}
-              >
-                Restore
+                Reject permanently
               </Button>
             ) : null}
           </div>
@@ -295,7 +336,16 @@ export function AdminPropertiesClient() {
   const gate = useAdminRoleGate();
   const [activeTab, setActiveTab] = useState<ModerationTab>(MODERATION_STATUS.adminReview);
   const moderationStatusFilter = activeTab === "all" ? null : activeTab;
-  const adminPropertiesQuery = useAdminProperties(gate.isAllowed, moderationStatusFilter);
+  const adminPropertiesQuery = useAdminProperties(
+    gate.isAllowed && activeTab !== MODERATION_STATUS.revoked && activeTab !== MODERATION_STATUS.adminRejected,
+    moderationStatusFilter,
+  );
+  const revocationHistoryQuery = useAdminRevocationHistory(
+    gate.isAllowed && activeTab === MODERATION_STATUS.revoked,
+  );
+  const rejectionHistoryQuery = useAdminRejectionHistory(
+    gate.isAllowed && activeTab === MODERATION_STATUS.adminRejected,
+  );
   const adminApproveProperty = useAdminApproveProperty();
   const adminRejectProperty = useAdminRejectProperty();
   const revokeProperty = useRevokeProperty();
@@ -303,25 +353,32 @@ export function AdminPropertiesClient() {
   const restoreProperty = useRestoreProperty();
   const [reasons, setReasons] = useState<Record<number, string>>({});
 
+  const isHistoricalTab = activeTab === MODERATION_STATUS.revoked || activeTab === MODERATION_STATUS.adminRejected;
+  const activeQuery = isHistoricalTab
+    ? activeTab === MODERATION_STATUS.revoked
+      ? revocationHistoryQuery
+      : rejectionHistoryQuery
+    : adminPropertiesQuery;
+
   if (gate.isChecking || !gate.isAllowed) {
     return <LoadingState />;
   }
 
-  if (adminPropertiesQuery.isLoading) {
+  if (activeQuery.isLoading) {
     return <LoadingState />;
   }
 
-  if (adminPropertiesQuery.isError) {
+  if (activeQuery.isError) {
     return (
       <ErrorState
         title="Could not load properties"
         message="There was a problem loading the property moderation queue."
-        onRetry={() => void adminPropertiesQuery.refetch()}
+        onRetry={() => void activeQuery.refetch()}
       />
     );
   }
 
-  const activeProperties = adminPropertiesQuery.data ?? [];
+  const activeProperties = activeQuery.data ?? [];
 
   const setReason = (propertyId: number, value: string) => {
     setReasons((prev) => ({ ...prev, [propertyId]: value }));
@@ -457,31 +514,42 @@ export function AdminPropertiesClient() {
           />
         ) : (
           <div className="space-y-4">
-            {activeProperties.map((property) => (
-              <PropertyModerationCard
-                key={property.property_id}
-                property={property}
-                reason={reasons[property.property_id] ?? ""}
-                onReasonChange={(value) => setReason(property.property_id, value)}
-                isActing={
-                  (adminApproveProperty.isPending &&
-                    adminApproveProperty.variables === property.property_id) ||
-                  (adminRejectProperty.isPending &&
-                    adminRejectProperty.variables?.propertyId === property.property_id) ||
-                  (revokeProperty.isPending &&
-                    revokeProperty.variables?.propertyId === property.property_id) ||
-                  (reinstateProperty.isPending &&
-                    reinstateProperty.variables === property.property_id) ||
-                  (restoreProperty.isPending &&
-                    restoreProperty.variables === property.property_id)
-                }
-                onVerify={() => void handleVerify(property.property_id)}
-                onReject={() => void handleReject(property.property_id)}
-                onRevoke={() => void handleRevoke(property.property_id)}
-                onReinstate={() => void handleReinstate(property.property_id)}
-                onRestore={() => void handleRestore(property.property_id)}
-              />
-            ))}
+            {activeProperties.map((property) => {
+              const derivedCta =
+                activeTab === MODERATION_STATUS.revoked
+                  ? getAdminRevocationCta(property.moderation_status, property.has_instruction)
+                  : activeTab === MODERATION_STATUS.adminRejected
+                    ? getAdminRejectionCta(property.moderation_status, property.has_instruction)
+                    : null;
+
+              return (
+                <PropertyModerationCard
+                  key={property.property_id}
+                  property={property}
+                  reason={reasons[property.property_id] ?? ""}
+                  onReasonChange={(value) => setReason(property.property_id, value)}
+                  isActing={
+                    (adminApproveProperty.isPending &&
+                      adminApproveProperty.variables === property.property_id) ||
+                    (adminRejectProperty.isPending &&
+                      adminRejectProperty.variables?.propertyId === property.property_id) ||
+                    (revokeProperty.isPending &&
+                      revokeProperty.variables?.propertyId === property.property_id) ||
+                    (reinstateProperty.isPending &&
+                      reinstateProperty.variables === property.property_id) ||
+                    (restoreProperty.isPending &&
+                      restoreProperty.variables === property.property_id)
+                  }
+                  onVerify={() => void handleVerify(property.property_id)}
+                  onReject={() => void handleReject(property.property_id)}
+                  onRevoke={() => void handleRevoke(property.property_id)}
+                  onReinstate={() => void handleReinstate(property.property_id)}
+                  onRestore={() => void handleRestore(property.property_id)}
+                  derivedCta={derivedCta}
+                  onRejectPermanent={undefined}
+                />
+              );
+            })}
           </div>
         )}
       </section>

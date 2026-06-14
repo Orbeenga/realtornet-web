@@ -23,7 +23,7 @@ export function useAdminProperties(
 
       return response.items ?? [];
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
     enabled,
   });
 }

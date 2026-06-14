@@ -16,7 +16,7 @@ import {
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
 import { formatPrice } from "@/features/properties/lib/formatPrice";
-import { shouldShowAgencyName } from "@/features/properties/lib/moderation";
+import { resolveListingDisplayName } from "@/lib/listing-display";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -169,19 +169,13 @@ export function PropertyCard({
           <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
             {price}
           </p>
-          {shouldShowAgencyName(property.moderation_status) ? (
-            property.owner_display_name ? (
-              <p className="line-clamp-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                {property.owner_display_name}
-              </p>
-            ) : null
-          ) : (
-            property.created_by ? (
-              <p className="line-clamp-1 text-xs font-medium text-slate-600 dark:text-slate-300">
-                Created by {property.created_by}
-              </p>
-            ) : null
-          )}
+          <p className="line-clamp-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+            {resolveListingDisplayName(
+              property.moderation_status,
+              property.owner_display_name,
+              property.agency_name,
+            )}
+          </p>
           {(() => {
             const loc = property.location_name || locationLabel || null;
             if (!loc) return null;

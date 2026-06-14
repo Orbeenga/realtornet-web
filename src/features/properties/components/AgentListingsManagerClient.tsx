@@ -36,8 +36,10 @@ import {
   useSubmitPropertyForReview,
   useSubmitPropertyToAdmin,
   useWithdrawPropertyFromReview,
+  useInstructAgent,
 } from "@/features/properties/hooks";
 import { notify } from "@/lib/toast";
+import { resolveListingDisplayName } from "@/lib/listing-display";
 import {
   MODERATION_STATUS,
   moderationStatusBadgeVariant,
@@ -98,6 +100,7 @@ type AgencyOwnerListingTab =
   | "agencyQueue"
   | "pendingAdmin"
   | "rejected"
+  | "revoked"
   | "verifiedInventory"
   | "marketplace";
 
@@ -135,6 +138,7 @@ const AGENCY_OWNER_TABS: Array<{
     label: "Rejected",
     statuses: [MODERATION_STATUS.agencyRejected, MODERATION_STATUS.adminRejected],
   },
+  { value: "revoked", label: "Revoked", statuses: [MODERATION_STATUS.revoked] },
   { value: "verifiedInventory", label: "Verified Inventory", statuses: [MODERATION_STATUS.live] },
   { value: "marketplace", label: "Public Marketplace", statuses: [MODERATION_STATUS.live] },
 ];
@@ -160,6 +164,7 @@ export function AgentListingsManagerClient() {
   const withdrawFromReview = useWithdrawPropertyFromReview();
   const resubmitProperty = useResubmitProperty();
   const recallFromAdmin = useRecallPropertyFromAdminReview();
+  const instructAgent = useInstructAgent();
   const gate = useAgentRoleGate();
   const { user } = useAuth();
   const isAgencyOwner = gate.isAgencyOwner;
@@ -168,6 +173,9 @@ export function AgentListingsManagerClient() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectPropertyId, setRejectPropertyId] = useState<number | null>(null);
+  const [instructDialogOpen, setInstructDialogOpen] = useState(false);
+  const [instructPropertyId, setInstructPropertyId] = useState<number | null>(null);
+  const [instructText, setInstructText] = useState("");
   const needsAgentProfile = gate.isAllowed && !gate.isAdmin && !isAgencyOwner;
   const profileQuery = useUserProfile(needsAgentProfile);
   const agentProfileQuery = useAgentProfileByUser(
@@ -369,6 +377,31 @@ export function AgentListingsManagerClient() {
     }
   };
 
+  const handleInstructAgent = async () => {
+    if (!instructText.trim() || instructPropertyId === null) {
+      return;
+    }
+
+    try {
+      await instructAgent.mutateAsync({
+        propertyId: instructPropertyId,
+        instructionText: instructText.trim(),
+      });
+      notify.success("Instruction sent to agent");
+      setInstructDialogOpen(false);
+      setInstructPropertyId(null);
+      setInstructText("");
+    } catch {
+      notify.error("Could not send instruction");
+    }
+  };
+
+  const openInstructDialog = (propertyId: number) => {
+    setInstructPropertyId(propertyId);
+    setInstructText("");
+    setInstructDialogOpen(true);
+  };
+
   const allListings = listingsQuery.data ?? [];
   const activeAgentTab = AGENT_TABS.find((tab) => tab.value === agentTab) ?? AGENT_TABS[0];
   const activeAgencyOwnerTab =
@@ -509,7 +542,11 @@ export function AgentListingsManagerClient() {
             const isAdminReview = status === MODERATION_STATUS.adminReview;
             const isAgencyRejected = status === MODERATION_STATUS.agencyRejected;
             const isAdminRejected = status === MODERATION_STATUS.adminRejected;
+            const isRevoked = status === MODERATION_STATUS.revoked;
             const isLive = status === MODERATION_STATUS.live;
+            const isRevokedOrAdminRejected = isRevoked || isAdminRejected;
+            const isMediated = isRevokedOrAdminRejected && !property.has_instruction;
+            const hasInstruction = !!(isRevokedOrAdminRejected && property.has_instruction);
             const showCreatorTag = isAgencyOwner
               ? agencyOwnerTab === "agencyQueue" ||
                 agencyOwnerTab === "verifiedInventory" ||
@@ -542,8 +579,16 @@ export function AgentListingsManagerClient() {
                     agencyRejectProperty.variables?.propertyId === property.property_id
                   )
                 }
-                canEdit={!gate.isAdmin && (isDraft || isAgencyRejected || isAdminRejected)}
-                canDelete={!gate.isAdmin && (isDraft || isAgencyRejected)}
+                canEdit={
+                  isMediated
+                    ? false
+                    : !gate.isAdmin && (isDraft || isAgencyRejected || hasInstruction || isAdminRejected)
+                }
+                canDelete={
+                  isMediated
+                    ? false
+                    : !gate.isAdmin && (isDraft || isAgencyRejected || hasInstruction)
+                }
                 showPendingNote={!gate.isAdmin && !isAgencyOwner && isAgencyReview}
                 statusHint={
                   isAdminReview
@@ -551,6 +596,11 @@ export function AgentListingsManagerClient() {
                     : isAgencyReview
                       ? "Awaiting agency review"
                       : null
+                }
+                mediationMessage={
+                  isMediated && !isAgencyOwner
+                    ? "Your listing has been reviewed by the platform. Your agency will provide further instructions."
+                    : undefined
                 }
                 onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
                 onDelete={() => void handleDelete(property.property_id)}
@@ -570,9 +620,11 @@ export function AgentListingsManagerClient() {
                     : undefined
                 }
                 onResubmit={
-                  !isAgencyOwner && (isAgencyRejected || isAdminRejected)
+                  hasInstruction && !isAgencyOwner
                     ? () => handleResubmit(property.property_id)
-                    : undefined
+                    : !isAgencyOwner && (isAgencyRejected || isAdminRejected)
+                      ? () => handleResubmit(property.property_id)
+                      : undefined
                 }
                 onRecall={
                   isAgencyOwner && isAdminReview
@@ -588,6 +640,14 @@ export function AgentListingsManagerClient() {
                   isAgencyOwner && isAgencyReview
                     ? () => handleAgencyReject(property.property_id)
                     : undefined
+                }
+                onInstruct={
+                  isAgencyOwner && agencyOwnerTab === "revoked" && isRevoked
+                    ? () => openInstructDialog(property.property_id)
+                    : undefined
+                }
+                instructSending={
+                  !!(instructAgent.isPending && instructPropertyId === property.property_id)
                 }
                 publicHref={isLive ? `/properties/${property.property_id}` : undefined}
               />
@@ -639,6 +699,51 @@ export function AgentListingsManagerClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={instructDialogOpen} onOpenChange={setInstructDialogOpen}>
+        <DialogContent finalFocus={false}>
+          <DialogHeader>
+            <DialogTitle>Instruct agent</DialogTitle>
+            <DialogDescription>
+              Provide instructions for the agent on how to proceed with this listing.
+              The agent will see this text and their CTAs will be unlocked.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label htmlFor="instruct-text" className="text-sm font-medium">
+              Instruction <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="instruct-text"
+              rows={5}
+              value={instructText}
+              onChange={(event) => setInstructText(event.target.value)}
+              placeholder="e.g. Update the description, fix the price, and resubmit."
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            />
+            {!instructText.trim() ? (
+              <p className="text-xs text-red-500">Instruction text is required</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setInstructDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!instructText.trim()}
+              loading={instructAgent.isPending}
+              onClick={() => void handleInstructAgent()}
+            >
+              Send Instruction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -653,6 +758,7 @@ interface ListingRowProps {
   showPendingNote?: boolean;
   statusHint?: string | null;
   showCreatorTag?: boolean;
+  mediationMessage?: string | null;
   onEdit: () => void;
   onDelete: () => void;
   onSubmitForReview?: () => void;
@@ -662,6 +768,8 @@ interface ListingRowProps {
   onRecall?: () => void;
   onAgencyApprove?: () => void;
   onAgencyReject?: () => void;
+  onInstruct?: () => void;
+  instructSending?: boolean;
   publicHref?: string;
 }
 
@@ -674,7 +782,7 @@ function ListingRow({
   canDelete,
   showPendingNote,
   statusHint,
-  showCreatorTag,
+  mediationMessage,
   onEdit,
   onDelete,
   onSubmitForReview,
@@ -684,6 +792,8 @@ function ListingRow({
   onRecall,
   onAgencyApprove,
   onAgencyReject,
+  onInstruct,
+  instructSending,
   publicHref,
 }: ListingRowProps) {
   const imagesQuery = usePropertyImages(property.property_id);
@@ -728,16 +838,13 @@ function ListingRow({
                 {moderationStatusLabel[property.moderation_status]}
               </Badge>
               <span>{property.listing_type}</span>
-              {property.agency_name ? (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                  {property.agency_name}
-                </span>
-              ) : null}
-              {showCreatorTag && property.owner_display_name ? (
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  {property.owner_display_name}
-                </span>
-              ) : null}
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                {resolveListingDisplayName(
+                  property.moderation_status,
+                  property.owner_display_name,
+                  property.agency_name,
+                )}
+              </span>
             </div>
             {showPendingNote ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
@@ -748,6 +855,17 @@ function ListingRow({
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {statusHint}
               </p>
+            ) : null}
+            {mediationMessage ? (
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+                {mediationMessage}
+              </p>
+            ) : null}
+            {property.instruction_text && property.has_instruction ? (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
+                <p className="mb-1 font-semibold">From your agency:</p>
+                <p>{property.instruction_text}</p>
+              </div>
             ) : null}
             {shouldShowModerationReason(property.moderation_status) &&
             property.moderation_reason ? (
@@ -817,6 +935,11 @@ function ListingRow({
           >
             View Listing
           </Link>
+        ) : null}
+        {onInstruct ? (
+          <Button size="sm" loading={instructSending} onClick={onInstruct}>
+            Instruct agent
+          </Button>
         ) : null}
         {canEdit ? (
           <Button variant="secondary" size="sm" onClick={onEdit}>

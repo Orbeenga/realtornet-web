@@ -26,6 +26,10 @@ function useLifecycleMutation<TInput>(
       queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["property", property.property_id], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-inventory"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-queue"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["pending-admin"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["listingEvents", property.property_id], ...opts });
     },
   });
 }

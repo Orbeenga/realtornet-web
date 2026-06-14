@@ -5559,6 +5559,12 @@ export interface components {
             updated_by?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+            /** Has Instruction */
+            has_instruction?: boolean | null;
+            /** Instruction Text */
+            instruction_text?: string | null;
+            /** Latest Event Reason */
+            latest_event_reason?: string | null;
         };
         /**
          * PropertyReviewCreate

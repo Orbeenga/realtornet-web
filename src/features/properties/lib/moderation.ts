@@ -67,3 +67,34 @@ export function shouldShowModerationReason(status: ModerationStatus) {
     status === MODERATION_STATUS.revoked
   );
 }
+
+type CtaAction = 'restore' | 'reinstate' | null
+
+type CtaDescriptor = {
+  label: string
+  action: CtaAction
+}
+
+export const getAdminRevocationCta = (
+  status: ModerationStatus,
+  hasInstruction: boolean | null | undefined,
+): CtaDescriptor => {
+  if (status === 'revoked' && !hasInstruction) return { label: 'Restore', action: 'restore' }
+  if (status === 'revoked' && hasInstruction) return { label: 'Awaiting agent action', action: null }
+  if (['draft', 'agency_review', 'admin_review'].includes(status)) return { label: 'In progress', action: null }
+  if (status === 'live') return { label: 'Restored', action: null }
+  if (status === 'admin_rejected') return { label: 'Rejected', action: null }
+  return { label: status, action: null }
+}
+
+export const getAdminRejectionCta = (
+  status: ModerationStatus,
+  hasInstruction: boolean | null | undefined,
+): CtaDescriptor => {
+  if (status === 'admin_rejected' && !hasInstruction) return { label: 'Reinstate', action: 'reinstate' }
+  if (status === 'admin_rejected' && hasInstruction) return { label: 'Awaiting agent action', action: null }
+  if (['draft', 'agency_review', 'admin_review'].includes(status)) return { label: 'In progress', action: null }
+  if (status === 'live') return { label: 'Resolved — listing live', action: null }
+  if (status === 'revoked') return { label: 'Revoked', action: null }
+  return { label: status, action: null }
+}

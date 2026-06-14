@@ -13,7 +13,7 @@ export function useOwnerListings(
       moderationStatuses?.length
         ? items.filter((item) => moderationStatuses.includes(item.moderation_status))
         : items,
-    staleTime: 60_000,
+    staleTime: 30_000,
     enabled: Boolean(userId),
   });
 }

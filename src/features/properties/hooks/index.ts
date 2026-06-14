@@ -35,6 +35,10 @@ export {
   useSubmitPropertyToAdmin,
   useWithdrawPropertyFromReview,
 } from "./usePropertyLifecycleActions";
+export { useInstructAgent } from "./useInstructAgent";
+export { useAdminRevocationHistory } from "./useAdminRevocationHistory";
+export { useAdminRejectionHistory } from "./useAdminRejectionHistory";
+export { useRejectPermanent } from "./useRejectPermanent";
 export {
   useAmenityCategories,
   useAmenities,

@@ -37,6 +37,10 @@ export function useCreateProperty() {
       queryClient.invalidateQueries({ queryKey: ["ownerListings"], refetchType: "all" });
       queryClient.invalidateQueries({ queryKey: ["featuredProperties"], refetchType: "all" });
       queryClient.invalidateQueries({ queryKey: ["adminProperties"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["agency-inventory"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["agency-queue"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["pending-admin"], refetchType: "all" });
     },
   });
 }

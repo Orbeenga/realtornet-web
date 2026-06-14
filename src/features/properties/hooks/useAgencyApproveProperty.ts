@@ -18,6 +18,9 @@ export function useAgencyApproveProperty() {
       queryClient.invalidateQueries({ queryKey: ["properties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-inventory"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-queue"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["pending-admin"], ...opts });
     },
   });
 }
