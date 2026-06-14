@@ -17,6 +17,9 @@ export function useDeleteProperty() {
       queryClient.invalidateQueries({ queryKey: ["adminProperties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["agencyOwnerListings"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-inventory"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-queue"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["pending-admin"], ...opts });
       queryClient.removeQueries({ queryKey: ["property", propertyId] });
     },
   });
