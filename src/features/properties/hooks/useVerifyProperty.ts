@@ -127,6 +127,9 @@ export function useVerifyProperty() {
       queryClient.invalidateQueries({ queryKey: ["ownerListings"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["featuredProperties"], ...opts });
       queryClient.invalidateQueries({ queryKey: ["property", propertyId], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-inventory"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["agency-queue"], ...opts });
+      queryClient.invalidateQueries({ queryKey: ["pending-admin"], ...opts });
     },
   });
 }

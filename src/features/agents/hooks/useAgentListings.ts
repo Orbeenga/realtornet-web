@@ -9,7 +9,7 @@ export function useAgentListings(id: string | number) {
       apiClient<PropertyList>(`/api/v1/agent-profiles/${id}/properties`, {
         authMode: "omit",
       }),
-    staleTime: 60_000,
+    staleTime: 30_000,
     enabled: Boolean(id),
   });
 }
