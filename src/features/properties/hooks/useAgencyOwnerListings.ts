@@ -31,7 +31,8 @@ export function useAgencyOwnerListings(
       moderationStatuses?.length
         ? items.filter((item) => moderationStatuses.includes(item.moderation_status))
         : items,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     enabled: isEnabled,
   });
 }

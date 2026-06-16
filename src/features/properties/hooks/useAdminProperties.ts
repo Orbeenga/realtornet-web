@@ -23,7 +23,8 @@ export function useAdminProperties(
 
       return response.items ?? [];
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     enabled,
   });
 }

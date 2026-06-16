@@ -47,9 +47,7 @@ export const moderationStatusBadgeVariant: Record<
 
 export const AGENCY_NAME_STATES: ModerationStatus[] = [
   "admin_review",
-  "admin_rejected",
   "live",
-  "revoked",
 ];
 
 export const shouldShowAgencyName = (status: ModerationStatus) =>
