@@ -174,6 +174,7 @@ export function PropertyCard({
               property.moderation_status,
               property.owner_display_name,
               property.agency_name,
+              true,
             )}
           </p>
           {(() => {

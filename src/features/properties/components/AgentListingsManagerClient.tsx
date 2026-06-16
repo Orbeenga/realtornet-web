@@ -92,6 +92,7 @@ type AgentListingTab =
   | "underReview"
   | "rejected"
   | "live"
+  | "revoked"
   | "agencyInventory"
   | "marketplace";
 
@@ -121,6 +122,7 @@ const AGENT_TABS: Array<{
     statuses: [MODERATION_STATUS.agencyRejected, MODERATION_STATUS.adminRejected],
   },
   { value: "live", label: "Live", statuses: [MODERATION_STATUS.live] },
+  { value: "revoked", label: "Revoked", statuses: [MODERATION_STATUS.revoked] },
   { value: "agencyInventory", label: "Agency Inventory", statuses: [MODERATION_STATUS.live] },
   { value: "marketplace", label: "Public Marketplace", statuses: [MODERATION_STATUS.live] },
 ];
@@ -554,11 +556,26 @@ export function AgentListingsManagerClient() {
               : agentTab === "drafts" ||
                 agentTab === "underReview" ||
                 agentTab === "rejected";
+            const tabIsPublicContext = isAgencyOwner
+              ? agencyOwnerTab === "pendingAdmin" || agencyOwnerTab === "marketplace"
+              : agentTab === "live" || agentTab === "marketplace";
+            const agentRevokedTab = !isAgencyOwner && !gate.isAdmin && agentTab === "revoked";
+            const mediationMessage = agentRevokedTab && isRevoked && !hasInstruction
+              ? "Your listing has been revoked. Await agency instructions."
+              : isMediated && !isAgencyOwner
+                ? "Your listing has been reviewed by the platform. Your agency will provide further instructions."
+                : undefined;
+            const statusBadgeOverride = agentRevokedTab && isRevoked && hasInstruction
+              ? "Revoked — instruction received"
+              : undefined;
             return (
               <ListingRow
                 key={property.property_id}
                 property={property}
                 showCreatorTag={showCreatorTag}
+                tabIsPublicContext={tabIsPublicContext}
+                mediationMessage={mediationMessage}
+                statusBadgeOverride={statusBadgeOverride}
                 deleting={deleteProperty.isPending}
                 lifecycleActing={
                   (submitForReview.isPending &&
@@ -596,11 +613,6 @@ export function AgentListingsManagerClient() {
                     : isAgencyReview
                       ? "Awaiting agency review"
                       : null
-                }
-                mediationMessage={
-                  isMediated && !isAgencyOwner
-                    ? "Your listing has been reviewed by the platform. Your agency will provide further instructions."
-                    : undefined
                 }
                 onEdit={() => router.push(`/account/listings/${property.property_id}/edit`)}
                 onDelete={() => void handleDelete(property.property_id)}
@@ -758,7 +770,9 @@ interface ListingRowProps {
   showPendingNote?: boolean;
   statusHint?: string | null;
   showCreatorTag?: boolean;
+  tabIsPublicContext?: boolean;
   mediationMessage?: string | null;
+  statusBadgeOverride?: string;
   onEdit: () => void;
   onDelete: () => void;
   onSubmitForReview?: () => void;
@@ -782,7 +796,9 @@ function ListingRow({
   canDelete,
   showPendingNote,
   statusHint,
+  tabIsPublicContext,
   mediationMessage,
+  statusBadgeOverride,
   onEdit,
   onDelete,
   onSubmitForReview,
@@ -835,7 +851,7 @@ function ListingRow({
                 {property.listing_status}
               </span>
               <Badge variant={moderationStatusBadgeVariant[property.moderation_status]}>
-                {moderationStatusLabel[property.moderation_status]}
+                {statusBadgeOverride ?? moderationStatusLabel[property.moderation_status]}
               </Badge>
               <span>{property.listing_type}</span>
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -843,6 +859,7 @@ function ListingRow({
                   property.moderation_status,
                   property.owner_display_name,
                   property.agency_name,
+                  tabIsPublicContext ?? false,
                 )}
               </span>
             </div>
