@@ -1,17 +1,13 @@
-import type { ModerationStatus } from "@/types";
-
-const AGENCY_NAME_STATES: ReadonlySet<ModerationStatus> = new Set([
-  "admin_review",
-  "live",
-]);
+import type { ModerationStatus } from '@/types'
 
 export const resolveListingDisplayName = (
   status: ModerationStatus,
   ownerDisplayName: string | null | undefined,
   agencyName: string | null | undefined,
+  tabIsPublicContext: boolean,
 ): string => {
-  if (AGENCY_NAME_STATES.has(status)) {
-    return agencyName ?? "Agency";
-  }
-  return ownerDisplayName ?? "Agent";
-};
+  const showAgencyName = status === 'admin_review' || tabIsPublicContext
+  return showAgencyName
+    ? (agencyName ?? 'Agency')
+    : (ownerDisplayName ?? 'Agent')
+}
