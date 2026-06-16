@@ -2,9 +2,7 @@ import type { ModerationStatus } from "@/types";
 
 const AGENCY_NAME_STATES: ReadonlySet<ModerationStatus> = new Set([
   "admin_review",
-  "admin_rejected",
   "live",
-  "revoked",
 ]);
 
 export const resolveListingDisplayName = (
