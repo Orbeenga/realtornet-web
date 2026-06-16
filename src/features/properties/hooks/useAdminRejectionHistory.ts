@@ -14,7 +14,8 @@ export const useAdminRejectionHistory = (isEnabled: boolean, page = 0, pageSize 
       }
       return response.items ?? []
     },
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     enabled: isEnabled,
-    staleTime: 30_000,
   })
 }
