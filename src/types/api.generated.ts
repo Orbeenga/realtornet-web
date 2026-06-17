@@ -5218,6 +5218,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Actor Display Name */
+            actor_display_name?: string | null;
         };
         /**
          * ListingInstructionResponse
@@ -5241,6 +5243,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Actor Display Name */
+            actor_display_name?: string | null;
         };
         /**
          * ListingStatus
@@ -5770,6 +5774,10 @@ export interface components {
             instruction_text?: string | null;
             /** Latest Event Reason */
             latest_event_reason?: string | null;
+            /** Revoked By Actor Id */
+            revoked_by_actor_id?: number | null;
+            /** Actor Display Name */
+            actor_display_name?: string | null;
         };
         /**
          * PropertyReviewCreate

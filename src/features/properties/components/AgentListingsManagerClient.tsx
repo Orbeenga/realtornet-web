@@ -654,12 +654,17 @@ export function AgentListingsManagerClient() {
                     : undefined
                 }
                 onInstruct={
-                  isAgencyOwner && agencyOwnerTab === "revoked" && isRevoked
+                  isAgencyOwner && agencyOwnerTab === "revoked" && isRevoked && !property.has_instruction
                     ? () => openInstructDialog(property.property_id)
                     : undefined
                 }
                 instructSending={
                   !!(instructAgent.isPending && instructPropertyId === property.property_id)
+                }
+                instructionHeading={
+                  isAgencyOwner && agencyOwnerTab === "revoked" && isRevoked && property.has_instruction
+                    ? "Instruction sent"
+                    : undefined
                 }
                 publicHref={isLive ? `/properties/${property.property_id}` : undefined}
               />
@@ -784,6 +789,7 @@ interface ListingRowProps {
   onAgencyReject?: () => void;
   onInstruct?: () => void;
   instructSending?: boolean;
+  instructionHeading?: string;
   publicHref?: string;
 }
 
@@ -810,6 +816,7 @@ function ListingRow({
   onAgencyReject,
   onInstruct,
   instructSending,
+  instructionHeading,
   publicHref,
 }: ListingRowProps) {
   const imagesQuery = usePropertyImages(property.property_id);
@@ -880,7 +887,7 @@ function ListingRow({
             ) : null}
             {property.instruction_text && property.has_instruction ? (
               <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
-                <p className="mb-1 font-semibold">From your agency:</p>
+                <p className="mb-1 font-semibold">{instructionHeading ?? "From your agency:"}</p>
                 <p>{property.instruction_text}</p>
               </div>
             ) : null}
