@@ -13,7 +13,7 @@ export const useInstructAgent = () => {
   return useMutation({
     mutationFn: async ({ propertyId, instructionText }: InstructInput) => {
       const response = await apiClient<Property>(
-        `/api/v1/properties/${propertyId}/instruct/`,
+        `/api/v1/properties/${propertyId}/instruct`,
         {
           method: 'PATCH',
           body: JSON.stringify({ instruction_text: instructionText }),
