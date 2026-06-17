@@ -549,6 +549,7 @@ export function AgentListingsManagerClient() {
             const isRevokedOrAdminRejected = isRevoked || isAdminRejected;
             const isMediated = isRevokedOrAdminRejected && !property.has_instruction;
             const hasInstruction = !!(isRevokedOrAdminRejected && property.has_instruction);
+            const isCreator = user?.user_id === property.user_id;
             const showCreatorTag = isAgencyOwner
               ? agencyOwnerTab === "agencyQueue" ||
                 agencyOwnerTab === "verifiedInventory" ||
@@ -599,12 +600,12 @@ export function AgentListingsManagerClient() {
                 canEdit={
                   isMediated
                     ? false
-                    : !gate.isAdmin && (isDraft || isAgencyRejected || hasInstruction || isAdminRejected)
+                    : !gate.isAdmin && (isDraft || isAgencyRejected || (hasInstruction && isCreator) || isAdminRejected)
                 }
                 canDelete={
                   isMediated
                     ? false
-                    : !gate.isAdmin && (isDraft || isAgencyRejected || hasInstruction)
+                    : !gate.isAdmin && (isDraft || isAgencyRejected || (hasInstruction && isCreator))
                 }
                 showPendingNote={!gate.isAdmin && !isAgencyOwner && isAgencyReview}
                 statusHint={
