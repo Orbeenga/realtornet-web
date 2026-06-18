@@ -103,7 +103,7 @@ function ListingEventHistory({ propertyId }: { propertyId: number }) {
           {event.reason ? (
             <p className="text-xs text-gray-600 dark:text-gray-400">Reason: {event.reason}</p>
           ) : null}
-          <p className="text-xs text-gray-500">Actor ID: {event.actor_id}</p>
+          <p className="text-xs text-gray-500">Actor: {event.actor_display_name ?? `ID ${event.actor_id}`}</p>
         </div>
       ))}
     </div>
