@@ -610,20 +610,19 @@ export function AgencyOwnerDashboardClient() {
             </div>
             {statsData?.listings_by_status ? (
               <>
-                {["draft", "agency_review", "admin_review", "revoked"].map((status) => {
-                  const count = statsData.listings_by_status?.[status] ?? 0;
-                  if (count === 0) return null;
-                  return (
+                {Object.entries(statsData.listings_by_status)
+                  .filter(([s]) => s !== "live")
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([status, count]) => (
                     <div key={status} className="rounded-lg border border-border p-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        {status.replace("_", " ")}
+                        {status.replace(/_/g, " ")}
                       </p>
                       <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
                         {count}
                       </p>
                     </div>
-                  );
-                })}
+                  ))}
               </>
             ) : null}
           </div>
