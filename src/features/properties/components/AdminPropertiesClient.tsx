@@ -12,7 +12,6 @@ import {
   useAdminRejectionHistory,
   useListingEvents,
   useReinstateProperty,
-  useRestoreProperty,
   useRevokeProperty,
 } from "@/features/properties/hooks";
 import {
@@ -119,7 +118,6 @@ interface PropertyModerationCardProps {
   onReject: () => void;
   onRevoke: () => void;
   onReinstate: () => void;
-  onRestore: () => void;
   derivedCta?: { label: string; action: string | null } | null;
   onRejectPermanent?: () => void;
 }
@@ -133,7 +131,6 @@ function PropertyModerationCard({
   onReject,
   onRevoke,
   onReinstate,
-  onRestore,
   derivedCta,
   onRejectPermanent,
 }: PropertyModerationCardProps) {
@@ -180,7 +177,6 @@ function PropertyModerationCard({
                   size="sm"
                   loading={isActing}
                   onClick={
-                    derivedCta.action === 'restore' ? onRestore :
                     derivedCta.action === 'reinstate' ? onReinstate :
                     undefined
                   }
@@ -234,16 +230,6 @@ function PropertyModerationCard({
                     onClick={onReinstate}
                   >
                     Reinstate
-                  </Button>
-                ) : null}
-                {isRevoked ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    loading={isActing}
-                    onClick={onRestore}
-                  >
-                    Restore
                   </Button>
                 ) : null}
               </>
@@ -350,7 +336,6 @@ export function AdminPropertiesClient() {
   const adminRejectProperty = useAdminRejectProperty();
   const revokeProperty = useRevokeProperty();
   const reinstateProperty = useReinstateProperty();
-  const restoreProperty = useRestoreProperty();
   const [reasons, setReasons] = useState<Record<number, string>>({});
 
   const isHistoricalTab = activeTab === MODERATION_STATUS.revoked || activeTab === MODERATION_STATUS.adminRejected;
@@ -465,17 +450,6 @@ export function AdminPropertiesClient() {
     }
   };
 
-  const handleRestore = async (propertyId: number) => {
-    try {
-      await restoreProperty.mutateAsync(propertyId);
-      notify.success("Listing restored.");
-      setActiveTab(MODERATION_STATUS.live);
-      clearReason(propertyId);
-    } catch {
-      notify.error("Could not restore listing.");
-    }
-  };
-
   const activeTabLabel = MODERATION_TABS.find((t) => t.value === activeTab)?.label ?? activeTab;
 
   return (
@@ -536,15 +510,12 @@ export function AdminPropertiesClient() {
                     (revokeProperty.isPending &&
                       revokeProperty.variables?.propertyId === property.property_id) ||
                     (reinstateProperty.isPending &&
-                      reinstateProperty.variables === property.property_id) ||
-                    (restoreProperty.isPending &&
-                      restoreProperty.variables === property.property_id)
+                      reinstateProperty.variables === property.property_id)
                   }
                   onVerify={() => void handleVerify(property.property_id)}
                   onReject={() => void handleReject(property.property_id)}
                   onRevoke={() => void handleRevoke(property.property_id)}
                   onReinstate={() => void handleReinstate(property.property_id)}
-                  onRestore={() => void handleRestore(property.property_id)}
                   derivedCta={derivedCta}
                   onRejectPermanent={undefined}
                 />

@@ -65,18 +65,16 @@ export function shouldShowModerationReason(status: ModerationStatus) {
   );
 }
 
-type CtaAction = 'restore' | 'reinstate' | null
-
 type CtaDescriptor = {
   label: string
-  action: CtaAction
+  action: string | null
 }
 
 export const getAdminRevocationCta = (
   status: ModerationStatus,
   hasInstruction: boolean | null | undefined,
 ): CtaDescriptor => {
-  if (status === 'revoked' && !hasInstruction) return { label: 'Restore', action: 'restore' }
+  if (status === 'revoked' && !hasInstruction) return { label: 'Awaiting agency instruction', action: null }
   if (status === 'revoked' && hasInstruction) return { label: 'Awaiting agent action', action: null }
   if (['draft', 'agency_review', 'admin_review'].includes(status)) return { label: 'In progress', action: null }
   if (status === 'live') return { label: 'Restored', action: null }
