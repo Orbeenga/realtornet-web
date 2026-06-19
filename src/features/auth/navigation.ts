@@ -119,6 +119,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
   if (normalizedRole === "agent") {
     return [
       { href: "/account/listings", label: "My Listings" },
+      { href: "/account/join-requests", label: "My Agencies" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "My Favorites" },
       { href: "/account/reviews", label: "My Reviews" },
