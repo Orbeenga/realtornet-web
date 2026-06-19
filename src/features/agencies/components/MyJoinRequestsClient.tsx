@@ -301,11 +301,9 @@ export function MyJoinRequestsClient() {
                           {displayMembershipStatus(membership.status)}
                         </Badge>
                       </div>
-                      {(membership as Record<string, unknown>).listing_count !== undefined ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {(membership as Record<string, unknown>).listing_count as number} active listing{(membership as Record<string, unknown>).listing_count as number !== 1 ? "s" : ""} under this agency
-                        </p>
-                      ) : null}
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {membership.listing_count} active listing{membership.listing_count !== 1 ? "s" : ""} under this agency.
+                      </p>
                       {membership.status_reason ? (
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                           {membership.status_reason}

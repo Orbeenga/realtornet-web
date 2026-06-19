@@ -1043,11 +1043,9 @@ export function AgencyOwnerDashboardClient() {
                               Last decision {formatOptionalDate(agent.status_decided_at)}
                             </p>
                           ) : null}
-                          {(agent as Record<string, unknown>).listing_count !== undefined ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {(agent as Record<string, unknown>).listing_count as number} active listing{(agent as Record<string, unknown>).listing_count as number !== 1 ? "s" : ""}
-                            </p>
-                          ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
+                          </p>
                           {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>
