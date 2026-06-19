@@ -26,6 +26,11 @@
 - Railway production service must run with `ENV=production`.
 - **Phase M frontend locked state**: Frontend HEAD `f80dcc2`; `trailingSlash: false` in `next.config.ts` — locked; proxy (`src/app/api/v1/[...path]/route.ts`) — redirect:manual, server-side follow with HTTPS normalization, location header stripped — locked; `normalizeApiPath` in `client.ts` is a no-op — do not restore trailing-slash behavior; `Cache-Control: no-transform` middleware on FastAPI resolves Vercel proxy content-encoding failures — locked; Silent JWT refresh on 401 in `apiClient.ts` — locked; agency owner session stability restored — join-requests, invitations, review-requests call sites use no trailing slash; `/privacy` and `/terms` stubbed; Phase M dashboard tabs live: agent (6 tabs), agency owner (6 tabs), admin (5 tabs); Phase M housekeeping: agent name tags on creator-aware tabs live (commit `6218128`); agency listing count on public cards live via `property_count`; `owner_display_name` propagated and types regenerated (commit `f80dcc2`).
 
+## Deployment Workflow
+- Work flows: feature -> staging -> validate -> merge to main -> production.
+- Correct branch flow is staging first, manual validation second, then a deliberate merge or promotion to main for production.
+- If staging and main both receive pushes, verify this is the intentional two-step promotion flow. Vercel may pick up each branch independently, but production must never be an accidental side effect of unvalidated staging work.
+
 ## Locked architecture decisions
 - Agency-first public hierarchy is locked: Agencies -> Listings -> Agents.
 - `agency_owner` is active in the role enum; all four roles are live: `seeker`, `agent`, `agency_owner`, `admin`.

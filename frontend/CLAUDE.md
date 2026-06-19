@@ -8,6 +8,12 @@ Next.js 16.2.1 is deployed on Vercel. Phase J is closed as of 2026-05-13. Phase 
 
 Phase I frontend I.4/I.5 is closed in `2d8b0fb`: post-revocation dashboard, membership history, generic review-request endpoints, stale `role_version` handling, and auth path correction are live. Phase I closeout is pushed in `8e74e18`, covering horizontal property filters, featured analytics empty/error handling, Suspense boundary work, review-request rewire consolidation, I.6 mobile TBT, and I.7 operational updates. Agency-owner session persistence is fixed and live in `c83e800`. `DEF-I-MEM-SMOKE-001` is closed by production API smoke, and `DEF-I-COV-001` is closed at 95.03% backend coverage in commit `7e8fd35`.
 
+## Deployment Workflow
+
+- Work flows: feature -> staging -> validate -> merge to main -> production.
+- Correct branch flow is staging first, manual validation second, then a deliberate merge or promotion to main for production.
+- If staging and main both receive pushes, verify this is the intentional two-step promotion flow. Vercel may pick up each branch independently, but production must never be an accidental side effect of unvalidated staging work.
+
 ## Navigation Contract (Locked - Reference `src/features/auth/navigation.ts`)
 
 Public top nav for all users: Properties, Agencies, Agents.

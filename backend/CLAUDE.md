@@ -11,6 +11,12 @@ Frontend I.4/I.5 is closed in `2d8b0fb`; single-agency revocation/review smoke
 passed. Phase I closeout is pushed in `8e74e18`, with agency-owner session
 persistence fixed and live in `c83e800`.
 
+## Deployment Workflow
+
+- Work flows: feature -> staging -> validate -> merge to main -> production.
+- Correct branch flow is staging first, manual validation second, then a deliberate merge or promotion to main for production.
+- If staging and main both receive pushes, verify this is the intentional two-step promotion flow. Railway/Vercel may pick up branches independently, but production must never be an accidental side effect of unvalidated staging work.
+
 Phase J opens with `DEF-I-MEM-SMOKE-001` and `DEF-I-COV-001`. Multi-agency
 revocation smoke remains tracked until a deliberate two-agency test account can
 be provisioned. Backend coverage is recorded at 94.15% against the Phase I 95%
