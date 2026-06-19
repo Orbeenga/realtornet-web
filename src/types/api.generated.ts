@@ -1289,7 +1289,7 @@ export interface paths {
          *     - Agency agents can view their own agency stats
          *     - Admins can view any agency stats
          *
-         *     Returns: agent count, property count, active listings, etc.
+         *     Returns: agent count, property count, active listings, breakdowns by status.
          */
         get: operations["read_agency_stats_api_v1_agencies__agency_id__stats_get"];
         put?: never;
@@ -3115,6 +3115,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/join-requests/{request_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel My Join Request
+         * @description Cancel a pending join request owned by the authenticated user.
+         */
+        delete: operations["cancel_my_join_request_api_v1_join_requests__request_id___delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/join-requests/mine/": {
         parameters: {
             query?: never;
@@ -3934,6 +3954,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Notifications
+         * @description Return notifications for the current user, newest first. Default 20, cap 50.
+         */
+        get: operations["get_notifications_api_v1_notifications__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Unread Count
+         * @description Return the unread notification count for the badge.
+         */
+        get: operations["get_unread_count_api_v1_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark Notification Read
+         * @description Mark a single notification as read.
+         */
+        patch: operations["mark_notification_read_api_v1_notifications__notification_id__read_patch"];
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark All Notifications Read
+         * @description Mark all unread notifications as read for the current user.
+         */
+        patch: operations["mark_all_notifications_read_api_v1_notifications_read_all_patch"];
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -4161,6 +4261,11 @@ export interface components {
             bio?: string | null;
             /** Company Name */
             company_name?: string | null;
+            /**
+             * Listing Count
+             * @default 0
+             */
+            listing_count: number;
             /** Pending Review Request Id */
             pending_review_request_id?: number | null;
             /** Pending Review Reason */
@@ -4386,7 +4491,7 @@ export interface components {
          * AgencyJoinRequestStatus
          * @enum {string}
          */
-        AgencyJoinRequestStatus: "pending" | "approved" | "rejected";
+        AgencyJoinRequestStatus: "pending" | "approved" | "rejected" | "cancelled";
         /** AgencyMembershipReviewDecisionRequest */
         AgencyMembershipReviewDecisionRequest: {
             /** Reason */
@@ -4594,6 +4699,35 @@ export interface components {
             deleted_at?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+        };
+        /**
+         * AgencyStatsResponse
+         * @description Agency-level statistics with breakdowns by listing and agent status.
+         */
+        AgencyStatsResponse: {
+            /**
+             * Agent Count
+             * @default 0
+             */
+            agent_count: number;
+            /** Agents By Status */
+            agents_by_status?: {
+                [key: string]: number;
+            };
+            /**
+             * Property Count
+             * @default 0
+             */
+            property_count: number;
+            /**
+             * Total Listings
+             * @default 0
+             */
+            total_listings: number;
+            /** Listings By Status */
+            listings_by_status?: {
+                [key: string]: number;
+            };
         };
         /**
          * AgencyStatus
@@ -5371,6 +5505,11 @@ export interface components {
             status_decided_by?: number | null;
             /** Source Join Request Id */
             source_join_request_id?: number | null;
+            /**
+             * Listing Count
+             * @default 0
+             */
+            listing_count: number;
             /** Pending Review Request Id */
             pending_review_request_id?: number | null;
             /** Pending Review Reason */
@@ -5409,6 +5548,26 @@ export interface components {
             agency_id?: number | null;
             /** Agency Name */
             agency_name?: string | null;
+        };
+        /** NotificationResponse */
+        NotificationResponse: {
+            /** Notification Id */
+            notification_id: number;
+            /** User Id */
+            user_id: number;
+            /** Event Type */
+            event_type: string;
+            /** Listing Id */
+            listing_id?: number | null;
+            /** Body Text */
+            body_text: string;
+            /** Is Read */
+            is_read: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * ProfileCreate
@@ -6137,6 +6296,11 @@ export interface components {
         TokenRefresh: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /** UnreadCountResponse */
+        UnreadCountResponse: {
+            /** Count */
+            count: number;
         };
         /**
          * UsageMetricsResponse
@@ -8505,7 +8669,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AgencyStatsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11591,6 +11755,35 @@ export interface operations {
             };
         };
     };
+    cancel_my_join_request_api_v1_join_requests__request_id___delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_my_join_requests_api_v1_join_requests_mine__get: {
         parameters: {
             query?: {
@@ -13251,6 +13444,111 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_notifications_api_v1_notifications__get: {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_unread_count_api_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountResponse"];
+                };
+            };
+        };
+    };
+    mark_notification_read_api_v1_notifications__notification_id__read_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_notifications_read_api_v1_notifications_read_all_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
             };
         };
     };
