@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
   useAcceptAgencyInvitation,
+  useCancelAgencyJoinRequest,
   useCreateAgencyReviewRequest,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
@@ -55,6 +57,8 @@ export function MyJoinRequestsClient() {
   const createReviewRequest = useCreateAgencyReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
+  const cancelJoinRequest = useCancelAgencyJoinRequest();
+  const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
     try {
@@ -100,6 +104,16 @@ export function MyJoinRequestsClient() {
       notify.success("Invitation rejected");
     } catch {
       notify.error("Could not reject invitation");
+    }
+  };
+
+  const handleCancelJoinRequest = async (requestId: number) => {
+    try {
+      await cancelJoinRequest.mutateAsync(requestId);
+      notify.success("Join request cancelled");
+      setCancelConfirmId(null);
+    } catch {
+      notify.error("Could not cancel join request");
     }
   };
 
@@ -287,6 +301,11 @@ export function MyJoinRequestsClient() {
                           {displayMembershipStatus(membership.status)}
                         </Badge>
                       </div>
+                      {(membership as Record<string, unknown>).listing_count !== undefined ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {(membership as Record<string, unknown>).listing_count as number} active listing{(membership as Record<string, unknown>).listing_count as number !== 1 ? "s" : ""} under this agency
+                        </p>
+                      ) : null}
                       {membership.status_reason ? (
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                           {membership.status_reason}
@@ -366,6 +385,32 @@ export function MyJoinRequestsClient() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Submitted {formatDate(request.submitted_at)}
                   </p>
+                  {request.status === "pending" ? (
+                    <div className="pt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        loading={
+                          cancelJoinRequest.isPending &&
+                          cancelJoinRequest.variables === request.join_request_id
+                        }
+                        onClick={() => setCancelConfirmId(request.join_request_id)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : null}
+                  {request.status === "rejected" ? (
+                    <div className="pt-2">
+                      <Link
+                        href={`/agencies/${request.agency_id}/join`}
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        Resubmit
+                      </Link>
+                    </div>
+                  ) : null}
                   {request.status === "rejected" && request.rejection_reason ? (
                     <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
                       {request.rejection_reason}
@@ -378,6 +423,30 @@ export function MyJoinRequestsClient() {
         )}
       </section>
       ) : null}
+
+      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) setCancelConfirmId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel join request</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this join request? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setCancelConfirmId(null)}>
+              Keep
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={cancelJoinRequest.isPending}
+              onClick={() => cancelConfirmId !== null && void handleCancelJoinRequest(cancelConfirmId)}
+            >
+              Cancel request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

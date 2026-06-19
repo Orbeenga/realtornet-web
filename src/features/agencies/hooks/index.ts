@@ -37,6 +37,7 @@ export {
   useAcceptAgencyInvitation,
   useAgencyInvitations,
   useApproveAgencyJoinRequest,
+  useCancelAgencyJoinRequest,
   useCreateAgencyJoinRequest,
   useInviteAgencyAgent,
   useMyAgencyInvitations,
