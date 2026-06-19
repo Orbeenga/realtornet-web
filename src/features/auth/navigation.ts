@@ -132,6 +132,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
       { href: "/account/saved-searches", label: "Saved Searches" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/reviews", label: "My Reviews" },
+      { href: "/account/join-requests", label: "Join Requests" },
       settingsLink,
     ];
   }

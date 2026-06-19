@@ -141,6 +141,20 @@ export function useAcceptAgencyInvite() {
   });
 }
 
+export function useCancelAgencyJoinRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: number) =>
+      apiClient<void>(`/api/v1/join-requests/${requestId}/`, {
+        method: "DELETE",
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}
+
 export function useMyAgencyJoinRequests(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyJoinRequests"],
