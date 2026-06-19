@@ -886,7 +886,7 @@ function ListingRow({
                 {mediationMessage}
               </p>
             ) : null}
-            {property.instruction_text && property.has_instruction ? (
+            {property.instruction_text && property.has_instruction && (property.moderation_status === 'revoked' || property.moderation_status === 'admin_rejected') ? (
               <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
                 <p className="mb-1 font-semibold">{instructionHeading ?? "From your agency:"}</p>
                 <p>{property.instruction_text}</p>
