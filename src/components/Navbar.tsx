@@ -15,6 +15,7 @@ import {
 import { useMyProfile } from "@/features/profile/hooks";
 import { getStoredJwtPayload } from "@/lib/jwt";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 
 function getInitials(input: {
   firstName?: string | null;
@@ -171,6 +172,8 @@ export function Navbar() {
 
           <div className="flex items-center gap-3">
             {user ? (
+              <>
+              <NotificationBell />
               <div ref={accountMenuRef} className="relative">
                 <button
                   type="button"
@@ -237,6 +240,7 @@ export function Navbar() {
                   </div>
                 ) : null}
               </div>
+              </>
             ) : !loading ? (
               <div className="hidden items-center gap-3 md:flex">
                 {authNavLinks.map(({ href, label }) => (
