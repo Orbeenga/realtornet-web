@@ -37,6 +37,7 @@ import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
   useAgencyAgents,
+  useAgencyStats,
   useAgencyInvitations,
   useAgencyProfile,
   useAgencyJoinRequests,
@@ -193,6 +194,7 @@ export function AgencyOwnerDashboardClient() {
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
+  const statsQuery = useAgencyStats(agencyId ?? undefined, Boolean(agencyId), "include");
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
   const suspendMembership = useSuspendAgencyMembership(agencyId);
@@ -478,6 +480,7 @@ export function AgencyOwnerDashboardClient() {
   const agents = agentsQuery.data ?? [];
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
+  const statsData = statsQuery.data;
   const statsListingCount = agency.property_count;
   const statsAgentCount = agency.agent_count;
   const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
@@ -588,10 +591,10 @@ export function AgencyOwnerDashboardClient() {
               </p>
             </div>
           </div>
-          <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-border p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Active listings
+                Live listings
               </p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
                 {statsListingCount}
@@ -605,6 +608,24 @@ export function AgencyOwnerDashboardClient() {
                 {statsAgentCount}
               </p>
             </div>
+            {statsData?.listings_by_status ? (
+              <>
+                {["draft", "agency_review", "admin_review", "revoked"].map((status) => {
+                  const count = statsData.listings_by_status?.[status] ?? 0;
+                  if (count === 0) return null;
+                  return (
+                    <div key={status} className="rounded-lg border border-border p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {status.replace("_", " ")}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                        {count}
+                      </p>
+                    </div>
+                  );
+                })}
+              </>
+            ) : null}
           </div>
 
           <Sheet open={isEditingAgencyProfile} onOpenChange={setIsEditingAgencyProfile}>
@@ -1020,6 +1041,11 @@ export function AgencyOwnerDashboardClient() {
                           {agent.status_decided_at ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               Last decision {formatOptionalDate(agent.status_decided_at)}
+                            </p>
+                          ) : null}
+                          {(agent as Record<string, unknown>).listing_count !== undefined ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {(agent as Record<string, unknown>).listing_count as number} active listing{(agent as Record<string, unknown>).listing_count as number !== 1 ? "s" : ""}
                             </p>
                           ) : null}
                           {agent.pending_review_request_id ? (

@@ -4,7 +4,10 @@ import type { Agency } from "@/types";
 
 export interface AgencyStats {
   agent_count?: number;
+  agents_by_status?: Record<string, number>;
   property_count?: number;
+  total_listings?: number;
+  listings_by_status?: Record<string, number>;
   active_listings?: number;
   listing_count?: number;
   total_agents?: number;
