@@ -46,6 +46,7 @@ type MyAgenciesTab = "invitations" | "memberships" | "requests";
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
+  const [requestSubTab, setRequestSubTab] = useState<string>("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("requests");
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
@@ -600,50 +601,43 @@ export function MyJoinRequestsClient() {
                   description="Agency membership events will appear here when they exist."
                 />
               ) : (
-                <div className="space-y-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {[...historyQuery.data]
-                    .sort(
-                      (a, b) =>
-                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-                    )
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map((record) => (
-                      <div
-                        key={record.id}
-                        className="rounded-lg border border-border p-4 text-sm"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {record.agency_name ?? `Agency #${record.agency_id}`}
-                            </p>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {formatDate(record.created_at)}
-                            </p>
+                      <Card key={record.id}>
+                        <CardBody className="space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {record.agency_name ?? `Agency #${record.agency_id}`}
+                              </p>
+                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                {formatDate(record.created_at)}
+                              </p>
+                            </div>
+                            <Badge variant={
+                              record.action === "joined" || record.action === "reinstated"
+                                ? "success"
+                                : record.action === "revoked" || record.action === "suspended"
+                                  ? "danger"
+                                  : record.action === "left"
+                                    ? "warning"
+                                    : "outline"
+                            }>
+                              {record.action.replace(/_/g, " ")}
+                            </Badge>
                           </div>
-                          <Badge variant={
-                            record.action === "joined" || record.action === "reinstated"
-                              ? "success"
-                              : record.action === "revoked" || record.action === "suspended"
-                                ? "danger"
-                                : record.action === "left"
-                                  ? "warning"
-                                  : "outline"
-                          }>
-                            {record.action.replace(/_/g, " ")}
-                          </Badge>
-                        </div>
-                        {record.reason ? (
-                          <p className="mt-3 rounded-lg bg-gray-50 p-3 leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                            {record.reason}
-                          </p>
-                        ) : null}
-                        {record.prior_role || record.post_role ? (
-                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Role: {record.prior_role ?? "not recorded"} to{" "}
-                            {record.post_role ?? "not recorded"}
-                          </p>
-                        ) : null}
-                      </div>
+                          {record.reason ? (
+                            <p className="text-sm leading-5 text-gray-600 dark:text-gray-300">{record.reason}</p>
+                          ) : null}
+                          {record.prior_role || record.post_role ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Role: {record.prior_role ?? "not recorded"} &rarr; {record.post_role ?? "not recorded"}
+                            </p>
+                          ) : null}
+                        </CardBody>
+                      </Card>
                     ))}
                 </div>
               )}
@@ -657,64 +651,101 @@ export function MyJoinRequestsClient() {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Agency requests
         </h2>
-        {requests.length === 0 ? (
-          <EmptyState
-            title="No join requests yet"
-            description="Open an agency profile and request to join its roster."
-          />
-        ) : (
+
+        <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
+          {[
+            { value: "pending", label: `Pending (${requests.filter(r => r.status === "pending").length})` },
+            { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
+          ].filter(t => {
+            if (t.value === "rejected") return requests.some(r => r.status === "rejected") || requestSubTab === "rejected";
+            return true;
+          }).map(({ value, label }) => (
+            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        {requestSubTab === "pending" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.map((request) => (
-              <Card key={request.join_request_id}>
-                <CardBody className="space-y-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <Link
-                      href={`/agencies/${request.agency_id}`}
-                      className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                    >
-                      {request.agency_name}
-                    </Link>
-                    <Badge variant={getStatusVariant(request.status)}>
-                      {request.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Submitted {formatDate(request.submitted_at)}
-                  </p>
-                  {request.status === "pending" ? (
+            {requests.filter(r => r.status === "pending").length === 0 ? (
+              <div className="md:col-span-2 xl:col-span-3">
+                <EmptyState
+                  title="No pending requests"
+                  description="Open an agency profile and request to join its roster."
+                />
+              </div>
+            ) : (
+              requests.filter(r => r.status === "pending").map((request) => (
+                <Card key={request.join_request_id}>
+                  <CardBody className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <Link
+                        href={`/agencies/${request.agency_id}`}
+                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                      >
+                        {request.agency_name}
+                      </Link>
+                      <Badge variant="warning">pending</Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Submitted {formatDate(request.submitted_at)}
+                    </p>
                     <div className="pt-2">
                       <Button
                         type="button"
                         size="sm"
                         variant="secondary"
-                        loading={
-                          cancelJoinRequest.isPending &&
-                          cancelJoinRequest.variables === request.join_request_id
-                        }
+                        loading={cancelJoinRequest.isPending && cancelJoinRequest.variables === request.join_request_id}
                         onClick={() => setCancelConfirmId(request.join_request_id)}
                       >
                         Cancel
                       </Button>
                     </div>
-                  ) : null}
-                  {request.status === "rejected" ? (
+                  </CardBody>
+                </Card>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {requests.filter(r => r.status === "rejected").length === 0 ? (
+              <div className="md:col-span-2 xl:col-span-3">
+                <EmptyState title="No rejected requests" description="You have no rejected join requests." />
+              </div>
+            ) : (
+              requests.filter(r => r.status === "rejected").map((request) => (
+                <Card key={request.join_request_id}>
+                  <CardBody className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <Link
+                        href={`/agencies/${request.agency_id}`}
+                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                      >
+                        {request.agency_name}
+                      </Link>
+                      <Badge variant="danger">rejected</Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Submitted {formatDate(request.submitted_at)}
+                    </p>
+                    {request.rejection_reason ? (
+                      <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                        {request.rejection_reason}
+                      </div>
+                    ) : null}
                     <div className="pt-2">
                       <Link
                         href={`/agencies/${request.agency_id}/join`}
                         className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                       >
-                        Resubmit
+                        Apply Again
                       </Link>
                     </div>
-                  ) : null}
-                  {request.status === "rejected" && request.rejection_reason ? (
-                    <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                      {request.rejection_reason}
-                    </div>
-                  ) : null}
-                </CardBody>
-              </Card>
-            ))}
+                  </CardBody>
+                </Card>
+              ))
+            )}
           </div>
         )}
       </section>
