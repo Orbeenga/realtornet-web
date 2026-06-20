@@ -5517,6 +5517,13 @@ export interface components {
             /** Pending Review Submitted At */
             pending_review_submitted_at?: string | null;
             /**
+             * Role Changed
+             * @default false
+             */
+            role_changed: boolean;
+            /** New Role */
+            new_role?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
