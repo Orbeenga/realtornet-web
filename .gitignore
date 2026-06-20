@@ -54,5 +54,6 @@ next-env.d.ts
 
 # local phase planning workbook
 docs/phase-g-workbook.md
+RealtorNet_Phase_*_Workbook.md
 
 .vercel
