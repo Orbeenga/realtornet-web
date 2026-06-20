@@ -9,6 +9,7 @@ import {
   useAcceptAgencyInvitation,
   useCancelAgencyJoinRequest,
   useCreateAgencyReviewRequest,
+  useMembershipHistory,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
   useMyAgencyMemberships,
@@ -54,6 +55,7 @@ export function MyJoinRequestsClient() {
   const canViewAgencyMemberships = Boolean(token) && role === "agent";
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
   const membershipsQuery = useMyAgencyMemberships(canViewAgencyMemberships);
+  const historyQuery = useMembershipHistory(canViewAgencyMemberships);
   const invitationsQuery = useMyAgencyInvitations(canViewAgencyInvitations);
   const createReviewRequest = useCreateAgencyReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
@@ -287,8 +289,10 @@ export function MyJoinRequestsClient() {
               { value: "suspended", label: `Suspended (${suspendedMemberships.length})` },
               { value: "left", label: `Left (${leftMemberships.length})` },
               { value: "revoked", label: `Revoked (${revokedMemberships.length})` },
+              { value: "history", label: `History (${historyQuery.data?.length ?? 0})` },
             ].filter(t => {
               if (t.value === "rejected") return requests.some(r => r.status === "rejected") || membershipSubTab === "rejected";
+              if (t.value === "history") return (historyQuery.data?.length ?? 0) > 0 || membershipSubTab === "history";
               return true;
             }).map(({ value, label }) => (
               <Button key={value} type="button" variant={membershipSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setMembershipSubTab(value)}>
@@ -582,6 +586,66 @@ export function MyJoinRequestsClient() {
                     </CardBody>
                   </Card>
                 ))
+              )}
+            </div>
+          ) : membershipSubTab === "history" ? (
+            <div className="space-y-4">
+              {historyQuery.isLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+              ) : historyQuery.isError ? (
+                <p className="text-sm text-red-500">Could not load membership history.</p>
+              ) : !historyQuery.data || historyQuery.data.length === 0 ? (
+                <EmptyState
+                  title="No membership history"
+                  description="Agency membership events will appear here when they exist."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {[...historyQuery.data]
+                    .sort(
+                      (a, b) =>
+                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+                    )
+                    .map((record) => (
+                      <div
+                        key={record.id}
+                        className="rounded-lg border border-border p-4 text-sm"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {record.agency_name ?? `Agency #${record.agency_id}`}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(record.created_at)}
+                            </p>
+                          </div>
+                          <Badge variant={
+                            record.action === "joined" || record.action === "reinstated"
+                              ? "success"
+                              : record.action === "revoked" || record.action === "suspended"
+                                ? "danger"
+                                : record.action === "left"
+                                  ? "warning"
+                                  : "outline"
+                          }>
+                            {record.action.replace(/_/g, " ")}
+                          </Badge>
+                        </div>
+                        {record.reason ? (
+                          <p className="mt-3 rounded-lg bg-gray-50 p-3 leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                            {record.reason}
+                          </p>
+                        ) : null}
+                        {record.prior_role || record.post_role ? (
+                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Role: {record.prior_role ?? "not recorded"} to{" "}
+                            {record.post_role ?? "not recorded"}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                </div>
               )}
             </div>
           ) : null}
