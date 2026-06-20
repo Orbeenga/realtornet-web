@@ -355,23 +355,6 @@ export function AgencyOwnerDashboardClient() {
         </CardBody>
       </Card>
 
-      <Link href="/account/agency/members" className="block">
-        <Card>
-          <CardBody>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Manage your roster and membership requests
-                </h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Join requests, review requests, agent roster, and invitations.
-                </p>
-              </div>
-              <Button type="button" variant="primary">Go to members</Button>
-            </div>
-          </CardBody>
-        </Card>
-      </Link>
     </div>
   );
 }
