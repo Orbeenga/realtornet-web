@@ -43,6 +43,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
   const [submittedReviewRequest, setSubmittedReviewRequest] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [leaveReason, setLeaveReason] = useState("");
+  const [leaveReasonError, setLeaveReasonError] = useState("");
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
   const isAgencyApplicantRole = role === "seeker" || role === "agent";
   const requestsQuery = useMyAgencyJoinRequests(
@@ -74,10 +75,16 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
 
   const handleLeave = async () => {
     if (!matchingMembership) return;
+    const trimmedReason = leaveReason.trim();
+    if (!trimmedReason) {
+      setLeaveReasonError("Please provide a reason for leaving.");
+      return;
+    }
+    setLeaveReasonError("");
     try {
       const result = await leaveMutation.mutateAsync({
         membershipId: matchingMembership.membership_id,
-        reason: leaveReason.trim() || null,
+        reason: trimmedReason,
       });
       setShowLeaveDialog(false);
       setLeaveReason("");
@@ -302,6 +309,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
         onClose={() => {
           setShowLeaveDialog(false);
           setLeaveReason("");
+          setLeaveReasonError("");
         }}
         title="Leave this agency"
         description="Are you sure you want to leave this agency? If you have active listings through this agency, you'll need to transfer or remove them first."
@@ -313,6 +321,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
               onClick={() => {
                 setShowLeaveDialog(false);
                 setLeaveReason("");
+                setLeaveReasonError("");
               }}
             >
               Cancel
@@ -321,6 +330,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
               variant="destructive"
               className="flex-1"
               loading={leaveMutation.isPending}
+              disabled={!leaveReason.trim()}
               onClick={() => void handleLeave()}
             >
               Leave
@@ -328,13 +338,21 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
           </div>
         }
       >
-        <textarea
-          rows={3}
-          className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          placeholder="Optional reason for leaving (shared with the agency)"
-          value={leaveReason}
-          onChange={(event) => setLeaveReason(event.target.value)}
-        />
+        <div className="space-y-2">
+          <textarea
+            rows={3}
+            className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            placeholder="Reason for leaving (required — shared with the agency)"
+            value={leaveReason}
+            onChange={(event) => {
+              setLeaveReason(event.target.value);
+              if (leaveReasonError) setLeaveReasonError("");
+            }}
+          />
+          {leaveReasonError ? (
+            <p className="text-xs text-red-500">{leaveReasonError}</p>
+          ) : null}
+        </div>
       </Modal>
     </>
   );

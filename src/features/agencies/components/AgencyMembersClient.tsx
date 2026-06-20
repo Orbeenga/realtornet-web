@@ -68,7 +68,7 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "invitations", label: "Invitations" },
   { value: "rejected", label: "Rejected" },
   { value: "suspended", label: "Suspended" },
-  { value: "leftCancelled", label: "Left/Cancelled" },
+  { value: "leftCancelled", label: "Left" },
   { value: "revoked", label: "Revoked" },
 ];
 
