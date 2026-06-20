@@ -887,6 +887,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/membership-history/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agency Membership History
+         * @description Return this agency's full membership history across all users (agency_owner/admin only).
+         */
+        get: operations["read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/agents/{membership_id}/suspend/": {
         parameters: {
             query?: never;
@@ -4492,6 +4512,32 @@ export interface components {
          * @enum {string}
          */
         AgencyJoinRequestStatus: "pending" | "approved" | "rejected" | "cancelled";
+        /** AgencyMembershipHistoryResponse */
+        AgencyMembershipHistoryResponse: {
+            /** Id */
+            id: number;
+            /** User Id */
+            user_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name?: string | null;
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id?: number | null;
+            /** Reason */
+            reason?: string | null;
+            prior_role?: components["schemas"]["UserRole"] | null;
+            post_role?: components["schemas"]["UserRole"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** User Display Name */
+            user_display_name: string;
+        };
         /** AgencyMembershipReviewDecisionRequest */
         AgencyMembershipReviewDecisionRequest: {
             /** Reason */
@@ -5067,7 +5113,7 @@ export interface components {
         /** Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch */
         Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch: {
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /** Body_login_access_token_api_v1_auth_login_post */
         Body_login_access_token_api_v1_auth_login_post: {
@@ -7946,6 +7992,42 @@ export interface operations {
             };
         };
     };
+    read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyMembershipHistoryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     suspend_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__suspend__patch: {
         parameters: {
             query?: never;
@@ -8846,7 +8928,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch"];
             };
