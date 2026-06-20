@@ -4222,7 +4222,7 @@ export interface components {
          * AgencyAgentMembershipStatus
          * @enum {string}
          */
-        AgencyAgentMembershipStatus: "active" | "inactive" | "suspended" | "blocked";
+        AgencyAgentMembershipStatus: "active" | "inactive" | "suspended" | "blocked" | "revoked" | "left";
         /** AgencyAgentRosterResponse */
         AgencyAgentRosterResponse: {
             /** User Id */

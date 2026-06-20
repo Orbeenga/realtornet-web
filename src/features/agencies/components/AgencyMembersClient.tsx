@@ -53,7 +53,7 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked";
 type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
@@ -66,6 +66,10 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "reviewRequests", label: "Review requests" },
   { value: "agents", label: "Agent roster" },
   { value: "invitations", label: "Invitations" },
+  { value: "rejected", label: "Rejected" },
+  { value: "suspended", label: "Suspended" },
+  { value: "leftCancelled", label: "Left/Cancelled" },
+  { value: "revoked", label: "Revoked" },
 ];
 
 function formatDate(value: string) {
@@ -89,7 +93,8 @@ function getJoinRequestBadgeVariant(status: string) {
 function getMembershipBadgeVariant(status: string) {
   if (status === "active") return "success" as const;
   if (status === "suspended") return "warning" as const;
-  if (status === "blocked" || status === "inactive") return "danger" as const;
+  if (status === "revoked" || status === "inactive") return "danger" as const;
+  if (status === "left") return "outline" as const;
   return "outline" as const;
 }
 
@@ -306,6 +311,10 @@ export function AgencyMembersClient() {
     reviewRequests: reviewRequests.length,
     agents: agentsQuery.isSuccess ? agents.length : undefined,
     invitations: invitations.length,
+    rejected: joinRequests.filter(r => r.status === "rejected").length,
+    suspended: agents.filter(a => a.membership_status === "suspended").length,
+    leftCancelled: agents.filter(a => a.membership_status === "left").length,
+    revoked: agents.filter(a => a.membership_status === "revoked").length,
   };
   const pendingDecisionReason = pendingMembershipDecision
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
@@ -717,6 +726,298 @@ export function AgencyMembersClient() {
                 </div>
               ) : null}
             </div>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "rejected" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rejected</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Review rejected join requests and their reasons.
+              </p>
+            </div>
+            {joinRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
+            {joinRequestsQuery.isError ? (
+              <ErrorState
+                title="Could not load rejected requests"
+                message="There was a problem loading rejected requests."
+                onRetry={() => { void joinRequestsQuery.refetch(); }}
+              />
+            ) : null}
+            {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
+              <EmptyState title="No rejected applications." description="" />
+            ) : null}
+            {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
+              <div className="space-y-4">
+                {joinRequests.filter(r => r.status === "rejected").map((request) => (
+                  <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {request.seeker_name ?? "Seeker"}
+                          </p>
+                          <Badge variant="danger">{request.status}</Badge>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {request.seeker_email ?? "Email unavailable"}
+                        </p>
+                        {request.decided_at ? (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Rejected {formatDate(request.decided_at)}
+                          </p>
+                        ) : null}
+                        {request.rejection_reason ? (
+                          <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                            {request.rejection_reason}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "suspended" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Suspended</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Agents whose memberships are currently suspended.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents" message="There was a problem loading your agency roster."
+                onRetry={() => { void agentsQuery.refetch(); }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "suspended").length === 0 ? (
+              <EmptyState title="No suspended agents." description="" />
+            ) : null}
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "suspended").length > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.filter(a => a.membership_status === "suspended").map((agent) => (
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {agent.display_name || agent.company_name || "Listing agent"}
+                          </p>
+                          <Badge variant="warning">suspended</Badge>
+                          {agent.status_decided_at ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Suspended {formatDate(agent.status_decided_at)}
+                            </p>
+                          ) : null}
+                          {agent.status_reason ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
+                          ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button type="button" size="sm"
+                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
+                          onClick={() =>
+                            setPendingMembershipDecision({
+                              action: "restore", membershipId: agent.membership_id,
+                              agentName: agent.display_name || agent.company_name || "this agent",
+                            })
+                          }
+                        >
+                          Reinstate
+                        </Button>
+                      </div>
+                    </div>
+                    <Input
+                      label="Decision reason" placeholder="Required before membership decisions or review responses"
+                      value={membershipReasons[agent.membership_id] ?? ""}
+                      onChange={(event) =>
+                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "leftCancelled" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Left/Cancelled</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Agents who have left or had their memberships cancelled.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents" message="There was a problem loading your agency roster."
+                onRetry={() => { void agentsQuery.refetch(); }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "left").length === 0 ? (
+              <EmptyState title="No departed members." description="" />
+            ) : null}
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "left").length > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.filter(a => a.membership_status === "left").map((agent) => (
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {agent.display_name || agent.company_name || "Listing agent"}
+                          </p>
+                          <Badge variant="outline">left</Badge>
+                          {agent.status_decided_at ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Left {formatDate(agent.status_decided_at)}
+                            </p>
+                          ) : null}
+                          {agent.status_reason ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
+                          ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button type="button" size="sm"
+                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
+                          onClick={() =>
+                            setPendingMembershipDecision({
+                              action: "restore", membershipId: agent.membership_id,
+                              agentName: agent.display_name || agent.company_name || "this agent",
+                            })
+                          }
+                        >
+                          Reinstate
+                        </Button>
+                      </div>
+                    </div>
+                    <Input
+                      label="Decision reason" placeholder="Required before membership decisions or review responses"
+                      value={membershipReasons[agent.membership_id] ?? ""}
+                      onChange={(event) =>
+                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "revoked" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Revoked</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Agents whose memberships have been revoked.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents" message="There was a problem loading your agency roster."
+                onRetry={() => { void agentsQuery.refetch(); }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked").length === 0 ? (
+              <EmptyState title="No revoked memberships." description="" />
+            ) : null}
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked").length > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.filter(a => a.membership_status === "revoked").map((agent) => (
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {agent.display_name || agent.company_name || "Listing agent"}
+                          </p>
+                          <Badge variant="danger">revoked</Badge>
+                          {agent.status_decided_at ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Revoked {formatDate(agent.status_decided_at)}
+                            </p>
+                          ) : null}
+                          {agent.status_reason ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button type="button" size="sm"
+                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
+                          onClick={() =>
+                            setPendingMembershipDecision({
+                              action: "restore", membershipId: agent.membership_id,
+                              agentName: agent.display_name || agent.company_name || "this agent",
+                            })
+                          }
+                        >
+                          Reinstate
+                        </Button>
+                      </div>
+                    </div>
+                    <Input
+                      label="Decision reason" placeholder="Required before membership decisions or review responses"
+                      value={membershipReasons[agent.membership_id] ?? ""}
+                      onChange={(event) =>
+                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </CardBody>
         </Card>
       ) : null}
