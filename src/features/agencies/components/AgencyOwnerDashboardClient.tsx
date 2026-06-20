@@ -27,12 +27,14 @@ import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
+  useAgencyMembershipHistory,
   useAgencyStats,
   useAgencyProfile,
   useUpdateAgencyProfile,
 } from "@/features/agencies/hooks";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { AgencyOwnerDashboardSkeleton } from "./AgencyOwnerDashboardSkeleton";
+import { formatMembershipAction, formatMembershipDate } from "./membershipHistory";
 
 const agencyProfileSchema = z.object({
   name: z.string().trim().min(2, "Agency name is required"),
@@ -72,6 +74,7 @@ export function AgencyOwnerDashboardClient() {
 
   const agencyId = agency?.agency_id;
   const statsQuery = useAgencyStats(agencyId ?? undefined, Boolean(agencyId), "include");
+  const historyQuery = useAgencyMembershipHistory(agencyId ?? null, Boolean(agencyId));
   const updateAgencyProfile = useUpdateAgencyProfile(agencyId);
   const agencyProfileForm = useForm<AgencyProfileFormValues>({
     resolver: zodResolver(agencyProfileSchema),
@@ -352,6 +355,68 @@ export function AgencyOwnerDashboardClient() {
               </form>
             </SheetContent>
           </Sheet>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-5">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Membership history
+          </h2>
+          {historyQuery.isLoading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+          ) : historyQuery.isError ? (
+            <p className="text-sm text-red-500">Could not load membership history.</p>
+          ) : !historyQuery.data || historyQuery.data.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No membership history recorded for this agency.</p>
+          ) : (
+            <div className="space-y-3">
+              {[...historyQuery.data]
+                .sort(
+                  (a, b) =>
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+                )
+                .map((record) => (
+                  <div
+                    key={record.id}
+                    className="rounded-lg border border-border p-4 text-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {record.user_display_name}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {formatMembershipDate(record.created_at)}
+                        </p>
+                      </div>
+                      <Badge variant={
+                        record.action === "joined" || record.action === "reinstated"
+                          ? "success"
+                          : record.action === "revoked" || record.action === "suspended"
+                            ? "danger"
+                            : record.action === "left"
+                              ? "warning"
+                              : "outline"
+                      }>
+                        {formatMembershipAction(record.action)}
+                      </Badge>
+                    </div>
+                    {record.reason ? (
+                      <p className="mt-3 rounded-lg bg-gray-50 p-3 leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                        {record.reason}
+                      </p>
+                    ) : null}
+                    {record.prior_role || record.post_role ? (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Role: {record.prior_role ?? "not recorded"} to{" "}
+                        {record.post_role ?? "not recorded"}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+            </div>
+          )}
         </CardBody>
       </Card>
 

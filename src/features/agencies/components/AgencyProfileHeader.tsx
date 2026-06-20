@@ -316,7 +316,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
         footer={
           <div className="flex w-full gap-3">
             <Button
-              variant="outline"
+              variant="secondary"
               className="flex-1"
               onClick={() => {
                 setShowLeaveDialog(false);

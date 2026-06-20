@@ -1,6 +1,7 @@
 export { useAgencyProfile, useUpdateAgencyProfile } from "./useAgencyProfile";
 export { useAgencyAgents } from "./useAgencyAgents";
 export { useAgencyListings } from "./useAgencyListings";
+export { useAgencyMembershipHistory } from "./useAgencyMembershipHistory";
 export {
   useAgentMembershipStatus,
   useAgencyMemberHistory,
