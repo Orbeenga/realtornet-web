@@ -12,3 +12,4 @@ export { AgencyInviteAcceptClient } from "./AgencyInviteAcceptClient";
 export { AgencyJoinRequestForm } from "./AgencyJoinRequestForm";
 export { AgencyOwnerDashboardClient } from "./AgencyOwnerDashboardClient";
 export { MyJoinRequestsClient } from "./MyJoinRequestsClient";
+export { AgencyMembersClient } from "./AgencyMembersClient";
