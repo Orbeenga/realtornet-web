@@ -13,6 +13,17 @@ import {
   useAdminUsageMetrics,
 } from "@/features/admin/hooks/useAdminAnalytics";
 import { useAdminAudit } from "@/features/admin/hooks/useAdminAudit";
+import { moderationStatusLabel } from "@/features/properties/lib/moderation";
+
+const LISTING_STATE_ORDER = [
+  "draft",
+  "agency_review",
+  "agency_rejected",
+  "admin_review",
+  "admin_rejected",
+  "live",
+  "revoked",
+] as const;
 
 function formatNumber(value?: number | string | null) {
   if (value == null) {
@@ -167,6 +178,23 @@ export function AdminAnalyticsClient() {
             detail={`${formatNumber(systemStats.properties.featured)} featured`}
           />
         </div>
+      ) : null}
+
+      {systemStats?.properties?.by_status ? (
+        <section>
+          <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+            Listing state breakdown
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {LISTING_STATE_ORDER.map((state) => (
+              <InlineMetric
+                key={state}
+                label={moderationStatusLabel[state] ?? state.replace(/_/g, " ")}
+                value={systemStats.properties.by_status?.[state] ?? 0}
+              />
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
