@@ -285,7 +285,7 @@ export function MyJoinRequestsClient() {
               { value: "active", label: `Active (${activeMemberships.length})` },
               { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
               { value: "suspended", label: `Suspended (${suspendedMemberships.length})` },
-              { value: "left", label: `Left/Cancelled (${leftMemberships.length})` },
+              { value: "left", label: `Left (${leftMemberships.length})` },
               { value: "revoked", label: `Revoked (${revokedMemberships.length})` },
             ].filter(t => {
               if (t.value === "rejected") return requests.some(r => r.status === "rejected") || membershipSubTab === "rejected";

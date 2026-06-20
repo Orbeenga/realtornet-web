@@ -196,13 +196,13 @@ export function useLeaveAgencyMembership() {
       reason,
     }: {
       membershipId: number;
-      reason?: string | null;
+      reason: string;
     }) =>
       apiClient<MyAgencyMembershipResponse>(
         `/api/v1/agency-memberships/${membershipId}/leave`,
         {
           method: "PATCH",
-          body: JSON.stringify({ reason: reason ?? null }),
+          body: JSON.stringify({ reason }),
         },
       ),
     onSuccess: async () => {
