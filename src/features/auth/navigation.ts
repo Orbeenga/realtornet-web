@@ -109,6 +109,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
     return [
       { href: "/account/listings", label: "My Listings" },
       { href: "/account/agency", label: "Agency Dashboard" },
+      { href: "/account/agency/members", label: "Agency Members" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "My Favorites" },
       { href: "/account/reviews", label: "My Reviews" },
