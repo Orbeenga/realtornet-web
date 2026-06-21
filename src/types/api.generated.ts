@@ -1254,6 +1254,26 @@ export interface paths {
         patch: operations["reject_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reject__patch"];
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/join-requests/{request_id}/reconsider/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reconsider Agency Join Request
+         * @description Reconsider a rejected join request by resetting it to pending.
+         */
+        patch: operations["reconsider_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reconsider__patch"];
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/invitations/": {
         parameters: {
             query?: never;
@@ -8669,6 +8689,38 @@ export interface operations {
             };
         };
     };
+    reconsider_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reconsider__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_agency_invitations_api_v1_agencies__agency_id__invitations__get: {
         parameters: {
             query?: {
@@ -9893,8 +9945,10 @@ export interface operations {
     get_agency_queue_api_v1_properties_agency_queue_get: {
         parameters: {
             query?: {
-                skip?: number;
-                limit?: number;
+                /** @description Page number */
+                page?: number;
+                /** @description Items per page */
+                page_size?: number;
             };
             header?: never;
             path?: never;
@@ -9925,8 +9979,10 @@ export interface operations {
     get_agency_inventory_api_v1_properties_agency_inventory_get: {
         parameters: {
             query?: {
-                skip?: number;
-                limit?: number;
+                /** @description Page number */
+                page?: number;
+                /** @description Items per page */
+                page_size?: number;
             };
             header?: never;
             path?: never;
@@ -9957,8 +10013,10 @@ export interface operations {
     get_pending_admin_api_v1_properties_pending_admin_get: {
         parameters: {
             query?: {
-                skip?: number;
-                limit?: number;
+                /** @description Page number */
+                page?: number;
+                /** @description Items per page */
+                page_size?: number;
             };
             header?: never;
             path?: never;
