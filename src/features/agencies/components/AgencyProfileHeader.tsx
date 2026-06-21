@@ -63,6 +63,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
     agency.agency_id,
   );
   const isActiveMember = matchingMembership?.status === "active";
+  const isBlockedMember = matchingMembership?.status === "blocked";
   const hasPendingReview =
     Boolean(matchingMembership?.pending_review_request_id) || submittedReviewRequest;
   const isReturningApplicant = isReturningMembershipAction(latestHistory?.action);
@@ -155,6 +156,14 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
 
     if (!isAgencyApplicantRole) {
       return null;
+    }
+
+    if (isBlockedMember) {
+      return (
+        <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900">
+          You cannot apply to this agency.
+        </div>
+      );
     }
 
     if (isActiveMember || existingRequest?.status === "approved") {

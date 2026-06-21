@@ -3,6 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, Input, LoadingState } from "@/components";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
 import {
   useAdminApproveProperty,
@@ -12,6 +21,7 @@ import {
   useAdminRejectionHistory,
   useListingEvents,
   useReinstateProperty,
+  useRejectPermanent,
   useRevokeProperty,
 } from "@/features/properties/hooks";
 import {
@@ -332,11 +342,14 @@ export function AdminPropertiesClient() {
   const rejectionHistoryQuery = useAdminRejectionHistory(
     gate.isAllowed && activeTab === MODERATION_STATUS.adminRejected,
   );
+  const rejectPermanent = useRejectPermanent();
   const adminApproveProperty = useAdminApproveProperty();
   const adminRejectProperty = useAdminRejectProperty();
   const revokeProperty = useRevokeProperty();
   const reinstateProperty = useReinstateProperty();
   const [reasons, setReasons] = useState<Record<number, string>>({});
+  const [rejectPermanentDialog, setRejectPermanentDialog] = useState<Property | null>(null);
+  const [rejectPermanentReason, setRejectPermanentReason] = useState("");
 
   const isHistoricalTab = activeTab === MODERATION_STATUS.revoked || activeTab === MODERATION_STATUS.adminRejected;
   const activeQuery = isHistoricalTab
@@ -450,6 +463,23 @@ export function AdminPropertiesClient() {
     }
   };
 
+  const handleRejectPermanent = async () => {
+    if (!rejectPermanentDialog) return;
+    const reason = rejectPermanentReason.trim();
+    if (!reason) {
+      notify.error("Enter a reason before permanently rejecting this listing.");
+      return;
+    }
+    try {
+      await rejectPermanent.mutateAsync({ propertyId: rejectPermanentDialog.property_id, reason });
+      notify.success("Listing permanently rejected.");
+      setRejectPermanentDialog(null);
+      setRejectPermanentReason("");
+    } catch {
+      notify.error("Could not permanently reject listing.");
+    }
+  };
+
   const activeTabLabel = MODERATION_TABS.find((t) => t.value === activeTab)?.label ?? activeTab;
 
   return (
@@ -517,13 +547,45 @@ export function AdminPropertiesClient() {
                   onRevoke={() => void handleRevoke(property.property_id)}
                   onReinstate={() => void handleReinstate(property.property_id)}
                   derivedCta={derivedCta}
-                  onRejectPermanent={undefined}
+                  onRejectPermanent={() => setRejectPermanentDialog(property)}
                 />
               );
             })}
           </div>
         )}
       </section>
+
+      <Dialog
+        open={Boolean(rejectPermanentDialog)}
+        onOpenChange={(open) => { if (!open) { setRejectPermanentDialog(null); setRejectPermanentReason(""); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently reject listing</DialogTitle>
+            <DialogDescription>
+              {rejectPermanentDialog ? `This will permanently reject "${rejectPermanentDialog.title}" — the agent cannot resubmit.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            label="Rejection reason"
+            placeholder="Required reason"
+            value={rejectPermanentReason}
+            onChange={(event) => setRejectPermanentReason(event.target.value)}
+          />
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={rejectPermanent.isPending}
+              disabled={!rejectPermanentReason.trim()}
+              onClick={() => void handleRejectPermanent()}
+            >
+              Reject permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
