@@ -170,6 +170,7 @@ export function MyJoinRequestsClient() {
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
   const leftMemberships = memberships.filter(m => m.status === "left");
   const revokedMemberships = memberships.filter(m => m.status === "revoked" || m.status === "inactive");
+  const blockedMemberships = memberships.filter(m => m.status === "blocked");
   const invitations = invitationsQuery.data ?? [];
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count: number }> = [
     ...(canViewAgencyInvitations
@@ -290,6 +291,7 @@ export function MyJoinRequestsClient() {
               { value: "suspended", label: `Suspended (${suspendedMemberships.length})` },
               { value: "left", label: `Left (${leftMemberships.length})` },
               { value: "revoked", label: `Revoked (${revokedMemberships.length})` },
+              { value: "blocked", label: `Blocked (${blockedMemberships.length})` },
               { value: "history", label: `History (${historyQuery.data?.length ?? 0})` },
             ].filter(t => {
               if (t.value === "rejected") return requests.some(r => r.status === "rejected") || membershipSubTab === "rejected";
@@ -589,6 +591,43 @@ export function MyJoinRequestsClient() {
                 ))
               )}
             </div>
+          ) : membershipSubTab === "blocked" ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {blockedMemberships.length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No blocked memberships" description="You have no blocked memberships." />
+                </div>
+              ) : (
+                blockedMemberships.map((membership) => (
+                  <Card key={membership.membership_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${membership.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {membership.agency_name}
+                        </Link>
+                        <Badge variant="danger">blocked</Badge>
+                      </div>
+                      {membership.status_decided_at ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Blocked {formatDate(membership.status_decided_at)}
+                        </p>
+                      ) : null}
+                      {membership.status_reason ? (
+                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                          {membership.status_reason}
+                        </div>
+                      ) : null}
+                      <p className="rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                        This agency has restricted your access. Contact platform support if you believe this is in error.
+                      </p>
+                    </CardBody>
+                  </Card>
+                ))
+              )}
+            </div>
           ) : membershipSubTab === "history" ? (
             <div className="space-y-4">
               {historyQuery.isLoading ? (
@@ -656,10 +695,7 @@ export function MyJoinRequestsClient() {
           {[
             { value: "pending", label: `Pending (${requests.filter(r => r.status === "pending").length})` },
             { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-          ].filter(t => {
-            if (t.value === "rejected") return requests.some(r => r.status === "rejected") || requestSubTab === "rejected";
-            return true;
-          }).map(({ value, label }) => (
+          ].map(({ value, label }) => (
             <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
               {label}
             </Button>

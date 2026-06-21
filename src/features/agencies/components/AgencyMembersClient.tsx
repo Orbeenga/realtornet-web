@@ -38,6 +38,7 @@ import {
   useDeclineAgencyReviewRequest,
   useInviteAgencyAgent,
   useRejectAgencyJoinRequest,
+  useReconsiderJoinRequest,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
@@ -53,7 +54,7 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
 type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
@@ -70,6 +71,7 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "suspended", label: "Suspended" },
   { value: "leftCancelled", label: "Left" },
   { value: "revoked", label: "Revoked" },
+  { value: "blocked", label: "Blocked" },
 ];
 
 function formatDate(value: string) {
@@ -150,6 +152,7 @@ export function AgencyMembersClient() {
   const restoreMembership = useRestoreAgencyMembership(agencyId);
   const acceptReview = useAcceptAgencyReviewRequest(agencyId);
   const declineReview = useDeclineAgencyReviewRequest(agencyId);
+  const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
 
   const handleApproveJoinRequest = async (requestId: number) => {
@@ -177,6 +180,15 @@ export function AgencyMembersClient() {
       });
     } catch {
       notify.error("Could not reject join request");
+    }
+  };
+
+  const handleReconsider = async (requestId: number) => {
+    try {
+      await reconsiderJoinRequest.mutateAsync(requestId);
+      notify.success("Join request reconsidered — moved back to pending.");
+    } catch {
+      notify.error("Could not reconsider join request.");
     }
   };
 
@@ -315,6 +327,7 @@ export function AgencyMembersClient() {
     suspended: agents.filter(a => a.membership_status === "suspended").length,
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
     revoked: agents.filter(a => a.membership_status === "revoked").length,
+    blocked: agents.filter(a => a.membership_status === "blocked").length,
   };
   const pendingDecisionReason = pendingMembershipDecision
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
@@ -776,6 +789,13 @@ export function AgencyMembersClient() {
                           </div>
                         ) : null}
                       </div>
+                      <Button
+                        type="button" size="sm" variant="secondary"
+                        loading={reconsiderJoinRequest.isPending && reconsiderJoinRequest.variables === request.join_request_id}
+                        onClick={() => void handleReconsider(request.join_request_id)}
+                      >
+                        Reconsider
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -1014,6 +1034,63 @@ export function AgencyMembersClient() {
                         setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
                       }
                     />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "blocked" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Blocked</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Users blocked from this agency.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents" message="There was a problem loading your agency roster."
+                onRetry={() => { void agentsQuery.refetch(); }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "blocked").length === 0 ? (
+              <EmptyState title="No blocked users." description="" />
+            ) : null}
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "blocked").length > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.filter(a => a.membership_status === "blocked").map((agent) => (
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {agent.display_name || agent.company_name || "Listing agent"}
+                          </p>
+                          <Badge variant="danger">blocked</Badge>
+                          {agent.status_decided_at ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Blocked {formatDate(agent.status_decided_at)}
+                            </p>
+                          ) : null}
+                          {agent.status_reason ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
