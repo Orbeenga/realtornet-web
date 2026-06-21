@@ -130,6 +130,7 @@ interface PropertyModerationCardProps {
   onReinstate: () => void;
   derivedCta?: { label: string; action: string | null } | null;
   onRejectPermanent?: () => void;
+  isHistorical?: boolean;
 }
 
 function PropertyModerationCard({
@@ -143,6 +144,7 @@ function PropertyModerationCard({
   onReinstate,
   derivedCta,
   onRejectPermanent,
+  isHistorical = false,
 }: PropertyModerationCardProps) {
   const [showHistory, setShowHistory] = useState(false);
   const status = property.moderation_status;
@@ -200,47 +202,51 @@ function PropertyModerationCard({
               )
             ) : (
               <>
-                {isAdminReview ? (
+                {!isHistorical ? (
                   <>
-                    <Button
-                      type="button"
-                      size="sm"
-                      loading={isActing}
-                      onClick={onVerify}
-                    >
-                      Verify
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      loading={isActing}
-                      onClick={onReject}
-                    >
-                      Reject
-                    </Button>
+                    {isAdminReview ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          loading={isActing}
+                          onClick={onVerify}
+                        >
+                          Verify
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          loading={isActing}
+                          onClick={onReject}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    ) : null}
+                    {isLive ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        loading={isActing}
+                        onClick={onRevoke}
+                      >
+                        Revoke
+                      </Button>
+                    ) : null}
+                    {isAdminRejected ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        loading={isActing}
+                        onClick={onReinstate}
+                      >
+                        Reinstate
+                      </Button>
+                    ) : null}
                   </>
-                ) : null}
-                {isLive ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    loading={isActing}
-                    onClick={onRevoke}
-                  >
-                    Revoke
-                  </Button>
-                ) : null}
-                {isAdminRejected ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    loading={isActing}
-                    onClick={onReinstate}
-                  >
-                    Reinstate
-                  </Button>
                 ) : null}
               </>
             )}
@@ -293,7 +299,7 @@ function PropertyModerationCard({
           </div>
         </div>
 
-        {isAdminReview || isLive ? (
+        {!isHistorical && (isAdminReview || isLive) ? (
           <Input
             label={
               isAdminReview
@@ -532,6 +538,7 @@ export function AdminPropertiesClient() {
                   property={property}
                   reason={reasons[property.property_id] ?? ""}
                   onReasonChange={(value) => setReason(property.property_id, value)}
+                  isHistorical={isHistoricalTab}
                   isActing={
                     (adminApproveProperty.isPending &&
                       adminApproveProperty.variables === property.property_id) ||
