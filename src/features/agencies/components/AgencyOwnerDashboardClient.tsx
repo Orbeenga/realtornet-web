@@ -32,6 +32,23 @@ import {
   useAgencyProfile,
   useUpdateAgencyProfile,
 } from "@/features/agencies/hooks";
+import {
+  useAgencyApproveProperty,
+  useAgencyQueue,
+  useAgencyInventory,
+  usePendingAdmin,
+  useAgencyRejectProperty,
+  useRecallPropertyFromAdminReview,
+} from "@/features/properties/hooks";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { AgencyOwnerDashboardSkeleton } from "./AgencyOwnerDashboardSkeleton";
 import { formatMembershipAction, formatMembershipDate } from "./membershipHistory";
@@ -46,10 +63,17 @@ const agencyProfileSchema = z.object({
 
 type AgencyProfileFormValues = z.infer<typeof agencyProfileSchema>;
 
+type RejectDialogState = {
+  propertyId: number;
+  propertyTitle: string;
+};
+
 export function AgencyOwnerDashboardClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
   const [isEditingAgencyProfile, setIsEditingAgencyProfile] = useState(false);
+  const [rejectDialog, setRejectDialog] = useState<RejectDialogState | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const userAgencyId = user?.agency_id;
   const userEmail = user?.email;
   const shouldLoadAgencyDirectory = gate.isAllowed && typeof userAgencyId !== "number";
@@ -75,6 +99,12 @@ export function AgencyOwnerDashboardClient() {
   const agencyId = agency?.agency_id;
   const statsQuery = useAgencyStats(agencyId ?? undefined, Boolean(agencyId), "include");
   const historyQuery = useAgencyMembershipHistory(agencyId ?? null, Boolean(agencyId));
+  const agencyQueueQuery = useAgencyQueue(Boolean(agencyId));
+  const pendingAdminQuery = usePendingAdmin(Boolean(agencyId));
+  const agencyInventoryQuery = useAgencyInventory(Boolean(agencyId));
+  const approveListing = useAgencyApproveProperty();
+  const rejectListing = useAgencyRejectProperty();
+  const recallListing = useRecallPropertyFromAdminReview();
   const updateAgencyProfile = useUpdateAgencyProfile(agencyId);
   const agencyProfileForm = useForm<AgencyProfileFormValues>({
     resolver: zodResolver(agencyProfileSchema),
@@ -100,6 +130,32 @@ export function AgencyOwnerDashboardClient() {
       logo_url: agency.logo_url ?? "",
     });
     setIsEditingAgencyProfile(true);
+  };
+
+  const handleRejectListing = async () => {
+    if (!rejectDialog) return;
+    const reason = rejectReason.trim();
+    if (!reason) {
+      notify.error("Enter a reason before rejecting this listing.");
+      return;
+    }
+    try {
+      await rejectListing.mutateAsync({ propertyId: rejectDialog.propertyId, reason });
+      notify.success("Listing rejected.");
+      setRejectDialog(null);
+      setRejectReason("");
+    } catch {
+      notify.error("Could not reject listing.");
+    }
+  };
+
+  const handleRecallListing = async (propertyId: number) => {
+    try {
+      await recallListing.mutateAsync(propertyId);
+      notify.success("Listing recalled from admin review.");
+    } catch {
+      notify.error("Could not recall listing.");
+    }
   };
 
   const handleCancelAgencyProfileEdit = () => {
@@ -270,6 +326,143 @@ export function AgencyOwnerDashboardClient() {
       ) : null}
 
       <section>
+        <div className="mb-4 flex items-center gap-3">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Agency Queue</h2>
+          {agencyQueueQuery.data && agencyQueueQuery.data.length > 0 ? (
+            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 text-xs font-bold text-white">
+              {agencyQueueQuery.data.length}
+            </span>
+          ) : null}
+        </div>
+        {agencyQueueQuery.isLoading ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+        ) : agencyQueueQuery.isError ? (
+          <p className="text-sm text-red-500">Could not load agency queue.</p>
+        ) : !agencyQueueQuery.data || agencyQueueQuery.data.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No listings awaiting your review.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {agencyQueueQuery.data.map((listing) => (
+              <Card key={listing.property_id}>
+                <CardBody className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="font-semibold text-gray-900 dark:text-white">{listing.title}</p>
+                    <Badge>Agency review</Badge>
+                  </div>
+                  {listing.owner_display_name ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Agent: {listing.owner_display_name}</p>
+                  ) : null}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Submitted {listing.created_at ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(listing.created_at)) : "Unknown"}
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button
+                      type="button" size="sm"
+                      loading={approveListing.isPending && approveListing.variables === listing.property_id}
+                      onClick={() => { void approveListing.mutateAsync(listing.property_id); }}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      type="button" size="sm" variant="destructive"
+                      onClick={() => { setRejectDialog({ propertyId: listing.property_id, propertyTitle: listing.title }); setRejectReason(""); }}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+          Pending Admin
+          {pendingAdminQuery.data && pendingAdminQuery.data.length > 0 ? ` (${pendingAdminQuery.data.length})` : null}
+        </h2>
+        {pendingAdminQuery.isLoading ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+        ) : pendingAdminQuery.isError ? (
+          <p className="text-sm text-red-500">Could not load pending admin listings.</p>
+        ) : !pendingAdminQuery.data || pendingAdminQuery.data.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No listings awaiting admin review.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {pendingAdminQuery.data.map((listing) => (
+              <Card key={listing.property_id}>
+                <CardBody className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="font-semibold text-gray-900 dark:text-white">{listing.title}</p>
+                    <Badge>Admin review</Badge>
+                  </div>
+                  {listing.owner_display_name ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Agent: {listing.owner_display_name}</p>
+                  ) : null}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Approved for admin review
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button
+                      type="button" size="sm" variant="secondary"
+                      loading={recallListing.isPending && recallListing.variables === listing.property_id}
+                      onClick={() => void handleRecallListing(listing.property_id)}
+                    >
+                      Recall
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+          Agency Inventory
+          {agencyInventoryQuery.data && agencyInventoryQuery.data.length > 0 ? ` (${agencyInventoryQuery.data.length})` : null}
+        </h2>
+        {agencyInventoryQuery.isLoading ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+        ) : agencyInventoryQuery.isError ? (
+          <p className="text-sm text-red-500">Could not load agency inventory.</p>
+        ) : !agencyInventoryQuery.data || agencyInventoryQuery.data.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No live listings for this agency.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {agencyInventoryQuery.data.map((listing) => (
+              <Card key={listing.property_id}>
+                <CardBody className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <Link
+                      href={`/properties/${listing.property_id}`}
+                      className="font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                    >
+                      {listing.title}
+                    </Link>
+                    <Badge variant="success">Live</Badge>
+                  </div>
+                  {listing.owner_display_name ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Agent: {listing.owner_display_name}</p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Link
+                      href={`/properties/${listing.property_id}`}
+                      className="inline-flex h-7 items-center justify-center rounded-lg bg-secondary px-2.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+                    >
+                      View listing
+                    </Link>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
         <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Membership history</h2>
         {historyQuery.isLoading ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
@@ -317,6 +510,38 @@ export function AgencyOwnerDashboardClient() {
           </div>
         )}
       </section>
+
+      <Dialog
+        open={Boolean(rejectDialog)}
+        onOpenChange={(open) => { if (!open) { setRejectDialog(null); setRejectReason(""); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject listing</DialogTitle>
+            <DialogDescription>
+              {rejectDialog ? `Provide a reason for rejecting "${rejectDialog.propertyTitle}".` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            label="Rejection reason"
+            placeholder="Required reason shown to the listing agent"
+            value={rejectReason}
+            onChange={(event) => setRejectReason(event.target.value)}
+          />
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={rejectListing.isPending}
+              disabled={!rejectReason.trim()}
+              onClick={() => void handleRejectListing()}
+            >
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={isEditingAgencyProfile} onOpenChange={setIsEditingAgencyProfile}>
         <SheetContent side="right" className="sm:max-w-lg">
