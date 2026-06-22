@@ -9,7 +9,7 @@
 - The area file owns stack rules and implementation-specific guidance.
 
 ## Current phase state
-- Phase J is closed as of 2026-05-13. Phase K is closed May 2026. Phase L is closed. Phase M is closed June 2026.
+- Phase J is closed as of 2026-05-13. Phase K is closed May 2026. Phase L is closed. Phase M is closed June 2026. Phase Q is closed June 22 2026.
 - Phase H backend B1-B3 are complete (`5a96191`, `59c6923`, `0d58594`): legacy membership aliases removed, `property_type_id` search filter live, agency-owner profile edit contract open for own agency, and agent directory filters support `agency_id` + `location_id`.
 - Phase H frontend F1-F3 are complete (`1660933`, `1c356e6`, `aced574`), with the public landing-page stale-auth redirect follow-up fixed in `ed11530`.
 - Phase I frontend I.4/I.5 is closed in `2d8b0fb`: membership-history UI, post-revocation dashboard, generic review-request endpoints, stale `role_version` refresh handling, auth path correction, and single-agency revocation/review smoke. Multi-agency membership-role behavior is now production-verified by backend API smoke under `DEF-I-MEM-SMOKE-001`.
