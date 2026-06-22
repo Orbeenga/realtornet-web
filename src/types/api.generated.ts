@@ -3474,7 +3474,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/inquiries/{inquiry_id}/mark-responded": {
+    "/api/v1/inquiries/{inquiry_id}/reply/": {
         parameters: {
             query?: never;
             header?: never;
@@ -3484,13 +3484,39 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Mark Inquiry Responded
-         * @description Mark inquiry as responded.
+         * Reply To Inquiry
+         * @description Reply to an inquiry.
          *
-         *     - Property owner can mark as responded
-         *     - Admins can mark any inquiry as responded
+         *     - Agent or agency_owner who received the inquiry can reply
+         *     - First reply auto-marks inquiry as responded
+         *     - Seeker receives in-platform notification
+         *     - Email dispatched to seeker if MAIL_FROM is verified (fail-open)
          */
-        post: operations["mark_inquiry_responded_api_v1_inquiries__inquiry_id__mark_responded_post"];
+        post: operations["reply_to_inquiry_api_v1_inquiries__inquiry_id__reply__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inquiries/{inquiry_id}/replies/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Inquiry Replies
+         * @description Get replies for an inquiry.
+         *
+         *     - Seeker who sent the inquiry can read
+         *     - Agent/agency_owner who received the inquiry can read
+         *     - Admin can read all
+         */
+        get: operations["read_inquiry_replies_api_v1_inquiries__inquiry_id__replies__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3538,6 +3564,33 @@ export interface paths {
         get: operations["count_inquiries_by_status_api_v1_inquiries_count__property_id__by_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inquiries/{inquiry_id}/mark-responded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Inquiry Responded
+         * @description Mark inquiry as responded (deprecated).
+         *
+         *     This endpoint is deprecated in Phase R. Inquiry status now transitions
+         *     to 'responded' automatically when the first reply is posted via
+         *     POST /{inquiry_id}/reply/. Use the reply endpoint instead.
+         *
+         *     - Property owner can mark as responded
+         *     - Admins can mark any inquiry as responded
+         */
+        post: operations["mark_inquiry_responded_api_v1_inquiries__inquiry_id__mark_responded_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5300,11 +5353,47 @@ export interface components {
              * @default false
              */
             can_respond: boolean;
+            /**
+             * Reply Count
+             * @default 0
+             */
+            reply_count: number;
+            latest_reply?: components["schemas"]["InquiryReplyResponse"] | null;
             user?: components["schemas"]["InquiryUserSummary"] | null;
             /** Property */
             property?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** InquiryReplyCreate */
+        InquiryReplyCreate: {
+            /** Body */
+            body: string;
+        };
+        /** InquiryReplyResponse */
+        InquiryReplyResponse: {
+            /** Reply Id */
+            reply_id: number;
+            /** Inquiry Id */
+            inquiry_id: number;
+            /** Author Id */
+            author_id: number;
+            /**
+             * Author Display Name
+             * @default
+             */
+            author_display_name: string;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Viewed At */
+            viewed_at?: string | null;
+            /** Edited At */
+            edited_at?: string | null;
         };
         /**
          * InquiryResponse
@@ -5340,6 +5429,12 @@ export interface components {
              * @default false
              */
             can_respond: boolean;
+            /**
+             * Reply Count
+             * @default 0
+             */
+            reply_count: number;
+            latest_reply?: components["schemas"]["InquiryReplyResponse"] | null;
         };
         /**
          * InquiryStatsBreakdown
@@ -12490,9 +12585,49 @@ export interface operations {
             };
         };
     };
-    mark_inquiry_responded_api_v1_inquiries__inquiry_id__mark_responded_post: {
+    reply_to_inquiry_api_v1_inquiries__inquiry_id__reply__post: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                inquiry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InquiryReplyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InquiryReplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_inquiry_replies_api_v1_inquiries__inquiry_id__replies__get: {
+        parameters: {
+            query?: {
+                /** @description Records to skip */
+                skip?: number;
+                /** @description Page size (max 100) */
+                limit?: number;
+            };
             header?: never;
             path: {
                 inquiry_id: number;
@@ -12507,7 +12642,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InquiryResponse"];
+                    "application/json": components["schemas"]["InquiryReplyResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -12576,6 +12711,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_inquiry_responded_api_v1_inquiries__inquiry_id__mark_responded_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inquiry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InquiryResponse"];
                 };
             };
             /** @description Validation Error */
