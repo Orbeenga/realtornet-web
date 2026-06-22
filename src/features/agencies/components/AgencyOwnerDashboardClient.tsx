@@ -397,8 +397,12 @@ export function AgencyOwnerDashboardClient() {
           ) : (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/50">
               <FileText className="mx-auto h-8 w-8 text-gray-300" />
-              <p className="mt-2 text-sm text-gray-500">No listings in non-live statuses.</p>
-              <p className="text-xs text-gray-400">Breakdown cards will appear here as listings move through the review pipeline.</p>
+              <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">All listings are live</p>
+              <p className="mt-1 text-xs text-gray-400 max-w-md mx-auto">
+                                This section breaks down your agency&apos;s properties by moderation status &mdash; draft,
+                awaiting agency review, rejected, awaiting admin review, or revoked.
+                These cards populate automatically when listings enter non-live statuses.
+              </p>
             </div>
           )}
         </section>
@@ -409,8 +413,12 @@ export function AgencyOwnerDashboardClient() {
           </h2>
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/50">
             <BarChart className="mx-auto h-8 w-8 text-gray-300" />
-            <p className="mt-2 text-sm text-gray-500">Breakdown data is not yet available.</p>
-            <p className="text-xs text-gray-400">Stats will populate once listings enter the moderation pipeline.</p>
+            <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Breakdown data loading</p>
+            <p className="mt-1 text-xs text-gray-400 max-w-md mx-auto">
+               Once loaded, each card here counts your agency&apos;s properties in a given moderation
+               status &mdash; draft, agency review, admin review, rejected, or revoked &mdash; so you can
+               track pipeline health at a glance.
+            </p>
           </div>
         </section>
       )}
