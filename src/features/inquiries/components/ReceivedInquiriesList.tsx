@@ -6,11 +6,11 @@ import { Button, EmptyState, ErrorState, Skeleton } from "@/components";
 import {
   useInquiryDirectory,
   useMarkInquiryViewed,
-  useUpdateInquiryStatus,
+  useReplyToInquiry,
   type InquiryDirectorySource,
 } from "@/features/inquiries/hooks";
 import type { InquiryDirectoryItem } from "@/features/inquiries/hooks/useInquiryDirectory";
-import type { InquiryStatus } from "@/types";
+import type { InquiryReplyResponse } from "@/types";
 
 interface ReceivedInquiriesListProps {
   source: Exclude<InquiryDirectorySource, "sent">;
@@ -61,36 +61,80 @@ function InquiryListSkeleton() {
   );
 }
 
-function InquiryStatusActions({
+function formatReplyDate(value: string) {
+  return new Intl.DateTimeFormat("en-NG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function InquiryReplySection({
   inquiryId,
   inquiryStatus,
+  replyCount,
+  latestReply,
 }: {
   inquiryId: number;
   inquiryStatus: string;
+  replyCount: number;
+  latestReply: InquiryReplyResponse | null;
 }) {
-  const updateInquiryStatus = useUpdateInquiryStatus();
+  const [replyBody, setReplyBody] = useState("");
+  const replyToInquiry = useReplyToInquiry();
 
-  const handleStatusUpdate = async (status: InquiryStatus) => {
-    await updateInquiryStatus.mutateAsync({ inquiryId, status });
+  const handleSendReply = async () => {
+    const trimmed = replyBody.trim();
+    if (!trimmed) return;
+    try {
+      await replyToInquiry.mutateAsync({ inquiryId, body: trimmed });
+      setReplyBody("");
+    } catch {
+      // Error handled by the mutation
+    }
   };
 
+  if (replyCount > 0 && latestReply) {
+    return (
+      <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+        <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+          Your reply
+        </p>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
+          {latestReply.body}
+        </p>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {latestReply.author_display_name} &middot;{" "}
+          {formatReplyDate(latestReply.created_at)}
+        </p>
+      </div>
+    );
+  }
+
+  if (inquiryStatus === "responded") {
+    return null;
+  }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {inquiryStatus !== "responded" ? (
+    <div className="space-y-3">
+      <textarea
+        value={replyBody}
+        onChange={(e) => setReplyBody(e.target.value)}
+        placeholder="Type your reply..."
+        rows={3}
+        className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200 dark:placeholder-gray-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400"
+      />
+      <div className="flex justify-end">
         <Button
           type="button"
-          variant="secondary"
+          variant="primary"
           size="sm"
-          loading={
-            updateInquiryStatus.isPending &&
-            updateInquiryStatus.variables?.inquiryId === inquiryId &&
-            updateInquiryStatus.variables?.status === "responded"
-          }
-          onClick={() => void handleStatusUpdate("responded")}
+          loading={replyToInquiry.isPending}
+          disabled={!replyBody.trim()}
+          onClick={() => void handleSendReply()}
         >
-          Mark Responded
+          Send reply
         </Button>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -194,24 +238,30 @@ function ReceivedInquiryCard({
               >
                 {isExpanded ? "Hide inquiry" : "Open inquiry"}
               </Button>
-              {showStatusActions ? (
-                <InquiryStatusActions
-                  inquiryId={inquiry.inquiry_id}
-                  inquiryStatus={inquiry.inquiry_status}
-                />
-              ) : null}
             </div>
           </div>
 
           {isExpanded ? (
-            <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950/40">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Inquiry
-              </p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
-                {inquiry.message ?? "No message provided."}
-              </p>
-            </div>
+            <>
+              <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950/40">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Inquiry
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
+                  {inquiry.message ?? "No message provided."}
+                </p>
+              </div>
+              {showStatusActions ? (
+                <div className="mt-4">
+                  <InquiryReplySection
+                    inquiryId={inquiry.inquiry_id}
+                    inquiryStatus={inquiry.inquiry_status}
+                    replyCount={inquiry.reply_count}
+                    latestReply={inquiry.latest_reply ?? null}
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>

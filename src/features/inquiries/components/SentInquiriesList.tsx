@@ -45,6 +45,31 @@ function getSentInquiryStatusClasses(status: string) {
   return "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300";
 }
 
+function SentInquiryReplyDisplay({
+  latestReply,
+}: {
+  latestReply: {
+    author_display_name: string;
+    body: string;
+    created_at: string;
+  };
+}) {
+  return (
+    <div className="mt-3 rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+      <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+        Agent response
+      </p>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
+        {latestReply.body}
+      </p>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        {latestReply.author_display_name} &middot;{" "}
+        {formatDate(latestReply.created_at)}
+      </p>
+    </div>
+  );
+}
+
 export function SentInquiriesList() {
   const inquiryDirectory = useInquiryDirectory("sent");
 
@@ -109,6 +134,10 @@ export function SentInquiriesList() {
                 {formatDate(inquiry.created_at)}
               </div>
             </div>
+
+            {inquiry.latest_reply ? (
+              <SentInquiryReplyDisplay latestReply={inquiry.latest_reply} />
+            ) : null}
           </div>
         </Link>
       ))}
