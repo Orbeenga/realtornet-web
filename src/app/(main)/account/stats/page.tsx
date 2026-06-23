@@ -101,6 +101,9 @@ const MEMBERSHIP_STATUS_META: Record<
   },
 };
 
+const CLICKABLE_CARD_CLASS =
+  "cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50";
+
 export default function AgentStatsPage() {
   const { user } = useAuth();
   const { data: stats, isLoading, isError, refetch } = useAgentPersonalStats(Boolean(user));
@@ -158,7 +161,10 @@ export default function AgentStatsPage() {
       {stats ? (
         <>
           <section className="grid gap-4 sm:grid-cols-3">
-            <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <Link
+              href="/account/stats/listings-by-status"
+              className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            >
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/40">
                 <Building2 className="h-6 w-6 text-violet-600 dark:text-violet-400" />
               </div>
@@ -166,8 +172,11 @@ export default function AgentStatsPage() {
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">{totalListings}</p>
                 <p className="text-sm font-medium text-gray-500">Total listings</p>
               </div>
-            </div>
-            <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            </Link>
+            <Link
+              href="/account/stats/listings-by-status?pending=1"
+              className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            >
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/40">
                 <Activity className="h-6 w-6 text-amber-600 dark:text-amber-400" />
               </div>
@@ -175,8 +184,11 @@ export default function AgentStatsPage() {
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
                 <p className="text-sm font-medium text-gray-500">Pending actions</p>
               </div>
-            </div>
-            <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            </Link>
+            <Link
+              href="/account/stats/inquiry-response-rate"
+              className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            >
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
                 <Inbox className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
@@ -186,7 +198,7 @@ export default function AgentStatsPage() {
                 </p>
                 <p className="text-sm font-medium text-gray-500">Inquiries received</p>
               </div>
-            </div>
+            </Link>
           </section>
 
           {stats.listings_by_status && Object.keys(stats.listings_by_status).length > 0 ? (
@@ -206,9 +218,10 @@ export default function AgentStatsPage() {
                       };
                     const Icon = meta.icon;
                     return (
-                      <div
+                      <Link
                         key={status}
-                        className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+                        href={`/account/stats/listings-by-status?status=${encodeURIComponent(status)}`}
+                        className={`flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
                       >
                         <div
                           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${meta.color}`}
@@ -222,7 +235,7 @@ export default function AgentStatsPage() {
                           </p>
                           <p className="mt-0.5 text-xs text-gray-400">{meta.label}</p>
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
               </div>
@@ -230,7 +243,10 @@ export default function AgentStatsPage() {
           ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <Link
+              href="/account/stats/inquiry-response-rate"
+              className={`block space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            >
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-gray-500" />
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -255,9 +271,12 @@ export default function AgentStatsPage() {
                   {stats.inquiries_responded} responded
                 </span>
               </div>
-            </div>
+            </Link>
 
-            <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <Link
+              href="/account/stats/agency-memberships"
+              className={`block space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            >
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-gray-500" />
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -301,7 +320,7 @@ export default function AgentStatsPage() {
               ) : (
                 <p className="text-sm text-gray-500">No agency memberships.</p>
               )}
-            </div>
+            </Link>
           </section>
         </>
       ) : null}
