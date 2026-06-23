@@ -12,7 +12,7 @@ import type {
   MyAgentMembershipStatusResponse,
 } from "@/types";
 
-type MembershipAction = "suspend" | "revoke" | "block" | "restore";
+type MembershipAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 
 interface MembershipMutationVariables {
   membershipId: number;
@@ -69,6 +69,10 @@ export function useBlockAgencyMembership(agencyId?: string | number | null) {
 
 export function useRestoreAgencyMembership(agencyId?: string | number | null) {
   return useAgencyMembershipAction(agencyId, "restore");
+}
+
+export function useUnblockAgencyMembership(agencyId?: string | number | null) {
+  return useAgencyMembershipAction(agencyId, "unblock");
 }
 
 interface ReviewRequestVariables {

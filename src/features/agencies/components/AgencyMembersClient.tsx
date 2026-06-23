@@ -42,6 +42,7 @@ import {
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
+  useUnblockAgencyMembership,
 } from "@/features/agencies/hooks";
 import { MembershipHistoryList } from "./MembershipHistoryList";
 import {
@@ -55,7 +56,7 @@ const inviteSchema = z.object({
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
 type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
-type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore";
+type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
   membershipId: number;
@@ -106,6 +107,7 @@ function getRequiredDecisionReasonMessage(action: MembershipDecisionAction) {
     revoke: "revoking",
     block: "blocking",
     restore: "restoring",
+    unblock: "unblocking",
   } as const;
   return `Enter a reason before ${actionLabels[action]} this agent.`;
 }
@@ -116,6 +118,7 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
     revoke: "Remove from agency",
     block: "Block agent",
     restore: "Restore agent",
+    unblock: "Unblock agent",
   } as const;
   return labels[action];
 }
@@ -150,6 +153,7 @@ export function AgencyMembersClient() {
   const revokeMembership = useRevokeAgencyMembership(agencyId);
   const blockMembership = useBlockAgencyMembership(agencyId);
   const restoreMembership = useRestoreAgencyMembership(agencyId);
+  const unblockMembership = useUnblockAgencyMembership(agencyId);
   const acceptReview = useAcceptAgencyReviewRequest(agencyId);
   const declineReview = useDeclineAgencyReviewRequest(agencyId);
   const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
@@ -241,6 +245,29 @@ export function AgencyMembersClient() {
     }
   };
 
+  const handleUnblockMembership = async (membershipId: number) => {
+    const reason = membershipReasons[membershipId]?.trim();
+    if (!reason) {
+      notify.error(getRequiredDecisionReasonMessage("unblock"));
+      return;
+    }
+    try {
+      await unblockMembership.mutateAsync({ membershipId, payload: { reason } });
+      notify.success("Agent unblocked. They can now submit a new join request.");
+      setMembershipReasons((current) => {
+        const next = { ...current };
+        delete next[membershipId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not unblock agent.";
+      notify.error(message);
+    }
+  };
+
   const handleRestoreMembership = async (membershipId: number) => {
     const reason = membershipReasons[membershipId]?.trim();
     if (!reason) {
@@ -268,6 +295,8 @@ export function AgencyMembersClient() {
     if (!pendingMembershipDecision) return;
     if (pendingMembershipDecision.action === "restore") {
       await handleRestoreMembership(pendingMembershipDecision.membershipId);
+    } else if (pendingMembershipDecision.action === "unblock") {
+      await handleUnblockMembership(pendingMembershipDecision.membershipId);
     } else {
       await handleMembershipAction(
         pendingMembershipDecision.action,
@@ -336,7 +365,8 @@ export function AgencyMembersClient() {
     ? (pendingMembershipDecision.action === "suspend" && suspendMembership.isPending) ||
       (pendingMembershipDecision.action === "revoke" && revokeMembership.isPending) ||
       (pendingMembershipDecision.action === "block" && blockMembership.isPending) ||
-      (pendingMembershipDecision.action === "restore" && restoreMembership.isPending)
+      (pendingMembershipDecision.action === "restore" && restoreMembership.isPending) ||
+      (pendingMembershipDecision.action === "unblock" && unblockMembership.isPending)
     : false;
 
   return (
@@ -1089,6 +1119,19 @@ export function AgencyMembersClient() {
                             <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
                           ) : null}
                         </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button type="button" size="sm"
+                          loading={unblockMembership.isPending && unblockMembership.variables?.membershipId === agent.membership_id}
+                          onClick={() =>
+                            setPendingMembershipDecision({
+                              action: "unblock", membershipId: agent.membership_id,
+                              agentName: agent.display_name || agent.company_name || "this agent",
+                            })
+                          }
+                        >
+                          Unblock
+                        </Button>
                       </div>
                     </div>
                   </div>
