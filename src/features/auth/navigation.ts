@@ -108,6 +108,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
   if (normalizedRole === "agency_owner") {
     return [
       { href: "/account/listings", label: "My Listings" },
+      { href: "/account/stats", label: "My Stats" },
       { href: "/account/agency", label: "Agency Dashboard" },
       { href: "/account/agency/members", label: "Agency Members" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
@@ -120,6 +121,7 @@ export function getAccountDropdownLinks(role: string | null | undefined) {
   if (normalizedRole === "agent") {
     return [
       { href: "/account/listings", label: "My Listings" },
+      { href: "/account/stats", label: "My Stats" },
       { href: "/account/join-requests", label: "My Agencies" },
       { href: "/account/inquiries", label: inquiryConfig.navLabel },
       { href: "/account/favorites", label: "My Favorites" },
