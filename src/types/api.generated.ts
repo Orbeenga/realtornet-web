@@ -987,6 +987,26 @@ export interface paths {
         patch: operations["block_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__block__patch"];
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/agents/{membership_id}/unblock/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Unblock Agency Agent Membership
+         * @description Unblock a previously blocked membership, setting status to inactive so the user can reapply.
+         */
+        patch: operations["unblock_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__unblock__patch"];
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/agents/{membership_id}/restore/": {
         parameters: {
             query?: never;
@@ -3947,6 +3967,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/agents/me/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get personal agent stats
+         * @description Returns personal listing breakdown, inquiry counts, and membership stats for the current agent or agency_owner.
+         */
+        get: operations["get_agent_personal_stats_api_v1_analytics_agents_me_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/agents/me/stats/listings-by-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get personal listings drill-down
+         * @description Returns listing counts by moderation status plus itemized listings for the current agent.
+         */
+        get: operations["get_agent_listings_by_status_api_v1_analytics_agents_me_stats_listings_by_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/agents/me/stats/inquiry-response-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get personal inquiry response drill-down
+         * @description Returns inquiry response aggregates and per-inquiry details for the current agent.
+         */
+        get: operations["get_agent_inquiry_response_rate_api_v1_analytics_agents_me_stats_inquiry_response_rate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/agents/me/stats/agency-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get personal agency membership drill-down
+         * @description Returns agency membership counts and roster details for the current agent.
+         */
+        get: operations["get_agent_agency_memberships_api_v1_analytics_agents_me_stats_agency_memberships_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/agents/{user_id}": {
         parameters: {
             query?: never;
@@ -4906,6 +5006,74 @@ export interface components {
             /** Profile Image Url */
             profile_image_url?: string | null;
         };
+        /** AgentInquiryResponseDetail */
+        AgentInquiryResponseDetail: {
+            /** Inquiry Id */
+            inquiry_id: number;
+            /** Property Id */
+            property_id: number;
+            /** Property Title */
+            property_title?: string | null;
+            /** Responded */
+            responded: boolean;
+            /** Response Time Minutes */
+            response_time_minutes?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** AgentInquiryResponseRateResponse */
+        AgentInquiryResponseRateResponse: {
+            /** Rate */
+            rate: number;
+            /**
+             * Period
+             * @default all_time
+             */
+            period: string;
+            /** Total Inquiries */
+            total_inquiries: number;
+            /** Responded */
+            responded: number;
+            /** Unresponded */
+            unresponded: number;
+            /** Details */
+            details?: components["schemas"]["AgentInquiryResponseDetail"][];
+        };
+        /** AgentListingStatusCount */
+        AgentListingStatusCount: {
+            /** Status */
+            status: string;
+            /** Count */
+            count: number;
+        };
+        /** AgentListingStatusItem */
+        AgentListingStatusItem: {
+            /** Property Id */
+            property_id: number;
+            /** Property Type */
+            property_type?: string | null;
+            /** Moderation Status */
+            moderation_status: string;
+            /** Title */
+            title: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** AgentListingsByStatusResponse */
+        AgentListingsByStatusResponse: {
+            /** Count */
+            count: number;
+            /** Statuses */
+            statuses?: components["schemas"]["AgentListingStatusCount"][];
+            /** Items */
+            items?: components["schemas"]["AgentListingStatusItem"][];
+        };
         /** AgentMembershipAuditResponse */
         AgentMembershipAuditResponse: {
             /** Id */
@@ -4930,11 +5098,38 @@ export interface components {
              */
             created_at: string;
         };
+        /** AgentMembershipDetail */
+        AgentMembershipDetail: {
+            /** Membership Id */
+            membership_id: number;
+            /** User Id */
+            user_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name: string;
+            /** Role */
+            role: string;
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+            /** Status */
+            status: string;
+        };
         /**
          * AgentMembershipRestrictionStatus
          * @enum {string}
          */
         AgentMembershipRestrictionStatus: "active" | "suspended" | "blocked" | "revoked";
+        /** AgentMembershipsResponse */
+        AgentMembershipsResponse: {
+            /** Count */
+            count: number;
+            /** Memberships */
+            memberships?: components["schemas"]["AgentMembershipDetail"][];
+        };
         /**
          * AgentPerformanceResponse
          * @description Lightweight response schema for agent_performance view
@@ -5100,6 +5295,37 @@ export interface components {
             deleted_at?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+        };
+        /**
+         * AgentStatsResponse
+         * @description Agent personal stats — computed inline from live tables, not a pre-computed view.
+         */
+        AgentStatsResponse: {
+            /** User Id */
+            user_id: number;
+            /** Listings By Status */
+            listings_by_status?: {
+                [key: string]: number;
+            };
+            /**
+             * Total Inquiries Received
+             * @default 0
+             */
+            total_inquiries_received: number;
+            /**
+             * Inquiries Responded
+             * @default 0
+             */
+            inquiries_responded: number;
+            /**
+             * Response Rate
+             * @default 0
+             */
+            response_rate: number;
+            /** Membership Counts */
+            membership_counts?: {
+                [key: string]: number;
+            };
         };
         /**
          * AmenityCreate
@@ -8252,6 +8478,42 @@ export interface operations {
         };
     };
     block_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__block__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                membership_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyAgentMembershipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unblock_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__unblock__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -13488,6 +13750,212 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many requests - Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_agent_personal_stats_api_v1_analytics_agents_me_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentStatsResponse"];
+                };
+            };
+            /** @description Unauthorized - Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden - Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests - Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_agent_listings_by_status_api_v1_analytics_agents_me_stats_listings_by_status_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by moderation_status value */
+                status?: string | null;
+                /** @description When true, exclude live listings */
+                pending_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentListingsByStatusResponse"];
+                };
+            };
+            /** @description Unauthorized - Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden - Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests - Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_agent_inquiry_response_rate_api_v1_analytics_agents_me_stats_inquiry_response_rate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInquiryResponseRateResponse"];
+                };
+            };
+            /** @description Unauthorized - Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden - Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests - Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_agent_agency_memberships_api_v1_analytics_agents_me_stats_agency_memberships_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMembershipsResponse"];
+                };
+            };
+            /** @description Unauthorized - Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden - Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Too many requests - Rate limit exceeded */
             429: {
