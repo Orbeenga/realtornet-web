@@ -23,12 +23,14 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import {
+  useAgencyInventory,
   useAgencyOwnerListings,
   useAgentProfileByUser,
   useAdminProperties,
   useDeleteProperty,
   useOwnerListings,
   usePropertyImages,
+  usePublicMarketplace,
   useAgencyApproveProperty,
   useAgencyRejectProperty,
   useRecallPropertyFromAdminReview,
@@ -197,6 +199,12 @@ export function AgentListingsManagerClient() {
     gate.isAllowed && gate.isAdmin,
     MODERATION_STATUS.adminReview,
   );
+  const agencyInventoryQuery = useAgencyInventory(
+    !gate.isAdmin && !isAgencyOwner && agentTab === "agencyInventory",
+  );
+  const marketplaceQuery = usePublicMarketplace(
+    !gate.isAdmin && (agentTab === "marketplace" || agencyOwnerTab === "marketplace"),
+  );
   const listingsQuery = gate.isAdmin
     ? adminListingsQuery
     : isAgencyOwner
@@ -230,7 +238,9 @@ export function AgentListingsManagerClient() {
   if (
     (needsAgentProfile && (profileQuery.isLoading || agentProfileQuery.isLoading)) ||
     (isAgencyOwner && agencyOwnerListingsQuery.isLoading) ||
-    (gate.isAdmin && adminListingsQuery.isLoading)
+    (gate.isAdmin && adminListingsQuery.isLoading) ||
+    (!gate.isAdmin && !isAgencyOwner && agentTab === "agencyInventory" && agencyInventoryQuery.isLoading) ||
+    (!gate.isAdmin && (agentTab === "marketplace" || agencyOwnerTab === "marketplace") && marketplaceQuery.isLoading)
   ) {
     return (
       <LoadingState
@@ -243,7 +253,9 @@ export function AgentListingsManagerClient() {
   if (
     (needsAgentProfile && hasUserProfileError) ||
     (isAgencyOwner && agencyOwnerListingsQuery.isError) ||
-    (gate.isAdmin && adminListingsQuery.isError)
+    (gate.isAdmin && adminListingsQuery.isError) ||
+    (!gate.isAdmin && !isAgencyOwner && agentTab === "agencyInventory" && agencyInventoryQuery.isError) ||
+    (!gate.isAdmin && (agentTab === "marketplace" || agencyOwnerTab === "marketplace") && marketplaceQuery.isError)
   ) {
     return (
       <ErrorState
@@ -408,11 +420,24 @@ export function AgentListingsManagerClient() {
   const activeAgentTab = AGENT_TABS.find((tab) => tab.value === agentTab) ?? AGENT_TABS[0];
   const activeAgencyOwnerTab =
     AGENCY_OWNER_TABS.find((tab) => tab.value === agencyOwnerTab) ?? AGENCY_OWNER_TABS[0];
-  const visibleListings = gate.isAdmin
-    ? allListings
-    : isAgencyOwner
-      ? filterListingsByStatuses(allListings, activeAgencyOwnerTab.statuses)
-      : filterListingsByStatuses(allListings, activeAgentTab.statuses);
+
+  let visibleListings: Property[];
+  if (gate.isAdmin) {
+    visibleListings = allListings;
+  } else if (isAgencyOwner) {
+    if (agencyOwnerTab === "marketplace") {
+      visibleListings = marketplaceQuery.data ?? [];
+    } else {
+      visibleListings = filterListingsByStatuses(allListings, activeAgencyOwnerTab.statuses);
+    }
+  } else if (agentTab === "agencyInventory") {
+    visibleListings = agencyInventoryQuery.data ?? [];
+  } else if (agentTab === "marketplace") {
+    visibleListings = marketplaceQuery.data ?? [];
+  } else {
+    visibleListings = filterListingsByStatuses(allListings, activeAgentTab.statuses);
+  }
+
   const countFor = (statuses: ModerationStatus[] | null) =>
     filterListingsByStatuses(allListings, statuses).length;
 
@@ -455,7 +480,9 @@ export function AgentListingsManagerClient() {
         </div>
       </div>
 
-      {listingsQuery.isLoading ? <ListingRowsSkeleton /> : null}
+      {listingsQuery.isLoading && !gate.isAdmin && agentTab !== "agencyInventory" && agentTab !== "marketplace" && agencyOwnerTab !== "marketplace" ? <ListingRowsSkeleton /> : null}
+      {!gate.isAdmin && !isAgencyOwner && agentTab === "agencyInventory" && agencyInventoryQuery.isLoading ? <ListingRowsSkeleton /> : null}
+      {!gate.isAdmin && (agentTab === "marketplace" || agencyOwnerTab === "marketplace") && marketplaceQuery.isLoading ? <ListingRowsSkeleton /> : null}
 
       {hasAgentProfileError ? (
         <ErrorState
@@ -467,12 +494,30 @@ export function AgentListingsManagerClient() {
         />
       ) : null}
 
-      {!listingsQuery.isLoading && listingsQuery.isError ? (
+      {!listingsQuery.isLoading && listingsQuery.isError && agentTab !== "agencyInventory" && agentTab !== "marketplace" && agencyOwnerTab !== "marketplace" ? (
         <ErrorState
           title="Could not load listings"
           message="There was a problem loading your listings. Please try again."
           onRetry={() => {
             void listingsQuery.refetch();
+          }}
+        />
+      ) : null}
+      {!gate.isAdmin && !isAgencyOwner && agentTab === "agencyInventory" && !agencyInventoryQuery.isLoading && agencyInventoryQuery.isError ? (
+        <ErrorState
+          title="Could not load agency inventory"
+          message="There was a problem loading agency listings."
+          onRetry={() => {
+            void agencyInventoryQuery.refetch();
+          }}
+        />
+      ) : null}
+      {!gate.isAdmin && (agentTab === "marketplace" || agencyOwnerTab === "marketplace") && !marketplaceQuery.isLoading && marketplaceQuery.isError ? (
+        <ErrorState
+          title="Could not load marketplace"
+          message="There was a problem loading public listings."
+          onRetry={() => {
+            void marketplaceQuery.refetch();
           }}
         />
       ) : null}
@@ -510,16 +555,23 @@ export function AgentListingsManagerClient() {
       ) : null}
 
       {!hasAgentProfileError &&
-      !listingsQuery.isLoading &&
-      !listingsQuery.isError &&
-      visibleListings.length === 0 ? (
+      visibleListings.length === 0 &&
+      (listingsQuery.isSuccess || agentTab === "agencyInventory" || agentTab === "marketplace" || agencyOwnerTab === "marketplace") &&
+      !(agentTab === "agencyInventory" && agencyInventoryQuery.isLoading) &&
+      !((agentTab === "marketplace" || agencyOwnerTab === "marketplace") && marketplaceQuery.isLoading) &&
+      !(agentTab === "agencyInventory" && agencyInventoryQuery.isError) &&
+      !((agentTab === "marketplace" || agencyOwnerTab === "marketplace") && marketplaceQuery.isError) ? (
         <EmptyState
           title={
             gate.isAdmin
               ? "There are no properties available for moderation right now."
               : isAgencyOwner
                 ? "No listings in this queue."
-                : "You have no listings yet. Create your first one."
+                : agentTab === "agencyInventory"
+                  ? "No listings in your agency's inventory."
+                  : agentTab === "marketplace" || agencyOwnerTab === "marketplace"
+                    ? "No listings available in the marketplace."
+                    : "You have no listings yet. Create your first one."
           }
           action={
             !gate.isAdmin
