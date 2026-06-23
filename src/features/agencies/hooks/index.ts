@@ -16,6 +16,7 @@ export {
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
+  useUnblockAgencyMembership,
 } from "./useAgencyMembershipActions";
 export {
   getAgencyAgentCount,
