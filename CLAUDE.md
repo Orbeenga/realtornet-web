@@ -9,7 +9,10 @@
 - The area file owns stack rules and implementation-specific guidance.
 
 ## Current phase state
-- Phase J is closed as of 2026-05-13. Phase K is closed May 2026. Phase L is closed. Phase M is closed June 2026. Phase Q is closed June 22 2026.
+- Phase J is closed as of 2026-05-13. Phase K is closed May 2026. Phase L is closed. Phase M is closed June 2026. Phase Q is closed June 22 2026. Phase R is closed June 23 2026.
+- **Current phase: Phase S — In-App Reply Threading & Platform Maturity**
+- Backend HEAD: `ee0806c` (chore: close Phase R — update CLAUDE.md and DEFERRED.md)
+- Frontend HEAD: `6750e1d` (R.4 + R.5 frontend: agent stats page + unblock CTA)
 - Phase H backend B1-B3 are complete (`5a96191`, `59c6923`, `0d58594`): legacy membership aliases removed, `property_type_id` search filter live, agency-owner profile edit contract open for own agency, and agent directory filters support `agency_id` + `location_id`.
 - Phase H frontend F1-F3 are complete (`1660933`, `1c356e6`, `aced574`), with the public landing-page stale-auth redirect follow-up fixed in `ed11530`.
 - Phase I frontend I.4/I.5 is closed in `2d8b0fb`: membership-history UI, post-revocation dashboard, generic review-request endpoints, stale `role_version` refresh handling, auth path correction, and single-agency revocation/review smoke. Multi-agency membership-role behavior is now production-verified by backend API smoke under `DEF-I-MEM-SMOKE-001`.
@@ -25,6 +28,16 @@
 - Dev Supabase project: `umhtnqxdvffpifqbdtjs`; do not use for production work.
 - Railway production service must run with `ENV=production`.
 - **Phase M frontend locked state**: Frontend HEAD `f80dcc2`; `trailingSlash: false` in `next.config.ts` — locked; proxy (`src/app/api/v1/[...path]/route.ts`) — redirect:manual, server-side follow with HTTPS normalization, location header stripped — locked; `normalizeApiPath` in `client.ts` is a no-op — do not restore trailing-slash behavior; `Cache-Control: no-transform` middleware on FastAPI resolves Vercel proxy content-encoding failures — locked; Silent JWT refresh on 401 in `apiClient.ts` — locked; agency owner session stability restored — join-requests, invitations, review-requests call sites use no trailing slash; `/privacy` and `/terms` stubbed; Phase M dashboard tabs live: agent (6 tabs), agency owner (6 tabs), admin (5 tabs); Phase M housekeeping: agent name tags on creator-aware tabs live (commit `6218128`); agency listing count on public cards live via `property_count`; `owner_display_name` propagated and types regenerated (commit `f80dcc2`).
+
+## Phase R Close Summary
+- R.3: Reply composer (agent) + reply display (seeker) — confirmed working by operator browser check
+- R.4: `/account/stats` frontend page + nav link for agent/agency_owner roles — confirmed rendering correctly
+- R.5: Unblock CTA on Blocked tab — staging-validated
+
+## Locked Reply Rendering Rules (Phase R)
+- **Reply composer appears only when `reply_count === 0`** — this is the source-of-truth rendering rule. Do not invert.
+- **Seeker reply display appears only when `latest_reply !== null`** — this is the source-of-truth rendering rule. Do not invert.
+- These rules govern the inquiry detail view and must not be reversed or conditionally toggled.
 
 ## Deployment Workflow
 - Work flows: feature -> staging -> validate -> merge to main -> production.
@@ -43,6 +56,7 @@
 - `/account/join-requests` and `/account/agency` use tabbed layouts to keep requests, invitations, memberships, and management surfaces separated as records grow.
 - `/agents` is the public agent directory surface; `/agents/[id]` remains the agent detail surface.
 - `/account/reviews` is the account-owned reviews surface for seeker, agent, and agency-owner roles.
+- `/account/stats` is the agent personal stats surface (Phase R.4).
 - Agency owners can edit only their own public agency profile fields through `PUT /api/v1/agencies/{agency_id}`; status, verification, and owner-control fields remain admin-owned.
 - Public agency, agent, and property discovery must remain browseable without login; auth gates belong only on transactional actions.
 - Resend is the live Phase H email provider. `RESEND_API_KEY` must be present in Railway `imaginative-peace` Variables; current temporary sender is `onboarding@resend.dev` until a custom domain is registered.
@@ -116,4 +130,3 @@ Users
 | 2       | Orbeenga   | Apine     | apineorbeenga@outlook.com   | true        |
 | 3       | Orbeenga   | Apine     | apineorbeenga@yahoo.com     | true        |
 | 4       | Terngu     | Apine     | apineterngu19@gmail.com     | true        |
-
