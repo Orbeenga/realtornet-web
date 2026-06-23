@@ -1,52 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import type { components } from "@/types/api.generated";
 
-export interface AgentListingStatusItem {
-  property_id: number;
-  property_type: string | null;
-  moderation_status: string;
-  title: string;
-  created_at: string;
-}
+type AgentListingsByStatusResponse = components["schemas"]["AgentListingsByStatusResponse"];
+type AgentInquiryResponseRateResponse = components["schemas"]["AgentInquiryResponseRateResponse"];
+type AgentMembershipsResponse = components["schemas"]["AgentMembershipsResponse"];
 
-export interface AgentListingsByStatusResponse {
-  count: number;
-  statuses: Array<{ status: string; count: number }>;
-  items: AgentListingStatusItem[];
-}
-
-export interface AgentInquiryResponseDetail {
-  inquiry_id: number;
-  property_id: number;
-  property_title: string | null;
-  responded: boolean;
-  response_time_minutes: number | null;
-  created_at: string;
-}
-
-export interface AgentInquiryResponseRateResponse {
-  rate: number;
-  period: string;
-  total_inquiries: number;
-  responded: number;
-  unresponded: number;
-  details: AgentInquiryResponseDetail[];
-}
-
-export interface AgentMembershipDetail {
-  membership_id: number;
-  user_id: number;
-  agency_id: number;
-  agency_name: string;
-  role: string;
-  joined_at: string;
-  status: string;
-}
-
-export interface AgentMembershipsResponse {
-  count: number;
-  memberships: AgentMembershipDetail[];
-}
+export type { AgentListingsByStatusResponse, AgentInquiryResponseRateResponse, AgentMembershipsResponse };
 
 export function useAgentListingsByStatus(
   params?: { status?: string; pendingOnly?: boolean },
