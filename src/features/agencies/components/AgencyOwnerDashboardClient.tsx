@@ -66,6 +66,9 @@ import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { AgencyOwnerDashboardSkeleton } from "./AgencyOwnerDashboardSkeleton";
 import { formatMembershipAction, formatMembershipDate } from "./membershipHistory";
 
+const CLICKABLE_CARD_CLASS =
+  "cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50";
+
 const agencyProfileSchema = z.object({
   name: z.string().trim().min(2, "Agency name is required"),
   description: z.string().trim().optional(),
@@ -309,7 +312,11 @@ export function AgencyOwnerDashboardClient() {
 
       <section>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <Link
+            href="/account/listings"
+            className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            aria-label="Open Live listings drilldown"
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
               <Home className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
@@ -317,8 +324,12 @@ export function AgencyOwnerDashboardClient() {
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{statsListingCount}</p>
               <p className="text-sm font-medium text-gray-500">Live listings</p>
             </div>
-          </div>
-          <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          </Link>
+          <Link
+            href="/account/agency/members"
+            className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            aria-label="Open Roster agents drilldown"
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
               <Users className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
             </div>
@@ -326,9 +337,13 @@ export function AgencyOwnerDashboardClient() {
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{statsAgentCount}</p>
               <p className="text-sm font-medium text-gray-500">Roster agents</p>
             </div>
-          </div>
+          </Link>
           {statsData?.property_count !== undefined ? (
-            <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <Link
+              href="/account/listings"
+              className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+              aria-label="Open Total properties drilldown"
+            >
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/40">
                 <Building2 className="h-6 w-6 text-violet-600 dark:text-violet-400" />
               </div>
@@ -336,9 +351,29 @@ export function AgencyOwnerDashboardClient() {
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">{statsData.property_count}</p>
                 <p className="text-sm font-medium text-gray-500">Total properties</p>
               </div>
-            </div>
+            </Link>
           ) : null}
-          <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div
+            className={`flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              const agencyQueueSection = document.getElementById("agency-queue");
+              if (agencyQueueSection) {
+                agencyQueueSection.scrollIntoView({ behavior: "smooth" });
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                const agencyQueueSection = document.getElementById("agency-queue");
+                if (agencyQueueSection) {
+                  agencyQueueSection.scrollIntoView({ behavior: "smooth" });
+                }
+              }
+            }}
+            aria-label="Scroll to Agency Queue section"
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/40">
               <Activity className="h-6 w-6 text-amber-600 dark:text-amber-400" />
             </div>
@@ -379,7 +414,12 @@ export function AgencyOwnerDashboardClient() {
                   }[status] ?? { icon: List, color: "text-gray-500 bg-gray-100 dark:bg-gray-800", label: status.replace(/_/g, " ") };
                   const Icon = statusMeta.icon;
                   return (
-                    <div key={status} className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                    <Link
+                      key={status}
+                      href={`/account/listings?status=${encodeURIComponent(status)}`}
+                      className={`flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+                      aria-label={`Open ${status.replace(/_/g, " ")} listings drilldown`}
+                    >
                       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${statusMeta.color}`}>
                         <Icon className="h-5 w-5" />
                       </div>
@@ -390,7 +430,7 @@ export function AgencyOwnerDashboardClient() {
                         </p>
                         <p className="mt-0.5 text-xs text-gray-400">{statusMeta.label}</p>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
             </div>
@@ -423,7 +463,7 @@ export function AgencyOwnerDashboardClient() {
         </section>
       )}
 
-      <section>
+      <section id="agency-queue">
         <div className="mb-4 flex items-center gap-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Agency Queue</h2>
           {agencyQueueQuery.data && agencyQueueQuery.data.length > 0 ? (
