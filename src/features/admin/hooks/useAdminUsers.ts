@@ -2,6 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api/client";
 import type { Agent, UserDeactivateRequest, UserProfile, UserRole } from "@/types";
 
+export interface AdminUsersCounts {
+  all: number;
+  seekers: number;
+  agents: number;
+  agency_owners: number;
+  inactive: number;
+  deactivated: number;
+}
+
 function extractUserCollection(
   payload: UserProfile[] | Record<string, unknown>,
 ): UserProfile[] {
@@ -36,6 +45,31 @@ export function useAdminUsers() {
   });
 }
 
+export function useAdminUsersFiltered(role?: string | null, activityState?: string | null) {
+  return useQuery({
+    queryKey: ["adminUsers", { role, activityState }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (role) params.set("role", role);
+      if (activityState) params.set("activity_state", activityState);
+      const qs = params.toString();
+      const path = qs ? `/api/v1/admin/users?${qs}` : "/api/v1/admin/users";
+      const payload = await apiClient<UserProfile[] | Record<string, unknown>>(path);
+      return extractUserCollection(payload);
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminUsersCounts() {
+  return useQuery({
+    queryKey: ["adminUsersCounts"],
+    queryFn: () =>
+      apiClient<AdminUsersCounts>("/api/v1/admin/users/counts/"),
+    staleTime: 30_000,
+  });
+}
+
 export function useUpdateAdminUserRole() {
   const queryClient = useQueryClient();
 
@@ -59,6 +93,7 @@ export function useUpdateAdminUserRole() {
     onSuccess: async (_, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["adminUsers"] }),
+        queryClient.invalidateQueries({ queryKey: ["adminUsersCounts"] }),
         queryClient.invalidateQueries({
           queryKey: ["agentProfileByUser", variables.userId],
         }),
@@ -120,6 +155,7 @@ export function useAssignAgentAgency() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["agencies"] }),
         queryClient.invalidateQueries({ queryKey: ["adminUsers"] }),
+        queryClient.invalidateQueries({ queryKey: ["adminUsersCounts"] }),
         queryClient.invalidateQueries({
           queryKey: ["agentProfileByUser", variables.userId],
         }),
@@ -144,7 +180,10 @@ export function useDeactivateAdminUser() {
         body: JSON.stringify(payload),
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["adminUsers"] }),
+        queryClient.invalidateQueries({ queryKey: ["adminUsersCounts"] }),
+      ]);
     },
   });
 }
@@ -158,7 +197,10 @@ export function useActivateAdminUser() {
         method: "POST",
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["adminUsers"] }),
+        queryClient.invalidateQueries({ queryKey: ["adminUsersCounts"] }),
+      ]);
     },
   });
 }

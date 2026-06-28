@@ -90,6 +90,7 @@ export interface paths {
          * Read Users Me
          * @description Get current authenticated user.
          *
+         *     Updates last_login timestamp on every authenticated call.
          *     Dependency ensures:
          *     - User is authenticated
          *     - User is active
@@ -217,10 +218,9 @@ export interface paths {
         };
         /**
          * Get Users
-         * @description Retrieve users with pagination (admin only).
+         * @description Retrieve users with pagination and optional role/activity_state filters (admin only).
          *
          *     Returns only non-deleted users (deleted_at IS NULL).
-         *     CRUD layer enforces soft delete filtering.
          */
         get: operations["get_users_api_v1_admin_users_get"];
         put?: never;
@@ -231,6 +231,26 @@ export interface paths {
          *     Validates email uniqueness (including soft-deleted users).
          */
         post: operations["create_user_api_v1_admin_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/counts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Users Counts
+         * @description Return tab badge counts for admin users page (single aggregation query).
+         */
+        get: operations["get_users_counts_api_v1_admin_users_counts__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -319,6 +339,54 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/deactivate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Platform Deactivate User
+         * @description Platform-level deactivation (admin only).
+         *
+         *     Sets is_active = false on the target user. Unlike soft-delete (POST
+         *     .../deactivate), the user record remains visible but all API access
+         *     is blocked by the get_current_active_user dependency.
+         *     Writes deactivation_reason and updated_by for audit.
+         */
+        patch: operations["platform_deactivate_user_api_v1_admin_users__user_id__deactivate__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/reactivate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Platform Reactivate User
+         * @description Platform-level reactivation (admin only).
+         *
+         *     Sets is_active = true on the target user, restoring API access.
+         *     The deactivation_reason is preserved for audit.
+         */
+        patch: operations["platform_reactivate_user_api_v1_admin_users__user_id__reactivate__patch"];
         trace?: never;
     };
     "/api/v1/admin/properties": {
@@ -6787,6 +6855,11 @@ export interface components {
             updated_at: string;
             /** Last Login */
             last_login?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
             /** Deleted At */
             deleted_at?: string | null;
             /** Deactivation Reason */
@@ -7190,6 +7263,10 @@ export interface operations {
     get_users_api_v1_admin_users_get: {
         parameters: {
             query?: {
+                /** @description Filter by role: seeker, agent, agency_owner, admin */
+                role?: string | null;
+                /** @description Filter by activity state: active, inactive, deactivated */
+                activity_state?: string | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */
@@ -7252,6 +7329,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_users_counts_api_v1_admin_users_counts__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -7398,6 +7495,72 @@ export interface operations {
                 "application/json": components["schemas"]["UserDeactivateRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_deactivate_user_api_v1_admin_users__user_id__deactivate__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDeactivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_reactivate_user_api_v1_admin_users__user_id__reactivate__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
