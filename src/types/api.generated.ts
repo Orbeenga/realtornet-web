@@ -4522,6 +4522,8 @@ export interface components {
             bio?: string | null;
             /** Company Name */
             company_name?: string | null;
+            /** Last Login */
+            last_login?: string | null;
             /**
              * Listing Count
              * @default 0
