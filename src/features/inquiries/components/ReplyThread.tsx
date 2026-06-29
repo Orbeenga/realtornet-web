@@ -72,11 +72,9 @@ function RepliesSkeleton() {
 
 export function ReplyThread({
   inquiryId,
-  inquiryStatus,
   currentUserId,
 }: {
   inquiryId: number;
-  inquiryStatus: string;
   currentUserId?: number | null;
 }) {
   const [replyBody, setReplyBody] = useState("");
@@ -93,8 +91,6 @@ export function ReplyThread({
       // Error handled by the mutation
     }
   };
-
-  const canReply = inquiryStatus !== "responded";
 
   return (
     <div className="space-y-4">
@@ -125,29 +121,27 @@ export function ReplyThread({
         </p>
       )}
 
-      {canReply ? (
-        <div className="space-y-3 pt-2">
-          <textarea
-            value={replyBody}
-            onChange={(e) => setReplyBody(e.target.value)}
-            placeholder="Type your reply..."
-            rows={3}
-            className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200 dark:placeholder-gray-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400"
-          />
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              loading={replyToInquiry.isPending}
-              disabled={!replyBody.trim()}
-              onClick={() => void handleSendReply()}
-            >
-              Send reply
-            </Button>
-          </div>
+      <div className="space-y-3 pt-2">
+        <textarea
+          value={replyBody}
+          onChange={(e) => setReplyBody(e.target.value)}
+          placeholder="Type your reply..."
+          rows={3}
+          className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200 dark:placeholder-gray-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400"
+        />
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            loading={replyToInquiry.isPending}
+            disabled={!replyBody.trim()}
+            onClick={() => void handleSendReply()}
+          >
+            Send reply
+          </Button>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
