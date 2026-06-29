@@ -3611,6 +3611,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inquiries/{inquiry_id}/replies/{reply_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Inquiry Reply
+         * @description Edit a reply.
+         *
+         *     - Only the reply author can edit
+         *     - Only allowed while viewed_at is NULL (recipient has not seen it yet)
+         *     - Updates body and sets edited_at timestamp
+         */
+        patch: operations["edit_inquiry_reply_api_v1_inquiries__inquiry_id__replies__reply_id___patch"];
+        trace?: never;
+    };
     "/api/v1/inquiries/count/{property_id}": {
         parameters: {
             query?: never;
@@ -5666,6 +5690,11 @@ export interface components {
             /** Body */
             body: string;
         };
+        /** InquiryReplyEdit */
+        InquiryReplyEdit: {
+            /** Body */
+            body: string;
+        };
         /** InquiryReplyResponse */
         InquiryReplyResponse: {
             /** Reply Id */
@@ -5679,6 +5708,11 @@ export interface components {
              * @default
              */
             author_display_name: string;
+            /**
+             * Author Role
+             * @default agent
+             */
+            author_role: string;
             /** Body */
             body: string;
             /**
@@ -13070,6 +13104,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InquiryReplyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_inquiry_reply_api_v1_inquiries__inquiry_id__replies__reply_id___patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inquiry_id: number;
+                reply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InquiryReplyEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InquiryReplyResponse"];
                 };
             };
             /** @description Validation Error */
