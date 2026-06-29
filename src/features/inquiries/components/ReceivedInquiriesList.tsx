@@ -180,7 +180,6 @@ function ReceivedInquiryCard({
                 <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
                   <ReplyThread
                     inquiryId={inquiry.inquiry_id}
-                    inquiryStatus={inquiry.inquiry_status}
                     currentUserId={currentUserId}
                   />
                 </div>

@@ -145,7 +145,6 @@ export function SentInquiriesList() {
                 </div>
                 <ReplyThread
                   inquiryId={inquiry.inquiry_id}
-                  inquiryStatus={inquiry.inquiry_status}
                   currentUserId={user?.user_id}
                 />
               </div>
