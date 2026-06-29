@@ -22,10 +22,13 @@ export function useReplyToInquiry() {
           body: JSON.stringify({ body }),
         },
       ),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["inquiryDirectory"],
-      });
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inquiryDirectory"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["inquiryReplies", variables.inquiryId],
+        }),
+      ]);
     },
   });
 }
