@@ -294,15 +294,15 @@ export function AdminUsersClient() {
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {user.user_role === "agent" ? (
                       <Link
-                        href={`/account/agency/members`}
+                        href="/account/join-requests"
                         className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         View agency membership
                       </Link>
                     ) : null}
-                    {user.user_role === "agency_owner" ? (
+                    {user.user_role === "agency_owner" && user.agency_id ? (
                       <Link
-                        href={`/account/agency`}
+                        href={`/agencies/${user.agency_id}`}
                         className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         View agency
