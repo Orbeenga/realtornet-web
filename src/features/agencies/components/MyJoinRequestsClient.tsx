@@ -47,7 +47,7 @@ export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
   const [requestSubTab, setRequestSubTab] = useState<string>("pending");
-  const [activeTab, setActiveTab] = useState<MyAgenciesTab>("requests");
+  const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
   const canViewAgencyRequests =
