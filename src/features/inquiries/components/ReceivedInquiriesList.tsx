@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/features/auth/AuthContext";
 import { Button, EmptyState, ErrorState, Skeleton } from "@/components";
 import {
   useInquiryDirectory,
   useMarkInquiryViewed,
-  useReplyToInquiry,
   type InquiryDirectorySource,
 } from "@/features/inquiries/hooks";
 import type { InquiryDirectoryItem } from "@/features/inquiries/hooks/useInquiryDirectory";
-import type { InquiryReplyResponse } from "@/types";
+import { ReplyThread } from "@/features/inquiries/components/ReplyThread";
 
 interface ReceivedInquiriesListProps {
   source: Exclude<InquiryDirectorySource, "sent">;
@@ -61,83 +61,7 @@ function InquiryListSkeleton() {
   );
 }
 
-function formatReplyDate(value: string) {
-  return new Intl.DateTimeFormat("en-NG", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
 
-function InquiryReplySection({
-  inquiryId,
-  inquiryStatus,
-  replyCount,
-  latestReply,
-}: {
-  inquiryId: number;
-  inquiryStatus: string;
-  replyCount: number;
-  latestReply: InquiryReplyResponse | null;
-}) {
-  const [replyBody, setReplyBody] = useState("");
-  const replyToInquiry = useReplyToInquiry();
-
-  const handleSendReply = async () => {
-    const trimmed = replyBody.trim();
-    if (!trimmed) return;
-    try {
-      await replyToInquiry.mutateAsync({ inquiryId, body: trimmed });
-      setReplyBody("");
-    } catch {
-      // Error handled by the mutation
-    }
-  };
-
-  if (replyCount > 0 && latestReply) {
-    return (
-      <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
-        <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-          Your reply
-        </p>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
-          {latestReply.body}
-        </p>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {latestReply.author_display_name} &middot;{" "}
-          {formatReplyDate(latestReply.created_at)}
-        </p>
-      </div>
-    );
-  }
-
-  if (inquiryStatus === "responded") {
-    return null;
-  }
-
-  return (
-    <div className="space-y-3">
-      <textarea
-        value={replyBody}
-        onChange={(e) => setReplyBody(e.target.value)}
-        placeholder="Type your reply..."
-        rows={3}
-        className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200 dark:placeholder-gray-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400"
-      />
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          loading={replyToInquiry.isPending}
-          disabled={!replyBody.trim()}
-          onClick={() => void handleSendReply()}
-        >
-          Send reply
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function ReceivedInquiryCard({
   inquiry,
@@ -145,7 +69,8 @@ function ReceivedInquiryCard({
   propertyImage,
   contact,
   showStatusActions,
-}: InquiryDirectoryItem & { showStatusActions: boolean }) {
+  currentUserId,
+}: InquiryDirectoryItem & { showStatusActions: boolean; currentUserId?: number | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const markInquiryViewed = useMarkInquiryViewed();
 
@@ -252,12 +177,11 @@ function ReceivedInquiryCard({
                 </p>
               </div>
               {showStatusActions ? (
-                <div className="mt-4">
-                  <InquiryReplySection
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                  <ReplyThread
                     inquiryId={inquiry.inquiry_id}
                     inquiryStatus={inquiry.inquiry_status}
-                    replyCount={inquiry.reply_count}
-                    latestReply={inquiry.latest_reply ?? null}
+                    currentUserId={currentUserId}
                   />
                 </div>
               ) : null}
@@ -276,6 +200,7 @@ export function ReceivedInquiriesList({
   emptyDescription,
   showStatusActions = true,
 }: ReceivedInquiriesListProps) {
+  const { user } = useAuth();
   const inquiryDirectory = useInquiryDirectory(source, { agencyId });
 
   if (inquiryDirectory.isLoading) {
@@ -305,6 +230,7 @@ export function ReceivedInquiriesList({
           key={item.inquiry.inquiry_id}
           {...item}
           showStatusActions={showStatusActions}
+          currentUserId={user?.user_id}
         />
       ))}
     </div>
