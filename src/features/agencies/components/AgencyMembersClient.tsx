@@ -163,7 +163,7 @@ export function AgencyMembersClient() {
   });
 
   const agencyId = user?.agency_id;
-  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents");
+  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents" || activeTab === "inactive");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
