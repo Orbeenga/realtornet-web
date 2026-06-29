@@ -45,6 +45,7 @@ import {
   useUnblockAgencyMembership,
 } from "@/features/agencies/hooks";
 import { MembershipHistoryList } from "./MembershipHistoryList";
+import type { AgencyAgentRosterMember } from "@/types";
 import {
   AgencyOwnerRosterSkeleton,
   AgencyOwnerTabListSkeleton,
@@ -55,7 +56,7 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
 type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
@@ -67,6 +68,7 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "joinRequests", label: "Join requests" },
   { value: "reviewRequests", label: "Review requests" },
   { value: "agents", label: "Agent roster" },
+  { value: "inactive", label: "Inactive" },
   { value: "invitations", label: "Invitations" },
   { value: "rejected", label: "Rejected" },
   { value: "suspended", label: "Suspended" },
@@ -99,6 +101,24 @@ function getMembershipBadgeVariant(status: string) {
   if (status === "revoked" || status === "inactive") return "danger" as const;
   if (status === "left") return "outline" as const;
   return "outline" as const;
+}
+
+function fmtTimeAgo(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diffMs / 86_400_000);
+  if (days < 1) return "today";
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(months / 12);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
+function isAgentInactive(agent: AgencyAgentRosterMember): boolean {
+  if (agent.membership_status !== "active") return false;
+  const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
+  if (agent.last_login) return new Date(agent.last_login).getTime() < ninetyDaysAgo;
+  return new Date(agent.created_at).getTime() < ninetyDaysAgo;
 }
 
 function getRequiredDecisionReasonMessage(action: MembershipDecisionAction) {
@@ -351,6 +371,7 @@ export function AgencyMembersClient() {
     joinRequests: joinRequests.length,
     reviewRequests: reviewRequests.length,
     agents: agentsQuery.isSuccess ? agents.length : undefined,
+    inactive: agentsQuery.isSuccess ? agents.filter(isAgentInactive).length : undefined,
     invitations: invitations.length,
     rejected: joinRequests.filter(r => r.status === "rejected").length,
     suspended: agents.filter(a => a.membership_status === "suspended").length,
@@ -725,6 +746,66 @@ export function AgencyMembersClient() {
                 ))}
               </div>
             ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "inactive" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Inactive agents</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Active members whose last login was more than 90 days ago.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents" message="There was a problem loading your agency roster."
+                onRetry={() => { void agentsQuery.refetch(); }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && tabCounts.inactive === 0 ? (
+              <EmptyState title="No inactive agents" description="All active agents have logged in within the last 90 days." />
+            ) : null}
+            {!agentsQuery.isLoading && tabCounts.inactive != null && tabCounts.inactive > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.filter(isAgentInactive).map((agent) => (
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {agent.display_name || agent.company_name || "Listing agent"}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {agent.email}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              This tab is for awareness only. Agent reactivation requires the agent to log in again.
+            </p>
           </CardBody>
         </Card>
       ) : null}

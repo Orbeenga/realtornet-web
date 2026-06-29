@@ -247,6 +247,12 @@ moderation wiring, and site-wide polish.
   generated types; all labels flow through `moderationStatusLabel` map.
 - Quality gates: `tsc 0`, `lint 0`, `build 0`.
 
+DEF-S-ADMIN-MEM-001 - Admin "View agency membership" CTA on `/admin/users` agent cards
+navigates to `/account/join-requests` correctly but shows the logged-in user's
+memberships (admin has none) rather than the target agent's memberships. Correct
+fix requires `GET /api/v1/admin/users/{id}/memberships/` endpoint and a dedicated
+admin-scoped membership view. Defer to Phase T.
+
 DEF-M-LISTING-EVENTS-001 - RESOLVED (2026-06-04): Backend committed
 `366eedd` and deployed `GET /api/v1/properties/{property_id}/events` with
 `ListingEventResponse` schema. Frontend `pnpm gen:types` picked up the
