@@ -195,18 +195,18 @@ export function PropertyCard({
             );
           })()}
           <div className="flex items-center gap-3 pt-1 text-xs text-gray-500">
-            {property.bedrooms != null ? (
+            {property.bedrooms != null && property.bedrooms > 0 ? (
               <span>{property.bedrooms} bed{property.bedrooms !== 1 ? "s" : ""}</span>
             ) : null}
-            {property.bathrooms != null ? (
+            {property.bathrooms != null && property.bathrooms > 0 ? (
               <span>
                 {property.bathrooms} bath{property.bathrooms !== 1 ? "s" : ""}
               </span>
             ) : null}
-            {property.property_size != null ? (
+            {property.property_size != null && Number(property.property_size) > 0 ? (
               <span>{property.property_size} sqm</span>
             ) : null}
-            {hydrateEnhancements ? (
+            {hydrateEnhancements && (favoriteCountQuery.data ?? 0) > 0 ? (
               <span>
                 {favoriteCountQuery.data ?? 0} save
                 {(favoriteCountQuery.data ?? 0) === 1 ? "" : "s"}

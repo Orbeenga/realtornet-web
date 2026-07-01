@@ -44,10 +44,10 @@ export default function AgencyMembershipsDrillDownPage() {
           }}
         />
       ) : null}
-      {!isLoading && !isError && data?.memberships.length === 0 ? (
+      {!isLoading && !isError && (!data?.memberships || data.memberships.length === 0) ? (
         <EmptyState title="No agency memberships" description="" />
       ) : null}
-      {data && data.memberships.length > 0 ? (
+      {data && data.memberships && data.memberships.length > 0 ? (
         <StatsDrillDownTable
           rows={data.memberships}
           columns={columns}
