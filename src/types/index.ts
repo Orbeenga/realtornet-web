@@ -68,6 +68,7 @@ export type SavedSearchCreateInput = components["schemas"]["SavedSearchCreate"];
 export type SavedSearchUpdateInput = components["schemas"]["SavedSearchUpdate"];
 export type UserProfile = components["schemas"]["UserResponse"];
 export type UserRole = components["schemas"]["UserRole"];
+export type UserMembershipResponse = components["schemas"]["UserMembershipResponse"];
 export type Location = components["schemas"]["LocationResponse"];
 export type ActiveProperty = components["schemas"]["ActivePropertyResponse"];
 export type AgentPerformance = components["schemas"]["AgentPerformanceResponse"];
