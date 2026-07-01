@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import {
   useAcceptAgencyInvitation,
   useCancelAgencyJoinRequest,
@@ -30,7 +31,7 @@ function getStatusVariant(status: string) {
     return "success" as const;
   }
 
-  if (status === "rejected" || status === "blocked" || status === "inactive") {
+  if (status === "rejected" || status === "blocked" || status === "inactive" || status === "revoked") {
     return "danger" as const;
   }
 
@@ -38,10 +39,11 @@ function getStatusVariant(status: string) {
 }
 
 function displayMembershipStatus(status: string) {
-  return status === "inactive" ? "revoked" : status;
+  if (status === "inactive") return "revoked";
+  return status;
 }
 
-type MyAgenciesTab = "invitations" | "memberships" | "requests";
+type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
@@ -53,7 +55,7 @@ export function MyJoinRequestsClient() {
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
-  const canViewAgencyMemberships = Boolean(token) && role === "agent";
+  const canViewAgencyMemberships = Boolean(token);
   const requestsQuery = useMyAgencyJoinRequests(canViewAgencyRequests);
   const membershipsQuery = useMyAgencyMemberships(canViewAgencyMemberships);
   const historyQuery = useMembershipHistory(canViewAgencyMemberships);
@@ -172,7 +174,8 @@ export function MyJoinRequestsClient() {
   const revokedMemberships = memberships.filter(m => m.status === "revoked" || m.status === "inactive");
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
   const invitations = invitationsQuery.data ?? [];
-  const availableTabs: Array<{ value: MyAgenciesTab; label: string; count: number }> = [
+  const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
+    { value: "agencies" as const, label: "Find an Agency" },
     ...(canViewAgencyInvitations
       ? [{ value: "invitations" as const, label: "Invitations", count: invitations.length }]
       : []),
@@ -202,10 +205,22 @@ export function MyJoinRequestsClient() {
             size="sm"
             onClick={() => setActiveTab(value)}
           >
-            {label} ({count})
+            {label}{count !== undefined ? ` (${count})` : null}
           </Button>
         ))}
       </div>
+
+      {activeTab === "agencies" ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Find an Agency
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Browse verified agencies and request to join.
+          </p>
+          <AgencyDirectoryClient />
+        </section>
+      ) : null}
 
       {canViewAgencyInvitations && activeTab === "invitations" ? (
         <section className="space-y-4">

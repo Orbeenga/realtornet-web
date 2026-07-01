@@ -149,6 +149,7 @@ export function AgencyMembersClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
+  const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
   const {
@@ -370,7 +371,7 @@ export function AgencyMembersClient() {
   const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
     joinRequests: joinRequests.length,
     reviewRequests: reviewRequests.length,
-    agents: agentsQuery.isSuccess ? agents.length : undefined,
+    agents: agentsQuery.isSuccess ? agents.filter(a => a.membership_status === "active").length : undefined,
     inactive: agentsQuery.isSuccess ? agents.filter(isAgentInactive).length : undefined,
     invitations: invitations.length,
     rejected: joinRequests.filter(r => r.status === "rejected").length,
@@ -621,12 +622,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "active").length === 0 ? (
               <EmptyState title="No agents yet" description="Approved join requests and invited agents will appear here." />
             ) : null}
-            {!agentsQuery.isLoading && agents.length > 0 ? (
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "active").length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.map((agent) => (
+                {agents.filter(a => a.membership_status === "active").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
@@ -671,6 +672,27 @@ export function AgencyMembersClient() {
                               {agent.pending_review_submitted_at ? <p className="mt-1">Submitted {formatOptionalDate(agent.pending_review_submitted_at)}</p> : null}
                             </div>
                           ) : null}
+                          {expandedApplicationUserId === agent.user_id ? (
+                            (() => {
+                              const application = joinRequests.find(
+                                (jr) => jr.user_id === agent.user_id && jr.status === "approved",
+                              );
+                              if (!application) return null;
+                              return (
+                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs leading-5 dark:border-gray-700 dark:bg-gray-900/50">
+                                  <p className="font-medium text-gray-900 dark:text-white">Original application</p>
+                                  {application.cover_note ? (
+                                    <p className="mt-1 text-gray-600 dark:text-gray-400">{application.cover_note}</p>
+                                  ) : (
+                                    <p className="mt-1 italic text-gray-400">No cover note</p>
+                                  )}
+                                  <p className="mt-1 text-gray-400">
+                                    Submitted {application.created_at ? formatOptionalDate(application.created_at) : "unknown date"}
+                                  </p>
+                                </div>
+                              );
+                            })()
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
@@ -680,6 +702,18 @@ export function AgencyMembersClient() {
                           >
                             View
                           </Link>
+                        ) : null}
+                        {joinRequests.find((jr) => jr.user_id === agent.user_id && jr.status === "approved") ? (
+                          <Button
+                            type="button" size="sm" variant="ghost"
+                            onClick={() =>
+                              setExpandedApplicationUserId(
+                                expandedApplicationUserId === agent.user_id ? null : agent.user_id,
+                              )
+                            }
+                          >
+                            {expandedApplicationUserId === agent.user_id ? "Hide application" : "View application"}
+                          </Button>
                         ) : null}
                         {agent.membership_status === "active" ? (
                           <Button type="button" size="sm" variant="secondary"
