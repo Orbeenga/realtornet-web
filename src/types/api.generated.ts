@@ -293,6 +293,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users/{user_id}/memberships/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get User Memberships
+         * @description Get agency memberships for a specific user (admin only).
+         *
+         *     Returns all non-deleted memberships for the given user with agency name.
+         *     Non-admin JWT returns 403. Missing user_id returns 404.
+         *     User with no memberships returns empty list.
+         */
+        get: operations["get_user_memberships_api_v1_admin_users__user_id__memberships__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users/{user_id}/activate": {
         parameters: {
             query?: never;
@@ -5689,6 +5713,8 @@ export interface components {
         InquiryReplyCreate: {
             /** Body */
             body: string;
+            /** Parent Reply Id */
+            parent_reply_id?: number | null;
         };
         /** InquiryReplyEdit */
         InquiryReplyEdit: {
@@ -5715,6 +5741,9 @@ export interface components {
             author_role: string;
             /** Body */
             body: string;
+            /** Parent Reply Id */
+            parent_reply_id?: number | null;
+            parent_reply?: components["schemas"]["InquiryReplyResponse"] | null;
             /**
              * Created At
              * Format: date-time
@@ -6845,6 +6874,23 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** UserMembershipResponse */
+        UserMembershipResponse: {
+            /** Membership Id */
+            membership_id: number;
+            /** Agency Id */
+            agency_id: number;
+            /** Agency Name */
+            agency_name: string;
+            status: components["schemas"]["AgencyAgentMembershipStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
+        };
         /**
          * UserResponse
          * @description Schema for user responses (includes DB-generated fields, no sensitive data)
@@ -7473,6 +7519,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_memberships_api_v1_admin_users__user_id__memberships__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserMembershipResponse"][];
                 };
             };
             /** @description Validation Error */
