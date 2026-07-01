@@ -62,7 +62,7 @@ function AgencyDirectoryCard({ agency }: { agency: Agency }) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             {hasPropertyCount ? (
               <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Listings</p>
+                <p className="text-xs text-gray-500 dark:text-gray-300">Listings</p>
                 <p className="mt-1 font-semibold text-gray-900 dark:text-white">
                   {agency.property_count} listing{agency.property_count === 1 ? "" : "s"}
                 </p>
@@ -70,7 +70,7 @@ function AgencyDirectoryCard({ agency }: { agency: Agency }) {
             ) : null}
             {hasAgentCount ? (
               <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Agents</p>
+                <p className="text-xs text-gray-500 dark:text-gray-300">Agents</p>
                 <p className="mt-1 font-semibold text-gray-900 dark:text-white">
                   {agency.agent_count} agent{agency.agent_count === 1 ? "" : "s"}
                 </p>
