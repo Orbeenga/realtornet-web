@@ -57,10 +57,10 @@ export default function ListingsByStatusDrillDownPage() {
           }}
         />
       ) : null}
-      {!isLoading && !isError && data?.items.length === 0 ? (
+      {!isLoading && !isError && (!data?.items || data.items.length === 0) ? (
         <EmptyState title="No listings found" description="" />
       ) : null}
-      {data && data.items.length > 0 ? (
+      {data && data.items && data.items.length > 0 ? (
         <StatsDrillDownTable
           rows={data.items}
           columns={columns}

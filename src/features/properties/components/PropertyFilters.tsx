@@ -121,6 +121,8 @@ function FilterPopover({
           "inline-flex h-11 w-auto items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
           isOpen && "border-blue-300 text-blue-700 dark:border-blue-500/60",
         )}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen ? "true" : "false"}
       >
         <span>{value || label}</span>
         <span className="shrink-0 text-xs text-gray-400">v</span>

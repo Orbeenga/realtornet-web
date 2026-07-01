@@ -58,10 +58,10 @@ export default function InquiryResponseRateDrillDownPage() {
           }}
         />
       ) : null}
-      {!isLoading && !isError && data?.details.length === 0 ? (
+      {!isLoading && !isError && (!data?.details || data.details.length === 0) ? (
         <EmptyState title="No inquiries yet" description="" />
       ) : null}
-      {data && data.details.length > 0 ? (
+      {data && data.details && data.details.length > 0 ? (
         <StatsDrillDownTable
           rows={data.details}
           columns={columns}

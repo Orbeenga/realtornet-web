@@ -1,3 +1,9 @@
+const currencyFormatter = new Intl.NumberFormat('en-NG', {
+  style: 'currency',
+  currency: 'NGN',
+  maximumFractionDigits: 0
+});
+
 export function formatPrice(price: string | number | null | undefined, currency = "NGN") {
   if (price == null || price === "") {
     return "Price on request";
@@ -9,5 +15,5 @@ export function formatPrice(price: string | number | null | undefined, currency 
     return `${currency} ${price}`;
   }
 
-  return `${currency} ${amount.toLocaleString()}`;
+  return currencyFormatter.format(amount);
 }
