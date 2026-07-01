@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api/client";
-import type { Agent, UserDeactivateRequest, UserProfile, UserRole } from "@/types";
+import type { Agent, UserDeactivateRequest, UserMembershipResponse, UserProfile, UserRole } from "@/types";
 
 export interface AdminUsersCounts {
   all: number;
@@ -202,5 +202,17 @@ export function useActivateAdminUser() {
         queryClient.invalidateQueries({ queryKey: ["adminUsersCounts"] }),
       ]);
     },
+  });
+}
+
+export function useAdminUserMemberships(userId: number | null) {
+  return useQuery({
+    queryKey: ["adminUserMemberships", userId],
+    queryFn: () =>
+      apiClient<UserMembershipResponse[]>(
+        `/api/v1/admin/users/${userId}/memberships/`,
+      ),
+    staleTime: 30_000,
+    enabled: typeof userId === "number",
   });
 }

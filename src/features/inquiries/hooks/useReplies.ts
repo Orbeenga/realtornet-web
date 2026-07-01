@@ -11,7 +11,8 @@ export function useReplies(inquiryId: number | null) {
       apiClient<InquiryReplyResponse[]>(
         `/api/v1/inquiries/${inquiryId}/replies/`,
       ),
-    staleTime: 15_000,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
     enabled: typeof inquiryId === "number",
   });
 }
