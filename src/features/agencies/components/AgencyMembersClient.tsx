@@ -375,7 +375,7 @@ export function AgencyMembersClient() {
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
   const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
-    joinRequests: joinRequests.length,
+    joinRequests: joinRequests.filter(r => r.status === "pending").length,
     reviewRequests: reviewRequests.length,
     agents: agentsQuery.isSuccess ? agents.filter(a => a.membership_status === "active").length : undefined,
     inactive: agentsQuery.isSuccess ? agents.filter(isAgentInactive).length : undefined,
@@ -429,7 +429,7 @@ export function AgencyMembersClient() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Join requests</h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review and audit people asking to join your agency roster.
+                Review requests from people asking to join your agency roster. Resolved requests move to the appropriate tab.
               </p>
             </div>
             {joinRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
@@ -445,12 +445,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void joinRequestsQuery.refetch(); }}
               />
             ) : null}
-            {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.length === 0 ? (
-              <EmptyState title="No join requests" description="New requests and decision history will appear here." />
+            {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending").length === 0 ? (
+              <EmptyState title="No pending requests" description="New requests and decision history will appear here." />
             ) : null}
-            {!joinRequestsQuery.isLoading && joinRequests.length > 0 ? (
+            {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending").length > 0 ? (
               <div className="space-y-4">
-                {joinRequests.map((request) => (
+                {joinRequests.filter(r => r.status === "pending").map((request) => (
                   <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                       <div className="space-y-2">
@@ -458,18 +458,11 @@ export function AgencyMembersClient() {
                           <p className="font-semibold text-gray-900 dark:text-white">
                             {request.seeker_name ?? "Seeker"}
                           </p>
-                          <Badge variant={getJoinRequestBadgeVariant(request.status)}>
-                            {request.status}
-                          </Badge>
+                          <Badge variant="warning">pending</Badge>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
                         </p>
-                        {request.status !== "pending" ? (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Decision recorded {formatOptionalDate(request.decided_at)}
-                          </p>
-                        ) : null}
                         {request.cover_note ? (
                           <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                             {request.cover_note}
@@ -481,43 +474,34 @@ export function AgencyMembersClient() {
                             <p className="whitespace-pre-wrap">{request.portfolio_details}</p>
                           </div>
                         ) : null}
-                        {request.rejection_reason ? (
-                          <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                            {request.rejection_reason}
-                          </div>
-                        ) : null}
                       </div>
-                      {request.status === "pending" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button" size="sm"
-                            loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
-                            onClick={() => void handleApproveJoinRequest(request.join_request_id)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            type="button" size="sm" variant="destructive"
-                            loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
-                            onClick={() => void handleRejectJoinRequest(request.join_request_id)}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button" size="sm"
+                          loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
+                          onClick={() => void handleApproveJoinRequest(request.join_request_id)}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          type="button" size="sm" variant="destructive"
+                          loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
+                          onClick={() => void handleRejectJoinRequest(request.join_request_id)}
+                        >
+                          Reject
+                        </Button>
+                      </div>
                     </div>
-                    {request.status === "pending" ? (
-                      <Input
-                        className="mt-4" label="Reject reason" placeholder="Required before rejecting"
-                        value={rejectReasons[request.join_request_id] ?? ""}
-                        onChange={(event) =>
-                          setRejectReasons((current) => ({
-                            ...current,
-                            [request.join_request_id]: event.target.value,
-                          }))
-                        }
-                      />
-                    ) : null}
+                    <Input
+                      className="mt-4" label="Reject reason" placeholder="Required before rejecting"
+                      value={rejectReasons[request.join_request_id] ?? ""}
+                      onChange={(event) =>
+                        setRejectReasons((current) => ({
+                          ...current,
+                          [request.join_request_id]: event.target.value,
+                        }))
+                      }
+                    />
                   </div>
                 ))}
               </div>

@@ -295,7 +295,7 @@ export function AdminUsersClient() {
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {user.user_role === "agent" ? (
                       <Link
-                        href={`/account/admin/users/${user.user_id}/memberships`}
+                        href={`/account/admin/users/${user.user_id}/memberships?name=${encodeURIComponent(`${user.first_name} ${user.last_name}`.trim())}`}
                         className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         View agency membership
