@@ -656,10 +656,13 @@ export function MyJoinRequestsClient() {
                       (a, b) =>
                         new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
                     );
-                  const recentReapplication = reapplications[0];
                   const agencyHistory = (historyQuery.data ?? []).filter(
                     (h) => h.agency_id === membership.agency_id,
                   );
+                  const recentReapplication = reapplications[0];
+                  const reinstatementEvent = [...agencyHistory]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .find((h) => h.action === "reinstated" || h.action === "joined");
                   return (
                     <Card key={membership.membership_id}>
                       <CardBody className="space-y-4">
@@ -682,6 +685,18 @@ export function MyJoinRequestsClient() {
                             {membership.status_reason}
                           </div>
                         ) : null}
+                        {reinstatementEvent ? (
+                          <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm dark:border-green-900 dark:bg-green-950/40">
+                            <p className="font-medium text-green-900 dark:text-green-200">
+                              Reinstated {formatDate(reinstatementEvent.created_at)}
+                            </p>
+                            {reinstatementEvent.reason ? (
+                              <p className="mt-0.5 text-green-700 dark:text-green-300">
+                                {reinstatementEvent.reason}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {recentReapplication ? (
                           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950/40">
                             <p className="font-medium text-blue-900 dark:text-blue-200">
@@ -697,7 +712,7 @@ export function MyJoinRequestsClient() {
                             ) : null}
                           </div>
                         ) : null}
-                        {membership.pending_review_request_id ? (
+                        {!reinstatementEvent && membership.pending_review_request_id ? (
                           <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             <p className="font-medium">Review requested</p>
                             {membership.pending_review_reason ? (
@@ -709,7 +724,8 @@ export function MyJoinRequestsClient() {
                               </p>
                             ) : null}
                           </div>
-                        ) : (
+                        ) : null}
+                        {!reinstatementEvent && !membership.pending_review_request_id ? (
                           <div className="space-y-3">
                             <textarea
                               rows={3}
@@ -740,7 +756,7 @@ export function MyJoinRequestsClient() {
                               Request Review
                             </Button>
                           </div>
-                        )}
+                        ) : null}
                         {agencyHistory.length > 0 ? (
                           <div className="space-y-2">
                             <Button
@@ -759,7 +775,7 @@ export function MyJoinRequestsClient() {
                                 })
                               }
                             >
-                              {isHistoryExpanded ? "Hide history" : "View history"}
+                              {isHistoryExpanded ? "Hide history" : "View full history"}
                             </Button>
                             {isHistoryExpanded ? (
                               <div className="space-y-2">

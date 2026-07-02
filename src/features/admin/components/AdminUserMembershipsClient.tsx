@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Badge, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { useAdminUserMemberships } from "@/features/admin/hooks/useAdminUsers";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
@@ -27,7 +27,9 @@ function formatMembershipDate(value: string | null | undefined): string {
 export function AdminUserMembershipsClient() {
   const gate = useAdminRoleGate();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const userId = Number(params.id);
+  const userName = searchParams.get("name");
   const { data: memberships, isLoading, isError, refetch } = useAdminUserMemberships(userId);
 
   if (gate.isChecking) {
@@ -66,7 +68,7 @@ export function AdminUserMembershipsClient() {
           Agency memberships
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          User ID {userId} — all current and past agency affiliations.
+          {userName ?? `User #${userId}`} — all current and past agency affiliations.
         </p>
       </div>
 

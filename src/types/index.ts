@@ -61,6 +61,7 @@ export type InquiryCreate = components["schemas"]["InquiryCreate"];
 export type InquiryStatus = components["schemas"]["InquiryStatus"];
 export type InquiryReplyResponse = components["schemas"]["InquiryReplyResponse"];
 export type InquiryReplyCreate = components["schemas"]["InquiryReplyCreate"];
+export type InquiryReplyEdit = components["schemas"]["InquiryReplyEdit"];
 export type Favorite = components["schemas"]["FavoriteResponse"];
 export type FavoriteCreate = components["schemas"]["FavoriteCreate"];
 export type SavedSearch = components["schemas"]["SavedSearchResponse"];

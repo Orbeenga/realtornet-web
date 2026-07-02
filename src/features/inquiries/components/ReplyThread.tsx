@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Button, Skeleton } from "@/components";
-import { useReplies, useReplyToInquiry } from "@/features/inquiries/hooks";
+import { useEditReply, useReplies, useReplyToInquiry } from "@/features/inquiries/hooks";
 import type { InquiryReplyResponse } from "@/types";
 
 function formatDate(value: string) {
@@ -79,7 +79,10 @@ function ReplyBubble({
   authorRole,
   createdAt,
   editedAt,
+  viewedAt,
   isOwn,
+  replyId,
+  inquiryId,
   onReply,
 }: {
   body: string;
@@ -88,14 +91,43 @@ function ReplyBubble({
   authorRole: string;
   createdAt: string;
   editedAt: string | null | undefined;
+  viewedAt: string | null | undefined;
   isOwn: boolean;
+  replyId: number;
+  inquiryId: number;
   onReply?: (() => void) | null;
 }) {
-  const isAgent =
-    authorRole === "agent" || authorRole === "agency_owner" || authorRole === "admin";
+  const isAgent = authorRole === "agent" || authorRole === "agency_owner" || authorRole === "admin";
+  const editReply = useEditReply();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBody, setEditBody] = useState(body);
+  const canEdit = isOwn && !viewedAt;
+
+  const handleSaveEdit = useCallback(async () => {
+    const trimmed = editBody.trim();
+    if (!trimmed || trimmed === body) {
+      setIsEditing(false);
+      return;
+    }
+    try {
+      await editReply.mutateAsync({
+        inquiryId,
+        replyId,
+        payload: { body: trimmed },
+      });
+      setIsEditing(false);
+    } catch {
+      // Error handled by the mutation
+    }
+  }, [editBody, body, editReply, inquiryId, replyId]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditBody(body);
+    setIsEditing(false);
+  }, [body]);
 
   return (
-    <div className={`group flex ${isOwn ? "justify-end" : "justify-start"}`}>
+    <div className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[75%]">
         {parentReply ? <ParentReplyBanner parentReply={parentReply} /> : null}
         <div
@@ -120,23 +152,55 @@ function ReplyBubble({
               </span>
             ) : null}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{body}</p>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-[11px] opacity-60">{formatDate(createdAt)}</span>
-            {editedAt ? (
-              <span className="text-[10px] italic opacity-50">edited</span>
-            ) : null}
-          </div>
+          {isEditing ? (
+            <div className="mt-1 space-y-2">
+              <textarea
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                rows={3}
+                className="w-full resize-none rounded-lg border border-gray-300 bg-white p-2 text-sm leading-6 text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200"
+              />
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="primary" loading={editReply.isPending} onClick={() => void handleSaveEdit()}>
+                  Save
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{body}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-[11px] opacity-60">{formatDate(createdAt)}</span>
+                {editedAt ? (
+                  <span className="text-[10px] italic opacity-50">edited</span>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
-        {onReply ? (
-          <button
-            type="button"
-            onClick={onReply}
-            className="mt-1 hidden rounded px-2 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 group-hover:block dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-          >
-            Reply
-          </button>
-        ) : null}
+        <div className="mt-1 flex gap-2">
+          {onReply ? (
+            <button
+              type="button"
+              onClick={onReply}
+              className="rounded px-2 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            >
+              Reply
+            </button>
+          ) : null}
+          {canEdit && !isEditing ? (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="rounded px-2 py-0.5 text-[11px] font-medium text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -210,6 +274,9 @@ export function ReplyThread({
               authorRole={reply.author_role}
               createdAt={reply.created_at}
               editedAt={reply.edited_at}
+              viewedAt={reply.viewed_at}
+              replyId={reply.reply_id}
+              inquiryId={inquiryId}
               isOwn={
                 typeof currentUserId === "number" &&
                 reply.author_id === currentUserId
