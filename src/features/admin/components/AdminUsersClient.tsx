@@ -24,7 +24,6 @@ import {
   useAdminUsersCounts,
   useAdminUsersFiltered,
   useActivateAdminUser,
-  useAdminUserMemberships,
   useDeactivateAdminUser,
 } from "@/features/admin/hooks/useAdminUsers";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
@@ -106,19 +105,6 @@ function formatLastLogin(lastLogin: string | null | undefined): string {
   return `${Math.floor(diffDays / 365)}y ago`;
 }
 
-function getMembershipStatusVariant(status: string): "success" | "warning" | "danger" | "outline" | "default" {
-  if (status === "active") return "success";
-  if (status === "inactive") return "warning";
-  if (status === "suspended" || status === "blocked") return "danger";
-  if (status === "revoked" || status === "left") return "outline";
-  return "default";
-}
-
-function formatMembershipDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(new Date(value));
-}
-
 function extractApiDetail(error: unknown) {
   return typeof error === "object" &&
     error !== null &&
@@ -174,7 +160,7 @@ export function AdminUsersClient() {
   const [deactivateTarget, setDeactivateTarget] = useState<UserProfile | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<UserProfile | null>(null);
   const [deactivationReason, setDeactivationReason] = useState("");
-  const [membershipDialogUser, setMembershipDialogUser] = useState<UserProfile | null>(null);
+
 
   const countsQuery = useAdminUsersCounts();
   const activeTabConfig = TABS.find((t) => t.value === activeTab)!;
@@ -308,13 +294,12 @@ export function AdminUsersClient() {
 
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {user.user_role === "agent" ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setMembershipDialogUser(user)}
+                      <Link
+                        href={`/account/admin/users/${user.user_id}/memberships`}
+                        className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         View agency membership
-                      </Button>
+                      </Link>
                     ) : null}
                     {user.user_role === "agency_owner" && user.agency_id ? (
                       <Link
@@ -427,86 +412,6 @@ export function AdminUsersClient() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={Boolean(membershipDialogUser)}
-        onOpenChange={(open: boolean) => {
-          if (!open) setMembershipDialogUser(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              Agency memberships — {membershipDialogUser?.first_name} {membershipDialogUser?.last_name}
-            </DialogTitle>
-            <DialogDescription>
-              All current and past agency affiliations for this agent.
-            </DialogDescription>
-          </DialogHeader>
-          <MembershipDialogBody userId={membershipDialogUser?.user_id ?? null} />
-          <DialogFooter>
-            <DialogClose render={<Button variant="secondary" />}>
-              Close
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function MembershipDialogBody({ userId }: { userId: number | null }) {
-  const { data: memberships, isLoading, isError, error } = useAdminUserMemberships(userId);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3 py-4">
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-16 w-full rounded-xl" />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <p className="py-4 text-sm text-red-500">
-        {extractApiDetail(error) ?? "Failed to load memberships"}
-      </p>
-    );
-  }
-
-  if (!memberships || memberships.length === 0) {
-    return (
-      <p className="py-4 text-sm text-gray-500 dark:text-gray-400">
-        This agent has no agency memberships.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-3 py-2">
-      {memberships.map((m) => (
-        <div
-          key={m.membership_id}
-          className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50"
-        >
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm font-medium text-gray-900 dark:text-white">
-              {m.agency_name}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Joined {formatMembershipDate(m.created_at)}
-            </p>
-            {m.deleted_at ? (
-              <p className="text-xs text-gray-400">
-                Ended {formatMembershipDate(m.deleted_at)}
-              </p>
-            ) : null}
-          </div>
-          <Badge variant={getMembershipStatusVariant(m.status)}>
-            {m.status}
-          </Badge>
-        </div>
-      ))}
     </div>
   );
 }
