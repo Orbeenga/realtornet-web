@@ -233,166 +233,154 @@ export function MyJoinRequestsClient() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Agency invitations
           </h2>
-          {invitations.length === 0 ? (
-            <EmptyState
-              title="No agency invitations"
-              description="Invitations from agencies will appear here with accept and reject actions."
-            />
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
-                {[
-                  { value: "pending", label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
-                  { value: "accepted", label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
-                  { value: "rejected", label: `Rejected (${invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").length})` },
-                ].filter(t => {
-                  if (t.value === "accepted") return invitations.some(i => i.status === "accepted") || invitationSubTab === "accepted";
-                  if (t.value === "rejected") return invitations.some(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked") || invitationSubTab === "rejected";
-                  return true;
-                }).map(({ value, label }) => (
-                  <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
-                    {label}
-                  </Button>
-                ))}
-              </div>
 
-              {invitationSubTab === "pending" ? (
-                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {invitations.filter(i => i.status === "pending").length === 0 ? (
-                    <div className="md:col-span-2 xl:col-span-3">
-                      <EmptyState title="No pending invitations" description="All invitations have been resolved." />
-                    </div>
-                  ) : (
-                    invitations.filter(i => i.status === "pending").map((invitation) => (
-                      <Card key={invitation.invitation_id}>
-                        <CardBody className="space-y-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <Link
-                              href={`/agencies/${invitation.agency_id}`}
-                              className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                            >
-                              {invitation.agency_name}
-                            </Link>
-                            <Badge variant="warning">pending</Badge>
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            You have been invited to join {invitation.agency_name}.
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Sent {formatDate(invitation.created_at)}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              loading={
-                                acceptInvitation.isPending &&
-                                acceptInvitation.variables === invitation.invitation_id
-                              }
-                              onClick={() =>
-                                void handleAcceptInvitation(invitation.invitation_id)
-                              }
-                            >
-                              Accept
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              loading={
-                                rejectInvitation.isPending &&
-                                rejectInvitation.variables === invitation.invitation_id
-                              }
-                              onClick={() =>
-                                void handleRejectInvitation(invitation.invitation_id)
-                              }
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </CardBody>
-                      </Card>
-                    ))
-                  )}
-                </div>
-              ) : invitationSubTab === "accepted" ? (
-                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {invitations.filter(i => i.status === "accepted").length === 0 ? (
-                    <div className="md:col-span-2 xl:col-span-3">
-                      <EmptyState title="No accepted invitations" description="Accepted invitations will appear here." />
-                    </div>
-                  ) : (
-                    invitations.filter(i => i.status === "accepted").map((invitation) => (
-                      <Card key={invitation.invitation_id}>
-                        <CardBody className="space-y-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <Link
-                              href={`/agencies/${invitation.agency_id}`}
-                              className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                            >
-                              {invitation.agency_name}
-                            </Link>
-                            <Badge variant="success">accepted</Badge>
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            You accepted the invitation to join {invitation.agency_name}.
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Invited {formatDate(invitation.created_at)}
-                          </p>
-                          {invitation.accepted_at ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Accepted {formatDate(invitation.accepted_at)}
-                            </p>
-                          ) : null}
-                        </CardBody>
-                      </Card>
-                    ))
-                  )}
+          <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
+            {[
+              { value: "pending", label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
+              { value: "accepted", label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
+              { value: "rejected", label: `Rejected (${invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").length})` },
+            ].map(({ value, label }) => (
+              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          {invitationSubTab === "pending" ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.filter(i => i.status === "pending").length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No pending invitations" description="All invitations have been resolved." />
                 </div>
               ) : (
-                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").length === 0 ? (
-                    <div className="md:col-span-2 xl:col-span-3">
-                      <EmptyState title="No rejected invitations" description="Rejected, expired, or revoked invitations will appear here." />
-                    </div>
-                  ) : (
-                    invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").map((invitation) => (
-                      <Card key={invitation.invitation_id}>
-                        <CardBody className="space-y-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <Link
-                              href={`/agencies/${invitation.agency_id}`}
-                              className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                            >
-                              {invitation.agency_name}
-                            </Link>
-                            <Badge variant="danger">{invitation.status}</Badge>
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Invitation from {invitation.agency_name} was {invitation.status}.
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Sent {formatDate(invitation.created_at)}
-                          </p>
-                          {invitation.rejected_at ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Rejected {formatDate(invitation.rejected_at)}
-                            </p>
-                          ) : null}
-                          <Link
-                            href={`/agencies/${invitation.agency_id}/join`}
-                            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                          >
-                            Apply Again
-                          </Link>
-                        </CardBody>
-                      </Card>
-                    ))
-                  )}
-                </div>
+                invitations.filter(i => i.status === "pending").map((invitation) => (
+                  <Card key={invitation.invitation_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${invitation.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {invitation.agency_name}
+                        </Link>
+                        <Badge variant="warning">pending</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        You have been invited to join {invitation.agency_name}.
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Sent {formatDate(invitation.created_at)}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          loading={
+                            acceptInvitation.isPending &&
+                            acceptInvitation.variables === invitation.invitation_id
+                          }
+                          onClick={() =>
+                            void handleAcceptInvitation(invitation.invitation_id)
+                          }
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          loading={
+                            rejectInvitation.isPending &&
+                            rejectInvitation.variables === invitation.invitation_id
+                          }
+                          onClick={() =>
+                            void handleRejectInvitation(invitation.invitation_id)
+                          }
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))
               )}
-            </>
+            </div>
+          ) : invitationSubTab === "accepted" ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.filter(i => i.status === "accepted").length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No accepted invitations" description="Accepted invitations will appear here." />
+                </div>
+              ) : (
+                invitations.filter(i => i.status === "accepted").map((invitation) => (
+                  <Card key={invitation.invitation_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${invitation.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {invitation.agency_name}
+                        </Link>
+                        <Badge variant="success">accepted</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        You accepted the invitation to join {invitation.agency_name}.
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Invited {formatDate(invitation.created_at)}
+                      </p>
+                      {invitation.accepted_at ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Accepted {formatDate(invitation.accepted_at)}
+                        </p>
+                      ) : null}
+                    </CardBody>
+                  </Card>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No rejected invitations" description="Rejected, expired, or revoked invitations will appear here." />
+                </div>
+              ) : (
+                invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").map((invitation) => (
+                  <Card key={invitation.invitation_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${invitation.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {invitation.agency_name}
+                        </Link>
+                        <Badge variant="danger">{invitation.status}</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Invitation from {invitation.agency_name} was {invitation.status}.
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Sent {formatDate(invitation.created_at)}
+                      </p>
+                      {invitation.rejected_at ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Rejected {formatDate(invitation.rejected_at)}
+                        </p>
+                      ) : null}
+                      <Link
+                        href={`/agencies/${invitation.agency_id}/join`}
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        Apply Again
+                      </Link>
+                    </CardBody>
+                  </Card>
+                ))
+              )}
+            </div>
           )}
         </section>
       ) : null}
@@ -815,11 +803,7 @@ export function MyJoinRequestsClient() {
             { value: "pending", label: `Pending (${requests.filter(r => r.status === "pending").length})` },
             { value: "accepted", label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
             { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-          ].filter(t => {
-            if (t.value === "accepted") return requests.some(r => r.status === "approved") || requestSubTab === "accepted";
-            if (t.value === "rejected") return requests.some(r => r.status === "rejected") || requestSubTab === "rejected";
-            return true;
-          }).map(({ value, label }) => (
+          ].map(({ value, label }) => (
             <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
               {label}
             </Button>
