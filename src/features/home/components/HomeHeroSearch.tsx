@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -362,7 +362,7 @@ export function HomeHeroSearch() {
           </div>
         </div>
 
-        <div ref={homeFilterRowRef} className="mx-auto w-full max-w-7xl" data-rn-home-filter-row>
+        <div ref={homeFilterRowRef} className="relative z-[100] mx-auto w-full max-w-7xl" data-rn-home-filter-row>
           {/* Mobile: Property Type full width, others in 2 columns */}
           <div className="space-y-3 lg:hidden">
             <div className="relative">
@@ -379,7 +379,7 @@ export function HomeHeroSearch() {
                     ? "Property Type"
                     : `${propertyTypeIds.length} Selected`}
                 </span>
-                <span className="shrink-0 text-xs text-gray-400">v</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
               </button>
               {ptOutsideOpen ? (
                 <div className="absolute z-[100] mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
@@ -546,7 +546,7 @@ export function HomeHeroSearch() {
                     ? "Property Type"
                     : `${propertyTypeIds.length} Selected`}
                 </span>
-                <span className="shrink-0 text-xs text-gray-400">v</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
               </button>
               {ptOutsideOpen ? (
                 <div className="absolute z-[100] mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
