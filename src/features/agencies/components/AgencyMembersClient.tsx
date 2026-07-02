@@ -95,6 +95,12 @@ function getJoinRequestBadgeVariant(status: string) {
   return "warning" as const;
 }
 
+function formatMembershipStatus(status: string) {
+  // Legacy DB "inactive" is semantically identical to "revoked".
+  if (status === "inactive" || status === "revoked") return "Revoked";
+  return status;
+}
+
 function getMembershipBadgeVariant(status: string) {
   if (status === "active") return "success" as const;
   if (status === "suspended") return "warning" as const;
@@ -377,7 +383,7 @@ export function AgencyMembersClient() {
     rejected: joinRequests.filter(r => r.status === "rejected").length,
     suspended: agents.filter(a => a.membership_status === "suspended").length,
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
-    revoked: agents.filter(a => a.membership_status === "revoked").length,
+    revoked: agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").length,
     blocked: agents.filter(a => a.membership_status === "blocked").length,
   };
   const pendingDecisionReason = pendingMembershipDecision
@@ -645,7 +651,7 @@ export function AgencyMembersClient() {
                               {agent.display_name || agent.company_name || "Listing agent"}
                             </p>
                             <Badge variant={getMembershipBadgeVariant(agent.membership_status)}>
-                              {agent.membership_status}
+                              {formatMembershipStatus(agent.membership_status)}
                             </Badge>
                           </div>
                           <p className="truncate text-sm text-gray-500 dark:text-gray-400">
@@ -741,7 +747,7 @@ export function AgencyMembersClient() {
                             Restore
                           </Button>
                         ) : null}
-                        {agent.membership_status !== "inactive" ? (
+                        {agent.membership_status === "active" ? (
                           <Button type="button" size="sm" variant="secondary"
                             loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
                             onClick={() =>
@@ -1126,12 +1132,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked").length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").length === 0 ? (
               <EmptyState title="No revoked memberships." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked").length > 0 ? (
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "revoked").map((agent) => (
+                {agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
@@ -1147,7 +1153,7 @@ export function AgencyMembersClient() {
                           <p className="font-medium text-gray-900 dark:text-white">
                             {agent.display_name || agent.company_name || "Listing agent"}
                           </p>
-                          <Badge variant="danger">revoked</Badge>
+                          <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
                           {agent.status_decided_at ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               Revoked {formatDate(agent.status_decided_at)}

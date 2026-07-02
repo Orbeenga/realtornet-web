@@ -43,6 +43,17 @@ function displayMembershipStatus(status: string) {
   return status;
 }
 
+function getHistoryBadgeVariant(action: string) {
+  if (action === "joined" || action === "reinstated") return "success" as const;
+  if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
+  if (action === "left") return "warning" as const;
+  return "outline" as const;
+}
+
+function formatMembershipAction(action: string) {
+  return action.replace(/_/g, " ");
+}
+
 type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 
 export function MyJoinRequestsClient() {
@@ -51,6 +62,7 @@ export function MyJoinRequestsClient() {
   const [requestSubTab, setRequestSubTab] = useState<string>("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<string>("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
+  const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
   const canViewAgencyRequests =
@@ -632,70 +644,162 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No revoked memberships" description="You have no revoked memberships." />
                 </div>
               ) : (
-                revokedMemberships.map((membership) => (
-                  <Card key={membership.membership_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="danger">revoked</Badge>
-                      </div>
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Revoked {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Your revocation history will be visible to the agency during their review.
-                      </p>
-                      {membership.pending_review_request_id ? (
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
-                          Review requested
-                        </p>
-                      ) : (
-                        <div className="space-y-3">
-                          <textarea
-                            rows={3}
-                            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                            placeholder="Explain why this decision should be reviewed"
-                            value={reviewReasons[membership.membership_id] ?? ""}
-                            onChange={(event) =>
-                              setReviewReasons((current) => ({
-                                ...current,
-                                [membership.membership_id]: event.target.value,
-                              }))
-                            }
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            loading={
-                              createReviewRequest.isPending &&
-                              createReviewRequest.variables?.agencyId === membership.agency_id
-                            }
-                            onClick={() =>
-                              void handleReviewRequest(
-                                membership.agency_id,
-                                membership.membership_id,
-                              )
-                            }
+                revokedMemberships.map((membership) => {
+                  const isHistoryExpanded = expandedRevokedIds.has(membership.membership_id);
+                  const reapplications = requests
+                    .filter(
+                      (r) =>
+                        r.agency_id === membership.agency_id &&
+                        r.join_request_id !== membership.source_join_request_id,
+                    )
+                    .sort(
+                      (a, b) =>
+                        new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
+                    );
+                  const recentReapplication = reapplications[0];
+                  const agencyHistory = (historyQuery.data ?? []).filter(
+                    (h) => h.agency_id === membership.agency_id,
+                  );
+                  return (
+                    <Card key={membership.membership_id}>
+                      <CardBody className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <Link
+                            href={`/agencies/${membership.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                           >
-                            Request Review
-                          </Button>
+                            {membership.agency_name}
+                          </Link>
+                          <Badge variant="danger">{displayMembershipStatus(membership.status)}</Badge>
                         </div>
-                      )}
-                    </CardBody>
-                  </Card>
-                ))
+                        {membership.status_decided_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Revoked {formatDate(membership.status_decided_at)}
+                          </p>
+                        ) : null}
+                        {membership.status_reason ? (
+                          <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                            {membership.status_reason}
+                          </div>
+                        ) : null}
+                        {recentReapplication ? (
+                          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950/40">
+                            <p className="font-medium text-blue-900 dark:text-blue-200">
+                              Reapplied {formatDate(recentReapplication.submitted_at)}
+                            </p>
+                            <p className="mt-0.5 text-blue-700 dark:text-blue-300">
+                              Status: <span className="capitalize">{recentReapplication.status}</span>
+                            </p>
+                            {recentReapplication.status === "rejected" && recentReapplication.rejection_reason ? (
+                              <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                                Reason: {recentReapplication.rejection_reason}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {membership.pending_review_request_id ? (
+                          <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            <p className="font-medium">Review requested</p>
+                            {membership.pending_review_reason ? (
+                              <p className="mt-1 text-xs">{membership.pending_review_reason}</p>
+                            ) : null}
+                            {membership.pending_review_submitted_at ? (
+                              <p className="mt-1 text-xs">
+                                Submitted {formatDate(membership.pending_review_submitted_at)}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <textarea
+                              rows={3}
+                              className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                              placeholder="Explain why this decision should be reviewed"
+                              value={reviewReasons[membership.membership_id] ?? ""}
+                              onChange={(event) =>
+                                setReviewReasons((current) => ({
+                                  ...current,
+                                  [membership.membership_id]: event.target.value,
+                                }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              loading={
+                                createReviewRequest.isPending &&
+                                createReviewRequest.variables?.agencyId === membership.agency_id
+                              }
+                              onClick={() =>
+                                void handleReviewRequest(
+                                  membership.agency_id,
+                                  membership.membership_id,
+                                )
+                              }
+                            >
+                              Request Review
+                            </Button>
+                          </div>
+                        )}
+                        {agencyHistory.length > 0 ? (
+                          <div className="space-y-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                setExpandedRevokedIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(membership.membership_id)) {
+                                    next.delete(membership.membership_id);
+                                  } else {
+                                    next.add(membership.membership_id);
+                                  }
+                                  return next;
+                                })
+                              }
+                            >
+                              {isHistoryExpanded ? "Hide history" : "View history"}
+                            </Button>
+                            {isHistoryExpanded ? (
+                              <div className="space-y-2">
+                                {[...agencyHistory]
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.created_at).getTime() -
+                                      new Date(a.created_at).getTime(),
+                                  )
+                                  .map((record) => (
+                                    <div
+                                      key={record.id}
+                                      className="rounded-lg border border-border p-3 text-xs"
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <span className="font-medium capitalize text-gray-900 dark:text-white">
+                                          {formatMembershipAction(record.action)}
+                                        </span>
+                                        <Badge variant={getHistoryBadgeVariant(record.action)}>
+                                          {formatMembershipAction(record.action)}
+                                        </Badge>
+                                      </div>
+                                      <p className="mt-1 text-gray-500 dark:text-gray-400">
+                                        {formatDate(record.created_at)}
+                                      </p>
+                                      {record.reason ? (
+                                        <p className="mt-1 text-gray-600 dark:text-gray-300">
+                                          {record.reason}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </CardBody>
+                    </Card>
+                  );
+                })
               )}
             </div>
           ) : membershipSubTab === "blocked" ? (

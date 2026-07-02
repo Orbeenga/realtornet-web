@@ -103,7 +103,10 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
               : request,
           ) ?? current,
       );
-      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId, "all"] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] }),
+      ]);
     },
   });
 }
