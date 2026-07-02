@@ -356,7 +356,7 @@ export function HomeHeroSearch() {
         <div ref={homeSearchRowRef} className="mx-auto w-full max-w-7xl" data-rn-home-search-row>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             {searchInput}
-            <Button type="submit" className="hidden h-12 shrink-0 rounded-xl px-5 text-sm lg:inline-flex">
+            <Button type="submit" className="hidden h-12 shrink-0 rounded-xl bg-blue-600 px-5 text-sm font-medium text-white hover:bg-blue-700 lg:inline-flex">
               Search
             </Button>
           </div>
@@ -379,9 +379,10 @@ export function HomeHeroSearch() {
                     ? "Property Type"
                     : `${propertyTypeIds.length} Selected`}
                 </span>
+                <span className="shrink-0 text-xs text-gray-400">v</span>
               </button>
               {ptOutsideOpen ? (
-                <div className="absolute z-50 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="absolute z-[100] mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                   <div className="max-h-64 overflow-y-auto">
                     <button
                       type="button"
@@ -477,12 +478,13 @@ export function HomeHeroSearch() {
 
             <button
               type="button"
-              className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               onClick={() => setFiltersInlineOpen((v) => !v)}
               aria-expanded={filtersInlineOpen ? "true" : "false"}
               aria-controls="home-mobile-inline-more"
+              aria-label="Filters"
             >
-              <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
+              <SlidersHorizontal className="h-4 w-4" />
             </button>
 
             {filtersInlineOpen ? (
@@ -544,9 +546,10 @@ export function HomeHeroSearch() {
                     ? "Property Type"
                     : `${propertyTypeIds.length} Selected`}
                 </span>
+                <span className="shrink-0 text-xs text-gray-400">v</span>
               </button>
               {ptOutsideOpen ? (
-                <div className="absolute z-50 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="absolute z-[100] mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                   <div className="max-h-64 overflow-y-auto">
                     <button
                       type="button"
@@ -633,10 +636,11 @@ export function HomeHeroSearch() {
 
             <button
               type="button"
-              className="inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               onClick={() => setFiltersOpen(true)}
+              aria-label="Filters"
             >
-              <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
+              <SlidersHorizontal className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -686,7 +690,7 @@ export function HomeHeroSearch() {
                     {propertyTypeIds.length === 0 ? "Any" : `${propertyTypeIds.length} selected`}
                   </button>
                   {ptOpen ? (
-                    <div className="absolute z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                    <div className="absolute z-[100] mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                       {(propertyTypesQuery.data ?? []).map((type) => {
                         const id = String(type.property_type_id);
                         const checked = propertyTypeIds.includes(id);
