@@ -12,15 +12,32 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function truncateQuote(value: string, maxLength = 60): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).trimEnd()}…`;
+}
+
+function formatRoleLabel(role: string): string {
+  if (role === "agency_owner") return "Agency Owner";
+  if (role === "agent") return "Agent";
+  if (role === "admin") return "Admin";
+  return "Seeker";
+}
+
 function QuotedPreview({ reply, onClear }: { reply: InquiryReplyResponse; onClear: () => void }) {
   return (
     <div className="flex items-start gap-2 rounded-xl border-l-4 border-emerald-400 bg-gray-50 px-3 py-2 dark:bg-gray-900/50">
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
-          {reply.author_display_name}
-        </p>
-        <p className="mt-0.5 line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
-          {reply.body}
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            {reply.author_display_name}
+          </p>
+          <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+            {formatRoleLabel(reply.author_role)}
+          </span>
+        </div>
+        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+          {truncateQuote(reply.body)}
         </p>
       </div>
       <button
@@ -40,11 +57,16 @@ function QuotedPreview({ reply, onClear }: { reply: InquiryReplyResponse; onClea
 function ParentReplyBanner({ parentReply }: { parentReply: InquiryReplyResponse }) {
   return (
     <div className="mb-1 rounded-lg border-l-4 border-gray-300 bg-gray-50/80 px-3 py-1.5 dark:border-gray-600 dark:bg-gray-800/50">
-      <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-        {parentReply.author_display_name}
-      </p>
-      <p className="mt-0.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
-        {parentReply.body}
+      <div className="flex items-center gap-2">
+        <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+          {parentReply.author_display_name}
+        </p>
+        <span className="rounded bg-gray-200 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+          {formatRoleLabel(parentReply.author_role)}
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+        {truncateQuote(parentReply.body)}
       </p>
     </div>
   );
@@ -73,7 +95,7 @@ function ReplyBubble({
     authorRole === "agent" || authorRole === "agency_owner" || authorRole === "admin";
 
   return (
-    <div className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+    <div className={`group flex ${isOwn ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[75%]">
         {parentReply ? <ParentReplyBanner parentReply={parentReply} /> : null}
         <div
@@ -82,6 +104,11 @@ function ReplyBubble({
               ? "bg-emerald-500 text-white"
               : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
           }`}
+          onContextMenu={(event) => {
+            if (!onReply) return;
+            event.preventDefault();
+            onReply();
+          }}
         >
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium opacity-80">
@@ -105,7 +132,7 @@ function ReplyBubble({
           <button
             type="button"
             onClick={onReply}
-            className="mt-1 rounded px-2 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            className="mt-1 hidden rounded px-2 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 group-hover:block dark:text-emerald-400 dark:hover:bg-emerald-950/30"
           >
             Reply
           </button>
