@@ -125,7 +125,6 @@ function FilterPopover({
         aria-expanded={isOpen ? "true" : "false"}
       >
         <span>{value || label}</span>
-        <span className="shrink-0 text-xs text-gray-400">v</span>
       </PopoverTrigger>
       <PopoverContent className="w-80">{children}</PopoverContent>
     </Popover>
