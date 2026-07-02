@@ -379,10 +379,9 @@ export function HomeHeroSearch() {
                     ? "Property Type"
                     : `${propertyTypeIds.length} Selected`}
                 </span>
-                <span className="shrink-0 text-xs text-gray-400">v</span>
               </button>
               {ptOutsideOpen ? (
-                <div className="absolute z-20 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="absolute z-50 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                   <div className="max-h-64 overflow-y-auto">
                     <button
                       type="button"
@@ -484,7 +483,6 @@ export function HomeHeroSearch() {
               aria-controls="home-mobile-inline-more"
             >
               <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
-              <span className="shrink-0 text-xs text-gray-400">v</span>
             </button>
 
             {filtersInlineOpen ? (
@@ -546,10 +544,9 @@ export function HomeHeroSearch() {
                     ? "Property Type"
                     : `${propertyTypeIds.length} Selected`}
                 </span>
-                <span className="shrink-0 text-xs text-gray-400">v</span>
               </button>
               {ptOutsideOpen ? (
-                <div className="absolute z-20 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="absolute z-50 mt-2 w-full max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                   <div className="max-h-64 overflow-y-auto">
                     <button
                       type="button"
@@ -640,7 +637,6 @@ export function HomeHeroSearch() {
               onClick={() => setFiltersOpen(true)}
             >
               <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filters</span>
-              <span className="shrink-0 text-xs text-gray-400">v</span>
             </button>
           </div>
         </div>
@@ -690,7 +686,7 @@ export function HomeHeroSearch() {
                     {propertyTypeIds.length === 0 ? "Any" : `${propertyTypeIds.length} selected`}
                   </button>
                   {ptOpen ? (
-                    <div className="absolute z-10 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                    <div className="absolute z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                       {(propertyTypesQuery.data ?? []).map((type) => {
                         const id = String(type.property_type_id);
                         const checked = propertyTypeIds.includes(id);
