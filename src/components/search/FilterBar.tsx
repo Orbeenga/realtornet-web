@@ -179,7 +179,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         onChange={(event) => updateFilter("property_type_id", event.target.value)}
         className={SelectClassName()}
       >
-        <option value="">Property Type</option>
+        <option value="">All property types</option>
         {propertyTypesQuery.data?.map((pt) => (
           <option key={pt.property_type_id} value={pt.property_type_id}>
             {pt.name}
@@ -206,7 +206,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         }}
         className={SelectClassName()}
       >
-        <option value="">Min Price</option>
+        <option value="">Any</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -277,7 +277,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         }}
         className={SelectClassName()}
       >
-        <option value="">Max Price</option>
+        <option value="">Any</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -340,7 +340,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         onChange={(event) => updateFilter("bedrooms", event.target.value)}
         className={SelectClassName()}
       >
-        <option value="">Bedrooms</option>
+        <option value="">Any</option>
         {BEDROOM_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -391,7 +391,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             onChange={(event) => updateFilter("listing_type", event.target.value)}
             className={SelectClassName()}
           >
-            <option value="">Listing Type</option>
+            <option value="">All listing types</option>
             {LISTING_TYPES.map((type) => (
               <option key={type} value={type}>
                 {LISTING_TYPE_LABELS[type]}
@@ -408,7 +408,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             onChange={(event) => updateFilter("listing_status", event.target.value)}
             className={SelectClassName()}
           >
-            <option value="">Status</option>
+            <option value="">All statuses</option>
             {LISTING_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {LISTING_STATUS_LABELS[status]}
@@ -445,7 +445,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Property Type</option>
+            <option value="">All property types</option>
             {propertyTypesQuery.data?.map((pt) => (
               <option key={pt.property_type_id} value={pt.property_type_id}>
                 {pt.name}
@@ -471,7 +471,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Min Price</option>
+            <option value="">Any</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -522,7 +522,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Max Price</option>
+            <option value="">Any</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -565,7 +565,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Bedrooms</option>
+            <option value="">Any</option>
             {BEDROOM_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
