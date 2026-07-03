@@ -1,14 +1,9 @@
 "use client";
 
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { SlidersHorizontal, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Input } from "@/components/Input";
 import {
   LISTING_STATUSES,
@@ -41,8 +36,6 @@ const BEDROOM_OPTIONS = [
   { value: "5", label: "5+" },
 ];
 
-type FilterPanel = "propertyType" | "minPrice" | "maxPrice" | "bedrooms" | "more";
-
 interface FilterBarProps {
   /**
    * Variant for different contexts
@@ -65,58 +58,6 @@ interface FilterBarProps {
   showLocationSelector?: boolean;
 }
 
-interface FilterPopoverProps {
-  id: FilterPanel;
-  label: string;
-  value?: string | null;
-  openPanel: FilterPanel | null;
-  onOpenPanelChange: (panel: FilterPanel | null) => void;
-  children: ReactNode;
-  showIcon?: boolean;
-  /** Optional leading icon for the trigger (e.g. the slider/adjustments icon on the Filters pill). */
-  icon?: ReactNode;
-}
-
-/**
- * Filter popover using existing Popover component
- * Popover already handles portal isolation per UI-001 and UI-005
- * FilterTrigger is the source-of-truth for filter pill sizing
- */
-function FilterPopover({
-  id,
-  label,
-  value,
-  openPanel,
-  onOpenPanelChange,
-  children,
-  showIcon = false,
-  icon,
-}: FilterPopoverProps) {
-  const isOpen = openPanel === id;
-
-  return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => onOpenPanelChange(open ? id : null)}
-      className="shrink-0"
-    >
-      <PopoverTrigger
-        className={cn(
-          UI_TOKENS.FILTER_PILL,
-          "inline-flex w-auto items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
-          isOpen && "border-blue-300 text-blue-700 dark:border-blue-500/60"
-        )}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen ? "true" : "false"}
-      >
-        <span>{value || label}</span>
-        {icon ?? (showIcon ? <ChevronDown className="h-4 w-4" /> : null)}
-      </PopoverTrigger>
-      <PopoverContent className="w-80">{children}</PopoverContent>
-    </Popover>
-  );
-}
-
 function FieldLabel({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
   return (
     <label
@@ -137,7 +78,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const searchParams = useSearchParams();
   const pathname = "/properties"; // FilterBar always navigates to /properties
   const propertyTypesQuery = usePropertyTypes();
-  const [openPanel, setOpenPanel] = useState<FilterPanel | null>(null);
+  const filterDialogRef = useRef<HTMLDialogElement>(null);
   const [customMinMode, setCustomMinMode] = useState(false);
   const [customMaxMode, setCustomMaxMode] = useState(false);
   const [localMinPrice, setLocalMinPrice] = useState("");
@@ -157,10 +98,6 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const state = searchParams.get("state") || "";
   const city = searchParams.get("city") || "";
   const neighborhood = searchParams.get("neighborhood") || "";
-
-  const selectedPropertyType = propertyTypesQuery.data?.find((pt) =>
-    propertyTypeIds.includes(String(pt.property_type_id))
-  );
 
   const isMinCustomPreset = Boolean(minPrice) && !PRICE_OPTIONS.some((o) => o.value === minPrice);
   const showCustomMin = customMinMode || isMinCustomPreset;
@@ -496,56 +433,156 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
       <div className="mx-auto hidden w-full max-w-2xl lg:flex">
         <div className="flex w-full min-w-0 items-center gap-3 flex-wrap">
-          <FilterPopover
-            id="propertyType"
-            label="Property Type"
-            value={selectedPropertyType?.name ?? null}
-            openPanel={openPanel}
-            onOpenPanelChange={setOpenPanel}
+          {/* Property Type - native select */}
+          <select
+            value={propertyTypeIds[0] || ""}
+            onChange={(event) => updateFilter("property_type_id", event.target.value)}
+            aria-label="Property type"
+            className={cn(
+              UI_TOKENS.FILTER_PILL,
+              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            )}
           >
-            {propertyTypeField("property-type-popover")}
-          </FilterPopover>
+            <option value="">All property types</option>
+            {propertyTypesQuery.data?.map((pt) => (
+              <option key={pt.property_type_id} value={pt.property_type_id}>
+                {pt.name}
+              </option>
+            ))}
+          </select>
 
-          <FilterPopover
-            id="minPrice"
-            label="Min Price"
-            value={minPrice ? `NGN ${Number(minPrice).toLocaleString()}` : null}
-            openPanel={openPanel}
-            onOpenPanelChange={setOpenPanel}
+          {/* Min Price - native select */}
+          <select
+            value={minSelectValue}
+            onChange={(event) => {
+              if (event.target.value === "custom") {
+                setCustomMinMode(true);
+                updateFilter("min_price", "");
+                return;
+              }
+              setCustomMinMode(false);
+              updateFilter("min_price", event.target.value);
+            }}
+            aria-label="Min price"
+            className={cn(
+              UI_TOKENS.FILTER_PILL,
+              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            )}
           >
-            {minPriceField("min-price-popover")}
-          </FilterPopover>
+            <option value="">Any min</option>
+            {PRICE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="custom">Custom</option>
+          </select>
 
-          <FilterPopover
-            id="maxPrice"
-            label="Max Price"
-            value={maxPrice ? `NGN ${Number(maxPrice).toLocaleString()}` : null}
-            openPanel={openPanel}
-            onOpenPanelChange={setOpenPanel}
-          >
-            {maxPriceField("max-price-popover")}
-          </FilterPopover>
+          {/* Custom min price input (shown when custom is selected) */}
+          {showCustomMin && (
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+              <Input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={localMinPrice}
+                placeholder="Min"
+                onChange={(event) => setLocalMinPrice(event.target.value)}
+                onBlur={() => updateFilter("min_price", localMinPrice)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    updateFilter("min_price", localMinPrice);
+                  }
+                }}
+                aria-label="Custom min price"
+                className="pl-12 w-32"
+              />
+            </div>
+          )}
 
-          <FilterPopover
-            id="bedrooms"
-            label="Bedrooms"
-            value={bedrooms ? `${bedrooms}+ beds` : null}
-            openPanel={openPanel}
-            onOpenPanelChange={setOpenPanel}
+          {/* Max Price - native select */}
+          <select
+            value={maxSelectValue}
+            onChange={(event) => {
+              if (event.target.value === "custom") {
+                setCustomMaxMode(true);
+                updateFilter("max_price", "");
+                return;
+              }
+              setCustomMaxMode(false);
+              updateFilter("max_price", event.target.value);
+            }}
+            aria-label="Max price"
+            className={cn(
+              UI_TOKENS.FILTER_PILL,
+              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            )}
           >
-            {bedroomsField("bedrooms-popover")}
-          </FilterPopover>
+            <option value="">Any max</option>
+            {PRICE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="custom">Custom</option>
+          </select>
 
-          <FilterPopover
-            id="more"
-            label="Filters"
-            value={listingType || listingStatus}
-            openPanel={openPanel}
-            onOpenPanelChange={setOpenPanel}
-            icon={<SlidersHorizontal className="h-4 w-4" />}
+          {/* Custom max price input (shown when custom is selected) */}
+          {showCustomMax && (
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+              <Input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={localMaxPrice}
+                placeholder="Max"
+                onChange={(event) => setLocalMaxPrice(event.target.value)}
+                onBlur={() => updateFilter("max_price", localMaxPrice)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    updateFilter("max_price", localMaxPrice);
+                  }
+                }}
+                aria-label="Custom max price"
+                className="pl-12 w-32"
+              />
+            </div>
+          )}
+
+          {/* Bedrooms - native select */}
+          <select
+            value={bedrooms}
+            onChange={(event) => updateFilter("bedrooms", event.target.value)}
+            aria-label="Bedrooms"
+            className={cn(
+              UI_TOKENS.FILTER_PILL,
+              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            )}
           >
-            {moreFilters}
-          </FilterPopover>
+            <option value="">Any beds</option>
+            {BEDROOM_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Filters - button with drawer icon, opens native dialog */}
+          <button
+            type="button"
+            onClick={() => filterDialogRef.current?.showModal()}
+            aria-label="More filters"
+            className={cn(
+              UI_TOKENS.FILTER_PILL,
+              "inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            )}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -582,20 +619,13 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           type="button"
           className={cn(
             UI_TOKENS.FILTER_PILL,
-            "inline-flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
-            openPanel === "more" && "border-blue-300 text-blue-700 dark:border-blue-500/60"
+            "inline-flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
           )}
-          onClick={() => setOpenPanel(openPanel === "more" ? null : "more")}
-          aria-expanded={openPanel === "more" ? "true" : "false"}
+          onClick={() => filterDialogRef.current?.showModal()}
+          aria-label="More filters"
         >
-          <span>Filters</span>
-          <ChevronDown className={cn("h-4 w-4 transition-transform", openPanel === "more" ? "rotate-180" : "rotate-0")} />
+          <SlidersHorizontal className="h-4 w-4" />
         </button>
-        {openPanel === "more" ? (
-          <div className="space-y-4">
-            {moreFilters}
-          </div>
-        ) : null}
       </div>
 
       {actions && (
@@ -606,12 +636,40 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     </>
   );
 
+  // Native dialog for "More filters" (HTML5 standard, shared between desktop and mobile)
+  const filterDialog = (
+    <dialog
+      ref={filterDialogRef}
+      className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-xl backdrop:bg-black/50 dark:border-gray-700 dark:bg-gray-900"
+      onClick={(e) => {
+        // Close when clicking the backdrop (dialog element itself, not its content)
+        if (e.target === filterDialogRef.current) {
+          filterDialogRef.current?.close();
+        }
+      }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
+        <button
+          type="button"
+          onClick={() => filterDialogRef.current?.close()}
+          aria-label="Close"
+          className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      {moreFilters}
+    </dialog>
+  );
+
   // Hero variant: dark background wrapper
   if (variant === "hero") {
     return (
       <div className="space-y-3">
         {desktopContent}
         {mobileContent}
+        {filterDialog}
       </div>
     );
   }
@@ -621,6 +679,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     <div className="mb-8 space-y-3">
       {desktopContent}
       {mobileContent}
+      {filterDialog}
     </div>
   );
 }
