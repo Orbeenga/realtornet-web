@@ -630,11 +630,6 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         >
           <SlidersHorizontal className="h-4 w-4" />
         </button>
-        {moreFiltersOpen && (
-          <div className="space-y-4">
-            {moreFilters}
-          </div>
-        )}
       </div>
 
       {actions && (
