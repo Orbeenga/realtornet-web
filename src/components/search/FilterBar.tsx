@@ -1,7 +1,7 @@
 "use client";
 
 import { SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/Input";
@@ -78,7 +78,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const searchParams = useSearchParams();
   const pathname = "/properties"; // FilterBar always navigates to /properties
   const propertyTypesQuery = usePropertyTypes();
-  const filterDialogRef = useRef<HTMLDialogElement>(null);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [customMinMode, setCustomMinMode] = useState(false);
   const [customMaxMode, setCustomMaxMode] = useState(false);
   const [localMinPrice, setLocalMinPrice] = useState("");
@@ -179,7 +179,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         onChange={(event) => updateFilter("property_type_id", event.target.value)}
         className={SelectClassName()}
       >
-        <option value="">All property types</option>
+        <option value="">Property Type</option>
         {propertyTypesQuery.data?.map((pt) => (
           <option key={pt.property_type_id} value={pt.property_type_id}>
             {pt.name}
@@ -206,7 +206,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         }}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="">Min Price</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -277,7 +277,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         }}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="">Max Price</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -340,7 +340,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         onChange={(event) => updateFilter("bedrooms", event.target.value)}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="">Bedrooms</option>
         {BEDROOM_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -382,38 +382,40 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         </div>
       )}
 
-      <div>
-        <FieldLabel htmlFor="listing-type">Listing type</FieldLabel>
-        <select
-          id="listing-type"
-          value={listingType}
-          onChange={(event) => updateFilter("listing_type", event.target.value)}
-          className={SelectClassName()}
-        >
-          <option value="">All listing types</option>
-          {LISTING_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {LISTING_TYPE_LABELS[type]}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel htmlFor="listing-type">Listing type</FieldLabel>
+          <select
+            id="listing-type"
+            value={listingType}
+            onChange={(event) => updateFilter("listing_type", event.target.value)}
+            className={SelectClassName()}
+          >
+            <option value="">Listing Type</option>
+            {LISTING_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {LISTING_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div>
-        <FieldLabel htmlFor="listing-status">Status</FieldLabel>
-        <select
-          id="listing-status"
-          value={listingStatus}
-          onChange={(event) => updateFilter("listing_status", event.target.value)}
-          className={SelectClassName()}
-        >
-          <option value="">All statuses</option>
-          {LISTING_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {LISTING_STATUS_LABELS[status]}
-            </option>
-          ))}
-        </select>
+        <div>
+          <FieldLabel htmlFor="listing-status">Status</FieldLabel>
+          <select
+            id="listing-status"
+            value={listingStatus}
+            onChange={(event) => updateFilter("listing_status", event.target.value)}
+            className={SelectClassName()}
+          >
+            <option value="">Status</option>
+            {LISTING_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {LISTING_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <Button type="button" variant="ghost" onClick={clearAll} disabled={!searchParams.toString()}>
@@ -443,7 +445,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">All property types</option>
+            <option value="">Property Type</option>
             {propertyTypesQuery.data?.map((pt) => (
               <option key={pt.property_type_id} value={pt.property_type_id}>
                 {pt.name}
@@ -469,7 +471,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Any min</option>
+            <option value="">Min Price</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -520,7 +522,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Any max</option>
+            <option value="">Max Price</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -563,7 +565,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Any beds</option>
+            <option value="">Bedrooms</option>
             {BEDROOM_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -571,14 +573,15 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             ))}
           </select>
 
-          {/* Filters - button with drawer icon, opens native dialog */}
+          {/* Filters - button with drawer icon, toggles inline expand */}
           <button
             type="button"
-            onClick={() => filterDialogRef.current?.showModal()}
+            onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
+            aria-expanded={moreFiltersOpen}
             aria-label="More filters"
             className={cn(
               UI_TOKENS.FILTER_PILL,
-              "inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
             <SlidersHorizontal className="h-4 w-4" />
@@ -621,11 +624,17 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             UI_TOKENS.FILTER_PILL,
             "inline-flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
           )}
-          onClick={() => filterDialogRef.current?.showModal()}
+          onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
+          aria-expanded={moreFiltersOpen}
           aria-label="More filters"
         >
           <SlidersHorizontal className="h-4 w-4" />
         </button>
+        {moreFiltersOpen && (
+          <div className="space-y-4">
+            {moreFilters}
+          </div>
+        )}
       </div>
 
       {actions && (
@@ -636,31 +645,22 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     </>
   );
 
-  // Native dialog for "More filters" (HTML5 standard, shared between desktop and mobile)
-  const filterDialog = (
-    <dialog
-      ref={filterDialogRef}
-      className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-xl backdrop:bg-black/50 dark:border-gray-700 dark:bg-gray-900"
-      onClick={(e) => {
-        // Close when clicking the backdrop (dialog element itself, not its content)
-        if (e.target === filterDialogRef.current) {
-          filterDialogRef.current?.close();
-        }
-      }}
-    >
+  // Inline expand for "More filters" (shared between desktop and mobile)
+  const moreFiltersPanel = moreFiltersOpen && (
+    <div className="mx-auto w-full max-w-2xl mt-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
         <button
           type="button"
-          onClick={() => filterDialogRef.current?.close()}
+          onClick={() => setMoreFiltersOpen(false)}
           aria-label="Close"
           className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         </button>
       </div>
       {moreFilters}
-    </dialog>
+    </div>
   );
 
   // Hero variant: dark background wrapper
@@ -669,7 +669,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
       <div className="space-y-3">
         {desktopContent}
         {mobileContent}
-        {filterDialog}
+        {moreFiltersPanel}
       </div>
     );
   }
@@ -679,7 +679,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     <div className="mb-8 space-y-3">
       {desktopContent}
       {mobileContent}
-      {filterDialog}
+      {moreFiltersPanel}
     </div>
   );
 }
