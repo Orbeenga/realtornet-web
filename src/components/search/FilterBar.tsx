@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,8 @@ interface FilterPopoverProps {
   onOpenPanelChange: (panel: FilterPanel | null) => void;
   children: ReactNode;
   showIcon?: boolean;
+  /** Optional leading icon for the trigger (e.g. the slider/adjustments icon on the Filters pill). */
+  icon?: ReactNode;
 }
 
 /**
@@ -88,6 +90,7 @@ function FilterPopover({
   onOpenPanelChange,
   children,
   showIcon = false,
+  icon,
 }: FilterPopoverProps) {
   const isOpen = openPanel === id;
 
@@ -107,7 +110,7 @@ function FilterPopover({
         aria-expanded={isOpen ? "true" : "false"}
       >
         <span>{value || label}</span>
-        {showIcon && <ChevronDown className="h-4 w-4" />}
+        {icon ?? (showIcon ? <ChevronDown className="h-4 w-4" /> : null)}
       </PopoverTrigger>
       <PopoverContent className="w-80">{children}</PopoverContent>
     </Popover>
@@ -539,7 +542,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             value={listingType || listingStatus}
             openPanel={openPanel}
             onOpenPanelChange={setOpenPanel}
-            showIcon
+            icon={<SlidersHorizontal className="h-4 w-4" />}
           >
             {moreFilters}
           </FilterPopover>

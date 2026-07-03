@@ -44,12 +44,14 @@ export function HomeHeroSearch() {
 
   useEffect(() => {
     if (suggestions.length > 0 && !selectedLocationId && searchInputRef.current) {
+      // The suggestion list is `position: fixed`, so coordinates must be
+      // viewport-relative. getBoundingClientRect() already returns viewport
+      // coords — adding scrollY/scrollX here would detach the dropdown from the
+      // input the moment the page is scrolled.
       const rect = searchInputRef.current.getBoundingClientRect();
-      const scrollY = window.scrollY || window.pageYOffset;
-      const scrollX = window.scrollX || window.pageXOffset;
       setDropdownPosition({
-        top: rect.bottom + scrollY + 4,
-        left: rect.left + scrollX,
+        top: rect.bottom + 4,
+        left: rect.left,
         width: rect.width,
       });
     }
