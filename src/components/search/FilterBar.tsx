@@ -1,6 +1,6 @@
 "use client";
 
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -587,6 +587,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             <SlidersHorizontal className="h-4 w-4" />
           </button>
         </div>
+        {moreFiltersOpen && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
+            {moreFilters}
+          </div>
+        )}
       </div>
 
       {actions && (
@@ -630,6 +636,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         >
           <SlidersHorizontal className="h-4 w-4" />
         </button>
+        {moreFiltersOpen && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
+            {moreFilters}
+          </div>
+        )}
       </div>
 
       {actions && (
@@ -640,31 +652,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     </>
   );
 
-  // Inline expand for "More filters" (shared between desktop and mobile)
-  const moreFiltersPanel = moreFiltersOpen && (
-    <div className="mx-auto w-full max-w-2xl mt-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
-        <button
-          type="button"
-          onClick={() => setMoreFiltersOpen(false)}
-          aria-label="Close"
-          className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      {moreFilters}
-    </div>
-  );
-
   // Hero variant: dark background wrapper
   if (variant === "hero") {
     return (
       <div className="space-y-3">
         {desktopContent}
         {mobileContent}
-        {moreFiltersPanel}
       </div>
     );
   }
@@ -674,7 +667,6 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     <div className="mb-8 space-y-3">
       {desktopContent}
       {mobileContent}
-      {moreFiltersPanel}
     </div>
   );
 }
