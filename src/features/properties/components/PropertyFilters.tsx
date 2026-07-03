@@ -61,7 +61,7 @@ function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
           )}
         />
       </div>
-      <Button type="submit" className={cn(UI_TOKENS.SEARCH_BUTTON, "shrink-0 px-5")}>
+      <Button type="submit" className={cn(UI_TOKENS.SEARCH_BUTTON, "hidden shrink-0 px-5 lg:inline-flex")}>
         Search
       </Button>
     </form>

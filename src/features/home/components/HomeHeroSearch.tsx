@@ -159,10 +159,6 @@ export function HomeHeroSearch() {
       </div>
 
       <FilterBar variant="hero" />
-
-      <Button type="submit" className="h-12 w-full rounded-xl px-5 text-sm lg:hidden">
-        Search
-      </Button>
     </form>
   );
 }
