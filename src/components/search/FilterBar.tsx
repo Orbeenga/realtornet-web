@@ -609,7 +609,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const mobileContent = (
     <>
       {searchInput && (
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto w-full max-w-2xl lg:hidden">
           {searchInput}
         </div>
       )}

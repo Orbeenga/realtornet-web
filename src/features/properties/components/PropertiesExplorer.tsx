@@ -318,7 +318,7 @@ export function PropertiesExplorer({
         <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
                 Available properties
               </h2>
               {!isLoading ? (
