@@ -65,7 +65,7 @@ export default async function Home() {
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ldOrg) }}
         />
-        <section className="relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
+        <section className="relative bg-gradient-to-br from-slate-800 to-slate-950">
           <div className="absolute inset-0 bg-black/55" />
           <div className="relative mx-auto flex min-h-[360px] max-w-7xl flex-col justify-between gap-6 px-4 py-6 sm:px-6 md:min-h-[420px] md:py-8 lg:min-h-[480px] lg:px-8">
             <div className="flex flex-col items-start gap-4 text-left text-white">
