@@ -608,6 +608,11 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   // Mobile layout (inline filters)
   const mobileContent = (
     <>
+      {searchInput && (
+        <div className="mx-auto mt-3 w-full max-w-2xl lg:hidden">
+          {searchInput}
+        </div>
+      )}
       <div className="mx-auto mt-3 w-full max-w-2xl space-y-3 lg:hidden">
         {propertyTypeField("mobile-property-type")}
         <div className="grid grid-cols-2 gap-3">
