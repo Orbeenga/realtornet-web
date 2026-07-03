@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
 
@@ -91,11 +92,24 @@ function Popover({
 function PopoverTrigger({
   className,
   children,
+  asChild = false,
 }: {
   className?: string
   children: React.ReactNode
+  asChild?: boolean
 }) {
   const { open, setOpen } = usePopoverContext()
+
+  if (asChild && React.isValidElement(children)) {
+    return React.cloneElement(children as React.ReactElement<any>, {
+      'data-slot': 'popover-trigger',
+      'aria-expanded': open,
+      onClick: (e: React.MouseEvent) => {
+        (children as React.ReactElement<any>).props.onClick?.(e)
+        setOpen(!open)
+      },
+    })
+  }
 
   return (
     <button
@@ -111,37 +125,82 @@ function PopoverTrigger({
 }
 
 function PopoverPortal({ children }: { children: React.ReactNode }) {
-  return children
+  if (typeof window === "undefined") return null
+  return createPortal(children, document.body)
 }
 
 function PopoverContent({
   className,
   children,
   align = "start",
+  sideOffset = 4,
 }: {
   className?: string
   children: React.ReactNode
   align?: "start" | "center" | "end"
   sideOffset?: number
 }) {
-  const { open } = usePopoverContext()
+  const { open, rootRef } = usePopoverContext()
+  const [position, setPosition] = React.useState({ top: 0, left: 0, width: 0 })
+
+  React.useEffect(() => {
+    if (!open || !rootRef.current) return
+
+    const updatePosition = () => {
+      const rect = rootRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      const scrollY = window.scrollY || window.pageYOffset
+      const scrollX = window.scrollX || window.pageXOffset
+
+      let left = rect.left
+      let width = rect.width
+
+      if (align === "end") {
+        left = rect.right - width
+      } else if (align === "center") {
+        left = rect.left + rect.width / 2 - width / 2
+      }
+
+      setPosition({
+        top: rect.bottom + scrollY + sideOffset,
+        left: left + scrollX,
+        width: Math.max(width, 200),
+      })
+    }
+
+    updatePosition()
+    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", updatePosition)
+
+    return () => {
+      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", updatePosition)
+    }
+  }, [open, rootRef, align, sideOffset])
 
   if (!open) {
     return null
   }
 
   return (
-    <div
-      data-slot="popover-content"
-      role="dialog"
-      className={cn(
-        "absolute top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none",
-        align === "end" ? "right-0" : align === "center" ? "left-1/2 -translate-x-1/2" : "left-0",
-        className,
-      )}
-    >
-      {children}
-    </div>
+    <PopoverPortal>
+      <div
+        data-slot="popover-content"
+        role="dialog"
+        className={cn(
+          "fixed z-50 rounded-lg border border-gray-200 bg-white p-4 text-gray-900 shadow-lg outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
+          className,
+        )}
+        style={{
+          top: `${position.top}px`,
+          left: `${position.left}px`,
+          width: `${position.width}px`,
+        }}
+      >
+        {children}
+      </div>
+    </PopoverPortal>
   )
 }
 
