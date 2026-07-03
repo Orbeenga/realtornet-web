@@ -282,9 +282,13 @@ export function Navbar() {
               <h2 id="mobile-navigation-title" className="sr-only">
                 Navigation menu
               </h2>
-              <span className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">
+              <Link
+                href="/"
+                prefetch={false}
+                className="text-lg font-bold tracking-tight text-gray-900 dark:text-white"
+              >
                 RealtorNet
-              </span>
+              </Link>
               <button
                 type="button"
                 aria-label="Close navigation menu"
