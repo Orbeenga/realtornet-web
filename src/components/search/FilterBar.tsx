@@ -428,12 +428,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const desktopContent = (
     <>
       {searchInput && (
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto hidden w-full max-w-2xl lg:block">
           {searchInput}
         </div>
       )}
 
-      <div className="mx-auto hidden w-full max-w-2xl lg:flex">
+      <div className="mx-auto hidden w-full max-w-2xl lg:block">
         <div className="flex w-full min-w-0 items-center gap-3 flex-wrap">
           {/* Property Type - native select */}
           <select
@@ -589,7 +589,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           </button>
         </div>
         {moreFiltersOpen && (
-          <div className="space-y-4">
+          <div className="mt-3 space-y-4">
             {moreFilters}
           </div>
         )}
@@ -608,12 +608,6 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   // Mobile layout (inline filters)
   const mobileContent = (
     <>
-      {searchInput && (
-        <div className="mx-auto w-full max-w-2xl lg:hidden">
-          {searchInput}
-        </div>
-      )}
-
       <div className="mx-auto mt-3 w-full max-w-2xl space-y-3 lg:hidden">
         {propertyTypeField("mobile-property-type")}
         <div className="grid grid-cols-2 gap-3">
@@ -642,6 +636,13 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             {moreFilters}
           </div>
         )}
+        {/* Search button - full width, below More filters */}
+        <Button
+          type="submit"
+          className="h-11 w-full rounded-xl bg-blue-600 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Search
+        </Button>
       </div>
 
       {actions && (
