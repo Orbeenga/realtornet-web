@@ -3,6 +3,7 @@
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocationSearch } from "@/features/locations/hooks";
@@ -123,6 +124,8 @@ export function HomeHeroSearch() {
 
   const homeSearchRowRef = useRef<HTMLDivElement | null>(null);
   const homeFilterRowRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
 
@@ -140,6 +143,20 @@ export function HomeHeroSearch() {
     const t = setTimeout(() => setDebouncedQuery(locationQuery), 150);
     return () => clearTimeout(t);
   }, [locationQuery]);
+
+  // Calculate dropdown position for portal rendering
+  useEffect(() => {
+    if (suggestions.length > 0 && !selectedLocationId && searchInputRef.current) {
+      const rect = searchInputRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY || window.pageYOffset;
+      const scrollX = window.scrollX || window.pageXOffset;
+      setDropdownPosition({
+        top: rect.bottom + scrollY + 4,
+        left: rect.left + scrollX,
+        width: rect.width,
+      });
+    }
+  }, [suggestions, selectedLocationId, locationQuery]);
 
   // Desktop-only: apply exact width X to homepage search and filter rows.
   // Priority order: stored width from /properties -> union width of homepage filter row -> parent width.
@@ -312,6 +329,7 @@ export function HomeHeroSearch() {
       </label>
       <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
       <Input
+        ref={searchInputRef}
         id="home-location-search"
         value={locationQuery}
         onChange={(event) => {
@@ -322,25 +340,33 @@ export function HomeHeroSearch() {
         autoComplete="off"
         className="h-12 w-full rounded-xl border border-gray-200 bg-white pr-4 pl-11 text-sm text-gray-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
       />
-      {suggestions.length > 0 && !selectedLocationId ? (
-        <ul
-          className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-          role="listbox"
-        >
-          {suggestions.map((location) => (
-            <li key={location.location_id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={selectedLocationId === location.location_id}
-                className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
-                onClick={() => selectLocation(location)}
-              >
-                {locationLabel(location)}
-              </button>
-            </li>
-          ))}
-        </ul>
+      {suggestions.length > 0 && !selectedLocationId && typeof window !== "undefined" ? (
+        createPortal(
+          <ul
+            className="fixed z-50 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+            role="listbox"
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+              width: `${dropdownPosition.width}px`,
+            }}
+          >
+            {suggestions.map((location) => (
+              <li key={location.location_id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selectedLocationId === location.location_id}
+                  className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => selectLocation(location)}
+                >
+                  {locationLabel(location)}
+                </button>
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )
       ) : null}
     </div>
   );
