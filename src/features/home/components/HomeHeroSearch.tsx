@@ -142,7 +142,7 @@ export function HomeHeroSearch() {
 
   return (
     <form
-      className="mx-auto w-full max-w-7xl space-y-5"
+      className="mx-auto w-full max-w-2xl space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
         handleSearch();
