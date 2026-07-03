@@ -101,11 +101,16 @@ function PopoverTrigger({
   const { open, setOpen } = usePopoverContext()
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<any>, {
+    const child = children as React.ReactElement<{
+      onClick?: (event: React.MouseEvent) => void
+      'data-slot'?: string
+      'aria-expanded'?: boolean
+    }>
+    return React.cloneElement(child, {
       'data-slot': 'popover-trigger',
       'aria-expanded': open,
-      onClick: (e: React.MouseEvent) => {
-        (children as React.ReactElement<any>).props.onClick?.(e)
+      onClick: (event: React.MouseEvent) => {
+        child.props.onClick?.(event)
         setOpen(!open)
       },
     })
@@ -129,6 +134,13 @@ function PopoverPortal({ children }: { children: React.ReactNode }) {
   return createPortal(children, document.body)
 }
 
+// useLayoutEffect on the client so the popover is positioned before paint
+// (no visible flash at 0,0); falls back to useEffect during SSR to avoid the
+// React warning. The content is only rendered when `open` is true, which only
+// happens after a user interaction, so positioning never runs on the server.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect
+
 function PopoverContent({
   className,
   children,
@@ -141,41 +153,60 @@ function PopoverContent({
   sideOffset?: number
 }) {
   const { open, rootRef } = usePopoverContext()
-  const [position, setPosition] = React.useState({ top: 0, left: 0, width: 0 })
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [position, setPosition] = React.useState<{ top: number; left: number; ready: boolean }>({
+    top: 0,
+    left: 0,
+    ready: false,
+  })
 
-  React.useEffect(() => {
-    if (!open || !rootRef.current) return
+  useIsomorphicLayoutEffect(() => {
+    if (!open) {
+      setPosition({ top: 0, left: 0, ready: false })
+      return
+    }
 
     const updatePosition = () => {
-      const rect = rootRef.current?.getBoundingClientRect()
-      if (!rect) return
+      const trigger = rootRef.current
+      const content = contentRef.current
+      if (!trigger || !content) return
 
-      const scrollY = window.scrollY || window.pageYOffset
-      const scrollX = window.scrollX || window.pageXOffset
+      // Both rects are viewport-relative, which is exactly what `position: fixed`
+      // expects. Do NOT add window.scrollY/scrollX here — that was the bug that
+      // caused dropdown content to detach and float when the page was scrolled.
+      const triggerRect = trigger.getBoundingClientRect()
+      const contentRect = content.getBoundingClientRect()
+      if (triggerRect.width === 0 && triggerRect.height === 0) return
 
-      let left = rect.left
-      let width = rect.width
+      const contentWidth = contentRect.width
+      let left = triggerRect.left
 
       if (align === "end") {
-        left = rect.right - width
+        left = triggerRect.right - contentWidth
       } else if (align === "center") {
-        left = rect.left + rect.width / 2 - width / 2
+        left = triggerRect.left + triggerRect.width / 2 - contentWidth / 2
       }
 
+      // Keep the panel inside the viewport so wide content (e.g. the w-80
+      // notification panel anchored to the right-edge bell) never overflows.
+      const margin = 8
+      const maxLeft = window.innerWidth - contentWidth - margin
+      left = Math.max(margin, Math.min(left, maxLeft))
+
       setPosition({
-        top: rect.bottom + scrollY + sideOffset,
-        left: left + scrollX,
-        width: Math.max(width, 200),
+        top: triggerRect.bottom + sideOffset,
+        left,
+        ready: true,
       })
     }
 
     updatePosition()
     window.addEventListener("resize", updatePosition)
-    window.addEventListener("scroll", updatePosition)
+    window.addEventListener("scroll", updatePosition, true)
 
     return () => {
       window.removeEventListener("resize", updatePosition)
-      window.removeEventListener("scroll", updatePosition)
+      window.removeEventListener("scroll", updatePosition, true)
     }
   }, [open, rootRef, align, sideOffset])
 
@@ -186,6 +217,7 @@ function PopoverContent({
   return (
     <PopoverPortal>
       <div
+        ref={contentRef}
         data-slot="popover-content"
         role="dialog"
         className={cn(
@@ -195,7 +227,10 @@ function PopoverContent({
         style={{
           top: `${position.top}px`,
           left: `${position.left}px`,
-          width: `${position.width}px`,
+          // Hide until the first position calculation lands so the panel never
+          // flashes at the viewport origin. With useIsomorphicLayoutEffect this
+          // happens before paint on the client.
+          visibility: position.ready ? "visible" : "hidden",
         }}
       >
         {children}
