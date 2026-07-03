@@ -581,15 +581,15 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             aria-label="More filters"
             className={cn(
               UI_TOKENS.FILTER_PILL,
-              "inline-flex min-w-[88px] items-center justify-center rounded-xl border border-gray-200 bg-white px-5 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "inline-flex min-w-[88px] items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
             <SlidersHorizontal className="h-4 w-4" />
+            <span>More filters</span>
           </button>
         </div>
         {moreFiltersOpen && (
           <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
             {moreFilters}
           </div>
         )}
@@ -635,10 +635,10 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           aria-label="More filters"
         >
           <SlidersHorizontal className="h-4 w-4" />
+          <span>More filters</span>
         </button>
         {moreFiltersOpen && (
           <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More filters</h2>
             {moreFilters}
           </div>
         )}
