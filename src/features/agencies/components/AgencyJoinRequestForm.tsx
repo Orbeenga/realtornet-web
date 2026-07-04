@@ -19,7 +19,7 @@ import { ApiError } from "@/lib/api/client";
 import { getStoredJwtRole } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import {
-  getLatestMembershipRecord,
+  getLatestAuditRecord,
   isReturningMembershipAction,
 } from "./membershipHistory";
 
@@ -194,7 +194,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
   const existingRequest = requestsQuery.data
     ?.filter((request) => String(request.agency_id) === agencyId)
     .find((request) => request.status === "approved" || request.status === "pending");
-  const latestHistory = getLatestMembershipRecord(historyQuery.data ?? [], agencyId);
+  const latestHistory = getLatestAuditRecord(historyQuery.data ?? [], agencyId);
   const isReturningApplicant = isReturningMembershipAction(latestHistory?.action);
 
   if (reviewRequestSubmitted) {

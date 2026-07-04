@@ -89,15 +89,7 @@ function formatOptionalDate(value?: string | null) {
   return value ? formatDate(value) : "Not recorded";
 }
 
-function getJoinRequestBadgeVariant(status: string) {
-  if (status === "approved") return "success" as const;
-  if (status === "rejected") return "danger" as const;
-  return "warning" as const;
-}
-
 function formatMembershipStatus(status: string) {
-  // Legacy DB "inactive" is semantically identical to "revoked".
-  if (status === "inactive" || status === "revoked") return "Revoked";
   return status;
 }
 
@@ -155,6 +147,7 @@ export function AgencyMembersClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
@@ -335,6 +328,10 @@ export function AgencyMembersClient() {
 
   const handleReviewDecision = async (action: "accept" | "decline", requestId: number) => {
     const reason = membershipReasons[requestId]?.trim() || null;
+    if (action === "decline" && !reason) {
+      notify.error("Enter a reason before declining this review request.");
+      return;
+    }
     try {
       if (action === "accept") {
         await acceptReview.mutateAsync({ requestId, payload: { reason } });
@@ -383,7 +380,7 @@ export function AgencyMembersClient() {
     rejected: joinRequests.filter(r => r.status === "rejected").length,
     suspended: agents.filter(a => a.membership_status === "suspended").length,
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
-    revoked: agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").length,
+    revoked: agents.filter(a => a.membership_status === "revoked").length,
     blocked: agents.filter(a => a.membership_status === "blocked").length,
   };
   const pendingDecisionReason = pendingMembershipDecision
@@ -573,6 +570,7 @@ export function AgencyMembersClient() {
                           </Button>
                           <Button type="button" size="sm" variant="secondary"
                             loading={declineReview.isPending && declineReview.variables?.requestId === request.id}
+                            disabled={!membershipReasons[request.id]?.trim()}
                             onClick={() => void handleReviewDecision("decline", request.id)}
                           >
                             Decline
@@ -581,7 +579,7 @@ export function AgencyMembersClient() {
                       ) : null}
                     </div>
                     {request.status === "pending" ? (
-                      <Input className="mt-4" label="Decision reason" placeholder="Optional reason shown to the requester"
+                      <Input className="mt-4" label="Decision reason" placeholder="Required for decline, optional for accept"
                         value={membershipReasons[request.id] ?? ""}
                         onChange={(event) =>
                           setMembershipReasons((current) => ({ ...current, [request.id]: event.target.value }))
@@ -655,6 +653,9 @@ export function AgencyMembersClient() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
                           </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                           {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>
@@ -705,67 +706,73 @@ export function AgencyMembersClient() {
                             {expandedApplicationUserId === agent.user_id ? "Hide application" : "View application"}
                           </Button>
                         ) : null}
-                        {agent.membership_status === "active" ? (
-                          <Button type="button" size="sm" variant="secondary"
-                            loading={suspendMembership.isPending && suspendMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "suspend", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Suspend
-                          </Button>
-                        ) : null}
-                        {agent.membership_status !== "active" ? (
-                          <Button type="button" size="sm"
-                            loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "restore", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Restore
-                          </Button>
-                        ) : null}
-                        {agent.membership_status === "active" ? (
-                          <Button type="button" size="sm" variant="secondary"
-                            loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "revoke", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Revoke
-                          </Button>
-                        ) : null}
-                        {agent.membership_status !== "blocked" ? (
-                          <Button type="button" size="sm" variant="destructive"
-                            loading={blockMembership.isPending && blockMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "block", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Block
-                          </Button>
-                        ) : null}
+                        {agent.is_agency_owner || agent.user_id === user?.user_id ? null : (
+                          <>
+                            {agent.membership_status === "active" ? (
+                              <Button type="button" size="sm" variant="secondary"
+                                loading={suspendMembership.isPending && suspendMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "suspend", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Suspend
+                              </Button>
+                            ) : null}
+                            {agent.membership_status !== "active" ? (
+                              <Button type="button" size="sm"
+                                loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "restore", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Restore
+                              </Button>
+                            ) : null}
+                            {agent.membership_status === "active" ? (
+                              <Button type="button" size="sm" variant="secondary"
+                                loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "revoke", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Revoke
+                              </Button>
+                            ) : null}
+                            {agent.membership_status !== "blocked" ? (
+                              <Button type="button" size="sm" variant="destructive"
+                                loading={blockMembership.isPending && blockMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "block", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Block
+                              </Button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </div>
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
+                    {agent.is_agency_owner || agent.user_id === user?.user_id ? null : (
+                      <Input
+                        label="Decision reason" placeholder="Required before membership decisions or review responses"
+                        value={membershipReasons[agent.membership_id] ?? ""}
+                        onChange={(event) =>
+                          setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
+                        }
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -860,19 +867,66 @@ export function AgencyMembersClient() {
               {!invitationsQuery.isLoading && !invitationsQuery.isError && invitations.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No invitations sent yet.</p>
               ) : null}
-              {!invitationsQuery.isLoading && invitations.length > 0 ? (
-                <div className="space-y-3">
-                  {invitations.slice(0, 5).map((invitation) => (
+            <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
+              {[
+                { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
+                { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
+                { value: "declined" as const, label: `Declined (${invitations.filter(i => i.status === "rejected" || i.status === "expired").length})` },
+              ].map(({ value, label }) => (
+                <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {invitationSubTab === "pending" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "pending").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No pending invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "pending").map((invitation) => (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                        <Badge variant={getJoinRequestBadgeVariant(invitation.status)}>{invitation.status}</Badge>
+                        <Badge variant="warning">pending</Badge>
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
                     </div>
-                  ))}
-                </div>
-              ) : null}
+                  ))
+                )}
+              </div>
+            ) : invitationSubTab === "accepted" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "accepted").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No accepted invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "accepted").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="success">accepted</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "rejected" || i.status === "expired").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No declined invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "rejected" || i.status === "expired").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="danger">{invitation.status}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
             </div>
           </CardBody>
         </Card>
@@ -1005,6 +1059,9 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                    </p>
                     <Input
                       label="Decision reason" placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}
@@ -1069,6 +1126,9 @@ export function AgencyMembersClient() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
                           </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
@@ -1116,12 +1176,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked").length === 0 ? (
               <EmptyState title="No revoked memberships." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").length > 0 ? (
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked").length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "revoked" || a.membership_status === "inactive").map((agent) => (
+                {agents.filter(a => a.membership_status === "revoked").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
@@ -1146,6 +1206,9 @@ export function AgencyMembersClient() {
                           {agent.status_reason ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
                           ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
@@ -1223,6 +1286,9 @@ export function AgencyMembersClient() {
                           {agent.status_reason ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
                           ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">

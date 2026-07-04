@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import type { AgencyMembershipHistory } from "@/types";
+import type { MembershipTimelineEntry } from "@/types";
 
 export function useAgencyMembershipHistory(
   agencyId?: number | null,
@@ -9,7 +9,7 @@ export function useAgencyMembershipHistory(
   return useQuery({
     queryKey: ["agencyMembershipHistory", agencyId],
     queryFn: () =>
-      apiClient<AgencyMembershipHistory[]>(
+      apiClient<MembershipTimelineEntry[]>(
         `/api/v1/agencies/${agencyId}/membership-history/`,
       ),
     staleTime: 30_000,

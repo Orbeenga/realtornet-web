@@ -9,7 +9,7 @@ import {
 } from "@/features/agencies/hooks";
 import {
   formatMembershipDate,
-  getLatestRevocation,
+  getLatestAuditRevocation,
 } from "@/features/agencies/components/membershipHistory";
 import { useAuth } from "@/features/auth/AuthContext";
 import { notify } from "@/lib/toast";
@@ -32,7 +32,7 @@ export function PostRevocationDashboard() {
     return <LoadingState message="Checking agency membership history..." />;
   }
 
-  const latestRevocation = getLatestRevocation(historyQuery.data ?? []);
+  const latestRevocation = getLatestAuditRevocation(historyQuery.data ?? []);
 
   if (!latestRevocation) {
     return null;

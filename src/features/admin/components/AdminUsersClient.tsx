@@ -373,6 +373,7 @@ export function AdminUsersClient() {
             <Button
               variant="destructive"
               loading={deactivateUser.isPending}
+              disabled={!deactivationReason.trim()}
               onClick={() => void handleDeactivate()}
             >
               Confirm deactivation
