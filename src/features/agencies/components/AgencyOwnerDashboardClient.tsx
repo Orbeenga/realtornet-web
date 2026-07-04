@@ -681,39 +681,55 @@ export function AgencyOwnerDashboardClient() {
             <div className="absolute left-5 top-0 h-full w-px bg-gray-200 dark:bg-gray-700" />
             <div className="space-y-0">
               {[...historyQuery.data]
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                .map((record) => {
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .map((entry) => {
                   const dotColor =
-                    record.action === "joined" || record.action === "reinstated"
+                    entry.action === "joined" || entry.action === "reinstated"
                       ? "bg-emerald-500"
-                      : record.action === "revoked" || record.action === "suspended"
+                      : entry.action === "revoked" || entry.action === "suspended"
                         ? "bg-red-500"
-                        : record.action === "left"
+                        : entry.action === "left"
                           ? "bg-amber-500"
                           : "bg-gray-400";
+                  const sourceLabel =
+                    entry.source_type === "audit_event" ? "Agency Action"
+                    : entry.source_type === "join_request" ? "Application"
+                    : entry.source_type === "review_request" ? "Review Request"
+                    : entry.source_type;
                   const badgeVariant: "success" | "danger" | "warning" | "outline" =
-                    record.action === "joined" || record.action === "reinstated"
+                    entry.action === "joined" || entry.action === "reinstated"
                       ? "success"
-                      : record.action === "revoked" || record.action === "suspended"
+                      : entry.action === "revoked" || entry.action === "suspended"
                         ? "danger"
-                        : record.action === "left"
+                        : entry.action === "left"
                           ? "warning"
                           : "outline";
                   return (
-                    <div key={record.id} className="relative flex gap-5 pb-8 pl-5 last:pb-0">
+                    <div key={entry.id ?? entry.timestamp} className="relative flex gap-5 pb-8 pl-5 last:pb-0">
                       <div className={`relative z-10 mt-1.5 h-3 w-3 shrink-0 rounded-full ring-2 ring-white dark:ring-gray-950 ${dotColor}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{record.user_display_name}</p>
-                          <Badge variant={badgeVariant}>{formatMembershipAction(record.action)}</Badge>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.user_display_name ?? "Unknown"}</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline">{sourceLabel}</Badge>
+                            {entry.action ? (
+                              <Badge variant={badgeVariant}>{formatMembershipAction(entry.action)}</Badge>
+                            ) : null}
+                          </div>
                         </div>
-                        <p className="mt-0.5 text-xs text-gray-500">{formatMembershipDate(record.created_at)}</p>
-                        {record.reason ? (
-                          <p className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-400">{record.reason}</p>
+                        <p className="mt-0.5 text-xs text-gray-500">{formatMembershipDate(entry.timestamp)}</p>
+                        {entry.reason ? (
+                          <p className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-400">{entry.reason}</p>
                         ) : null}
-                        {record.prior_role || record.post_role ? (
+                        {entry.cover_note ? (
+                          <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs leading-5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                            <p className="mb-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application</p>
+                            <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+                          </div>
+                        ) : null}
+                        {entry.prior_role || entry.post_role ? (
                           <p className="mt-1 text-xs text-gray-400">
-                            {record.prior_role ?? "—"} &rarr; {record.post_role ?? "—"}
+                            {entry.prior_role ?? "—"} &rarr; {entry.post_role ?? "—"}
                           </p>
                         ) : null}
                       </div>

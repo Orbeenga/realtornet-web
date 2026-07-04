@@ -5,9 +5,11 @@ import type {
   AgencyAgentMembershipResponse,
   AgencyAgentRosterMember,
   AgencyReviewRequestCreate,
-  AgencyReviewRequestDecisionRequest,
+  AgencyReviewRequestAcceptRequest,
+  AgencyReviewRequestDeclineRequest,
   AgencyReviewRequestResponse,
   AgentMembershipAudit,
+  MembershipTimelineEntry,
   MyAgencyMembershipResponse,
   MyAgentMembershipStatusResponse,
 } from "@/types";
@@ -129,7 +131,7 @@ function useAgencyReviewRequestDecision(
       payload,
     }: {
       requestId: number;
-      payload: AgencyReviewRequestDecisionRequest;
+      payload: AgencyReviewRequestAcceptRequest | AgencyReviewRequestDeclineRequest;
     }) =>
       apiClient<AgencyReviewRequestResponse>(
         `/api/v1/agencies/${agencyId}/review-requests/${requestId}/${action}`,
@@ -183,7 +185,7 @@ export function useAgencyMemberHistory(
   return useQuery({
     queryKey: ["agencyMemberHistory", agencyId, userId],
     queryFn: () =>
-      apiClient<AgentMembershipAudit[]>(
+      apiClient<MembershipTimelineEntry[]>(
         `/api/v1/agencies/${agencyId}/member-history/${userId}`,
       ),
     staleTime: 30_000,

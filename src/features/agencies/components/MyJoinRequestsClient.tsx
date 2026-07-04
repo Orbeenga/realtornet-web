@@ -39,7 +39,6 @@ function getStatusVariant(status: string) {
 }
 
 function displayMembershipStatus(status: string) {
-  if (status === "inactive") return "revoked";
   return status;
 }
 
@@ -189,7 +188,7 @@ export function MyJoinRequestsClient() {
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
   const leftMemberships = memberships.filter(m => m.status === "left");
-  const revokedMemberships = memberships.filter(m => m.status === "revoked" || m.status === "inactive");
+  const revokedMemberships = memberships.filter(m => m.status === "revoked");
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
   const invitations = invitationsQuery.data ?? [];
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
@@ -876,7 +875,7 @@ export function MyJoinRequestsClient() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="font-semibold text-gray-900 dark:text-white">
-                                {record.agency_name ?? `Agency #${record.agency_id}`}
+                                {record.agency_name ?? "Agency"}
                               </p>
                               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                                 {formatDate(record.created_at)}
