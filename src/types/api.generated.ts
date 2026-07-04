@@ -4584,6 +4584,11 @@ export interface components {
             /** Pending Review Submitted At */
             pending_review_submitted_at?: string | null;
             /**
+             * Is Agency Owner
+             * @default false
+             */
+            is_agency_owner: boolean;
+            /**
              * Created At
              * Format: date-time
              */
@@ -4803,32 +4808,6 @@ export interface components {
          * @enum {string}
          */
         AgencyJoinRequestStatus: "pending" | "approved" | "rejected" | "cancelled";
-        /** AgencyMembershipHistoryResponse */
-        AgencyMembershipHistoryResponse: {
-            /** Id */
-            id: number;
-            /** User Id */
-            user_id: number;
-            /** Agency Id */
-            agency_id: number;
-            /** Agency Name */
-            agency_name?: string | null;
-            /** Action */
-            action: string;
-            /** Actor Id */
-            actor_id?: number | null;
-            /** Reason */
-            reason?: string | null;
-            prior_role?: components["schemas"]["UserRole"] | null;
-            post_role?: components["schemas"]["UserRole"] | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** User Display Name */
-            user_display_name: string;
-        };
         /** AgencyMembershipReviewDecisionRequest */
         AgencyMembershipReviewDecisionRequest: {
             /** Reason */
@@ -4956,15 +4935,26 @@ export interface components {
             /** Comment */
             comment?: string | null;
         };
+        /**
+         * AgencyReviewRequestAcceptRequest
+         * @description Accept a review request — reason is optional.
+         */
+        AgencyReviewRequestAcceptRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** AgencyReviewRequestCreate */
         AgencyReviewRequestCreate: {
             /** Message */
             message?: string | null;
         };
-        /** AgencyReviewRequestDecisionRequest */
-        AgencyReviewRequestDecisionRequest: {
+        /**
+         * AgencyReviewRequestDeclineRequest
+         * @description Decline a review request — reason is required for audit trail.
+         */
+        AgencyReviewRequestDeclineRequest: {
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /** AgencyReviewRequestResponse */
         AgencyReviewRequestResponse: {
@@ -4986,7 +4976,7 @@ export interface components {
             /** Requester Name */
             requester_name?: string | null;
             /** Membership History */
-            membership_history?: components["schemas"]["AgentMembershipAuditResponse"][];
+            membership_history?: components["schemas"]["MembershipTimelineEntry"][];
             /**
              * Created At
              * Format: date-time
@@ -5240,7 +5230,7 @@ export interface components {
          * AgentMembershipRestrictionStatus
          * @enum {string}
          */
-        AgentMembershipRestrictionStatus: "active" | "suspended" | "blocked" | "revoked";
+        AgentMembershipRestrictionStatus: "active" | "inactive" | "suspended" | "blocked" | "revoked";
         /** AgentMembershipsResponse */
         AgentMembershipsResponse: {
             /** Count */
@@ -5977,6 +5967,48 @@ export interface components {
             latitude?: number | null;
             /** Longitude */
             longitude?: number | null;
+        };
+        /**
+         * MembershipTimelineEntry
+         * @description Single entry in a unified membership timeline.
+         *
+         *     Merges audit events, join requests, and review requests into one
+         *     chronological sequence per (user_id, agency_id) relationship.
+         */
+        MembershipTimelineEntry: {
+            /** Source Type */
+            source_type: string;
+            /** Author Role */
+            author_role: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+            /** Id */
+            id?: number | null;
+            /** Action */
+            action?: string | null;
+            /** Actor Id */
+            actor_id?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Prior Role */
+            prior_role?: string | null;
+            /** Post Role */
+            post_role?: string | null;
+            /** Cover Note */
+            cover_note?: string | null;
+            /** Portfolio Details */
+            portfolio_details?: string | null;
+            /** Review Message */
+            review_message?: string | null;
+            /** Review Response */
+            review_response?: string | null;
+            /** Agency Name */
+            agency_name?: string | null;
+            /** User Display Name */
+            user_display_name?: string | null;
         };
         /**
          * ModerationStatus
@@ -8595,7 +8627,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentMembershipAuditResponse"][];
+                    "application/json": components["schemas"]["MembershipTimelineEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -8631,7 +8663,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgencyMembershipHistoryResponse"][];
+                    "application/json": components["schemas"]["MembershipTimelineEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -9052,7 +9084,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyReviewRequestDecisionRequest"];
+                "application/json": components["schemas"]["AgencyReviewRequestAcceptRequest"];
             };
         };
         responses: {
@@ -9088,7 +9120,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AgencyReviewRequestDecisionRequest"];
+                "application/json": components["schemas"]["AgencyReviewRequestDeclineRequest"];
             };
         };
         responses: {
