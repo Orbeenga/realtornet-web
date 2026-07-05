@@ -103,13 +103,16 @@ function getMembershipBadgeVariant(status: string) {
 
 function fmtTimeAgo(dateStr: string): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
   const days = Math.floor(diffMs / 86_400_000);
-  if (days < 1) return "today";
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
-  const years = Math.floor(months / 12);
-  return `${years} year${years === 1 ? "" : "s"} ago`;
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
 }
 
 function isAgentInactive(agent: AgencyAgentRosterMember): boolean {
@@ -570,7 +573,6 @@ export function AgencyMembersClient() {
                           </Button>
                           <Button type="button" size="sm" variant="secondary"
                             loading={declineReview.isPending && declineReview.variables?.requestId === request.id}
-                            disabled={!membershipReasons[request.id]?.trim()}
                             onClick={() => void handleReviewDecision("decline", request.id)}
                           >
                             Decline

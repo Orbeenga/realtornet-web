@@ -32,6 +32,7 @@ export type AgencyMembershipHistory = components["schemas"]["MembershipTimelineE
 export type MembershipTimelineEntry = components["schemas"]["MembershipTimelineEntry"];
 export type AgencyReviewRequestAcceptRequest = components["schemas"]["AgencyReviewRequestAcceptRequest"];
 export type AgencyReviewRequestDeclineRequest = components["schemas"]["AgencyReviewRequestDeclineRequest"];
+export type AgencyOwnershipTransferRequest = components["schemas"]["AgencyOwnershipTransferRequest"];
 export type Agency = components["schemas"]["AgencyResponse"];
 export type AgencyStatus = components["schemas"]["AgencyStatus"];
 export type AgencyUpdate = components["schemas"]["AgencyUpdate"];

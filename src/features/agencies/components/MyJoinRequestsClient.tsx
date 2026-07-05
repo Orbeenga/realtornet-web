@@ -954,6 +954,18 @@ export function MyJoinRequestsClient() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Submitted {formatDate(request.submitted_at)}
                     </p>
+                    {request.cover_note ? (
+                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                        <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
+                        <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
+                      </div>
+                    ) : null}
+                    {request.portfolio_details ? (
+                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                        <p className="font-medium text-gray-700 dark:text-gray-300">Portfolio details</p>
+                        <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.portfolio_details}</p>
+                      </div>
+                    ) : null}
                     <div className="pt-2">
                       <Button
                         type="button"

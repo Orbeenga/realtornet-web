@@ -40,10 +40,12 @@ import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
+  useAgencyAgents,
   useAgencyMembershipHistory,
   useAgencyStats,
   useAgencyProfile,
   useUpdateAgencyProfile,
+  useTransferOwnership,
 } from "@/features/agencies/hooks";
 import {
   useAgencyApproveProperty,
@@ -90,11 +92,17 @@ export function AgencyOwnerDashboardClient() {
   const [isEditingAgencyProfile, setIsEditingAgencyProfile] = useState(false);
   const [rejectDialog, setRejectDialog] = useState<RejectDialogState | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
+  const [transferTargetUserId, setTransferTargetUserId] = useState<number | null>(null);
+  const [transferReason, setTransferReason] = useState("");
+  const [transferDemoteChoice, setTransferDemoteChoice] = useState<"agent" | "seeker" | null>(null);
+  const [transferConfirmStep, setTransferConfirmStep] = useState(false);
   const userAgencyId = user?.agency_id;
   const userEmail = user?.email;
   const shouldLoadAgencyDirectory = gate.isAllowed && typeof userAgencyId !== "number";
   const agencyProfileQuery = useAgencyProfile(userAgencyId ?? "");
   const agenciesQuery = useAgencies(shouldLoadAgencyDirectory);
+  const transferOwnership = useTransferOwnership();
 
   const agency = useMemo(() => {
     if (typeof userAgencyId === "number") {
@@ -113,6 +121,7 @@ export function AgencyOwnerDashboardClient() {
   }, [agenciesQuery.data, agencyProfileQuery.data, userAgencyId, userEmail]);
 
   const agencyId = agency?.agency_id;
+  const agencyAgentsQuery = useAgencyAgents(agencyId ?? "", "all", Boolean(agencyId));
   const statsQuery = useAgencyStats(agencyId ?? undefined, Boolean(agencyId), "include");
   const historyQuery = useAgencyMembershipHistory(agencyId ?? null, Boolean(agencyId));
   const agencyQueueQuery = useAgencyQueue(Boolean(agencyId));
@@ -173,6 +182,40 @@ export function AgencyOwnerDashboardClient() {
       notify.error("Could not recall listing.");
     }
   };
+
+  const handleTransferOwnership = async () => {
+    if (!agencyId || !transferTargetUserId || !transferReason.trim() || !transferDemoteChoice) {
+      return;
+    }
+    try {
+      await transferOwnership.mutateAsync({
+        agencyId,
+        payload: {
+          new_owner_user_id: transferTargetUserId,
+          reason: transferReason.trim(),
+          demote_existing_owner_to_agent: transferDemoteChoice === "agent",
+        },
+      });
+      notify.success("Ownership transferred successfully. Your session will reflect the new role shortly.");
+      setIsTransferDialogOpen(false);
+      setTransferTargetUserId(null);
+      setTransferReason("");
+      setTransferDemoteChoice(null);
+      setTransferConfirmStep(false);
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not transfer ownership.";
+      notify.error(message);
+    }
+  };
+
+  const activeAgents = useMemo(() => {
+    return (agencyAgentsQuery.data ?? []).filter(
+      (agent) => agent.membership_status === "active" && !agent.is_agency_owner,
+    );
+  }, [agencyAgentsQuery.data]);
 
   const handleCancelAgencyProfileEdit = () => {
     setIsEditingAgencyProfile(false);
@@ -289,6 +332,9 @@ export function AgencyOwnerDashboardClient() {
             </Link>
             <Button type="button" variant="secondary" size="sm" onClick={handleStartAgencyProfileEdit}>
               Edit profile
+            </Button>
+            <Button type="button" variant="destructive" size="sm" onClick={() => setIsTransferDialogOpen(true)}>
+              Transfer ownership
             </Button>
           </div>
         </div>
@@ -809,6 +855,135 @@ export function AgencyOwnerDashboardClient() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={isTransferDialogOpen} onOpenChange={(open) => {
+        setIsTransferDialogOpen(open);
+        if (!open) {
+          setTransferTargetUserId(null);
+          setTransferReason("");
+          setTransferDemoteChoice(null);
+          setTransferConfirmStep(false);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Transfer agency ownership</DialogTitle>
+            <DialogDescription>
+              {transferConfirmStep
+                ? "This action is immediate and irreversible. Full agency ownership will be reassigned."
+                : "Transfer ownership of this agency to an active agent member."}
+            </DialogDescription>
+          </DialogHeader>
+          {!transferConfirmStep ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Select new owner (active agent)
+                </label>
+                <select
+                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  value={transferTargetUserId ?? ""}
+                  onChange={(e) => setTransferTargetUserId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Choose an agent...</option>
+                  {activeAgents.map((agent) => (
+                    <option key={agent.user_id} value={agent.user_id}>
+                      {agent.display_name} ({agent.email})
+                    </option>
+                  ))}
+                </select>
+                {activeAgents.length === 0 ? (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    No active agents available. Add agents to your agency first.
+                  </p>
+                ) : null}
+              </div>
+              <Input
+                label="Reason for transfer"
+                placeholder="Required — shown in audit trail"
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  What happens to your access?
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="demoteChoice"
+                      value="agent"
+                      checked={transferDemoteChoice === "agent"}
+                      onChange={() => setTransferDemoteChoice("agent")}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Continue as an agent at this agency</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        You retain your membership and can still list properties.
+                      </p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="demoteChoice"
+                      value="seeker"
+                      checked={transferDemoteChoice === "seeker"}
+                      onChange={() => setTransferDemoteChoice("seeker")}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Step down from this agency entirely</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Your role reverts to seeker and agency affiliation is cleared.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={!transferTargetUserId || !transferReason.trim() || !transferDemoteChoice}
+                  onClick={() => setTransferConfirmStep(true)}
+                >
+                  Continue to confirmation
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border-2 border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                  High-consequence action
+                </p>
+                <p className="mt-1 text-xs text-red-700 dark:text-red-300">
+                  You are transferring full ownership of <strong>{agency?.name}</strong> to{" "}
+                  <strong>{activeAgents.find((a) => a.user_id === transferTargetUserId)?.display_name}</strong>.
+                  This is immediate and cannot be undone by you — only admin intervention can reverse it.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setTransferConfirmStep(false)}>
+                  Go back
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  loading={transferOwnership.isPending}
+                  onClick={() => void handleTransferOwnership()}
+                >
+                  Confirm transfer
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

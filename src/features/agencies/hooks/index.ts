@@ -48,3 +48,4 @@ export {
   useRejectAgencyJoinRequest,
 } from "./useAgencyJoinRequests";
 export { useReconsiderJoinRequest } from "./useReconsiderJoinRequest";
+export { useTransferOwnership } from "./useTransferOwnership";
