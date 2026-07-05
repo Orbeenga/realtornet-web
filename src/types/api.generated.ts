@@ -4956,6 +4956,18 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * AgencyOwnershipTransferRequest
+         * @description Payload for agency ownership transfer.
+         */
+        AgencyOwnershipTransferRequest: {
+            /** New Owner User Id */
+            new_owner_user_id: number;
+            /** Reason */
+            reason: string;
+            /** Demote Existing Owner To Agent */
+            demote_existing_owner_to_agent: boolean;
+        };
         /** AgencyReviewRequestResponse */
         AgencyReviewRequestResponse: {
             /** Id */
@@ -6028,6 +6040,10 @@ export interface components {
             /** Agency Name */
             agency_name: string;
             status: components["schemas"]["AgencyJoinRequestStatus"];
+            /** Cover Note */
+            cover_note?: string | null;
+            /** Portfolio Details */
+            portfolio_details?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
             /** Decided At */
