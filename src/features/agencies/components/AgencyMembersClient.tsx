@@ -612,7 +612,11 @@ export function AgencyMembersClient() {
             ) : null}
             {!reviewRequestsQuery.isLoading && reviewRequests.length > 0 ? (
               <div className="space-y-4">
-                {reviewRequests.map((request) => (
+                {[...reviewRequests].sort((a, b) => {
+                  const aName = a.requester_name ?? a.requester_email ?? "";
+                  const bName = b.requester_name ?? b.requester_email ?? "";
+                  return aName.localeCompare(bName);
+                }).map((request) => (
                   <div key={request.id} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                       <div className="space-y-3">

@@ -837,7 +837,29 @@ export function MyJoinRequestsClient() {
                   description="Agency membership events will appear here when they exist."
                 />
               ) : (
-                <MembershipHistoryList history={historyQuery.data} />
+                (() => {
+                  const grouped = historyQuery.data.reduce((acc, entry) => {
+                    const agencyName = entry.agency_name ?? "Unknown Agency";
+                    if (!acc[agencyName]) {
+                      acc[agencyName] = [];
+                    }
+                    acc[agencyName].push(entry);
+                    return acc;
+                  }, {} as Record<string, typeof historyQuery.data>);
+                  const sortedAgencies = Object.keys(grouped).sort();
+                  return (
+                    <div className="space-y-6">
+                      {sortedAgencies.map((agencyName) => (
+                        <div key={agencyName} className="space-y-3">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {agencyName}
+                          </h3>
+                          <MembershipHistoryList history={grouped[agencyName]} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()
               )}
             </div>
           ) : null}
