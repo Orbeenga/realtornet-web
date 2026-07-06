@@ -150,7 +150,7 @@ export function AgencyMembersClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
-  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined">("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "revoked">("pending");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
@@ -958,7 +958,9 @@ export function AgencyMembersClient() {
               {[
                 { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
                 { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
-                { value: "declined" as const, label: `Declined (${invitations.filter(i => i.status === "rejected" || i.status === "expired").length})` },
+                { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
+                { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
+                { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
               ].map(({ value, label }) => (
                 <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
                   {label}
@@ -997,16 +999,48 @@ export function AgencyMembersClient() {
                   ))
                 )}
               </div>
-            ) : (
+            ) : invitationSubTab === "rejected" ? (
               <div className="space-y-3">
-                {invitations.filter(i => i.status === "rejected" || i.status === "expired").length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No declined invitations.</p>
+                {invitations.filter(i => i.status === "rejected").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No rejected invitations.</p>
                 ) : (
-                  invitations.filter(i => i.status === "rejected" || i.status === "expired").map((invitation) => (
+                  invitations.filter(i => i.status === "rejected").map((invitation) => (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                        <Badge variant="danger">{invitation.status}</Badge>
+                        <Badge variant="danger">rejected</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : invitationSubTab === "expired" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "expired").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No expired invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "expired").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="danger">expired</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "revoked").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No revoked invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "revoked").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="danger">revoked</Badge>
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
                     </div>
