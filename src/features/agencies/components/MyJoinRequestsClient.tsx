@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } f
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
+import { MembershipHistoryList } from "@/features/agencies/components/MembershipHistoryList";
 import {
   useAcceptAgencyInvitation,
   useCancelAgencyJoinRequest,
@@ -777,37 +778,7 @@ export function MyJoinRequestsClient() {
                               {isHistoryExpanded ? "Hide history" : "View full history"}
                             </Button>
                             {isHistoryExpanded ? (
-                              <div className="space-y-2">
-                                {[...agencyHistory]
-                                  .sort(
-                                    (a, b) =>
-                                      new Date(b.timestamp).getTime() -
-                                      new Date(a.timestamp).getTime(),
-                                  )
-                                  .map((record) => (
-                                    <div
-                                      key={record.id}
-                                      className="rounded-lg border border-border p-3 text-xs"
-                                    >
-                                      <div className="flex items-start justify-between gap-2">
-                                        <span className="font-medium capitalize text-gray-900 dark:text-white">
-                                          {formatMembershipAction(record.action ?? "event")}
-                                        </span>
-                                        <Badge variant={getHistoryBadgeVariant(record.action ?? "event")}>
-                                          {formatMembershipAction(record.action ?? "event")}
-                                        </Badge>
-                                      </div>
-                                      <p className="mt-1 text-gray-500 dark:text-gray-400">
-                                        {formatDate(record.timestamp)}
-                                      </p>
-                                      {record.reason ? (
-                                        <p className="mt-1 text-gray-600 dark:text-gray-300">
-                                          {record.reason}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  ))}
-                              </div>
+                              <MembershipHistoryList history={agencyHistory} />
                             ) : null}
                           </div>
                         ) : null}
@@ -866,45 +837,7 @@ export function MyJoinRequestsClient() {
                   description="Agency membership events will appear here when they exist."
                 />
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {[...historyQuery.data]
-                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                    .map((record) => (
-                      <Card key={record.id}>
-                        <CardBody className="space-y-3 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-semibold text-gray-900 dark:text-white">
-                                {record.agency_name ?? "Agency"}
-                              </p>
-                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                {formatDate(record.timestamp)}
-                              </p>
-                            </div>
-                            <Badge variant={
-                              record.action === "joined" || record.action === "reinstated"
-                                ? "success"
-                                : record.action === "revoked" || record.action === "suspended"
-                                  ? "danger"
-                                  : record.action === "left"
-                                    ? "warning"
-                                    : "outline"
-                            }>
-                              {(record.action ?? "event").replace(/_/g, " ")}
-                            </Badge>
-                          </div>
-                          {record.reason ? (
-                            <p className="text-sm leading-5 text-gray-600 dark:text-gray-300">{record.reason}</p>
-                          ) : null}
-                          {record.prior_role || record.post_role ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Role: {record.prior_role ?? "not recorded"} &rarr; {record.post_role ?? "not recorded"}
-                            </p>
-                          ) : null}
-                        </CardBody>
-                      </Card>
-                    ))}
-                </div>
+                <MembershipHistoryList history={historyQuery.data} />
               )}
             </div>
           ) : null}
