@@ -59,7 +59,7 @@ type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
-  const [requestSubTab, setRequestSubTab] = useState<string>("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
@@ -948,11 +948,12 @@ export function MyJoinRequestsClient() {
 
         <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
           {[
-            { value: "pending", label: `Pending (${requests.filter(r => r.status === "pending").length})` },
-            { value: "accepted", label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
-            { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
+            { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
+            { value: "accepted" as const, label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
+            { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
+            { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
           ].map(({ value, label }) => (
-            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
+            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "accepted" | "rejected" | "cancelled")}>
               {label}
             </Button>
           ))}
@@ -1053,7 +1054,7 @@ export function MyJoinRequestsClient() {
               })
             )}
           </div>
-        ) : (
+        ) : requestSubTab === "rejected" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {requests.filter(r => r.status === "rejected").length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
@@ -1079,6 +1080,46 @@ export function MyJoinRequestsClient() {
                       <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
                         {request.rejection_reason}
                       </div>
+                    ) : null}
+                    <div className="pt-2">
+                      <Link
+                        href={`/agencies/${request.agency_id}/join`}
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        Apply Again
+                      </Link>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {requests.filter(r => r.status === "cancelled").length === 0 ? (
+              <div className="md:col-span-2 xl:col-span-3">
+                <EmptyState title="No cancelled requests" description="You have no cancelled join requests." />
+              </div>
+            ) : (
+              requests.filter(r => r.status === "cancelled").map((request) => (
+                <Card key={request.join_request_id}>
+                  <CardBody className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <Link
+                        href={`/agencies/${request.agency_id}`}
+                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                      >
+                        {request.agency_name}
+                      </Link>
+                      <Badge variant="danger">cancelled</Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Submitted {formatDate(request.submitted_at)}
+                    </p>
+                    {request.decided_at ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Cancelled {formatDate(request.decided_at)}
+                      </p>
                     ) : null}
                     <div className="pt-2">
                       <Link
