@@ -720,7 +720,7 @@ export interface paths {
         };
         /**
          * Read My Membership History
-         * @description Return the authenticated user's complete agency membership audit history.
+         * @description Return the authenticated user's unified membership timeline across all agencies.
          */
         get: operations["read_my_membership_history_api_v1_users_me_membership_history__get"];
         put?: never;
@@ -1117,6 +1117,29 @@ export interface paths {
          * @description Reactivate a revoked, suspended, or blocked agency membership.
          */
         patch: operations["restore_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__restore__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/transfer-ownership/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Agency Ownership
+         * @description Transfer agency ownership to an active agent of this agency.
+         *
+         *     Agency-owner-initiated only. Admin is not in the loop.
+         *     This endpoint never modifies is_active.
+         */
+        post: operations["transfer_agency_ownership_api_v1_agencies__agency_id__transfer_ownership__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/agencies/{agency_id}/agents/{membership_id}/review-request/": {
@@ -4853,6 +4876,18 @@ export interface components {
          * @enum {string}
          */
         AgencyMembershipReviewRequestStatus: "pending" | "reviewed" | "approved" | "rejected";
+        /**
+         * AgencyOwnershipTransferRequest
+         * @description Payload for agency ownership transfer.
+         */
+        AgencyOwnershipTransferRequest: {
+            /** New Owner User Id */
+            new_owner_user_id: number;
+            /** Reason */
+            reason: string;
+            /** Demote Existing Owner To Agent */
+            demote_existing_owner_to_agent: boolean;
+        };
         /** AgencyRejectRequest */
         AgencyRejectRequest: {
             /** Reason */
@@ -4955,18 +4990,6 @@ export interface components {
         AgencyReviewRequestDeclineRequest: {
             /** Reason */
             reason: string;
-        };
-        /**
-         * AgencyOwnershipTransferRequest
-         * @description Payload for agency ownership transfer.
-         */
-        AgencyOwnershipTransferRequest: {
-            /** New Owner User Id */
-            new_owner_user_id: number;
-            /** Reason */
-            reason: string;
-            /** Demote Existing Owner To Agent */
-            demote_existing_owner_to_agent: boolean;
         };
         /** AgencyReviewRequestResponse */
         AgencyReviewRequestResponse: {
@@ -5193,30 +5216,6 @@ export interface components {
             statuses?: components["schemas"]["AgentListingStatusCount"][];
             /** Items */
             items?: components["schemas"]["AgentListingStatusItem"][];
-        };
-        /** AgentMembershipAuditResponse */
-        AgentMembershipAuditResponse: {
-            /** Id */
-            id: number;
-            /** User Id */
-            user_id: number;
-            /** Agency Id */
-            agency_id: number;
-            /** Agency Name */
-            agency_name?: string | null;
-            /** Action */
-            action: string;
-            /** Actor Id */
-            actor_id?: number | null;
-            /** Reason */
-            reason?: string | null;
-            prior_role?: components["schemas"]["UserRole"] | null;
-            post_role?: components["schemas"]["UserRole"] | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
         };
         /** AgentMembershipDetail */
         AgentMembershipDetail: {
@@ -5997,6 +5996,10 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+            /** User Id */
+            user_id?: number | null;
+            /** Agency Id */
+            agency_id?: number | null;
             /** Id */
             id?: number | null;
             /** Action */
@@ -8171,7 +8174,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentMembershipAuditResponse"][];
+                    "application/json": components["schemas"]["MembershipTimelineEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -8896,6 +8899,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgencyAgentMembershipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_agency_ownership_api_v1_agencies__agency_id__transfer_ownership__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyOwnershipTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

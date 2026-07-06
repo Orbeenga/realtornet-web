@@ -19,7 +19,7 @@ import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
 import type { Agency } from "@/types";
 import {
-  getLatestAuditRecord,
+  getLatestMembershipRecord,
   isReturningMembershipAction,
 } from "./membershipHistory";
 
@@ -58,7 +58,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
   const matchingMembership = membershipsQuery.data?.find(
     (membership) => membership.agency_id === agency.agency_id,
   );
-  const latestHistory = getLatestAuditRecord(
+  const latestHistory = getLatestMembershipRecord(
     historyQuery.data ?? [],
     agency.agency_id,
   );

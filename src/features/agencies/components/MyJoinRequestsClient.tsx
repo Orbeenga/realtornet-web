@@ -660,7 +660,7 @@ export function MyJoinRequestsClient() {
                   );
                   const recentReapplication = reapplications[0];
                   const reinstatementEvent = [...agencyHistory]
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .find((h) => h.action === "reinstated" || h.action === "joined");
                   return (
                     <Card key={membership.membership_id}>
@@ -687,7 +687,7 @@ export function MyJoinRequestsClient() {
                         {reinstatementEvent ? (
                           <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm dark:border-green-900 dark:bg-green-950/40">
                             <p className="font-medium text-green-900 dark:text-green-200">
-                              Reinstated {formatDate(reinstatementEvent.created_at)}
+                              Reinstated {formatDate(reinstatementEvent.timestamp)}
                             </p>
                             {reinstatementEvent.reason ? (
                               <p className="mt-0.5 text-green-700 dark:text-green-300">
@@ -781,8 +781,8 @@ export function MyJoinRequestsClient() {
                                 {[...agencyHistory]
                                   .sort(
                                     (a, b) =>
-                                      new Date(b.created_at).getTime() -
-                                      new Date(a.created_at).getTime(),
+                                      new Date(b.timestamp).getTime() -
+                                      new Date(a.timestamp).getTime(),
                                   )
                                   .map((record) => (
                                     <div
@@ -791,14 +791,14 @@ export function MyJoinRequestsClient() {
                                     >
                                       <div className="flex items-start justify-between gap-2">
                                         <span className="font-medium capitalize text-gray-900 dark:text-white">
-                                          {formatMembershipAction(record.action)}
+                                          {formatMembershipAction(record.action ?? "event")}
                                         </span>
-                                        <Badge variant={getHistoryBadgeVariant(record.action)}>
-                                          {formatMembershipAction(record.action)}
+                                        <Badge variant={getHistoryBadgeVariant(record.action ?? "event")}>
+                                          {formatMembershipAction(record.action ?? "event")}
                                         </Badge>
                                       </div>
                                       <p className="mt-1 text-gray-500 dark:text-gray-400">
-                                        {formatDate(record.created_at)}
+                                        {formatDate(record.timestamp)}
                                       </p>
                                       {record.reason ? (
                                         <p className="mt-1 text-gray-600 dark:text-gray-300">
@@ -868,7 +868,7 @@ export function MyJoinRequestsClient() {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {[...historyQuery.data]
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .map((record) => (
                       <Card key={record.id}>
                         <CardBody className="space-y-3 p-4">
@@ -878,7 +878,7 @@ export function MyJoinRequestsClient() {
                                 {record.agency_name ?? "Agency"}
                               </p>
                               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                {formatDate(record.created_at)}
+                                {formatDate(record.timestamp)}
                               </p>
                             </div>
                             <Badge variant={
@@ -890,7 +890,7 @@ export function MyJoinRequestsClient() {
                                     ? "warning"
                                     : "outline"
                             }>
-                              {record.action.replace(/_/g, " ")}
+                              {(record.action ?? "event").replace(/_/g, " ")}
                             </Badge>
                           </div>
                           {record.reason ? (

@@ -8,7 +8,6 @@ import type {
   AgencyReviewRequestAcceptRequest,
   AgencyReviewRequestDeclineRequest,
   AgencyReviewRequestResponse,
-  AgentMembershipAudit,
   MembershipTimelineEntry,
   MyAgencyMembershipResponse,
   MyAgentMembershipStatusResponse,
@@ -171,7 +170,7 @@ export function useMembershipHistory(enabled = true) {
   return useQuery({
     queryKey: ["membershipHistory", "me"],
     queryFn: () =>
-      apiClient<AgentMembershipAudit[]>("/api/v1/users/me/membership-history"),
+      apiClient<MembershipTimelineEntry[]>("/api/v1/users/me/membership-history"),
     staleTime: 30_000,
     enabled,
   });
