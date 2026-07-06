@@ -60,7 +60,7 @@ export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
   const [requestSubTab, setRequestSubTab] = useState<string>("pending");
-  const [invitationSubTab, setInvitationSubTab] = useState<string>("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
@@ -248,11 +248,13 @@ export function MyJoinRequestsClient() {
 
           <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
             {[
-              { value: "pending", label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
-              { value: "accepted", label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
-              { value: "rejected", label: `Rejected (${invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").length})` },
+              { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
+              { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
+              { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
+              { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
+              { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
             ].map(({ value, label }) => (
-              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
+              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked")}>
                 {label}
               </Button>
             ))}
@@ -352,14 +354,14 @@ export function MyJoinRequestsClient() {
                 ))
               )}
             </div>
-          ) : (
+          ) : invitationSubTab === "rejected" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").length === 0 ? (
+              {invitations.filter(i => i.status === "rejected").length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No rejected invitations" description="Rejected, expired, or revoked invitations will appear here." />
+                  <EmptyState title="No rejected invitations" description="Rejected invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "rejected" || i.status === "expired" || i.status === "revoked").map((invitation) => (
+                invitations.filter(i => i.status === "rejected").map((invitation) => (
                   <Card key={invitation.invitation_id}>
                     <CardBody className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -369,10 +371,10 @@ export function MyJoinRequestsClient() {
                         >
                           {invitation.agency_name}
                         </Link>
-                        <Badge variant="danger">{invitation.status}</Badge>
+                        <Badge variant="danger">rejected</Badge>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invitation from {invitation.agency_name} was {invitation.status}.
+                        Invitation from {invitation.agency_name} was rejected.
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Sent {formatDate(invitation.created_at)}
@@ -382,6 +384,78 @@ export function MyJoinRequestsClient() {
                           Rejected {formatDate(invitation.rejected_at)}
                         </p>
                       ) : null}
+                      <Link
+                        href={`/agencies/${invitation.agency_id}/join`}
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        Apply Again
+                      </Link>
+                    </CardBody>
+                  </Card>
+                ))
+              )}
+            </div>
+          ) : invitationSubTab === "expired" ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.filter(i => i.status === "expired").length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No expired invitations" description="Expired invitations will appear here." />
+                </div>
+              ) : (
+                invitations.filter(i => i.status === "expired").map((invitation) => (
+                  <Card key={invitation.invitation_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${invitation.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {invitation.agency_name}
+                        </Link>
+                        <Badge variant="danger">expired</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Invitation from {invitation.agency_name} has expired.
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Sent {formatDate(invitation.created_at)}
+                      </p>
+                      <Link
+                        href={`/agencies/${invitation.agency_id}/join`}
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        Apply Again
+                      </Link>
+                    </CardBody>
+                  </Card>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.filter(i => i.status === "revoked").length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No revoked invitations" description="Revoked invitations will appear here." />
+                </div>
+              ) : (
+                invitations.filter(i => i.status === "revoked").map((invitation) => (
+                  <Card key={invitation.invitation_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${invitation.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {invitation.agency_name}
+                        </Link>
+                        <Badge variant="danger">revoked</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Invitation from {invitation.agency_name} was revoked.
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Sent {formatDate(invitation.created_at)}
+                      </p>
                       <Link
                         href={`/agencies/${invitation.agency_id}/join`}
                         className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
