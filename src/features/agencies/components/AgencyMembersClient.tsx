@@ -151,6 +151,7 @@ export function AgencyMembersClient() {
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
@@ -432,6 +433,17 @@ export function AgencyMembersClient() {
                 Review requests from people asking to join your agency roster. Resolved requests move to the appropriate tab.
               </p>
             </div>
+            <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
+              {[
+                { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending").length})` },
+                { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
+                { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
+              ].map(({ value, label }) => (
+                <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
             {joinRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
             {joinRequestsQuery.isError ? (
               <ErrorState
@@ -445,67 +457,136 @@ export function AgencyMembersClient() {
                 onRetry={() => { void joinRequestsQuery.refetch(); }}
               />
             ) : null}
-            {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending").length === 0 ? (
-              <EmptyState title="No pending requests" description="New requests and decision history will appear here." />
-            ) : null}
-            {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending").length > 0 ? (
-              <div className="space-y-4">
-                {joinRequests.filter(r => r.status === "pending").map((request) => (
-                  <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {request.seeker_name ?? "Seeker"}
-                          </p>
-                          <Badge variant="warning">pending</Badge>
-                        </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
-                        </p>
-                        {request.cover_note ? (
-                          <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-                            {request.cover_note}
-                          </p>
-                        ) : null}
-                        {request.portfolio_details ? (
-                          <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
-                            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Profile details</p>
-                            <p className="whitespace-pre-wrap">{request.portfolio_details}</p>
+            {requestSubTab === "pending" ? (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending").length === 0 ? (
+                  <EmptyState title="No pending requests" description="New requests and decision history will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "pending").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {request.seeker_name ?? "Seeker"}
+                              </p>
+                              <Badge variant="warning">pending</Badge>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
+                            </p>
+                            {request.cover_note ? (
+                              <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+                                {request.cover_note}
+                              </p>
+                            ) : null}
+                            {request.portfolio_details ? (
+                              <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
+                                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Profile details</p>
+                                <p className="whitespace-pre-wrap">{request.portfolio_details}</p>
+                              </div>
+                            ) : null}
                           </div>
-                        ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button" size="sm"
+                              loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
+                              onClick={() => void handleApproveJoinRequest(request.join_request_id)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              type="button" size="sm" variant="destructive"
+                              loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
+                              onClick={() => void handleRejectJoinRequest(request.join_request_id)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                        <Input
+                          className="mt-4" label="Reject reason" placeholder="Required before rejecting"
+                          value={rejectReasons[request.join_request_id] ?? ""}
+                          onChange={(event) =>
+                            setRejectReasons((current) => ({
+                              ...current,
+                              [request.join_request_id]: event.target.value,
+                            }))
+                          }
+                        />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button" size="sm"
-                          loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
-                          onClick={() => void handleApproveJoinRequest(request.join_request_id)}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          type="button" size="sm" variant="destructive"
-                          loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
-                          onClick={() => void handleRejectJoinRequest(request.join_request_id)}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                    <Input
-                      className="mt-4" label="Reject reason" placeholder="Required before rejecting"
-                      value={rejectReasons[request.join_request_id] ?? ""}
-                      onChange={(event) =>
-                        setRejectReasons((current) => ({
-                          ...current,
-                          [request.join_request_id]: event.target.value,
-                        }))
-                      }
-                    />
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : null}
+                ) : null}
+              </>
+            ) : requestSubTab === "approved" ? (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "approved").length === 0 ? (
+                  <EmptyState title="No approved requests" description="Approved join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "approved").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Approved {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant="success">approved</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
+                  <EmptyState title="No rejected requests" description="Rejected join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "rejected").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Rejected {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                            {request.rejection_reason ? (
+                              <div className="mt-2 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                {request.rejection_reason}
+                              </div>
+                            ) : null}
+                          </div>
+                          <Badge variant="danger">rejected</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
           </CardBody>
         </Card>
       ) : null}
