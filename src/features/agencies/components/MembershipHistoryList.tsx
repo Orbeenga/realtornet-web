@@ -48,7 +48,7 @@ export function MembershipHistoryList({
   emptyTitle = "No membership history",
   emptyDescription = "Agency membership events will appear here when they exist.",
 }: MembershipHistoryListProps) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (isLoading) {
     return <LoadingState message="Loading membership history..." />;
@@ -74,27 +74,13 @@ export function MembershipHistoryList({
       new Date(first.timestamp).getTime(),
   );
 
-  const hasExtendedContent = (entry: MembershipTimelineEntry) =>
-    entry.cover_note || entry.portfolio_details || entry.review_message || entry.review_response;
-
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  const visibleEntries = isExpanded ? sortedHistory : sortedHistory.slice(0, 2);
+  const hasMoreEntries = sortedHistory.length > 2;
 
   return (
     <div className="space-y-3">
-      {sortedHistory.map((entry) => {
+      {visibleEntries.map((entry) => {
         const entryId = String(entry.id ?? entry.timestamp);
-        const isExpanded = expandedIds.has(entryId);
-        const showToggle = hasExtendedContent(entry);
 
         return (
           <div
@@ -126,55 +112,29 @@ export function MembershipHistoryList({
                 {entry.reason}
               </p>
             ) : null}
-            {showToggle && !isExpanded ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="mt-2"
-                onClick={() => toggleExpanded(entryId)}
-              >
-                View full request
-              </Button>
+            {entry.cover_note ? (
+              <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application message</p>
+                <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+              </div>
             ) : null}
-            {isExpanded ? (
-              <>
-                {entry.cover_note ? (
-                  <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application message</p>
-                    <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-                  </div>
-                ) : null}
-                {entry.portfolio_details ? (
-                  <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Portfolio</p>
-                    <p className="whitespace-pre-wrap">{entry.portfolio_details}</p>
-                  </div>
-                ) : null}
-                {entry.review_message ? (
-                  <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
-                    <p className="whitespace-pre-wrap">{entry.review_message}</p>
-                  </div>
-                ) : null}
-                {entry.review_response ? (
-                  <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
-                    <p className="whitespace-pre-wrap">{entry.review_response}</p>
-                  </div>
-                ) : null}
-                {showToggle ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="mt-2"
-                    onClick={() => toggleExpanded(entryId)}
-                  >
-                    Hide
-                  </Button>
-                ) : null}
-              </>
+            {entry.portfolio_details ? (
+              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Portfolio</p>
+                <p className="whitespace-pre-wrap">{entry.portfolio_details}</p>
+              </div>
+            ) : null}
+            {entry.review_message ? (
+              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
+                <p className="whitespace-pre-wrap">{entry.review_message}</p>
+              </div>
+            ) : null}
+            {entry.review_response ? (
+              <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
+                <p className="whitespace-pre-wrap">{entry.review_response}</p>
+              </div>
             ) : null}
             {entry.prior_role || entry.post_role ? (
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -185,6 +145,16 @@ export function MembershipHistoryList({
           </div>
         );
       })}
+      {hasMoreEntries ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {isExpanded ? "Hide" : `View ${sortedHistory.length - 2} more events`}
+        </Button>
+      ) : null}
     </div>
   );
 }
