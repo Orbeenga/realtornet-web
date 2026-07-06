@@ -151,7 +151,7 @@ export function AgencyMembersClient() {
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "revoked">("pending");
-  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "cancelled">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
@@ -438,6 +438,7 @@ export function AgencyMembersClient() {
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending").length})` },
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
                 { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
+                { value: "cancelled" as const, label: `Cancelled (${joinRequests.filter(r => r.status === "cancelled").length})` },
               ].map(({ value, label }) => (
                 <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
                   {label}
@@ -551,7 +552,7 @@ export function AgencyMembersClient() {
                   </div>
                 ) : null}
               </>
-            ) : (
+            ) : requestSubTab === "rejected" ? (
               <>
                 {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
                   <EmptyState title="No rejected requests" description="Rejected join requests will appear here." />
@@ -580,6 +581,36 @@ export function AgencyMembersClient() {
                             ) : null}
                           </div>
                           <Badge variant="danger">rejected</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "cancelled").length === 0 ? (
+                  <EmptyState title="No cancelled requests" description="Cancelled join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "cancelled").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "cancelled").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Cancelled {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant="danger">cancelled</Badge>
                         </div>
                       </div>
                     ))}
