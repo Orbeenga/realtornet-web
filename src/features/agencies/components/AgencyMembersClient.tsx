@@ -43,6 +43,7 @@ import {
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
   useUnblockAgencyMembership,
+  useWithdrawAgencyInvitation,
 } from "@/features/agencies/hooks";
 import { MembershipHistoryList } from "./MembershipHistoryList";
 import type { AgencyAgentRosterMember } from "@/types";
@@ -182,6 +183,7 @@ export function AgencyMembersClient() {
   const declineReview = useDeclineAgencyReviewRequest(agencyId);
   const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
+  const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -1010,6 +1012,23 @@ export function AgencyMembersClient() {
                         <Badge variant="warning">pending</Badge>
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          loading={withdrawInvitation.isPending && withdrawInvitation.variables === invitation.invitation_id}
+                          onClick={() => {
+                            void withdrawInvitation.mutateAsync(invitation.invitation_id).then(() => {
+                              notify.success("Invitation withdrawn.");
+                            }).catch((error: unknown) => {
+                              notify.error(error instanceof ApiError ? error.message : "Could not withdraw invitation");
+                            });
+                          }}
+                        >
+                          Withdraw
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}

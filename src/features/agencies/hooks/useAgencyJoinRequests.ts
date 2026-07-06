@@ -227,3 +227,18 @@ export function useRejectAgencyInvitation() {
     },
   });
 }
+
+export function useWithdrawAgencyInvitation(agencyId?: string | number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agencies/${agencyId}/invitations/${invitationId}/withdraw/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agencyInvitations", agencyId] });
+    },
+  });
+}
