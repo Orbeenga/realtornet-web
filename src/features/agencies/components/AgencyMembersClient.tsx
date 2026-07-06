@@ -166,7 +166,7 @@ export function AgencyMembersClient() {
   });
 
   const agencyId = user?.agency_id;
-  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents" || activeTab === "inactive");
+  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents" || activeTab === "inactive" || activeTab === "revoked" || activeTab === "suspended" || activeTab === "blocked" || activeTab === "leftCancelled");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
