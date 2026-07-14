@@ -57,3 +57,14 @@ docs/phase-g-workbook.md
 RealtorNet_Phase_*_Workbook.md
 
 .vercel
+
+# Documentation 
+CLAUDE.md
+frontend/CLAUDE.md
+backend/CLAUDE.md
+SOP.md
+docs/phase-*.md
+docs/DEFERRED.md
+DEFERRED.md
+RealtorNet_Phase*.md
+RealtorNet_Phase*.docx
