@@ -1,0 +1,45 @@
+# RealtorNet Web - gitleaks config
+# Mirrors backend config for frontend repo scanning.
+# All rules are shape-based, never name literal leaked strings.
+
+title = "RealtorNet Web gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "realtornet-hardcoded-password"
+description = "Credential variable assigned a string literal"
+regex = '''(?i)(?:password|passwd|pwd|db_pass|db_password|secret|token)\s*[=:]\s*["\'][^"\'\s]{6,}["\']'''
+tags = ["realtornet", "hardcoded-password"]
+
+[[rules]]
+id = "generic-human-password-pattern"
+description = "Low-entropy human-chosen password: capitalized word(s) + digit suffix, assigned to a credential-named variable"
+regex = '''(?i)(password|pwd|db_pass|secret|passwd)\s*[:=]\s*["']?[A-Z][a-zA-Z]{2,20}\d{2,4}[_\-!@#$%^&*]?["']?'''
+tags = ["password", "generic", "low-entropy"]
+
+[[rules]]
+id = "capitalized-word-digit-underscore"
+description = "Standalone capitalized word + digits + underscore — catches historical password shape"
+regex = '''\b[A-Z][a-z]{3,15}\d{2,4}_\b'''
+tags = ["password", "generic", "low-entropy"]
+
+[[rules]]
+id = "realtornet-connection-string"
+description = "Database connection string with embedded credentials"
+regex = '''postgres(?:ql)?\+psycopg://[^:]+:[^@]+@'''
+tags = ["realtornet", "connection-string"]
+
+[[rules]]
+id = "realtornet-supabase-service-key"
+description = "Supabase service_role key (JWT format — eyJ prefix)"
+regex = '''eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+'''
+tags = ["realtornet", "supabase-key"]
+
+[allowlist]
+paths = [
+    '''\.secrets\.baseline''',
+    '''\.gitleaks\.toml''',
+    '''\.pre-commit-config\.yaml''',
+]
