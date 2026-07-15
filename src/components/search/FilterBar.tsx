@@ -313,7 +313,6 @@ export function FilterBar({
       </PopoverContent>
     </Popover>
     );
-  };
 
   // ── Min / Max price fields (inside More Filters on mobile, inline on desktop) ──
   const minPriceField = (id = "min-price") => (
