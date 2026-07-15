@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
@@ -129,10 +129,10 @@ export default async function Home() {
         ) : null}
 
         <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 grid-cols-2">
             <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                Represent an agency?
+                Register an Agency
               </h2>
               <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
                 Submit your agency profile and ownership details for admin review.
@@ -146,7 +146,7 @@ export default async function Home() {
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                Looking to join an agency?
+                Join an Agency
               </h2>
               <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
                 Browse approved agencies, open a profile, and request to join from
@@ -156,7 +156,7 @@ export default async function Home() {
                 href="/agencies"
                 className="mt-5 inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
-                Join an agency
+                Join an Agency
               </Link>
             </div>
           </div>

@@ -172,47 +172,61 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   // Filter field renderers
   const propertyTypeField = (id = "property-type") => (
     <div>
-      <FieldLabel htmlFor={id}>Property type</FieldLabel>
       <select
         id={id}
         value={propertyTypeIds[0] || ""}
-        onChange={(event) => updateFilter("property_type_id", event.target.value)}
+        onChange={(event) => {
+          const val = event.target.value;
+          if (val === "close") {
+            event.target.value = propertyTypeIds[0] || "";
+            return;
+          }
+          updateFilter("property_type_id", val === "all" ? "" : val);
+        }}
         className={SelectClassName()}
       >
-        <option value="">All property types</option>
+        <option value="" disabled hidden>Property type</option>
+        <option value="all">All property types</option>
         {propertyTypesQuery.data?.map((pt) => (
           <option key={pt.property_type_id} value={pt.property_type_id}>
             {pt.name}
           </option>
         ))}
+        <option value="close">Close</option>
       </select>
     </div>
   );
 
   const minPriceField = (id = "min-price") => (
     <div className="space-y-2">
-      <FieldLabel htmlFor={id}>Min price</FieldLabel>
       <select
         id={id}
-        value={minSelectValue}
+        value={minSelectValue || ""}
         onChange={(event) => {
-          if (event.target.value === "custom") {
+          const val = event.target.value;
+          if (val === "close") {
+            event.target.value = minSelectValue || "";
+            return;
+          }
+          if (val === "custom") {
             setCustomMinMode(true);
             updateFilter("min_price", "");
             return;
           }
           setCustomMinMode(false);
-          updateFilter("min_price", event.target.value);
+          updateFilter("min_price", val === "all" ? "" : val);
         }}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="" disabled hidden>Min price</option>
+        <option value="all">Any</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
         <option value="custom">Custom Price</option>
+        <option value="close">Close</option>
       </select>
       {showCustomMin ? (
         <div className="space-y-2">
@@ -262,28 +276,34 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
   const maxPriceField = (id = "max-price") => (
     <div className="space-y-2">
-      <FieldLabel htmlFor={id}>Max price</FieldLabel>
       <select
         id={id}
-        value={maxSelectValue}
+        value={maxSelectValue || ""}
         onChange={(event) => {
-          if (event.target.value === "custom") {
+          const val = event.target.value;
+          if (val === "close") {
+            event.target.value = maxSelectValue || "";
+            return;
+          }
+          if (val === "custom") {
             setCustomMaxMode(true);
             updateFilter("max_price", "");
             return;
           }
           setCustomMaxMode(false);
-          updateFilter("max_price", event.target.value);
+          updateFilter("max_price", val === "all" ? "" : val);
         }}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="" disabled hidden>Max price</option>
+        <option value="all">Any</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
         <option value="custom">Custom Price</option>
+        <option value="close">Close</option>
       </select>
       {showCustomMax ? (
         <div className="space-y-2">
@@ -333,14 +353,17 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
   const bedroomsField = (id = "bedrooms") => (
     <div>
-      <FieldLabel htmlFor={id}>Bedrooms</FieldLabel>
       <select
         id={id}
-        value={bedrooms}
-        onChange={(event) => updateFilter("bedrooms", event.target.value)}
+        value={bedrooms || ""}
+        onChange={(event) => {
+          const val = event.target.value;
+          updateFilter("bedrooms", val === "all" ? "" : val);
+        }}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="" disabled hidden>Bedrooms</option>
+        <option value="all">Any</option>
         {BEDROOM_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -352,14 +375,17 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
   const bathroomsField = (id = "bathrooms") => (
     <div>
-      <FieldLabel htmlFor={id}>Bathrooms</FieldLabel>
       <select
         id={id}
-        value={bathrooms}
-        onChange={(event) => updateFilter("bathrooms", event.target.value)}
+        value={bathrooms || ""}
+        onChange={(event) => {
+          const val = event.target.value;
+          updateFilter("bathrooms", val === "all" ? "" : val);
+        }}
         className={SelectClassName()}
       >
-        <option value="">Any</option>
+        <option value="" disabled hidden>Bathrooms</option>
+        <option value="all">Any</option>
         {BEDROOM_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -384,14 +410,17 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <FieldLabel htmlFor="listing-type">Listing type</FieldLabel>
           <select
             id="listing-type"
-            value={listingType}
-            onChange={(event) => updateFilter("listing_type", event.target.value)}
+            value={listingType || ""}
+            onChange={(event) => {
+              const val = event.target.value;
+              updateFilter("listing_type", val === "all" ? "" : val);
+            }}
             className={SelectClassName()}
           >
-            <option value="">All listing types</option>
+            <option value="" disabled hidden>Listing type</option>
+            <option value="all">All listing types</option>
             {LISTING_TYPES.map((type) => (
               <option key={type} value={type}>
                 {LISTING_TYPE_LABELS[type]}
@@ -401,14 +430,17 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         </div>
 
         <div>
-          <FieldLabel htmlFor="listing-status">Status</FieldLabel>
           <select
             id="listing-status"
-            value={listingStatus}
-            onChange={(event) => updateFilter("listing_status", event.target.value)}
+            value={listingStatus || ""}
+            onChange={(event) => {
+              const val = event.target.value;
+              updateFilter("listing_status", val === "all" ? "" : val);
+            }}
             className={SelectClassName()}
           >
-            <option value="">All statuses</option>
+            <option value="" disabled hidden>Status</option>
+            <option value="all">All statuses</option>
             {LISTING_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {LISTING_STATUS_LABELS[status]}
@@ -438,14 +470,18 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           {/* Property Type - native select */}
           <select
             value={propertyTypeIds[0] || ""}
-            onChange={(event) => updateFilter("property_type_id", event.target.value)}
+            onChange={(event) => {
+              const val = event.target.value;
+              updateFilter("property_type_id", val === "all" ? "" : val);
+            }}
             aria-label="Property type"
             className={cn(
               UI_TOKENS.FILTER_PILL,
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">All property types</option>
+            <option value="" disabled hidden>Property type</option>
+            <option value="all">All property types</option>
             {propertyTypesQuery.data?.map((pt) => (
               <option key={pt.property_type_id} value={pt.property_type_id}>
                 {pt.name}
@@ -455,15 +491,16 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
           {/* Min Price - native select */}
           <select
-            value={minSelectValue}
+            value={minSelectValue || ""}
             onChange={(event) => {
-              if (event.target.value === "custom") {
+              const val = event.target.value;
+              if (val === "custom") {
                 setCustomMinMode(true);
                 updateFilter("min_price", "");
                 return;
               }
               setCustomMinMode(false);
-              updateFilter("min_price", event.target.value);
+              updateFilter("min_price", val === "all" ? "" : val);
             }}
             aria-label="Min price"
             className={cn(
@@ -471,7 +508,8 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Any</option>
+            <option value="" disabled hidden>Min price</option>
+            <option value="all">Any</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -506,15 +544,16 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
           {/* Max Price - native select */}
           <select
-            value={maxSelectValue}
+            value={maxSelectValue || ""}
             onChange={(event) => {
-              if (event.target.value === "custom") {
+              const val = event.target.value;
+              if (val === "custom") {
                 setCustomMaxMode(true);
                 updateFilter("max_price", "");
                 return;
               }
               setCustomMaxMode(false);
-              updateFilter("max_price", event.target.value);
+              updateFilter("max_price", val === "all" ? "" : val);
             }}
             aria-label="Max price"
             className={cn(
@@ -522,7 +561,8 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Any</option>
+            <option value="" disabled hidden>Max price</option>
+            <option value="all">Any</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -557,15 +597,19 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
           {/* Bedrooms - native select */}
           <select
-            value={bedrooms}
-            onChange={(event) => updateFilter("bedrooms", event.target.value)}
+            value={bedrooms || ""}
+            onChange={(event) => {
+              const val = event.target.value;
+              updateFilter("bedrooms", val === "all" ? "" : val);
+            }}
             aria-label="Bedrooms"
             className={cn(
               UI_TOKENS.FILTER_PILL,
               "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
           >
-            <option value="">Any</option>
+            <option value="" disabled hidden>Bedrooms</option>
+            <option value="all">Any</option>
             {BEDROOM_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -641,10 +685,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             {moreFilters}
           </div>
         )}
-        {/* Search button - full width, below More filters */}
         <Button
           type="submit"
-          className="h-11 w-full rounded-xl bg-blue-600 text-sm font-medium text-white hover:bg-blue-700"
+          className={cn(
+            "h-11 w-full rounded-xl text-sm font-medium text-white",
+            variant === "hero" ? "bg-gray-500 hover:bg-gray-600" : "bg-blue-600 hover:bg-blue-700"
+          )}
         >
           Search
         </Button>
