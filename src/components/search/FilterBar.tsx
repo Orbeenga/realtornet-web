@@ -196,7 +196,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             id={id}
             aria-label="Property type"
             className={cn(
-              isMobile ? "w-full justify-between" : "w-36 justify-between",
+              isMobile ? "w-full justify-between" : "w-auto max-w-[140px] justify-between",
               UI_TOKENS.FILTER_PILL,
               "inline-flex items-center rounded-xl border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
             )}
@@ -700,7 +700,26 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         </div>
       )}
       <div className="mx-auto mt-3 w-full max-w-2xl space-y-3 lg:hidden">
-        {propertyTypeField("mobile-property-type")}
+        <select
+          id="mobile-property-type"
+          name="property_type_id"
+          multiple
+          value={localPropertyTypeIds}
+          onChange={(event) => {
+            const options = Array.from(event.target.selectedOptions);
+            const vals = options.map((o) => o.value).filter((v) => v !== "all" && v !== "");
+            setLocalPropertyTypeIds(vals);
+          }}
+          className={cn(SelectClassName(), "min-h-[42px]")}
+        >
+          <option value="" disabled hidden>Property type</option>
+          <option value="all">All property types</option>
+          {propertyTypesQuery.data?.map((pt) => (
+            <option key={pt.property_type_id} value={pt.property_type_id}>
+              {pt.name}
+            </option>
+          ))}
+        </select>
         <div className="grid grid-cols-2 gap-3">
           {minPriceField("mobile-min-price")}
           {maxPriceField("mobile-max-price")}

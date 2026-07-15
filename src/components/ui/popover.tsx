@@ -55,6 +55,10 @@ function Popover({
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target
 
+      if (target instanceof Element && target.closest('[data-slot="popover-content"]')) {
+        return
+      }
+
       if (target instanceof Node && !rootRef.current?.contains(target)) {
         setOpen(false)
       }

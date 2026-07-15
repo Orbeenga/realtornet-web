@@ -129,8 +129,8 @@ export default async function Home() {
         ) : null}
 
         <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
-          <div className="grid gap-5 grid-cols-2">
-            <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="grid gap-8 grid-cols-1 sm:grid-cols-2">
+            <div>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
                 Register an Agency
               </h2>
@@ -144,7 +144,7 @@ export default async function Home() {
                 Apply as Agency
               </Link>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+            <div>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
                 Join an Agency
               </h2>
