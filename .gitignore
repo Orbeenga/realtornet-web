@@ -60,11 +60,5 @@ RealtorNet_Phase_*_Workbook.md
 
 # Documentation 
 CLAUDE.md
-frontend/CLAUDE.md
-backend/CLAUDE.md
 SOP.md
-docs/phase-*.md
-docs/DEFERRED.md
-DEFERRED.md
-RealtorNet_Phase*.md
-RealtorNet_Phase*.docx
+docs/workbooks
