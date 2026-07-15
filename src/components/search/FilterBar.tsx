@@ -801,7 +801,18 @@ export function FilterBar({
           onClick={
             variant === "default"
               ? () => {
-                  applyPropertyTypes(localPropertyTypeIds);
+                  const params = new URLSearchParams(searchParams.toString());
+                  // Replace property type ids with staged/local selection
+                  params.delete("property_type_id");
+                  localPropertyTypeIds.forEach((id) => params.append("property_type_id", id));
+                  // Apply staged custom min/max prices if present
+                  if (localMinPrice) params.set("min_price", localMinPrice);
+                  else params.delete("min_price");
+                  if (localMaxPrice) params.set("max_price", localMaxPrice);
+                  else params.delete("max_price");
+                  params.delete("page");
+                  const query = params.toString();
+                  router.push(query ? `${pathname}?${query}` : pathname);
                 }
               : undefined
           }
