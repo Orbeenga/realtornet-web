@@ -9,6 +9,7 @@ interface PopoverContextValue {
   open: boolean
   setOpen: (open: boolean) => void
   rootRef: React.RefObject<HTMLDivElement | null>
+  contentRef: React.RefObject<HTMLDivElement | null>
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -37,6 +38,10 @@ function Popover({
   onOpenChange?: (open: boolean) => void
 }) {
   const rootRef = React.useRef<HTMLDivElement>(null)
+  // contentRef is created here and shared via context so the outside-click
+  // handler can check if the click landed inside the floating panel (which
+  // is portalled to document.body and therefore outside rootRef).
+  const contentRef = React.useRef<HTMLDivElement>(null)
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
   const isOpen = open ?? internalOpen
   const setOpen = React.useCallback(
@@ -53,13 +58,17 @@ function Popover({
     }
 
     const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target
+      const target = event.target as Node | null
+      if (!target) return
 
-      if (target instanceof Element && target.closest('[data-slot="popover-content"]')) {
-        return
-      }
+      // The trigger wrapper and the floating content panel are the two
+      // legitimate hit-test zones. Clicks inside either must not close the
+      // popover. The content panel is portalled to document.body so it is
+      // outside rootRef — we must check contentRef separately.
+      const insideTrigger = rootRef.current?.contains(target) ?? false
+      const insideContent = contentRef.current?.contains(target) ?? false
 
-      if (target instanceof Node && !rootRef.current?.contains(target)) {
+      if (!insideTrigger && !insideContent) {
         setOpen(false)
       }
     }
@@ -80,7 +89,7 @@ function Popover({
   }, [isOpen, setOpen])
 
   return (
-    <PopoverContext.Provider value={{ open: isOpen, setOpen, rootRef }}>
+    <PopoverContext.Provider value={{ open: isOpen, setOpen, rootRef, contentRef }}>
       <div
         ref={rootRef}
         data-slot="popover-root"
@@ -150,14 +159,19 @@ function PopoverContent({
   children,
   align = "start",
   sideOffset = 4,
+  asSheet = false,
 }: {
   className?: string
   children: React.ReactNode
   align?: "start" | "center" | "end"
   sideOffset?: number
+  /**
+   * When true, the content renders as a bottom-anchored sheet (full viewport
+   * width, fixed to the bottom edge). Used for the mobile Property Type picker.
+   */
+  asSheet?: boolean
 }) {
-  const { open, rootRef } = usePopoverContext()
-  const contentRef = React.useRef<HTMLDivElement>(null)
+  const { open, rootRef, contentRef } = usePopoverContext()
   const [position, setPosition] = React.useState<{ top: number; left: number; ready: boolean }>({
     top: 0,
     left: 0,
@@ -165,7 +179,7 @@ function PopoverContent({
   })
 
   useIsomorphicLayoutEffect(() => {
-    if (!open) {
+    if (!open || asSheet) {
       setPosition({ top: 0, left: 0, ready: false })
       return
     }
@@ -212,10 +226,30 @@ function PopoverContent({
       window.removeEventListener("resize", updatePosition)
       window.removeEventListener("scroll", updatePosition, true)
     }
-  }, [open, rootRef, align, sideOffset])
+  }, [open, rootRef, contentRef, align, sideOffset, asSheet])
 
   if (!open) {
     return null
+  }
+
+  if (asSheet) {
+    // Bottom sheet mode: full-width panel anchored to the viewport bottom.
+    // Used on mobile where a top-anchored popover is too small.
+    return (
+      <PopoverPortal>
+        <div
+          ref={contentRef}
+          data-slot="popover-content"
+          role="dialog"
+          className={cn(
+            "fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl border-t border-gray-200 bg-white text-gray-900 shadow-2xl outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
+            className,
+          )}
+        >
+          {children}
+        </div>
+      </PopoverPortal>
+    )
   }
 
   return (

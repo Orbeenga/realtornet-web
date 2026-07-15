@@ -1,12 +1,11 @@
 "use client";
 
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown } from "lucide-react";
 import {
   LISTING_STATUSES,
   LISTING_STATUS_LABELS,
@@ -14,7 +13,6 @@ import {
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
 import { usePropertyTypes } from "@/features/properties/hooks";
-
 import { LocationCascadeSelector } from "@/features/locations/components/LocationCascadeSelector";
 import { cn } from "@/lib/utils";
 import { UI_TOKENS } from "@/lib/ui-tokens";
@@ -60,48 +58,56 @@ interface FilterBarProps {
   showLocationSelector?: boolean;
 }
 
-function FieldLabel({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase"
-    >
-      {children}
-    </label>
-  );
-}
+// Shared class for native <select> elements inside dropdowns and the mobile
+// filter stack. Kept as a plain string — no function wrapper needed.
+const SELECT_CLS =
+  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
 
-function SelectClassName() {
-  return "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
-}
+// Class shared by every filter pill button on the desktop filter row.
+// Height, border, radius, and typography all derive from UI_TOKENS.FILTER_PILL.
+const PILL_CLS =
+  "inline-flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:border-blue-500 dark:hover:text-blue-400 cursor-pointer";
 
-export function FilterBar({ variant = "default", searchInput, actions, showLocationSelector = false }: FilterBarProps) {
+export function FilterBar({
+  variant = "default",
+  searchInput,
+  actions,
+  showLocationSelector = false,
+}: FilterBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = "/properties"; // FilterBar always navigates to /properties
   const propertyTypesQuery = usePropertyTypes();
+
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [customMinMode, setCustomMinMode] = useState(false);
   const [customMaxMode, setCustomMaxMode] = useState(false);
   const [localMinPrice, setLocalMinPrice] = useState("");
   const [localMaxPrice, setLocalMaxPrice] = useState("");
 
-  const propertyTypeIds = searchParams.getAll("property_type_id");
-  const [localPropertyTypeIds, setLocalPropertyTypeIds] = useState<string[]>(propertyTypeIds);
-  const [propertyTypePopoverOpen, setPropertyTypePopoverOpen] = useState(false);
+  // ── Property Type multi-select state ─────────────────────────────────────
+  // localPropertyTypeIds: committed selection (reflects URL / applied filters)
+  // stagedPropertyTypeIds: in-flight selection inside the open popover
+  // Both hold stringified IDs so they match URL param values directly.
+  const urlPropertyTypeIds = searchParams.getAll("property_type_id");
+  const [localPropertyTypeIds, setLocalPropertyTypeIds] = useState<string[]>(urlPropertyTypeIds);
   const [stagedPropertyTypeIds, setStagedPropertyTypeIds] = useState<string[]>([]);
+  const [propertyTypeOpen, setPropertyTypeOpen] = useState(false);
 
+  // Keep local state in sync when the URL changes (e.g. browser back/forward).
   useEffect(() => {
-    setLocalPropertyTypeIds(propertyTypeIds);
+    setLocalPropertyTypeIds(searchParams.getAll("property_type_id"));
   }, [searchParams]);
 
+  // When the popover opens, copy committed selection into staged so the user
+  // can cancel without affecting the applied state.
   useEffect(() => {
-    if (propertyTypePopoverOpen) {
+    if (propertyTypeOpen) {
       setStagedPropertyTypeIds(localPropertyTypeIds);
     }
-  }, [propertyTypePopoverOpen, localPropertyTypeIds]);
+  }, [propertyTypeOpen, localPropertyTypeIds]);
 
-  // Extract filter values from URL params
+  // ── Filter values from URL ────────────────────────────────────────────────
   const minPrice = searchParams.get("min_price") || "";
   const maxPrice = searchParams.get("max_price") || "";
   const bedrooms = searchParams.get("bedrooms") || "";
@@ -122,16 +128,27 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const showCustomMax = customMaxMode || isMaxCustomPreset;
   const maxSelectValue = showCustomMax ? "custom" : maxPrice;
 
+  // ── URL update helpers ────────────────────────────────────────────────────
   const updateFilter = useCallback(
     (key: string, value: string) => {
       const params = new URLSearchParams(searchParams.toString());
-
       if (value) {
         params.set(key, value);
       } else {
         params.delete(key);
       }
+      params.delete("page");
+      const query = params.toString();
+      router.push(query ? `${pathname}?${query}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
 
+  const applyPropertyTypes = useCallback(
+    (ids: string[]) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("property_type_id");
+      ids.forEach((id) => params.append("property_type_id", id));
       params.delete("page");
       const query = params.toString();
       router.push(query ? `${pathname}?${query}` : pathname);
@@ -140,34 +157,15 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   );
 
   const updateLocationFilters = useCallback(
-    (value: {
-      state: string;
-      city: string;
-      neighborhood: string;
-      locationId?: number;
-    }) => {
+    (value: { state: string; city: string; neighborhood: string; locationId?: number }) => {
       const params = new URLSearchParams(searchParams.toString());
-
       for (const key of ["state", "city", "neighborhood", "location_id"]) {
         params.delete(key);
       }
-
-      if (value.state) {
-        params.set("state", value.state);
-      }
-
-      if (value.city) {
-        params.set("city", value.city);
-      }
-
-      if (value.neighborhood) {
-        params.set("neighborhood", value.neighborhood);
-      }
-
-      if (value.locationId) {
-        params.set("location_id", String(value.locationId));
-      }
-
+      if (value.state) params.set("state", value.state);
+      if (value.city) params.set("city", value.city);
+      if (value.neighborhood) params.set("neighborhood", value.neighborhood);
+      if (value.locationId) params.set("location_id", String(value.locationId));
       params.delete("page");
       const query = params.toString();
       router.push(query ? `${pathname}?${query}` : pathname);
@@ -179,89 +177,155 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     router.push(pathname);
   }, [pathname, router]);
 
-  // Sync local price values with URL params
+  // Sync local price values with URL params on external navigation.
   useEffect(() => {
     setLocalMinPrice(minPrice);
     setLocalMaxPrice(maxPrice);
   }, [minPrice, maxPrice]);
 
-  // Filter field renderers
-  const propertyTypeField = (id = "property-type") => {
-    const isMobile = id === "mobile-property-type";
-    return (
-      <Popover open={propertyTypePopoverOpen} onOpenChange={setPropertyTypePopoverOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            id={id}
-            aria-label="Property type"
+  // ── Property Type label shown on the trigger button ───────────────────────
+  const propertyTypeLabel =
+    localPropertyTypeIds.length === 0
+      ? "Property type"
+      : localPropertyTypeIds.length === 1
+        ? (propertyTypesQuery.data?.find(
+            (pt) => String(pt.property_type_id) === localPropertyTypeIds[0],
+          )?.name ?? "1 selected")
+        : `${localPropertyTypeIds.length} selected`;
+
+  // ── Property Type Popover (desktop: anchored dropdown, mobile: bottom sheet) ──
+  // The Popover component itself handles outside-click dismissal. The content
+  // ref is threaded via context so clicks inside the floating panel are never
+  // misidentified as "outside" clicks — see popover.tsx.
+  const propertyTypePopover = (
+    { isMobile }: { isMobile: boolean },
+  ) => (
+    <Popover open={propertyTypeOpen} onOpenChange={setPropertyTypeOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          id={isMobile ? "mobile-property-type" : "desktop-property-type"}
+          aria-haspopup="listbox"
+          aria-expanded={propertyTypeOpen}
+          className={cn(
+            PILL_CLS,
+            UI_TOKENS.FILTER_PILL,
+            isMobile ? "w-full justify-between" : "w-[134px] justify-between",
+          )}
+        >
+          <span className="truncate">{propertyTypeLabel}</span>
+          <ChevronDown
             className={cn(
-              isMobile ? "w-full justify-between" : "w-auto max-w-[140px] justify-between",
-              UI_TOKENS.FILTER_PILL,
-              "inline-flex items-center rounded-xl border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "h-4 w-4 shrink-0 opacity-50 transition-transform",
+              propertyTypeOpen && "rotate-180",
             )}
-          >
-            <span className="truncate">
-              {localPropertyTypeIds.length === 0
-                ? "Property type"
-                : localPropertyTypeIds.length === 1
-                ? propertyTypesQuery.data?.find((pt) => String(pt.property_type_id) === localPropertyTypeIds[0])?.name || "1 selected"
-                : `${localPropertyTypeIds.length} selected`}
-            </span>
-            <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-56 p-0" align="start">
-          <div className="max-h-60 overflow-y-auto p-1">
-            {propertyTypesQuery.data?.map((pt) => {
-              const checked = stagedPropertyTypeIds.includes(String(pt.property_type_id));
-              return (
-                <label
-                  key={pt.property_type_id}
-                  className="flex cursor-pointer items-center space-x-3 rounded-md px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
+          />
+        </button>
+      </PopoverTrigger>
+
+      {/* Desktop: top-anchored dropdown. Mobile: bottom sheet. */}
+      <PopoverContent
+        className={isMobile ? "p-0" : "w-56 p-0"}
+        align="start"
+        asSheet={isMobile}
+      >
+        {/* Sheet drag handle — mobile only */}
+        {isMobile && (
+          <div className="flex items-center justify-center py-3">
+            <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
+          </div>
+        )}
+
+        {/* Sheet / dropdown title */}
+        <div
+          className={cn(
+            "flex items-center justify-between px-4",
+            isMobile ? "pb-2" : "py-2 border-b border-gray-100 dark:border-gray-800",
+          )}
+        >
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+            Property type
+          </span>
+          {localPropertyTypeIds.length > 0 && (
+            <button
+              type="button"
+              className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+              onClick={() => {
+                setStagedPropertyTypeIds([]);
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Option list */}
+        <ul
+          role="listbox"
+          aria-multiselectable="true"
+          aria-label="Property type"
+          className={cn(
+            "overflow-y-auto py-1",
+            isMobile ? "max-h-[50vh]" : "max-h-60",
+          )}
+        >
+          {propertyTypesQuery.data?.map((pt) => {
+            const ptId = String(pt.property_type_id);
+            const checked = stagedPropertyTypeIds.includes(ptId);
+            return (
+              <li key={ptId} role="option" aria-selected={checked}>
+                <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={(e) => {
-                      if (e.target.checked) {
-                        setStagedPropertyTypeIds([...stagedPropertyTypeIds, String(pt.property_type_id)]);
-                      } else {
-                        setStagedPropertyTypeIds(stagedPropertyTypeIds.filter((ptId) => ptId !== String(pt.property_type_id)));
-                      }
+                      setStagedPropertyTypeIds(
+                        e.target.checked
+                          ? [...stagedPropertyTypeIds, ptId]
+                          : stagedPropertyTypeIds.filter((id) => id !== ptId),
+                      );
                     }}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-200">{pt.name}</span>
                 </label>
-              );
-            })}
-          </div>
-          <div className="flex items-center justify-end border-t border-gray-200 p-2 dark:border-gray-700 space-x-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setPropertyTypePopoverOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                setLocalPropertyTypeIds(stagedPropertyTypeIds);
-                setPropertyTypePopoverOpen(false);
-              }}
-            >
-              OK
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  };
+              </li>
+            );
+          })}
+        </ul>
 
+        {/* Footer: Cancel + OK */}
+        <div className="flex items-center justify-end gap-2 border-t border-gray-200 p-3 dark:border-gray-700">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPropertyTypeOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setLocalPropertyTypeIds(stagedPropertyTypeIds);
+              // In default variant, apply immediately to URL on OK.
+              // In hero variant the selection is held in local state until
+              // the form is submitted via the Search button.
+              if (variant === "default") {
+                applyPropertyTypes(stagedPropertyTypeIds);
+              }
+              setPropertyTypeOpen(false);
+            }}
+          >
+            OK
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
+  // ── Min / Max price fields (inside More Filters on mobile, inline on desktop) ──
   const minPriceField = (id = "min-price") => (
     <div className="space-y-2">
       <select
@@ -278,7 +342,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           setCustomMinMode(false);
           updateFilter("min_price", val === "all" ? "" : val);
         }}
-        className={SelectClassName()}
+        className={SELECT_CLS}
       >
         <option value="" disabled hidden>Min price</option>
         <option value="all">Any</option>
@@ -287,19 +351,21 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             {option.label}
           </option>
         ))}
-        <option value="custom">Custom Price</option>
+        <option value="custom">Custom price</option>
       </select>
       {showCustomMin ? (
         <div className="space-y-2">
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+              NGN
+            </span>
             <Input
               id={`${id}-custom`}
               type="number"
               min="0"
               inputMode="numeric"
               value={localMinPrice}
-              placeholder="Enter custom price"
+              placeholder="Enter amount"
               onChange={(event) => setLocalMinPrice(event.target.value)}
               onBlur={() => updateFilter("min_price", localMinPrice)}
               onKeyDown={(e) => {
@@ -316,6 +382,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             <Button
               type="button"
               variant="ghost"
+              size="sm"
               onClick={() => {
                 setLocalMinPrice("");
                 updateFilter("min_price", "");
@@ -325,6 +392,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             </Button>
             <Button
               type="button"
+              size="sm"
               onClick={() => updateFilter("min_price", localMinPrice)}
             >
               Apply
@@ -351,7 +419,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           setCustomMaxMode(false);
           updateFilter("max_price", val === "all" ? "" : val);
         }}
-        className={SelectClassName()}
+        className={SELECT_CLS}
       >
         <option value="" disabled hidden>Max price</option>
         <option value="all">Any</option>
@@ -360,19 +428,21 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             {option.label}
           </option>
         ))}
-        <option value="custom">Custom Price</option>
+        <option value="custom">Custom price</option>
       </select>
       {showCustomMax ? (
         <div className="space-y-2">
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+              NGN
+            </span>
             <Input
               id={`${id}-custom`}
               type="number"
               min="0"
               inputMode="numeric"
               value={localMaxPrice}
-              placeholder="Enter custom price"
+              placeholder="Enter amount"
               onChange={(event) => setLocalMaxPrice(event.target.value)}
               onBlur={() => updateFilter("max_price", localMaxPrice)}
               onKeyDown={(e) => {
@@ -389,6 +459,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             <Button
               type="button"
               variant="ghost"
+              size="sm"
               onClick={() => {
                 setLocalMaxPrice("");
                 updateFilter("max_price", "");
@@ -398,6 +469,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             </Button>
             <Button
               type="button"
+              size="sm"
               onClick={() => updateFilter("max_price", localMaxPrice)}
             >
               Apply
@@ -418,7 +490,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           const val = event.target.value;
           updateFilter("bedrooms", val === "all" ? "" : val);
         }}
-        className={SelectClassName()}
+        className={SELECT_CLS}
       >
         <option value="" disabled hidden>Bedrooms</option>
         <option value="all">Any</option>
@@ -441,7 +513,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           const val = event.target.value;
           updateFilter("bathrooms", val === "all" ? "" : val);
         }}
-        className={SelectClassName()}
+        className={SELECT_CLS}
       >
         <option value="" disabled hidden>Bathrooms</option>
         <option value="all">Any</option>
@@ -454,7 +526,8 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     </div>
   );
 
-  const moreFilters = (
+  // ── More Filters expanded panel (shared between desktop and mobile) ───────
+  const moreFiltersPanel = (
     <div className="space-y-4">
       {showLocationSelector && (
         <div>
@@ -477,7 +550,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               const val = event.target.value;
               updateFilter("listing_type", val === "all" ? "" : val);
             }}
-            className={SelectClassName()}
+            className={SELECT_CLS}
           >
             <option value="" disabled hidden>Listing type</option>
             <option value="all">All listing types</option>
@@ -498,7 +571,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               const val = event.target.value;
               updateFilter("listing_status", val === "all" ? "" : val);
             }}
-            className={SelectClassName()}
+            className={SELECT_CLS}
           >
             <option value="" disabled hidden>Listing status</option>
             <option value="all">All statuses</option>
@@ -511,13 +584,16 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         </div>
       </div>
 
-      <Button type="button" variant="ghost" onClick={clearAll} disabled={!searchParams.toString()}>
-        Clear all
+      <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={!searchParams.toString()}>
+        Clear all filters
       </Button>
     </div>
   );
 
-  // Desktop layout
+  // ── Desktop layout ─────────────────────────────────────────────────────────
+  // The filter row uses overflow-x-auto + flex-nowrap — the industry-standard
+  // pattern (Property24, Rightmove, Zillow) so pills never reflow to a second
+  // row. On narrow viewports the row scrolls horizontally.
   const desktopContent = (
     <>
       {searchInput && (
@@ -527,12 +603,14 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
       )}
 
       <div className="mx-auto hidden w-full max-w-2xl lg:block">
-        <div className="flex w-full min-w-0 items-center gap-3 flex-wrap">
-          {/* Property Type Custom Popover */}
-          {propertyTypeField("desktop-property-type")}
+        {/* Scrollable, non-wrapping pill row */}
+        <div className="flex w-full items-center gap-2 overflow-x-auto flex-nowrap pb-0.5">
+          {/* Property Type — custom multi-select popover */}
+          {propertyTypePopover({ isMobile: false })}
 
-          {/* Min Price - native select */}
+          {/* Min Price */}
           <select
+            aria-label="Min price"
             value={minSelectValue || ""}
             onChange={(event) => {
               const val = event.target.value;
@@ -544,10 +622,10 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               setCustomMinMode(false);
               updateFilter("min_price", val === "all" ? "" : val);
             }}
-            aria-label="Min price"
             className={cn(
+              PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "shrink-0",
             )}
           >
             <option value="" disabled hidden>Min price</option>
@@ -560,10 +638,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             <option value="custom">Custom</option>
           </select>
 
-          {/* Custom min price input (shown when custom is selected) */}
+          {/* Custom min price input */}
           {showCustomMin && (
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+            <div className="relative shrink-0">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                NGN
+              </span>
               <Input
                 type="number"
                 min="0"
@@ -579,13 +659,14 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
                   }
                 }}
                 aria-label="Custom min price"
-                className="pl-12 w-32"
+                className="pl-12 w-28"
               />
             </div>
           )}
 
-          {/* Max Price - native select */}
+          {/* Max Price */}
           <select
+            aria-label="Max price"
             value={maxSelectValue || ""}
             onChange={(event) => {
               const val = event.target.value;
@@ -597,10 +678,10 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               setCustomMaxMode(false);
               updateFilter("max_price", val === "all" ? "" : val);
             }}
-            aria-label="Max price"
             className={cn(
+              PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "shrink-0",
             )}
           >
             <option value="" disabled hidden>Max price</option>
@@ -613,10 +694,12 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             <option value="custom">Custom</option>
           </select>
 
-          {/* Custom max price input (shown when custom is selected) */}
+          {/* Custom max price input */}
           {showCustomMax && (
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">NGN</span>
+            <div className="relative shrink-0">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                NGN
+              </span>
               <Input
                 type="number"
                 min="0"
@@ -632,22 +715,23 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
                   }
                 }}
                 aria-label="Custom max price"
-                className="pl-12 w-32"
+                className="pl-12 w-28"
               />
             </div>
           )}
 
-          {/* Bedrooms - native select */}
+          {/* Bedrooms */}
           <select
+            aria-label="Bedrooms"
             value={bedrooms || ""}
             onChange={(event) => {
               const val = event.target.value;
               updateFilter("bedrooms", val === "all" ? "" : val);
             }}
-            aria-label="Bedrooms"
             className={cn(
+              PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "shrink-0",
             )}
           >
             <option value="" disabled hidden>Bedrooms</option>
@@ -659,24 +743,27 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             ))}
           </select>
 
-          {/* Filters - button with drawer icon, toggles inline expand */}
+          {/* More filters toggle */}
           <button
             type="button"
             onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
             aria-expanded={moreFiltersOpen}
             aria-label="More filters"
             className={cn(
+              PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "inline-flex items-center justify-center gap-2 rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+              "shrink-0 justify-center",
+              moreFiltersOpen && "border-blue-500 text-blue-700 dark:border-blue-500 dark:text-blue-400",
             )}
           >
             <SlidersHorizontal className="h-4 w-4" />
             <span>More filters</span>
           </button>
         </div>
+
         {moreFiltersOpen && (
-          <div className="mt-3 space-y-4">
-            {moreFilters}
+          <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            {moreFiltersPanel}
           </div>
         )}
       </div>
@@ -691,7 +778,11 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     </>
   );
 
-  // Mobile layout (inline filters)
+  // ── Mobile layout ──────────────────────────────────────────────────────────
+  // Property type uses the same Popover component with asSheet=true so it
+  // slides up from the bottom — matching the Property24 mobile pattern.
+  // Min/Max prices and other filters remain as native <select> elements so
+  // the OS keyboard toolbar (with "Done") appears naturally on iOS/Android.
   const mobileContent = (
     <>
       {searchInput && (
@@ -699,40 +790,31 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           {searchInput}
         </div>
       )}
+
       <div className="mx-auto mt-3 w-full max-w-2xl space-y-3 lg:hidden">
-        <select
-          id="mobile-property-type"
-          name="property_type_id"
-          multiple
-          value={localPropertyTypeIds}
-          onChange={(event) => {
-            const options = Array.from(event.target.selectedOptions);
-            const vals = options.map((o) => o.value).filter((v) => v !== "all" && v !== "");
-            setLocalPropertyTypeIds(vals);
-          }}
-          className={cn(SelectClassName(), "min-h-[42px]")}
-        >
-          <option value="" disabled hidden>Property type</option>
-          <option value="all">All property types</option>
-          {propertyTypesQuery.data?.map((pt) => (
-            <option key={pt.property_type_id} value={pt.property_type_id}>
-              {pt.name}
-            </option>
-          ))}
-        </select>
+        {/* Property Type — bottom sheet on mobile */}
+        {propertyTypePopover({ isMobile: true })}
+
+        {/* Min / Max price row */}
         <div className="grid grid-cols-2 gap-3">
           {minPriceField("mobile-min-price")}
           {maxPriceField("mobile-max-price")}
         </div>
+
+        {/* Bedrooms / Bathrooms row */}
         <div className="grid grid-cols-2 gap-3">
           {bedroomsField("mobile-bedrooms")}
           {bathroomsField("mobile-bathrooms")}
         </div>
+
+        {/* More filters toggle */}
         <button
           type="button"
           className={cn(
+            PILL_CLS,
             UI_TOKENS.FILTER_PILL,
-            "inline-flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            "w-full justify-center gap-3 border border-gray-200",
+            moreFiltersOpen && "border-blue-500 text-blue-700",
           )}
           onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
           aria-expanded={moreFiltersOpen}
@@ -741,25 +823,28 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           <SlidersHorizontal className="h-4 w-4" />
           <span>More filters</span>
         </button>
+
         {moreFiltersOpen && (
-          <div className="space-y-4">
-            {moreFilters}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            {moreFiltersPanel}
           </div>
         )}
+
+        {/* Search / Apply button */}
         <Button
           type={variant === "hero" ? "submit" : "button"}
-          onClick={(e) => {
-            if (variant === "default") {
-              e.preventDefault();
-              const params = new URLSearchParams(searchParams.toString());
-              params.delete("property_type_id");
-              localPropertyTypeIds.forEach((id) => params.append("property_type_id", id));
-              router.push(`${pathname}?${params.toString()}`);
-            }
-          }}
+          onClick={
+            variant === "default"
+              ? () => {
+                  applyPropertyTypes(localPropertyTypeIds);
+                }
+              : undefined
+          }
           className={cn(
             "h-11 w-full rounded-xl text-sm font-medium text-white",
-            variant === "hero" ? "bg-gray-500 hover:bg-gray-600" : "bg-blue-600 hover:bg-blue-700"
+            variant === "hero"
+              ? "bg-gray-500 hover:bg-gray-600"
+              : "bg-blue-600 hover:bg-blue-700",
           )}
         >
           Search
@@ -774,25 +859,25 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     </>
   );
 
-  // Hero variant: dark background wrapper
+  // Hidden inputs so the hero-variant form submission picks up staged
+  // property type IDs (they live in React state, not a form control).
+  const hiddenPropertyTypeInputs = localPropertyTypeIds.map((id) => (
+    <input key={`pt-${id}`} type="hidden" name="property_type_id" value={id} />
+  ));
+
   if (variant === "hero") {
     return (
       <div className="space-y-3">
-        {localPropertyTypeIds.map(id => (
-          <input key={`pt-${id}`} type="hidden" name="property_type_id" value={id} />
-        ))}
+        {hiddenPropertyTypeInputs}
         {desktopContent}
         {mobileContent}
       </div>
     );
   }
 
-  // Default variant: no special wrapper
   return (
     <div className="mb-8 space-y-3">
-      {localPropertyTypeIds.map(id => (
-        <input key={`pt-${id}`} type="hidden" name="property_type_id" value={id} />
-      ))}
+      {hiddenPropertyTypeInputs}
       {desktopContent}
       {mobileContent}
     </div>
