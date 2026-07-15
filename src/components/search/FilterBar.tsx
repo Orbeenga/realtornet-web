@@ -61,12 +61,12 @@ interface FilterBarProps {
 // Shared class for native <select> elements inside dropdowns and the mobile
 // filter stack. Kept as a plain string — no function wrapper needed.
 const SELECT_CLS =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 bg-transparent dark:bg-transparent";
 
 // Class shared by every filter pill button on the desktop filter row.
 // Height, border, radius, and typography all derive from UI_TOKENS.FILTER_PILL.
 const PILL_CLS =
-  "inline-flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:border-blue-500 dark:hover:text-blue-400 cursor-pointer h-11";
+  "inline-flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-800 transition-colors hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:text-gray-100 dark:hover:border-blue-500 dark:hover:text-blue-400 cursor-pointer h-11 bg-transparent";
 
 export function FilterBar({
   variant = "default",
@@ -204,7 +204,7 @@ export function FilterBar({
 
       {/* Desktop: top-anchored dropdown. Mobile: bottom sheet. */}
       <PopoverContent
-        className={isMobile ? "p-0" : "w-56 p-0"}
+              className={isMobile ? "p-0 bg-transparent border-0 shadow-none rounded-none dark:bg-transparent dark:border-0" : "w-56 p-0 bg-transparent border-0 shadow-none rounded-none dark:bg-transparent dark:border-0"}
         align="start"
         asSheet={isMobile}
       >
@@ -303,12 +303,7 @@ export function FilterBar({
             size="sm"
             onClick={() => {
               setLocalPropertyTypeIds(stagedPropertyTypeIds);
-              // In default variant, apply immediately to URL on OK.
-              // In hero variant the selection is held in local state until
-              // the form is submitted via the Search button.
-              if (variant === "default") {
-                applyPropertyTypes(stagedPropertyTypeIds);
-              }
+              // Always stage the selection and close — do not apply immediately.
               setPropertyTypeOpen(false);
             }}
           >
@@ -317,7 +312,8 @@ export function FilterBar({
         </div>
       </PopoverContent>
     </Popover>
-  );
+    );
+  };
 
   // ── Min / Max price fields (inside More Filters on mobile, inline on desktop) ──
   const minPriceField = (id = "min-price") => (
@@ -579,12 +575,12 @@ export function FilterBar({
   const desktopContent = (
     <>
       {searchInput && (
-        <div className="mx-auto hidden w-full max-w-2xl lg:block">
+              <div className="mx-auto hidden w-full max-w-5xl lg:block">
           {searchInput}
         </div>
       )}
 
-      <div className="mx-auto hidden w-full max-w-2xl lg:block">
+      <div className="mx-auto hidden w-full max-w-5xl lg:block">
         {/* Scrollable, non-wrapping pill row */}
         <div className="flex w-full items-center gap-2 overflow-x-auto flex-nowrap pb-0.5">
           {/* Property Type — custom multi-select popover */}
@@ -731,14 +727,14 @@ export function FilterBar({
         </div>
 
         {moreFiltersOpen && (
-          <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <div className="mt-3 p-0">
             {moreFiltersPanel}
           </div>
         )}
       </div>
 
       {actions && (
-        <div className="mx-auto hidden w-full max-w-2xl lg:flex">
+        <div className="mx-auto hidden w-full max-w-5xl lg:flex">
           <div className="mx-auto flex w-full items-center justify-between">
             {actions}
           </div>
@@ -755,12 +751,12 @@ export function FilterBar({
   const mobileContent = (
     <>
       {searchInput && (
-        <div className="mx-auto mt-3 w-full max-w-2xl lg:hidden">
+              <div className="mx-auto mt-3 w-full max-w-5xl lg:hidden">
           {searchInput}
         </div>
       )}
 
-      <div className="mx-auto mt-3 w-full max-w-2xl space-y-3 lg:hidden">
+      <div className="mx-auto mt-3 w-full max-w-5xl space-y-3 lg:hidden">
         {/* Property Type — bottom sheet on mobile */}
         {propertyTypePopover({ isMobile: true })}
 
@@ -794,7 +790,7 @@ export function FilterBar({
         </button>
 
         {moreFiltersOpen && (
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <div className="p-0">
             {moreFiltersPanel}
           </div>
         )}
@@ -821,7 +817,7 @@ export function FilterBar({
       </div>
 
       {actions && (
-        <div className="mx-auto mt-3 w-full max-w-2xl lg:hidden">
+        <div className="mx-auto mt-3 w-full max-w-5xl lg:hidden">
           {actions}
         </div>
       )}
