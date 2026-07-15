@@ -205,7 +205,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
               {localPropertyTypeIds.length === 0
                 ? "Property type"
                 : localPropertyTypeIds.length === 1
-                ? propertyTypesQuery.data?.find((pt) => pt.property_type_id === localPropertyTypeIds[0])?.name || "1 selected"
+                ? propertyTypesQuery.data?.find((pt) => String(pt.property_type_id) === localPropertyTypeIds[0])?.name || "1 selected"
                 : `${localPropertyTypeIds.length} selected`}
             </span>
             <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
@@ -214,7 +214,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         <PopoverContent className="w-56 p-0" align="start">
           <div className="max-h-60 overflow-y-auto p-1">
             {propertyTypesQuery.data?.map((pt) => {
-              const checked = stagedPropertyTypeIds.includes(pt.property_type_id);
+              const checked = stagedPropertyTypeIds.includes(String(pt.property_type_id));
               return (
                 <label
                   key={pt.property_type_id}
@@ -225,9 +225,9 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
                     checked={checked}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setStagedPropertyTypeIds([...stagedPropertyTypeIds, pt.property_type_id]);
+                        setStagedPropertyTypeIds([...stagedPropertyTypeIds, String(pt.property_type_id)]);
                       } else {
-                        setStagedPropertyTypeIds(stagedPropertyTypeIds.filter((ptId) => ptId !== pt.property_type_id));
+                        setStagedPropertyTypeIds(stagedPropertyTypeIds.filter((ptId) => ptId !== String(pt.property_type_id)));
                       }
                     }}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
