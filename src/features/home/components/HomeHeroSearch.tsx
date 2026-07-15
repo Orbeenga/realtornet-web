@@ -57,7 +57,9 @@ export function HomeHeroSearch() {
     }
   }, [suggestions, selectedLocationId, locationQuery]);
 
-  const buildSearchParams = () => {
+  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
     const params = new URLSearchParams();
 
     if (locationQuery.trim()) {
@@ -69,6 +71,12 @@ export function HomeHeroSearch() {
       params.delete("search");
     }
 
+    for (const [key, value] of formData.entries()) {
+      if (value && value !== "all" && value !== "custom" && key !== "search" && key !== "location_id") {
+        params.append(key, value as string);
+      }
+    }
+
     try {
       if (typeof window !== "undefined") {
         const savedSort = localStorage.getItem("rn_sort");
@@ -78,11 +86,7 @@ export function HomeHeroSearch() {
       }
     } catch {}
 
-    return params.toString();
-  };
-
-  const handleSearch = () => {
-    const query = buildSearchParams();
+    const query = params.toString();
     router.push(query ? `/properties/?${query}` : "/properties/");
   };
 
@@ -143,10 +147,7 @@ export function HomeHeroSearch() {
   return (
     <form
       className="mx-auto w-full max-w-2xl space-y-5"
-      onSubmit={(event) => {
-        event.preventDefault();
-        handleSearch();
-      }}
+      onSubmit={handleSearch}
     >
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         {searchInput}

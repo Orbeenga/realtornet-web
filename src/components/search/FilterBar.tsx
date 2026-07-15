@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/Input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 import {
   LISTING_STATUSES,
   LISTING_STATUS_LABELS,
@@ -84,8 +86,22 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   const [localMinPrice, setLocalMinPrice] = useState("");
   const [localMaxPrice, setLocalMaxPrice] = useState("");
 
-  // Extract filter values from URL params
   const propertyTypeIds = searchParams.getAll("property_type_id");
+  const [localPropertyTypeIds, setLocalPropertyTypeIds] = useState<string[]>(propertyTypeIds);
+  const [propertyTypePopoverOpen, setPropertyTypePopoverOpen] = useState(false);
+  const [stagedPropertyTypeIds, setStagedPropertyTypeIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setLocalPropertyTypeIds(propertyTypeIds);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (propertyTypePopoverOpen) {
+      setStagedPropertyTypeIds(localPropertyTypeIds);
+    }
+  }, [propertyTypePopoverOpen, localPropertyTypeIds]);
+
+  // Extract filter values from URL params
   const minPrice = searchParams.get("min_price") || "";
   const maxPrice = searchParams.get("max_price") || "";
   const bedrooms = searchParams.get("bedrooms") || "";
@@ -170,44 +186,90 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   }, [minPrice, maxPrice]);
 
   // Filter field renderers
-  const propertyTypeField = (id = "property-type") => (
-    <div>
-      <select
-        id={id}
-        value={propertyTypeIds[0] || ""}
-        onChange={(event) => {
-          const val = event.target.value;
-          if (val === "close") {
-            event.target.value = propertyTypeIds[0] || "";
-            return;
-          }
-          updateFilter("property_type_id", val === "all" ? "" : val);
-        }}
-        className={SelectClassName()}
-      >
-        <option value="" disabled hidden>Property type</option>
-        <option value="all">All property types</option>
-        {propertyTypesQuery.data?.map((pt) => (
-          <option key={pt.property_type_id} value={pt.property_type_id}>
-            {pt.name}
-          </option>
-        ))}
-        <option value="close">Close</option>
-      </select>
-    </div>
-  );
+  const propertyTypeField = (id = "property-type") => {
+    const isMobile = id === "mobile-property-type";
+    return (
+      <Popover open={propertyTypePopoverOpen} onOpenChange={setPropertyTypePopoverOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            id={id}
+            aria-label="Property type"
+            className={cn(
+              isMobile ? "w-full justify-between" : "w-36 justify-between",
+              UI_TOKENS.FILTER_PILL,
+              "inline-flex items-center rounded-xl border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
+            )}
+          >
+            <span className="truncate">
+              {localPropertyTypeIds.length === 0
+                ? "Property type"
+                : localPropertyTypeIds.length === 1
+                ? propertyTypesQuery.data?.find((pt) => pt.property_type_id === localPropertyTypeIds[0])?.name || "1 selected"
+                : `${localPropertyTypeIds.length} selected`}
+            </span>
+            <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-0" align="start">
+          <div className="max-h-60 overflow-y-auto p-1">
+            {propertyTypesQuery.data?.map((pt) => {
+              const checked = stagedPropertyTypeIds.includes(pt.property_type_id);
+              return (
+                <label
+                  key={pt.property_type_id}
+                  className="flex cursor-pointer items-center space-x-3 rounded-md px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setStagedPropertyTypeIds([...stagedPropertyTypeIds, pt.property_type_id]);
+                      } else {
+                        setStagedPropertyTypeIds(stagedPropertyTypeIds.filter((ptId) => ptId !== pt.property_type_id));
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-200">{pt.name}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-end border-t border-gray-200 p-2 dark:border-gray-700 space-x-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPropertyTypePopoverOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setLocalPropertyTypeIds(stagedPropertyTypeIds);
+                setPropertyTypePopoverOpen(false);
+              }}
+            >
+              OK
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   const minPriceField = (id = "min-price") => (
     <div className="space-y-2">
       <select
         id={id}
+        name="min_price"
         value={minSelectValue || ""}
         onChange={(event) => {
           const val = event.target.value;
-          if (val === "close") {
-            event.target.value = minSelectValue || "";
-            return;
-          }
           if (val === "custom") {
             setCustomMinMode(true);
             updateFilter("min_price", "");
@@ -226,7 +288,6 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           </option>
         ))}
         <option value="custom">Custom Price</option>
-        <option value="close">Close</option>
       </select>
       {showCustomMin ? (
         <div className="space-y-2">
@@ -278,13 +339,10 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     <div className="space-y-2">
       <select
         id={id}
+        name="max_price"
         value={maxSelectValue || ""}
         onChange={(event) => {
           const val = event.target.value;
-          if (val === "close") {
-            event.target.value = maxSelectValue || "";
-            return;
-          }
           if (val === "custom") {
             setCustomMaxMode(true);
             updateFilter("max_price", "");
@@ -303,7 +361,6 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           </option>
         ))}
         <option value="custom">Custom Price</option>
-        <option value="close">Close</option>
       </select>
       {showCustomMax ? (
         <div className="space-y-2">
@@ -355,6 +412,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     <div>
       <select
         id={id}
+        name="bedrooms"
         value={bedrooms || ""}
         onChange={(event) => {
           const val = event.target.value;
@@ -377,6 +435,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
     <div>
       <select
         id={id}
+        name="bathrooms"
         value={bathrooms || ""}
         onChange={(event) => {
           const val = event.target.value;
@@ -412,6 +471,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         <div>
           <select
             id="listing-type"
+            name="listing_type"
             value={listingType || ""}
             onChange={(event) => {
               const val = event.target.value;
@@ -432,6 +492,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
         <div>
           <select
             id="listing-status"
+            name="listing_status"
             value={listingStatus || ""}
             onChange={(event) => {
               const val = event.target.value;
@@ -439,7 +500,7 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
             }}
             className={SelectClassName()}
           >
-            <option value="" disabled hidden>Status</option>
+            <option value="" disabled hidden>Listing status</option>
             <option value="all">All statuses</option>
             {LISTING_STATUSES.map((status) => (
               <option key={status} value={status}>
@@ -467,27 +528,8 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
 
       <div className="mx-auto hidden w-full max-w-2xl lg:block">
         <div className="flex w-full min-w-0 items-center gap-3 flex-wrap">
-          {/* Property Type - native select */}
-          <select
-            value={propertyTypeIds[0] || ""}
-            onChange={(event) => {
-              const val = event.target.value;
-              updateFilter("property_type_id", val === "all" ? "" : val);
-            }}
-            aria-label="Property type"
-            className={cn(
-              UI_TOKENS.FILTER_PILL,
-              "inline-flex w-auto items-center rounded-xl border-gray-200 bg-white text-sm font-medium text-gray-800 shadow-sm transition hover:border-blue-200 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 cursor-pointer"
-            )}
-          >
-            <option value="" disabled hidden>Property type</option>
-            <option value="all">All property types</option>
-            {propertyTypesQuery.data?.map((pt) => (
-              <option key={pt.property_type_id} value={pt.property_type_id}>
-                {pt.name}
-              </option>
-            ))}
-          </select>
+          {/* Property Type Custom Popover */}
+          {propertyTypeField("desktop-property-type")}
 
           {/* Min Price - native select */}
           <select
@@ -686,7 +728,16 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
           </div>
         )}
         <Button
-          type="submit"
+          type={variant === "hero" ? "submit" : "button"}
+          onClick={(e) => {
+            if (variant === "default") {
+              e.preventDefault();
+              const params = new URLSearchParams(searchParams.toString());
+              params.delete("property_type_id");
+              localPropertyTypeIds.forEach((id) => params.append("property_type_id", id));
+              router.push(`${pathname}?${params.toString()}`);
+            }
+          }}
           className={cn(
             "h-11 w-full rounded-xl text-sm font-medium text-white",
             variant === "hero" ? "bg-gray-500 hover:bg-gray-600" : "bg-blue-600 hover:bg-blue-700"
@@ -708,6 +759,9 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   if (variant === "hero") {
     return (
       <div className="space-y-3">
+        {localPropertyTypeIds.map(id => (
+          <input key={`pt-${id}`} type="hidden" name="property_type_id" value={id} />
+        ))}
         {desktopContent}
         {mobileContent}
       </div>
@@ -717,6 +771,9 @@ export function FilterBar({ variant = "default", searchInput, actions, showLocat
   // Default variant: no special wrapper
   return (
     <div className="mb-8 space-y-3">
+      {localPropertyTypeIds.map(id => (
+        <input key={`pt-${id}`} type="hidden" name="property_type_id" value={id} />
+      ))}
       {desktopContent}
       {mobileContent}
     </div>
