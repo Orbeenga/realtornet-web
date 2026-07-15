@@ -66,7 +66,7 @@ const SELECT_CLS =
 // Class shared by every filter pill button on the desktop filter row.
 // Height, border, radius, and typography all derive from UI_TOKENS.FILTER_PILL.
 const PILL_CLS =
-  "inline-flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:border-blue-500 dark:hover:text-blue-400 cursor-pointer";
+  "inline-flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:border-blue-500 dark:hover:text-blue-400 cursor-pointer h-11";
 
 export function FilterBar({
   variant = "default",
@@ -129,21 +129,6 @@ export function FilterBar({
   const maxSelectValue = showCustomMax ? "custom" : maxPrice;
 
   // ── URL update helpers ────────────────────────────────────────────────────
-  const updateFilter = useCallback(
-    (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
-      }
-      params.delete("page");
-      const query = params.toString();
-      router.push(query ? `${pathname}?${query}` : pathname);
-    },
-    [pathname, router, searchParams],
-  );
-
   const applyPropertyTypes = useCallback(
     (ids: string[]) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -184,14 +169,8 @@ export function FilterBar({
   }, [minPrice, maxPrice]);
 
   // ── Property Type label shown on the trigger button ───────────────────────
-  const propertyTypeLabel =
-    localPropertyTypeIds.length === 0
-      ? "Property type"
-      : localPropertyTypeIds.length === 1
-        ? (propertyTypesQuery.data?.find(
-            (pt) => String(pt.property_type_id) === localPropertyTypeIds[0],
-          )?.name ?? "1 selected")
-        : `${localPropertyTypeIds.length} selected`;
+  // Always show permanent label "Property Type" as per spec
+  const propertyTypeLabel = "Property Type";
 
   // ── Property Type Popover (desktop: anchored dropdown, mobile: bottom sheet) ──
   // The Popover component itself handles outside-click dismissal. The content
@@ -244,7 +223,7 @@ export function FilterBar({
           )}
         >
           <span className="text-sm font-semibold text-gray-900 dark:text-white">
-            Property type
+            Property Type
           </span>
           {localPropertyTypeIds.length > 0 && (
             <button
@@ -269,6 +248,21 @@ export function FilterBar({
             isMobile ? "max-h-[50vh]" : "max-h-60",
           )}
         >
+          <li role="option" aria-selected={stagedPropertyTypeIds.length === 0}>
+            <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <input
+                type="checkbox"
+                checked={stagedPropertyTypeIds.length === 0}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setStagedPropertyTypeIds([]);
+                  }
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-200">All Property Types</span>
+            </label>
+          </li>
           {propertyTypesQuery.data?.map((pt) => {
             const ptId = String(pt.property_type_id);
             const checked = stagedPropertyTypeIds.includes(ptId);
@@ -336,16 +330,16 @@ export function FilterBar({
           const val = event.target.value;
           if (val === "custom") {
             setCustomMinMode(true);
-            updateFilter("min_price", "");
+            // Don't update filter immediately - staged selection
             return;
           }
           setCustomMinMode(false);
-          updateFilter("min_price", val === "all" ? "" : val);
+          // Don't update filter immediately - staged selection
         }}
         className={SELECT_CLS}
       >
-        <option value="" disabled hidden>Min price</option>
-        <option value="all">Any</option>
+        <option value="" disabled hidden>Min Price</option>
+        <option value="all">Any Price</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -367,13 +361,7 @@ export function FilterBar({
               value={localMinPrice}
               placeholder="Enter amount"
               onChange={(event) => setLocalMinPrice(event.target.value)}
-              onBlur={() => updateFilter("min_price", localMinPrice)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  updateFilter("min_price", localMinPrice);
-                }
-              }}
+              // Don't update filter immediately - staged selection
               aria-label="Min price custom value"
               className="pl-12"
             />
@@ -385,7 +373,7 @@ export function FilterBar({
               size="sm"
               onClick={() => {
                 setLocalMinPrice("");
-                updateFilter("min_price", "");
+                // Don't update filter immediately - staged selection
               }}
             >
               Clear
@@ -393,7 +381,9 @@ export function FilterBar({
             <Button
               type="button"
               size="sm"
-              onClick={() => updateFilter("min_price", localMinPrice)}
+              onClick={() => {
+                // Don't update filter immediately - staged selection
+              }}
             >
               Apply
             </Button>
@@ -413,16 +403,16 @@ export function FilterBar({
           const val = event.target.value;
           if (val === "custom") {
             setCustomMaxMode(true);
-            updateFilter("max_price", "");
+            // Don't update filter immediately - staged selection
             return;
           }
           setCustomMaxMode(false);
-          updateFilter("max_price", val === "all" ? "" : val);
+          // Don't update filter immediately - staged selection
         }}
         className={SELECT_CLS}
       >
-        <option value="" disabled hidden>Max price</option>
-        <option value="all">Any</option>
+        <option value="" disabled hidden>Max Price</option>
+        <option value="all">Any Price</option>
         {PRICE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -444,13 +434,7 @@ export function FilterBar({
               value={localMaxPrice}
               placeholder="Enter amount"
               onChange={(event) => setLocalMaxPrice(event.target.value)}
-              onBlur={() => updateFilter("max_price", localMaxPrice)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  updateFilter("max_price", localMaxPrice);
-                }
-              }}
+              // Don't update filter immediately - staged selection
               aria-label="Max price custom value"
               className="pl-12"
             />
@@ -462,7 +446,7 @@ export function FilterBar({
               size="sm"
               onClick={() => {
                 setLocalMaxPrice("");
-                updateFilter("max_price", "");
+                // Don't update filter immediately - staged selection
               }}
             >
               Clear
@@ -470,7 +454,9 @@ export function FilterBar({
             <Button
               type="button"
               size="sm"
-              onClick={() => updateFilter("max_price", localMaxPrice)}
+              onClick={() => {
+                // Don't update filter immediately - staged selection
+              }}
             >
               Apply
             </Button>
@@ -486,9 +472,8 @@ export function FilterBar({
         id={id}
         name="bedrooms"
         value={bedrooms || ""}
-        onChange={(event) => {
-          const val = event.target.value;
-          updateFilter("bedrooms", val === "all" ? "" : val);
+        onChange={() => {
+          // Don't update filter immediately - staged selection
         }}
         className={SELECT_CLS}
       >
@@ -509,9 +494,8 @@ export function FilterBar({
         id={id}
         name="bathrooms"
         value={bathrooms || ""}
-        onChange={(event) => {
-          const val = event.target.value;
-          updateFilter("bathrooms", val === "all" ? "" : val);
+        onChange={() => {
+          // Don't update filter immediately - staged selection
         }}
         className={SELECT_CLS}
       >
@@ -546,14 +530,13 @@ export function FilterBar({
             id="listing-type"
             name="listing_type"
             value={listingType || ""}
-            onChange={(event) => {
-              const val = event.target.value;
-              updateFilter("listing_type", val === "all" ? "" : val);
+            onChange={() => {
+              // Don't update filter immediately - staged selection
             }}
             className={SELECT_CLS}
           >
-            <option value="" disabled hidden>Listing type</option>
-            <option value="all">All listing types</option>
+            <option value="" disabled hidden>Listing Type</option>
+            <option value="all">All Listing Types</option>
             {LISTING_TYPES.map((type) => (
               <option key={type} value={type}>
                 {LISTING_TYPE_LABELS[type]}
@@ -567,14 +550,13 @@ export function FilterBar({
             id="listing-status"
             name="listing_status"
             value={listingStatus || ""}
-            onChange={(event) => {
-              const val = event.target.value;
-              updateFilter("listing_status", val === "all" ? "" : val);
+            onChange={() => {
+              // Don't update filter immediately - staged selection
             }}
             className={SELECT_CLS}
           >
-            <option value="" disabled hidden>Listing status</option>
-            <option value="all">All statuses</option>
+            <option value="" disabled hidden>Listing Status</option>
+            <option value="all">All Statuses</option>
             {LISTING_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {LISTING_STATUS_LABELS[status]}
@@ -616,20 +598,20 @@ export function FilterBar({
               const val = event.target.value;
               if (val === "custom") {
                 setCustomMinMode(true);
-                updateFilter("min_price", "");
+                // Don't update filter immediately - staged selection
                 return;
               }
               setCustomMinMode(false);
-              updateFilter("min_price", val === "all" ? "" : val);
+              // Don't update filter immediately - staged selection
             }}
             className={cn(
               PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "shrink-0",
+              "shrink-0 h-11",
             )}
           >
-            <option value="" disabled hidden>Min price</option>
-            <option value="all">Any</option>
+            <option value="" disabled hidden>Min Price</option>
+            <option value="all">Any Price</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -650,16 +632,10 @@ export function FilterBar({
                 inputMode="numeric"
                 value={localMinPrice}
                 placeholder="Min"
-                onChange={(event) => setLocalMinPrice(event.target.value)}
-                onBlur={() => updateFilter("min_price", localMinPrice)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    updateFilter("min_price", localMinPrice);
-                  }
-                }}
+                onChange={(e) => setLocalMinPrice(e.target.value)}
+                // Don't update filter immediately - staged selection
                 aria-label="Custom min price"
-                className="pl-12 w-28"
+                className={cn("pl-12 w-28", UI_TOKENS.FILTER_PILL)}
               />
             </div>
           )}
@@ -672,20 +648,20 @@ export function FilterBar({
               const val = event.target.value;
               if (val === "custom") {
                 setCustomMaxMode(true);
-                updateFilter("max_price", "");
+                // Don't update filter immediately - staged selection
                 return;
               }
               setCustomMaxMode(false);
-              updateFilter("max_price", val === "all" ? "" : val);
+              // Don't update filter immediately - staged selection
             }}
             className={cn(
               PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "shrink-0",
+              "shrink-0 h-11",
             )}
           >
-            <option value="" disabled hidden>Max price</option>
-            <option value="all">Any</option>
+            <option value="" disabled hidden>Max Price</option>
+            <option value="all">Any Price</option>
             {PRICE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -706,16 +682,10 @@ export function FilterBar({
                 inputMode="numeric"
                 value={localMaxPrice}
                 placeholder="Max"
-                onChange={(event) => setLocalMaxPrice(event.target.value)}
-                onBlur={() => updateFilter("max_price", localMaxPrice)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    updateFilter("max_price", localMaxPrice);
-                  }
-                }}
+                onChange={(e) => setLocalMaxPrice(e.target.value)}
+                // Don't update filter immediately - staged selection
                 aria-label="Custom max price"
-                className="pl-12 w-28"
+                className={cn("pl-12 w-28", UI_TOKENS.FILTER_PILL)}
               />
             </div>
           )}
@@ -724,14 +694,13 @@ export function FilterBar({
           <select
             aria-label="Bedrooms"
             value={bedrooms || ""}
-            onChange={(event) => {
-              const val = event.target.value;
-              updateFilter("bedrooms", val === "all" ? "" : val);
+            onChange={() => {
+              // Don't update filter immediately - staged selection
             }}
             className={cn(
               PILL_CLS,
               UI_TOKENS.FILTER_PILL,
-              "shrink-0",
+              "shrink-0 h-11",
             )}
           >
             <option value="" disabled hidden>Bedrooms</option>
@@ -813,7 +782,7 @@ export function FilterBar({
           className={cn(
             PILL_CLS,
             UI_TOKENS.FILTER_PILL,
-            "w-full justify-center gap-3 border border-gray-200",
+            "w-full justify-center gap-3 border border-gray-200 h-11",
             moreFiltersOpen && "border-blue-500 text-blue-700",
           )}
           onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
@@ -821,7 +790,7 @@ export function FilterBar({
           aria-label="More filters"
         >
           <SlidersHorizontal className="h-4 w-4" />
-          <span>More filters</span>
+          <span>More Filters</span>
         </button>
 
         {moreFiltersOpen && (
@@ -843,7 +812,7 @@ export function FilterBar({
           className={cn(
             "h-11 w-full rounded-xl text-sm font-medium text-white",
             variant === "hero"
-              ? "bg-gray-500 hover:bg-gray-600"
+              ? "bg-gray-400 hover:bg-gray-500"
               : "bg-blue-600 hover:bg-blue-700",
           )}
         >

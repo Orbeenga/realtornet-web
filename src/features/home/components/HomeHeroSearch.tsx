@@ -153,7 +153,7 @@ export function HomeHeroSearch() {
         {searchInput}
         <Button
           type="submit"
-          className="hidden h-12 shrink-0 rounded-xl bg-gray-500 px-5 text-sm font-medium text-white hover:bg-gray-600 lg:inline-flex"
+          className="hidden h-12 shrink-0 rounded-xl bg-gray-400 px-5 text-sm font-medium text-white hover:bg-gray-500 lg:inline-flex"
         >
           Search
         </Button>
