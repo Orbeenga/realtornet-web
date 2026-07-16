@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useRef, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/Input";
@@ -16,6 +16,7 @@ import { usePropertyTypes } from "@/features/properties/hooks";
 import { LocationCascadeSelector } from "@/features/locations/components/LocationCascadeSelector";
 import { cn } from "@/lib/utils";
 import { UI_TOKENS } from "@/lib/ui-tokens";
+import PropertyTypeFilter from "@/components/search/PropertyTypeFilter";
 
 const PRICE_OPTIONS = [
   { value: "500000", label: "NGN 500k" },
@@ -85,27 +86,11 @@ export function FilterBar({
   const [localMinPrice, setLocalMinPrice] = useState("");
   const [localMaxPrice, setLocalMaxPrice] = useState("");
 
-  // ── Property Type multi-select state ─────────────────────────────────────
-  // localPropertyTypeIds: committed selection (reflects URL / applied filters)
-  // stagedPropertyTypeIds: in-flight selection inside the open popover
-  // Both hold stringified IDs so they match URL param values directly.
+  // Property Type selection handled by PropertyTypeFilter component.
+  // Provide initial values from URL and a ref to access committed selections.
   const urlPropertyTypeIds = searchParams.getAll("property_type_id");
-  const [localPropertyTypeIds, setLocalPropertyTypeIds] = useState<string[]>(urlPropertyTypeIds);
-  const [stagedPropertyTypeIds, setStagedPropertyTypeIds] = useState<string[]>([]);
-  const [propertyTypeOpen, setPropertyTypeOpen] = useState(false);
-
-  // Keep local state in sync when the URL changes (e.g. browser back/forward).
-  useEffect(() => {
-    setLocalPropertyTypeIds(searchParams.getAll("property_type_id"));
-  }, [searchParams]);
-
-  // When the popover opens, copy committed selection into staged so the user
-  // can cancel without affecting the applied state.
-  useEffect(() => {
-    if (propertyTypeOpen) {
-      setStagedPropertyTypeIds(localPropertyTypeIds);
-    }
-  }, [propertyTypeOpen, localPropertyTypeIds]);
+  const propertyTypeRef = useRef<{ getCommittedIds: () => string[]; open: () => void; openMobile: () => void } | null>(null);
+  const [committedPropertyTypeIds, setCommittedPropertyTypeIds] = useState<string[]>(urlPropertyTypeIds);
 
   // ── Filter values from URL ────────────────────────────────────────────────
   const minPrice = searchParams.get("min_price") || "";
@@ -176,143 +161,6 @@ export function FilterBar({
   // The Popover component itself handles outside-click dismissal. The content
   // ref is threaded via context so clicks inside the floating panel are never
   // misidentified as "outside" clicks — see popover.tsx.
-  const propertyTypePopover = (
-    { isMobile }: { isMobile: boolean },
-  ) => (
-    <Popover open={propertyTypeOpen} onOpenChange={setPropertyTypeOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          id={isMobile ? "mobile-property-type" : "desktop-property-type"}
-          aria-haspopup="listbox"
-          aria-expanded={propertyTypeOpen}
-          className={cn(
-            PILL_CLS,
-            UI_TOKENS.FILTER_PILL,
-            isMobile ? "w-full justify-between" : "w-[134px] justify-between",
-          )}
-        >
-          <span className="truncate">{propertyTypeLabel}</span>
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 opacity-50 transition-transform",
-              propertyTypeOpen && "rotate-180",
-            )}
-          />
-        </button>
-      </PopoverTrigger>
-
-      {/* Desktop: top-anchored dropdown. Mobile: bottom sheet. */}
-      <PopoverContent
-              className={isMobile ? "p-0 bg-transparent border-0 shadow-none rounded-none dark:bg-transparent dark:border-0" : "w-56 p-0 bg-transparent border-0 shadow-none rounded-none dark:bg-transparent dark:border-0"}
-        align="start"
-        asSheet={isMobile}
-      >
-        {/* Sheet drag handle — mobile only */}
-        {isMobile && (
-          <div className="flex items-center justify-center py-3">
-            <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
-          </div>
-        )}
-
-        {/* Sheet / dropdown title */}
-        <div
-          className={cn(
-            "flex items-center justify-between px-4",
-            isMobile ? "pb-2" : "py-2 border-b border-gray-100 dark:border-gray-800",
-          )}
-        >
-          <span className="text-sm font-semibold text-gray-900 dark:text-white">
-            Property Type
-          </span>
-          {localPropertyTypeIds.length > 0 && (
-            <button
-              type="button"
-              className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-              onClick={() => {
-                setStagedPropertyTypeIds([]);
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Option list */}
-        <ul
-          role="listbox"
-          aria-multiselectable="true"
-          aria-label="Property type"
-          className={cn(
-            "overflow-y-auto py-1",
-            isMobile ? "max-h-[50vh]" : "max-h-60",
-          )}
-        >
-          <li role="option" aria-selected={stagedPropertyTypeIds.length === 0}>
-            <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800">
-              <input
-                type="checkbox"
-                checked={stagedPropertyTypeIds.length === 0}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setStagedPropertyTypeIds([]);
-                  }
-                }}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-200">All Property Types</span>
-            </label>
-          </li>
-          {propertyTypesQuery.data?.map((pt) => {
-            const ptId = String(pt.property_type_id);
-            const checked = stagedPropertyTypeIds.includes(ptId);
-            return (
-              <li key={ptId} role="option" aria-selected={checked}>
-                <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => {
-                      setStagedPropertyTypeIds(
-                        e.target.checked
-                          ? [...stagedPropertyTypeIds, ptId]
-                          : stagedPropertyTypeIds.filter((id) => id !== ptId),
-                      );
-                    }}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-200">{pt.name}</span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* Footer: Cancel + OK */}
-        <div className="flex items-center justify-end gap-2 border-t border-gray-200 p-3 dark:border-gray-700">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setPropertyTypeOpen(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              setLocalPropertyTypeIds(stagedPropertyTypeIds);
-              // Always stage the selection and close — do not apply immediately.
-              setPropertyTypeOpen(false);
-            }}
-          >
-            OK
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-    );
 
   // ── Min / Max price fields (inside More Filters on mobile, inline on desktop) ──
   const minPriceField = (id = "min-price") => (
@@ -582,8 +430,13 @@ export function FilterBar({
       <div className="mx-auto hidden w-full max-w-5xl lg:block">
         {/* Scrollable, non-wrapping pill row */}
         <div className="flex w-full items-center gap-2 overflow-x-auto flex-nowrap pb-0.5">
-          {/* Property Type — custom multi-select popover */}
-          {propertyTypePopover({ isMobile: false })}
+          {/* Property Type — canonical component (desktop trigger + popover) */}
+          <PropertyTypeFilter
+            ref={propertyTypeRef as any}
+            initialIds={urlPropertyTypeIds}
+            onCommit={(ids) => setCommittedPropertyTypeIds(ids)}
+            className="w-[134px] justify-between"
+          />
 
           {/* Min Price */}
           <select
@@ -756,8 +609,25 @@ export function FilterBar({
       )}
 
       <div className="mx-auto mt-3 w-full max-w-5xl space-y-3 lg:hidden">
-        {/* Property Type — bottom sheet on mobile */}
-        {propertyTypePopover({ isMobile: true })}
+        {/* Property Type — mobile trigger opens the canonical PropertyTypeFilter sheet */}
+        <button
+          type="button"
+          id="mobile-property-type"
+          aria-haspopup="listbox"
+          onClick={() => propertyTypeRef.current?.openMobile()}
+          className={cn(
+            PILL_CLS,
+            UI_TOKENS.FILTER_PILL,
+            "w-full justify-between",
+          )}
+        >
+          <span className="truncate">{propertyTypeLabel}</span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 opacity-50 transition-transform",
+            )}
+          />
+        </button>
 
         {/* Min / Max price row */}
         <div className="grid grid-cols-2 gap-3">
@@ -803,16 +673,17 @@ export function FilterBar({
                   const params = new URLSearchParams(searchParams.toString());
                   // Replace property type ids with staged/local selection
                   params.delete("property_type_id");
-                  localPropertyTypeIds.forEach((id) => params.append("property_type_id", id));
-                  // Apply staged custom min/max prices if present
-                  if (localMinPrice) params.set("min_price", localMinPrice);
-                  else params.delete("min_price");
-                  if (localMaxPrice) params.set("max_price", localMaxPrice);
-                  else params.delete("max_price");
-                  params.delete("page");
-                  const query = params.toString();
-                  router.push(query ? `${pathname}?${query}` : pathname);
-                }
+                const committed = propertyTypeRef.current?.getCommittedIds() ?? urlPropertyTypeIds;
+                committed.forEach((id) => params.append("property_type_id", id));
+                // Apply staged custom min/max prices if present
+                if (localMinPrice) params.set("min_price", localMinPrice);
+                else params.delete("min_price");
+                if (localMaxPrice) params.set("max_price", localMaxPrice);
+                else params.delete("max_price");
+                params.delete("page");
+                const query = params.toString();
+                router.push(query ? `${pathname}?${query}` : pathname);
+              }
               : undefined
           }
           className={cn(
@@ -836,7 +707,8 @@ export function FilterBar({
 
   // Hidden inputs so the hero-variant form submission picks up staged
   // property type IDs (they live in React state, not a form control).
-  const hiddenPropertyTypeInputs = localPropertyTypeIds.map((id) => (
+  const committedIds = committedPropertyTypeIds;
+  const hiddenPropertyTypeInputs = committedIds.map((id) => (
     <input key={`pt-${id}`} type="hidden" name="property_type_id" value={id} />
   ));
 
