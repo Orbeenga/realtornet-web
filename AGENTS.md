@@ -6,6 +6,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Frontend Agent Instructions
 
+## Active Worktrees (update whenever one is created or removed)
+
+| Path | Branch | Purpose | Status |
+|---|---|---|---|
+| `C:\Users\Apine\realtornet-web` (primary) | `main` | primary checkout | active |
+| `C:\Users\Apine\realtornet-web.worktrees\agents-homepage-filters-ui-adjustments` | `agents/homepage-filters-ui-adjustments` | Homepage filter bar rebuild (P0–P8, see canonical spec) | active — this is the only branch that may touch `FilterBar.tsx` / `PropertyTypeFilter.tsx` until merged |
+
+Before editing any file listed as owned by a specific worktree above, run the git-identity pre-flight from SOP.md and confirm you are in the correct directory and branch.
+
 ## API Layer Rules
 
 - No `fetch()` calls inside components; use hooks in `/features/*/hooks/`.
@@ -43,3 +52,4 @@ pnpm gen:types
 
 - Staging credentials live only in the vault. Read `C:\Users\Apine\realtornet\.secrets\staging-credentials.local.md` for current staging values. Use them for local browser verification, API checks, and test execution. Never copy their contents into tracked files, commit them, or paste them into GitHub or chat.
 - See backend `SOP.md` §Secrets and local credential access for the full procedure.
+
