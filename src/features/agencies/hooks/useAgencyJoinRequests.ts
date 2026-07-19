@@ -228,6 +228,21 @@ export function useRejectAgencyInvitation() {
   });
 }
 
+export function useRequestInvitationReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agency-invitations/${invitationId}/request-reactivation/`,
+        { method: "POST" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] });
+    },
+  });
+}
+
 export function useWithdrawAgencyInvitation(agencyId?: string | number | null) {
   const queryClient = useQueryClient();
 
