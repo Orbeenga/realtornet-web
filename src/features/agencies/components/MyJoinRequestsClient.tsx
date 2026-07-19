@@ -16,8 +16,10 @@ import {
   useMyAgencyJoinRequests,
   useMyAgencyMemberships,
   useRejectAgencyInvitation,
+  useRequestInvitationReactivation,
 } from "@/features/agencies/hooks";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
+import { resolveInvitationAmbientMessage } from "@/lib/membership-lifecycle-messages";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
 
@@ -60,7 +62,7 @@ export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "cancelled">("pending");
-  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked">("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
@@ -77,6 +79,7 @@ export function MyJoinRequestsClient() {
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
   const cancelJoinRequest = useCancelAgencyJoinRequest();
+  const requestReactivation = useRequestInvitationReactivation();
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
@@ -128,6 +131,20 @@ export function MyJoinRequestsClient() {
       notify.success("Invitation rejected");
     } catch {
       notify.error("Could not reject invitation");
+    }
+  };
+
+  const handleRequestReactivation = async (invitationId: number) => {
+    try {
+      await requestReactivation.mutateAsync(invitationId);
+      notify.success("Reactivation requested");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 400) {
+        notify.info("Reactivation already requested — awaiting agency response.");
+        void invitationsQuery.refetch();
+        return;
+      }
+      notify.error("Could not request reactivation");
     }
   };
 
@@ -252,9 +269,9 @@ export function MyJoinRequestsClient() {
               { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
               { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
               { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
-              { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
+              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(i => i.status === "withdrawn").length})` },
             ].map(({ value, label }) => (
-              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked")}>
+              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "withdrawn")}>
                 {label}
               </Button>
             ))}
@@ -402,69 +419,113 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No expired invitations" description="Expired invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "expired").map((invitation) => (
-                  <Card key={invitation.invitation_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
-                        <Badge variant="danger">expired</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invitation from {invitation.agency_name} has expired.
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sent {formatDate(invitation.created_at)}
-                      </p>
-                      <Link
-                        href={`/agencies/${invitation.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
-                    </CardBody>
-                  </Card>
-                ))
+                invitations.filter(i => i.status === "expired").map((invitation) => {
+                  const ambient = resolveInvitationAmbientMessage(invitation);
+                  const isPending = requestReactivation.isPending && requestReactivation.variables === invitation.invitation_id;
+                  const isDone = Boolean(ambient);
+                  return (
+                    <Card key={invitation.invitation_id}>
+                      <CardBody className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <Link
+                            href={`/agencies/${invitation.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                          >
+                            {invitation.agency_name}
+                          </Link>
+                          <Badge variant="danger">expired</Badge>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Invitation from {invitation.agency_name} has expired.
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Sent {formatDate(invitation.created_at)}
+                        </p>
+                        {invitation.expires_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Expired {formatDate(invitation.expires_at)}
+                          </p>
+                        ) : null}
+                        {ambient ? (
+                          <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                            {ambient.text}
+                            {ambient.timestamp ? (
+                              <span className="ml-1 text-xs opacity-75">{ambient.timestamp}</span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isDone}
+                            loading={isPending}
+                            onClick={() => void handleRequestReactivation(invitation.invitation_id)}
+                          >
+                            Request Reactivation
+                          </Button>
+                        )}
+                      </CardBody>
+                    </Card>
+                  );
+                })
               )}
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "revoked").length === 0 ? (
+              {invitations.filter(i => i.status === "withdrawn").length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No revoked invitations" description="Revoked invitations will appear here." />
+                  <EmptyState title="No withdrawn invitations" description="Withdrawn invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "revoked").map((invitation) => (
-                  <Card key={invitation.invitation_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
-                        <Badge variant="danger">revoked</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invitation from {invitation.agency_name} was revoked.
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sent {formatDate(invitation.created_at)}
-                      </p>
-                      <Link
-                        href={`/agencies/${invitation.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
-                    </CardBody>
-                  </Card>
-                ))
+                invitations.filter(i => i.status === "withdrawn").map((invitation) => {
+                  const ambient = resolveInvitationAmbientMessage(invitation);
+                  const isPending = requestReactivation.isPending && requestReactivation.variables === invitation.invitation_id;
+                  const isDone = Boolean(ambient);
+                  return (
+                    <Card key={invitation.invitation_id}>
+                      <CardBody className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <Link
+                            href={`/agencies/${invitation.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                          >
+                            {invitation.agency_name}
+                          </Link>
+                          <Badge variant="danger">withdrawn</Badge>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Invitation from {invitation.agency_name} was withdrawn.
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Sent {formatDate(invitation.created_at)}
+                        </p>
+                        {invitation.withdrawn_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Withdrawn {formatDate(invitation.withdrawn_at)}
+                          </p>
+                        ) : null}
+                        {ambient ? (
+                          <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                            {ambient.text}
+                            {ambient.timestamp ? (
+                              <span className="ml-1 text-xs opacity-75">{ambient.timestamp}</span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isDone}
+                            loading={isPending}
+                            onClick={() => void handleRequestReactivation(invitation.invitation_id)}
+                          >
+                            Express Interest
+                          </Button>
+                        )}
+                      </CardBody>
+                    </Card>
+                  );
+                })
               )}
             </div>
           )}
