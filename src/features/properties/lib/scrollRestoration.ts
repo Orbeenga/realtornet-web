@@ -6,14 +6,14 @@ function buildPropertiesScrollStorageKey(url: string) {
   return `${PROPERTIES_SCROLL_STORAGE_PREFIX}:${url}`;
 }
 
-export function savePropertiesScrollPosition(url: string) {
+export function savePropertiesScrollPosition(url: string, scrollY?: number) {
   if (typeof window === "undefined") {
     return;
   }
 
   window.sessionStorage.setItem(
     buildPropertiesScrollStorageKey(url),
-    String(window.scrollY),
+    String(scrollY ?? window.scrollY),
   );
 }
 
