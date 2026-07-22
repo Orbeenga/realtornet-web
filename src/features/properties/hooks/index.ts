@@ -42,6 +42,7 @@ export { useInstructAgent } from "./useInstructAgent";
 export { useAdminRevocationHistory } from "./useAdminRevocationHistory";
 export { useAdminRejectionHistory } from "./useAdminRejectionHistory";
 export { useRejectPermanent } from "./useRejectPermanent";
+export { usePublicMarketplace } from "./usePublicMarketplace";
 export {
   useAmenityCategories,
   useAmenities,

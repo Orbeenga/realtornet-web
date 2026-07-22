@@ -2,18 +2,21 @@
 
 const PROPERTIES_SCROLL_STORAGE_PREFIX = "rn:properties-scroll";
 
+/** Skip scroll restoration if current position is within this many pixels of the saved target. Avoids visible jumps when the user hasn't meaningfully moved during a filter commit. */
+const SCROLL_RESTORE_THRESHOLD = 50;
+
 function buildPropertiesScrollStorageKey(url: string) {
   return `${PROPERTIES_SCROLL_STORAGE_PREFIX}:${url}`;
 }
 
-export function savePropertiesScrollPosition(url: string) {
+export function savePropertiesScrollPosition(url: string, scrollY?: number) {
   if (typeof window === "undefined") {
     return;
   }
 
   window.sessionStorage.setItem(
     buildPropertiesScrollStorageKey(url),
-    String(window.scrollY),
+    String(scrollY ?? window.scrollY),
   );
 }
 
@@ -37,6 +40,10 @@ export function restorePropertiesScrollPosition(url: string) {
   }
 
   window.requestAnimationFrame(() => {
+    const currentY = window.scrollY;
+    if (Math.abs(currentY - scrollTop) < SCROLL_RESTORE_THRESHOLD) {
+      return;
+    }
     window.scrollTo({ top: scrollTop, behavior: "auto" });
   });
 

@@ -5,14 +5,15 @@ import type {
   AgencyAgentMembershipResponse,
   AgencyAgentRosterMember,
   AgencyReviewRequestCreate,
-  AgencyReviewRequestDecisionRequest,
+  AgencyReviewRequestAcceptRequest,
+  AgencyReviewRequestDeclineRequest,
   AgencyReviewRequestResponse,
-  AgentMembershipAudit,
+  MembershipTimelineEntry,
   MyAgencyMembershipResponse,
   MyAgentMembershipStatusResponse,
 } from "@/types";
 
-type MembershipAction = "suspend" | "revoke" | "block" | "restore";
+type MembershipAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 
 interface MembershipMutationVariables {
   membershipId: number;
@@ -71,6 +72,10 @@ export function useRestoreAgencyMembership(agencyId?: string | number | null) {
   return useAgencyMembershipAction(agencyId, "restore");
 }
 
+export function useUnblockAgencyMembership(agencyId?: string | number | null) {
+  return useAgencyMembershipAction(agencyId, "unblock");
+}
+
 interface ReviewRequestVariables {
   agencyId: string | number;
   payload: AgencyReviewRequestCreate;
@@ -125,7 +130,7 @@ function useAgencyReviewRequestDecision(
       payload,
     }: {
       requestId: number;
-      payload: AgencyReviewRequestDecisionRequest;
+      payload: AgencyReviewRequestAcceptRequest | AgencyReviewRequestDeclineRequest;
     }) =>
       apiClient<AgencyReviewRequestResponse>(
         `/api/v1/agencies/${agencyId}/review-requests/${requestId}/${action}`,
@@ -165,7 +170,7 @@ export function useMembershipHistory(enabled = true) {
   return useQuery({
     queryKey: ["membershipHistory", "me"],
     queryFn: () =>
-      apiClient<AgentMembershipAudit[]>("/api/v1/users/me/membership-history"),
+      apiClient<MembershipTimelineEntry[]>("/api/v1/users/me/membership-history"),
     staleTime: 30_000,
     enabled,
   });
@@ -179,7 +184,7 @@ export function useAgencyMemberHistory(
   return useQuery({
     queryKey: ["agencyMemberHistory", agencyId, userId],
     queryFn: () =>
-      apiClient<AgentMembershipAudit[]>(
+      apiClient<MembershipTimelineEntry[]>(
         `/api/v1/agencies/${agencyId}/member-history/${userId}`,
       ),
     staleTime: 30_000,

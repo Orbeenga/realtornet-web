@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/features/auth/AuthContext";
 import { Button, EmptyState, ErrorState, Skeleton } from "@/components";
 import {
   useInquiryDirectory,
   useMarkInquiryViewed,
-  useUpdateInquiryStatus,
   type InquiryDirectorySource,
 } from "@/features/inquiries/hooks";
 import type { InquiryDirectoryItem } from "@/features/inquiries/hooks/useInquiryDirectory";
-import type { InquiryStatus } from "@/types";
+import { ReplyThread } from "@/features/inquiries/components/ReplyThread";
 
 interface ReceivedInquiriesListProps {
   source: Exclude<InquiryDirectorySource, "sent">;
@@ -61,39 +61,7 @@ function InquiryListSkeleton() {
   );
 }
 
-function InquiryStatusActions({
-  inquiryId,
-  inquiryStatus,
-}: {
-  inquiryId: number;
-  inquiryStatus: string;
-}) {
-  const updateInquiryStatus = useUpdateInquiryStatus();
 
-  const handleStatusUpdate = async (status: InquiryStatus) => {
-    await updateInquiryStatus.mutateAsync({ inquiryId, status });
-  };
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {inquiryStatus !== "responded" ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          loading={
-            updateInquiryStatus.isPending &&
-            updateInquiryStatus.variables?.inquiryId === inquiryId &&
-            updateInquiryStatus.variables?.status === "responded"
-          }
-          onClick={() => void handleStatusUpdate("responded")}
-        >
-          Mark Responded
-        </Button>
-      ) : null}
-    </div>
-  );
-}
 
 function ReceivedInquiryCard({
   inquiry,
@@ -101,7 +69,8 @@ function ReceivedInquiryCard({
   propertyImage,
   contact,
   showStatusActions,
-}: InquiryDirectoryItem & { showStatusActions: boolean }) {
+  currentUserId,
+}: InquiryDirectoryItem & { showStatusActions: boolean; currentUserId?: number | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const markInquiryViewed = useMarkInquiryViewed();
 
@@ -194,24 +163,28 @@ function ReceivedInquiryCard({
               >
                 {isExpanded ? "Hide inquiry" : "Open inquiry"}
               </Button>
-              {showStatusActions ? (
-                <InquiryStatusActions
-                  inquiryId={inquiry.inquiry_id}
-                  inquiryStatus={inquiry.inquiry_status}
-                />
-              ) : null}
             </div>
           </div>
 
           {isExpanded ? (
-            <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950/40">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Inquiry
-              </p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
-                {inquiry.message ?? "No message provided."}
-              </p>
-            </div>
+            <>
+              <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950/40">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Inquiry
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
+                  {inquiry.message ?? "No message provided."}
+                </p>
+              </div>
+              {showStatusActions ? (
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                  <ReplyThread
+                    inquiryId={inquiry.inquiry_id}
+                    currentUserId={currentUserId}
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>
@@ -226,6 +199,7 @@ export function ReceivedInquiriesList({
   emptyDescription,
   showStatusActions = true,
 }: ReceivedInquiriesListProps) {
+  const { user } = useAuth();
   const inquiryDirectory = useInquiryDirectory(source, { agencyId });
 
   if (inquiryDirectory.isLoading) {
@@ -255,6 +229,7 @@ export function ReceivedInquiriesList({
           key={item.inquiry.inquiry_id}
           {...item}
           showStatusActions={showStatusActions}
+          currentUserId={user?.user_id}
         />
       ))}
     </div>
