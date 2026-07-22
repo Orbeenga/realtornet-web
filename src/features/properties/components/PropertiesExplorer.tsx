@@ -312,10 +312,9 @@ export function PropertiesExplorer({
 
   return (
     <div>
-      <PropertyFilters />
-
       <div>
         <div className="min-w-0">
+          <PropertyFilters />
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
