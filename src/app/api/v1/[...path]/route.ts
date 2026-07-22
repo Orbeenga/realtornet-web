@@ -2,8 +2,7 @@ import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const backendOrigin = (process.env.API_URL ?? "http://localhost:8000")
-  .replace(/^http:\/\//, "https://")
+const backendOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
   .replace(/\/$/, "");
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
