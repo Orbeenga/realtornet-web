@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type MouseEvent } from "react";
+import { memo, useRef, type MouseEvent } from "react";
 import Link from "next/link";
 import type { Property } from "@/types";
 import { Badge } from "@/components/Badge";
@@ -40,7 +40,7 @@ const statusVariant: Record<
   pending: "warning",
 };
 
-export function PropertyCard({
+export const PropertyCard = memo(function PropertyCard({
   property,
   onNavigateToDetail,
   locationLabel,
@@ -106,6 +106,7 @@ export function PropertyCard({
               <img
                 src={displayImage.image_url}
                 alt={displayImage.caption ?? property.title}
+                loading="lazy"
                 className="h-full w-full object-cover"
               />
             </>
@@ -215,4 +216,4 @@ export function PropertyCard({
       </Card>
     </Link>
   );
-}
+});
