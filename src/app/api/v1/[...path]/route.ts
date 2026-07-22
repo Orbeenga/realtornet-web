@@ -2,7 +2,19 @@ import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const backendOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
+const resolvedOrigin = process.env.NEXT_PUBLIC_API_URL;
+
+if (!resolvedOrigin) {
+  if (process.env.VERCEL) {
+    throw new Error(
+      "NEXT_PUBLIC_API_URL is not configured for this Vercel environment. " +
+      "The proxy cannot construct a valid backend URL. Set it in " +
+      "Vercel project settings for this environment (Production/Preview/Development).",
+    );
+  }
+}
+
+const backendOrigin = (resolvedOrigin ?? "http://localhost:8000")
   .replace(/\/$/, "");
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
