@@ -42,8 +42,11 @@ import {
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
   useSuspendAgencyMembership,
+  useUnblockAgencyMembership,
+  useWithdrawAgencyInvitation,
 } from "@/features/agencies/hooks";
 import { MembershipHistoryList } from "./MembershipHistoryList";
+import type { AgencyAgentRosterMember } from "@/types";
 import {
   AgencyOwnerRosterSkeleton,
   AgencyOwnerTabListSkeleton,
@@ -54,8 +57,8 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
-type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
+type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
   membershipId: number;
@@ -66,6 +69,7 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "joinRequests", label: "Join requests" },
   { value: "reviewRequests", label: "Review requests" },
   { value: "agents", label: "Agent roster" },
+  { value: "inactive", label: "Inactive" },
   { value: "invitations", label: "Invitations" },
   { value: "rejected", label: "Rejected" },
   { value: "suspended", label: "Suspended" },
@@ -86,10 +90,8 @@ function formatOptionalDate(value?: string | null) {
   return value ? formatDate(value) : "Not recorded";
 }
 
-function getJoinRequestBadgeVariant(status: string) {
-  if (status === "approved") return "success" as const;
-  if (status === "rejected") return "danger" as const;
-  return "warning" as const;
+function formatMembershipStatus(status: string) {
+  return status;
 }
 
 function getMembershipBadgeVariant(status: string) {
@@ -100,12 +102,34 @@ function getMembershipBadgeVariant(status: string) {
   return "outline" as const;
 }
 
+function fmtTimeAgo(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const days = Math.floor(diffMs / 86_400_000);
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
+
+function isAgentInactive(agent: AgencyAgentRosterMember): boolean {
+  if (agent.membership_status !== "active") return false;
+  const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
+  if (agent.last_login) return new Date(agent.last_login).getTime() < ninetyDaysAgo;
+  return new Date(agent.created_at).getTime() < ninetyDaysAgo;
+}
+
 function getRequiredDecisionReasonMessage(action: MembershipDecisionAction) {
   const actionLabels = {
     suspend: "suspending",
     revoke: "revoking",
     block: "blocking",
     restore: "restoring",
+    unblock: "unblocking",
   } as const;
   return `Enter a reason before ${actionLabels[action]} this agent.`;
 }
@@ -116,6 +140,7 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
     revoke: "Remove from agency",
     block: "Block agent",
     restore: "Restore agent",
+    unblock: "Unblock agent",
   } as const;
   return labels[action];
 }
@@ -126,6 +151,9 @@ export function AgencyMembersClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "withdrawn">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "cancelled">("pending");
+  const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
   const {
@@ -140,7 +168,7 @@ export function AgencyMembersClient() {
   });
 
   const agencyId = user?.agency_id;
-  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents");
+  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents" || activeTab === "inactive" || activeTab === "revoked" || activeTab === "suspended" || activeTab === "blocked" || activeTab === "leftCancelled");
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
@@ -150,10 +178,12 @@ export function AgencyMembersClient() {
   const revokeMembership = useRevokeAgencyMembership(agencyId);
   const blockMembership = useBlockAgencyMembership(agencyId);
   const restoreMembership = useRestoreAgencyMembership(agencyId);
+  const unblockMembership = useUnblockAgencyMembership(agencyId);
   const acceptReview = useAcceptAgencyReviewRequest(agencyId);
   const declineReview = useDeclineAgencyReviewRequest(agencyId);
   const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
+  const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -241,6 +271,29 @@ export function AgencyMembersClient() {
     }
   };
 
+  const handleUnblockMembership = async (membershipId: number) => {
+    const reason = membershipReasons[membershipId]?.trim();
+    if (!reason) {
+      notify.error(getRequiredDecisionReasonMessage("unblock"));
+      return;
+    }
+    try {
+      await unblockMembership.mutateAsync({ membershipId, payload: { reason } });
+      notify.success("Agent unblocked. They can now submit a new join request.");
+      setMembershipReasons((current) => {
+        const next = { ...current };
+        delete next[membershipId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not unblock agent.";
+      notify.error(message);
+    }
+  };
+
   const handleRestoreMembership = async (membershipId: number) => {
     const reason = membershipReasons[membershipId]?.trim();
     if (!reason) {
@@ -268,6 +321,8 @@ export function AgencyMembersClient() {
     if (!pendingMembershipDecision) return;
     if (pendingMembershipDecision.action === "restore") {
       await handleRestoreMembership(pendingMembershipDecision.membershipId);
+    } else if (pendingMembershipDecision.action === "unblock") {
+      await handleUnblockMembership(pendingMembershipDecision.membershipId);
     } else {
       await handleMembershipAction(
         pendingMembershipDecision.action,
@@ -279,6 +334,10 @@ export function AgencyMembersClient() {
 
   const handleReviewDecision = async (action: "accept" | "decline", requestId: number) => {
     const reason = membershipReasons[requestId]?.trim() || null;
+    if (action === "decline" && !reason) {
+      notify.error("Enter a reason before declining this review request.");
+      return;
+    }
     try {
       if (action === "accept") {
         await acceptReview.mutateAsync({ requestId, payload: { reason } });
@@ -319,9 +378,10 @@ export function AgencyMembersClient() {
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
   const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
-    joinRequests: joinRequests.length,
+    joinRequests: joinRequests.filter(r => r.status === "pending").length,
     reviewRequests: reviewRequests.length,
-    agents: agentsQuery.isSuccess ? agents.length : undefined,
+    agents: agentsQuery.isSuccess ? agents.filter(a => a.membership_status === "active").length : undefined,
+    inactive: agentsQuery.isSuccess ? agents.filter(isAgentInactive).length : undefined,
     invitations: invitations.length,
     rejected: joinRequests.filter(r => r.status === "rejected").length,
     suspended: agents.filter(a => a.membership_status === "suspended").length,
@@ -336,7 +396,8 @@ export function AgencyMembersClient() {
     ? (pendingMembershipDecision.action === "suspend" && suspendMembership.isPending) ||
       (pendingMembershipDecision.action === "revoke" && revokeMembership.isPending) ||
       (pendingMembershipDecision.action === "block" && blockMembership.isPending) ||
-      (pendingMembershipDecision.action === "restore" && restoreMembership.isPending)
+      (pendingMembershipDecision.action === "restore" && restoreMembership.isPending) ||
+      (pendingMembershipDecision.action === "unblock" && unblockMembership.isPending)
     : false;
 
   return (
@@ -371,8 +432,20 @@ export function AgencyMembersClient() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Join requests</h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review and audit people asking to join your agency roster.
+                Review requests from people asking to join your agency roster. Resolved requests move to the appropriate tab.
               </p>
+            </div>
+            <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
+              {[
+                { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending").length})` },
+                { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
+                { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
+                { value: "cancelled" as const, label: `Cancelled (${joinRequests.filter(r => r.status === "cancelled").length})` },
+              ].map(({ value, label }) => (
+                <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
+                  {label}
+                </Button>
+              ))}
             </div>
             {joinRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
             {joinRequestsQuery.isError ? (
@@ -387,83 +460,166 @@ export function AgencyMembersClient() {
                 onRetry={() => { void joinRequestsQuery.refetch(); }}
               />
             ) : null}
-            {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.length === 0 ? (
-              <EmptyState title="No join requests" description="New requests and decision history will appear here." />
-            ) : null}
-            {!joinRequestsQuery.isLoading && joinRequests.length > 0 ? (
-              <div className="space-y-4">
-                {joinRequests.map((request) => (
-                  <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {request.seeker_name ?? "Seeker"}
-                          </p>
-                          <Badge variant={getJoinRequestBadgeVariant(request.status)}>
-                            {request.status}
-                          </Badge>
+            {requestSubTab === "pending" ? (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending").length === 0 ? (
+                  <EmptyState title="No pending requests" description="New requests and decision history will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "pending").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {request.seeker_name ?? "Seeker"}
+                              </p>
+                              <Badge variant="warning">pending</Badge>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
+                            </p>
+                            {request.cover_note ? (
+                              <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+                                {request.cover_note}
+                              </p>
+                            ) : null}
+                            {request.portfolio_details ? (
+                              <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
+                                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Profile details</p>
+                                <p className="whitespace-pre-wrap">{request.portfolio_details}</p>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button" size="sm"
+                              loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
+                              onClick={() => void handleApproveJoinRequest(request.join_request_id)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              type="button" size="sm" variant="destructive"
+                              loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
+                              onClick={() => void handleRejectJoinRequest(request.join_request_id)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
-                        </p>
-                        {request.status !== "pending" ? (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Decision recorded {formatOptionalDate(request.decided_at)}
-                          </p>
-                        ) : null}
-                        {request.cover_note ? (
-                          <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-                            {request.cover_note}
-                          </p>
-                        ) : null}
-                        {request.portfolio_details ? (
-                          <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
-                            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Profile details</p>
-                            <p className="whitespace-pre-wrap">{request.portfolio_details}</p>
-                          </div>
-                        ) : null}
-                        {request.rejection_reason ? (
-                          <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                            {request.rejection_reason}
-                          </div>
-                        ) : null}
+                        <Input
+                          className="mt-4" label="Reject reason" placeholder="Required before rejecting"
+                          value={rejectReasons[request.join_request_id] ?? ""}
+                          onChange={(event) =>
+                            setRejectReasons((current) => ({
+                              ...current,
+                              [request.join_request_id]: event.target.value,
+                            }))
+                          }
+                        />
                       </div>
-                      {request.status === "pending" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button" size="sm"
-                            loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
-                            onClick={() => void handleApproveJoinRequest(request.join_request_id)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            type="button" size="sm" variant="destructive"
-                            loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
-                            onClick={() => void handleRejectJoinRequest(request.join_request_id)}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                    {request.status === "pending" ? (
-                      <Input
-                        className="mt-4" label="Reject reason" placeholder="Required before rejecting"
-                        value={rejectReasons[request.join_request_id] ?? ""}
-                        onChange={(event) =>
-                          setRejectReasons((current) => ({
-                            ...current,
-                            [request.join_request_id]: event.target.value,
-                          }))
-                        }
-                      />
-                    ) : null}
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : null}
+                ) : null}
+              </>
+            ) : requestSubTab === "approved" ? (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "approved").length === 0 ? (
+                  <EmptyState title="No approved requests" description="Approved join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "approved").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Approved {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant="success">approved</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : requestSubTab === "rejected" ? (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
+                  <EmptyState title="No rejected requests" description="Rejected join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "rejected").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Rejected {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                            {request.rejection_reason ? (
+                              <div className="mt-2 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                {request.rejection_reason}
+                              </div>
+                            ) : null}
+                          </div>
+                          <Badge variant="danger">rejected</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "cancelled").length === 0 ? (
+                  <EmptyState title="No cancelled requests" description="Cancelled join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "cancelled").length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "cancelled").map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Cancelled {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant="danger">cancelled</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
           </CardBody>
         </Card>
       ) : null}
@@ -489,7 +645,11 @@ export function AgencyMembersClient() {
             ) : null}
             {!reviewRequestsQuery.isLoading && reviewRequests.length > 0 ? (
               <div className="space-y-4">
-                {reviewRequests.map((request) => (
+                {[...reviewRequests].sort((a, b) => {
+                  const aName = a.requester_name ?? a.requester_email ?? "";
+                  const bName = b.requester_name ?? b.requester_email ?? "";
+                  return aName.localeCompare(bName);
+                }).map((request) => (
                   <div key={request.id} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                       <div className="space-y-3">
@@ -539,7 +699,7 @@ export function AgencyMembersClient() {
                       ) : null}
                     </div>
                     {request.status === "pending" ? (
-                      <Input className="mt-4" label="Decision reason" placeholder="Optional reason shown to the requester"
+                      <Input className="mt-4" label="Decision reason" placeholder="Required for decline, optional for accept"
                         value={membershipReasons[request.id] ?? ""}
                         onChange={(event) =>
                           setMembershipReasons((current) => ({ ...current, [request.id]: event.target.value }))
@@ -570,12 +730,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "active").length === 0 ? (
               <EmptyState title="No agents yet" description="Approved join requests and invited agents will appear here." />
             ) : null}
-            {!agentsQuery.isLoading && agents.length > 0 ? (
+            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "active").length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.map((agent) => (
+                {agents.filter(a => a.membership_status === "active").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
@@ -593,7 +753,7 @@ export function AgencyMembersClient() {
                               {agent.display_name || agent.company_name || "Listing agent"}
                             </p>
                             <Badge variant={getMembershipBadgeVariant(agent.membership_status)}>
-                              {agent.membership_status}
+                              {formatMembershipStatus(agent.membership_status)}
                             </Badge>
                           </div>
                           <p className="truncate text-sm text-gray-500 dark:text-gray-400">
@@ -613,12 +773,36 @@ export function AgencyMembersClient() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
                           </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                           {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>
                               {agent.pending_review_reason ? <p className="mt-1">{agent.pending_review_reason}</p> : null}
                               {agent.pending_review_submitted_at ? <p className="mt-1">Submitted {formatOptionalDate(agent.pending_review_submitted_at)}</p> : null}
                             </div>
+                          ) : null}
+                          {expandedApplicationUserId === agent.user_id ? (
+                            (() => {
+                              const application = joinRequests.find(
+                                (jr) => jr.user_id === agent.user_id && jr.status === "approved",
+                              );
+                              if (!application) return null;
+                              return (
+                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs leading-5 dark:border-gray-700 dark:bg-gray-900/50">
+                                  <p className="font-medium text-gray-900 dark:text-white">Original application</p>
+                                  {application.cover_note ? (
+                                    <p className="mt-1 text-gray-600 dark:text-gray-400">{application.cover_note}</p>
+                                  ) : (
+                                    <p className="mt-1 italic text-gray-400">No cover note</p>
+                                  )}
+                                  <p className="mt-1 text-gray-400">
+                                    Submitted {application.created_at ? formatOptionalDate(application.created_at) : "unknown date"}
+                                  </p>
+                                </div>
+                              );
+                            })()
                           ) : null}
                         </div>
                       </div>
@@ -630,71 +814,149 @@ export function AgencyMembersClient() {
                             View
                           </Link>
                         ) : null}
-                        {agent.membership_status === "active" ? (
-                          <Button type="button" size="sm" variant="secondary"
-                            loading={suspendMembership.isPending && suspendMembership.variables?.membershipId === agent.membership_id}
+                        {joinRequests.find((jr) => jr.user_id === agent.user_id && jr.status === "approved") ? (
+                          <Button
+                            type="button" size="sm" variant="ghost"
                             onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "suspend", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
+                              setExpandedApplicationUserId(
+                                expandedApplicationUserId === agent.user_id ? null : agent.user_id,
+                              )
                             }
                           >
-                            Suspend
+                            {expandedApplicationUserId === agent.user_id ? "Hide application" : "View application"}
                           </Button>
                         ) : null}
-                        {agent.membership_status !== "active" ? (
-                          <Button type="button" size="sm"
-                            loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "restore", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Restore
-                          </Button>
-                        ) : null}
-                        {agent.membership_status !== "inactive" ? (
-                          <Button type="button" size="sm" variant="secondary"
-                            loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "revoke", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Revoke
-                          </Button>
-                        ) : null}
-                        {agent.membership_status !== "blocked" ? (
-                          <Button type="button" size="sm" variant="destructive"
-                            loading={blockMembership.isPending && blockMembership.variables?.membershipId === agent.membership_id}
-                            onClick={() =>
-                              setPendingMembershipDecision({
-                                action: "block", membershipId: agent.membership_id,
-                                agentName: agent.display_name || agent.company_name || "this agent",
-                              })
-                            }
-                          >
-                            Block
-                          </Button>
-                        ) : null}
+                        {agent.is_agency_owner || agent.user_id === user?.user_id ? null : (
+                          <>
+                            {agent.membership_status === "active" ? (
+                              <Button type="button" size="sm" variant="secondary"
+                                loading={suspendMembership.isPending && suspendMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "suspend", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Suspend
+                              </Button>
+                            ) : null}
+                            {agent.membership_status !== "active" ? (
+                              <Button type="button" size="sm"
+                                loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "restore", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Restore
+                              </Button>
+                            ) : null}
+                            {agent.membership_status === "active" ? (
+                              <Button type="button" size="sm" variant="secondary"
+                                loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "revoke", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Revoke
+                              </Button>
+                            ) : null}
+                            {agent.membership_status !== "blocked" ? (
+                              <Button type="button" size="sm" variant="destructive"
+                                loading={blockMembership.isPending && blockMembership.variables?.membershipId === agent.membership_id}
+                                onClick={() =>
+                                  setPendingMembershipDecision({
+                                    action: "block", membershipId: agent.membership_id,
+                                    agentName: agent.display_name || agent.company_name || "this agent",
+                                  })
+                                }
+                              >
+                                Block
+                              </Button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </div>
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
+                    {agent.is_agency_owner || agent.user_id === user?.user_id ? null : (
+                      <Input
+                        label="Decision reason" placeholder="Required before membership decisions or review responses"
+                        value={membershipReasons[agent.membership_id] ?? ""}
+                        onChange={(event) =>
+                          setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
+                        }
+                      />
+                    )}
                   </div>
                 ))}
               </div>
             ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "inactive" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Inactive agents</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Active members whose last login was more than 90 days ago.
+              </p>
+            </div>
+            {agentsQuery.isLoading ? <AgencyOwnerRosterSkeleton /> : null}
+            {agentsQuery.isError ? (
+              <ErrorState
+                title="Could not load agents" message="There was a problem loading your agency roster."
+                onRetry={() => { void agentsQuery.refetch(); }}
+              />
+            ) : null}
+            {!agentsQuery.isLoading && !agentsQuery.isError && tabCounts.inactive === 0 ? (
+              <EmptyState title="No inactive agents" description="All active agents have logged in within the last 90 days." />
+            ) : null}
+            {!agentsQuery.isLoading && tabCounts.inactive != null && tabCounts.inactive > 0 ? (
+              <div className="divide-y divide-border">
+                {agents.filter(isAgentInactive).map((agent) => (
+                  <div key={agent.membership_id} className="space-y-4 py-4">
+                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {agent.profile_image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {agent.display_name || agent.company_name || "Listing agent"}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {agent.email}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              This tab is for awareness only. Agent reactivation requires the agent to log in again.
+            </p>
           </CardBody>
         </Card>
       ) : null}
@@ -725,19 +987,117 @@ export function AgencyMembersClient() {
               {!invitationsQuery.isLoading && !invitationsQuery.isError && invitations.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No invitations sent yet.</p>
               ) : null}
-              {!invitationsQuery.isLoading && invitations.length > 0 ? (
-                <div className="space-y-3">
-                  {invitations.slice(0, 5).map((invitation) => (
+            <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
+              {[
+                { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
+                { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
+                { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
+                { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
+                { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(i => i.status === "revoked").length})` },
+              ].map(({ value, label }) => (
+                <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {invitationSubTab === "pending" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "pending").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No pending invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "pending").map((invitation) => (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                        <Badge variant={getJoinRequestBadgeVariant(invitation.status)}>{invitation.status}</Badge>
+                        <Badge variant="warning">pending</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          loading={withdrawInvitation.isPending && withdrawInvitation.variables === invitation.invitation_id}
+                          onClick={() => {
+                            void withdrawInvitation.mutateAsync(invitation.invitation_id).then(() => {
+                              notify.success("Invitation withdrawn.");
+                            }).catch((error: unknown) => {
+                              notify.error(error instanceof ApiError ? error.message : "Could not withdraw invitation");
+                            });
+                          }}
+                        >
+                          Withdraw
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : invitationSubTab === "accepted" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "accepted").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No accepted invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "accepted").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="success">accepted</Badge>
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
                     </div>
-                  ))}
-                </div>
-              ) : null}
+                  ))
+                )}
+              </div>
+            ) : invitationSubTab === "rejected" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "rejected").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No rejected invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "rejected").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="danger">rejected</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : invitationSubTab === "expired" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "expired").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No expired invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "expired").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="danger">expired</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : invitationSubTab === "withdrawn" ? (
+              <div className="space-y-3">
+                {invitations.filter(i => i.status === "revoked").length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No withdrawn invitations.</p>
+                ) : (
+                  invitations.filter(i => i.status === "revoked").map((invitation) => (
+                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <Badge variant="danger">withdrawn</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : null}
             </div>
           </CardBody>
         </Card>
@@ -870,6 +1230,9 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                    </p>
                     <Input
                       label="Decision reason" placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}
@@ -933,6 +1296,9 @@ export function AgencyMembersClient() {
                           ) : null}
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
                           </p>
                         </div>
                       </div>
@@ -1002,7 +1368,7 @@ export function AgencyMembersClient() {
                           <p className="font-medium text-gray-900 dark:text-white">
                             {agent.display_name || agent.company_name || "Listing agent"}
                           </p>
-                          <Badge variant="danger">revoked</Badge>
+                          <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
                           {agent.status_decided_at ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               Revoked {formatDate(agent.status_decided_at)}
@@ -1011,6 +1377,9 @@ export function AgencyMembersClient() {
                           {agent.status_reason ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
                           ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
@@ -1088,7 +1457,23 @@ export function AgencyMembersClient() {
                           {agent.status_reason ? (
                             <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
                           ) : null}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          </p>
                         </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button type="button" size="sm"
+                          loading={unblockMembership.isPending && unblockMembership.variables?.membershipId === agent.membership_id}
+                          onClick={() =>
+                            setPendingMembershipDecision({
+                              action: "unblock", membershipId: agent.membership_id,
+                              agentName: agent.display_name || agent.company_name || "this agent",
+                            })
+                          }
+                        >
+                          Unblock
+                        </Button>
                       </div>
                     </div>
                   </div>

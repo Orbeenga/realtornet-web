@@ -103,7 +103,10 @@ export function useRejectAgencyJoinRequest(agencyId?: string | number | null) {
               : request,
           ) ?? current,
       );
-      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId, "all"] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] }),
+      ]);
     },
   });
 }
@@ -221,6 +224,21 @@ export function useRejectAgencyInvitation() {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] });
+    },
+  });
+}
+
+export function useWithdrawAgencyInvitation(agencyId?: string | number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agencies/${agencyId}/invitations/${invitationId}/withdraw/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agencyInvitations", agencyId] });
     },
   });
 }

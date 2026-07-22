@@ -1,19 +1,34 @@
 "use client";
 
-import { Badge, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  Activity,
+  AlertCircle,
+  BarChart,
+  Building2,
+  Clock,
+  Eye,
+  FileText,
+  Inbox,
+  List,
+  Users,
+  XCircle,
+} from "lucide-react";
+import { Badge, EmptyState, ErrorState, LoadingState } from "@/components";
 import { useAdminRoleGate } from "@/hooks/useAdminRoleGate";
 import {
-  useAdminActiveProperties,
-  useAdminAgentPerformance,
   useAdminDataIntegrity,
-  useAdminFeaturedProperties,
-  useAdminStatsOverview,
   useAdminSystemStats,
-  useAdminTopAgents,
-  useAdminUsageMetrics,
 } from "@/features/admin/hooks/useAdminAnalytics";
 import { useAdminAudit } from "@/features/admin/hooks/useAdminAudit";
 import { moderationStatusLabel } from "@/features/properties/lib/moderation";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const AUDIT_PAGE_SIZE = 20;
 
 const LISTING_STATE_ORDER = [
   "draft",
@@ -25,489 +40,421 @@ const LISTING_STATE_ORDER = [
   "revoked",
 ] as const;
 
-function formatNumber(value?: number | string | null) {
-  if (value == null) {
-    return "0";
-  }
+const MODERATION_STATUS_META: Record<
+  string,
+  { icon: typeof FileText; color: string; label: string }
+> = {
+  draft: {
+    icon: FileText,
+    color: "text-gray-500 bg-gray-100 dark:bg-gray-800",
+    label: "Draft — not yet submitted",
+  },
+  agency_review: {
+    icon: Clock,
+    color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40",
+    label: "Awaiting agency review",
+  },
+  agency_rejected: {
+    icon: XCircle,
+    color: "text-red-600 bg-red-50 dark:bg-red-950/40",
+    label: "Rejected at agency level",
+  },
+  admin_review: {
+    icon: Eye,
+    color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40",
+    label: "Awaiting admin decision",
+  },
+  admin_rejected: {
+    icon: AlertCircle,
+    color: "text-red-600 bg-red-50 dark:bg-red-950/40",
+    label: "Rejected by admin",
+  },
+  live: {
+    icon: BarChart,
+    color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40",
+    label: "Live and visible to public",
+  },
+  revoked: {
+    icon: XCircle,
+    color: "text-red-600 bg-red-50 dark:bg-red-950/40",
+    label: "Revoked from live",
+  },
+};
 
+const CLICKABLE_CARD_CLASS =
+  "cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatNumber(value?: number | string | null) {
+  if (value == null) return "0";
   const numericValue = Number(value);
   return Number.isNaN(numericValue) ? String(value) : numericValue.toLocaleString();
 }
 
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+/** A single clickable metric card matching agent stats pattern. */
 function MetricCard({
   label,
   value,
-  detail,
+  icon: Icon,
+  href,
 }: {
   label: string;
   value?: number | string | null;
-  detail?: string;
+  icon?: typeof Building2;
+  href?: string;
 }) {
-  return (
-    <Card>
-      <CardBody>
-        <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          {label}
-        </p>
-        <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-          {formatNumber(value)}
-        </p>
-        {detail ? (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{detail}</p>
-        ) : null}
-      </CardBody>
-    </Card>
-  );
-}
-
-function UsageMetric({
-  label,
-  values,
-}: {
-  label: string;
-  values?: {
-    last_24_hours: number;
-    last_7_days: number;
-    last_30_days: number;
-  };
-}) {
-  return (
-    <div className="rounded-lg border border-border p-4">
-      <p className="font-medium text-gray-900 dark:text-white">{label}</p>
-      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-        <div>
-          <p className="text-gray-500 dark:text-gray-400">24h</p>
-          <p className="font-semibold text-gray-900 dark:text-white">
-            {formatNumber(values?.last_24_hours)}
-          </p>
+  const inner = (
+    <div className="flex h-[120px] items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+      {Icon && (
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/40">
+          <Icon className="h-6 w-6 text-violet-600 dark:text-violet-400" />
         </div>
-        <div>
-          <p className="text-gray-500 dark:text-gray-400">7d</p>
-          <p className="font-semibold text-gray-900 dark:text-white">
-            {formatNumber(values?.last_7_days)}
-          </p>
-        </div>
-        <div>
-          <p className="text-gray-500 dark:text-gray-400">30d</p>
-          <p className="font-semibold text-gray-900 dark:text-white">
-            {formatNumber(values?.last_30_days)}
-          </p>
-        </div>
+      )}
+      <div>
+        <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(value)}</p>
+        <p className="text-sm font-medium text-gray-500">{label}</p>
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`block ${CLICKABLE_CARD_CLASS}`}
+        aria-label={`Open ${label} drilldown`}
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return <div className={CLICKABLE_CARD_CLASS}>{inner}</div>;
 }
 
-function InlineMetric({ label, value }: { label: string; value?: number | string | null }) {
+/** Inline metric chip used for listing-state breakdown matching agent stats pattern. */
+function InlineMetric({
+  label,
+  value,
+  status,
+}: {
+  label: string;
+  value?: number | string | null;
+  status?: string;
+}) {
+  const meta = status
+    ? MODERATION_STATUS_META[status] ?? {
+        icon: List,
+        color: "text-gray-500 bg-gray-100 dark:bg-gray-800",
+        label: status.replace(/_/g, " "),
+      }
+    : {
+        icon: List,
+        color: "text-gray-500 bg-gray-100 dark:bg-gray-800",
+        label,
+      };
+  const Icon = meta.icon;
+
   return (
-    <div className="rounded-lg border border-border p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        {label}
-      </p>
-      <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-        {formatNumber(value)}
-      </p>
-    </div>
+    <Link
+      href={`/account/admin/properties?status=${encodeURIComponent(status ?? "")}`}
+      className={`flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 ${CLICKABLE_CARD_CLASS}`}
+    >
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${meta.color}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatNumber(value)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+      </div>
+    </Link>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function AdminAnalyticsClient() {
   const gate = useAdminRoleGate();
   const systemStatsQuery = useAdminSystemStats(gate.isAllowed);
-  const usageQuery = useAdminUsageMetrics(gate.isAllowed);
   const integrityQuery = useAdminDataIntegrity(gate.isAllowed);
-  const agentPerformanceQuery = useAdminAgentPerformance(gate.isAllowed);
-  const topAgentsQuery = useAdminTopAgents(gate.isAllowed);
-  const activePropertiesQuery = useAdminActiveProperties(gate.isAllowed);
-  const featuredPropertiesQuery = useAdminFeaturedProperties(gate.isAllowed);
-  const overviewQuery = useAdminStatsOverview(gate.isAllowed);
   const auditQuery = useAdminAudit(gate.isAllowed);
 
+  // Audit pagination
+  const [auditPage, setAuditPage] = useState(1);
+  const audit = auditQuery.data ?? null;
+  const auditTotalPages = audit
+    ? Math.max(1, Math.ceil(audit.recent_changes.length / AUDIT_PAGE_SIZE))
+    : 1;
+  const auditPageChanges = useMemo(() => {
+    if (!audit) return [];
+    const start = (auditPage - 1) * AUDIT_PAGE_SIZE;
+    return audit.recent_changes.slice(start, start + AUDIT_PAGE_SIZE);
+  }, [audit, auditPage]);
+
+  // ---- Gate guards ----
   if (gate.isChecking) {
     return <LoadingState fullPage message="Checking admin access..." />;
   }
-
   if (!gate.isAllowed) {
     return null;
   }
 
+  // ---- Derived data ----
   const systemStats = systemStatsQuery.data;
-  const usage = usageQuery.data;
   const integrity = integrityQuery.data;
-  const agents = agentPerformanceQuery.data ?? [];
-  const topAgents = topAgentsQuery.data ?? [];
-  const activeProperties = activePropertiesQuery.data ?? [];
-  const featuredProperties = featuredPropertiesQuery.data ?? [];
-  const overview =
-    overviewQuery.data && Object.keys(overviewQuery.data).length > 0
-      ? overviewQuery.data
-      : null;
-  const audit = auditQuery.data ?? null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <div>
+    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+      {/* Page header */}
+      <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
           Admin analytics
         </h1>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Live platform metrics from the backend analytics contracts.
         </p>
       </div>
 
-      {systemStatsQuery.isError ? (
+      {/* ---- Error / Loading states ---- */}
+      {systemStatsQuery.isError && (
         <ErrorState
           title="Could not load system stats"
           message="There was a problem loading the admin analytics summary."
-          onRetry={() => {
-            void systemStatsQuery.refetch();
-          }}
+          onRetry={() => void systemStatsQuery.refetch()}
         />
-      ) : null}
+      )}
 
-      {systemStatsQuery.isLoading ? <LoadingState /> : null}
+      {systemStatsQuery.isLoading && <LoadingState />}
 
-      {systemStats ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Users" value={systemStats.users.total} />
-          <MetricCard label="Properties" value={systemStats.properties.total} />
-          <MetricCard label="Inquiries" value={systemStats.inquiries.total} />
+      {/* ---- Metric Cards (top row) ---- */}
+      {systemStats && (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Users"
+            value={systemStats.users.total}
+            icon={Users}
+            href="/account/users"
+          />
+          <MetricCard
+            label="Properties"
+            value={systemStats.properties.total}
+            icon={Building2}
+            href="/account/admin/properties"
+          />
+          <MetricCard
+            label="Inquiries"
+            value={systemStats.inquiries.total}
+            icon={Inbox}
+            href="/account/inquiries"
+          />
           <MetricCard
             label="Verified listings"
             value={systemStats.properties.verified}
-            detail={`${formatNumber(systemStats.properties.featured)} featured`}
+            icon={BarChart}
+            href="/account/admin/properties?filter=verified"
           />
-        </div>
-      ) : null}
+        </section>
+      )}
 
-      {systemStats?.properties?.by_status ? (
+      {/* ---- Listing state breakdown ---- */}
+      {systemStats?.properties?.by_status && (
         <section>
-          <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-            Listing state breakdown
+          <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
+            Listings by status
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {LISTING_STATE_ORDER.map((state) => (
               <InlineMetric
                 key={state}
                 label={moderationStatusLabel[state] ?? state.replace(/_/g, " ")}
                 value={systemStats.properties.by_status?.[state] ?? 0}
+                status={state}
               />
             ))}
           </div>
         </section>
-      ) : null}
+      )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard
-          label="Active property feed"
-          value={activePropertiesQuery.isError ? "Unavailable" : activeProperties.length}
-          detail="From /analytics/properties/active"
-        />
-        <MetricCard
-          label="Featured property feed"
-          value={featuredProperties.length}
-          detail={
-            featuredPropertiesQuery.isError
-              ? "Endpoint error from /analytics/properties/featured"
-              : featuredProperties.length === 0
-                ? "No featured properties returned"
-                : "From /analytics/properties/featured"
-          }
-        />
-        <MetricCard
-          label="Admin overview"
-          value={overview ? Object.keys(overview).length : overviewQuery.isError ? "Unavailable" : "Loaded"}
-          detail={overview ? "Distinct overview payload available" : "No distinct fields returned"}
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card>
-          <CardBody className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Usage
-              </h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Activity windows returned by `/analytics/system/usage`.
-              </p>
+      {/* ---- Health Score Card ---- */}
+      {integrity && (
+        <section>
+          <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
+            System health
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
+                <Activity className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {integrity.health_score ?? "—"}
+                </p>
+                <p className="text-sm font-medium text-gray-500">Health score</p>
+              </div>
             </div>
-            {usageQuery.isLoading ? <LoadingState /> : null}
-            {usageQuery.isError ? (
-              <ErrorState
-                title="Could not load usage metrics"
-                message="The usage analytics endpoint did not respond successfully."
-                onRetry={() => {
-                  void usageQuery.refetch();
-                }}
+            <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/40">
+                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {formatNumber(integrity.high_severity_count)}
+                </p>
+                <p className="text-sm font-medium text-gray-500">High severity</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
+                <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {formatNumber(integrity.total_issues)}
+                </p>
+                <p className="text-sm font-medium text-gray-500">Total issues</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---- Audit activity ---- */}
+      <section>
+        <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
+          Audit activity
+        </h2>
+        {auditQuery.isLoading ? <LoadingState /> : null}
+        {auditQuery.isError ? (
+          <ErrorState
+            title="Could not load audit activity"
+            message="The admin audit endpoint did not respond successfully."
+            onRetry={() => void auditQuery.refetch()}
+          />
+        ) : null}
+        {audit ? (
+          <div className="space-y-4">
+            {/* Summary counters */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <MetricCard
+                label="Creations (30d)"
+                value={audit.creation_count_30d}
+                icon={Activity}
               />
-            ) : null}
-            {usage ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <UsageMetric label="User logins" values={usage.user_logins} />
-                <UsageMetric label="New users" values={usage.new_users} />
-                <UsageMetric label="New properties" values={usage.new_properties} />
-                <UsageMetric label="New inquiries" values={usage.new_inquiries} />
-              </div>
-            ) : null}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Data integrity
-              </h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Backend health score and high-severity issue count.
-              </p>
-            </div>
-            {integrityQuery.isLoading ? <LoadingState /> : null}
-            {integrity ? (
-              <div className="space-y-4">
-                <InlineMetric label="Health score" value={integrity.health_score} />
-                <InlineMetric label="Total issues" value={integrity.total_issues} />
-                <InlineMetric label="High severity" value={integrity.high_severity_count} />
-                {integrity.issues?.slice(0, 5).map((issue) => (
-                  <div key={`${issue.category}-${issue.issue_type}`} className="text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {issue.issue_type}
-                      </p>
-                      <Badge variant={issue.severity === "high" ? "danger" : "warning"}>
-                        {issue.severity}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-gray-500 dark:text-gray-400">
-                      {issue.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : integrityQuery.isError ? (
-              <ErrorState
-                title="Could not load integrity metrics"
-                message="The integrity analytics endpoint did not respond successfully."
-                onRetry={() => {
-                  void integrityQuery.refetch();
-                }}
+              <MetricCard
+                label="Deletions (30d)"
+                value={audit.deletion_count_30d}
+                icon={XCircle}
               />
-            ) : null}
-          </CardBody>
-        </Card>
-      </div>
-
-      <Card>
-        <CardBody className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Agent performance
-            </h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Listing, sales, and rating metrics from the analytics contract.
-            </p>
-          </div>
-          {agentPerformanceQuery.isLoading ? <LoadingState /> : null}
-          {agentPerformanceQuery.isError ? (
-            <ErrorState
-              title="Could not load agent performance"
-              message="The agent performance endpoint did not respond successfully."
-              onRetry={() => {
-                void agentPerformanceQuery.refetch();
-              }}
-            />
-          ) : null}
-          {!agentPerformanceQuery.isLoading && !agentPerformanceQuery.isError && agents.length === 0 ? (
-            <EmptyState
-              title="No agent performance records"
-              description="Agent analytics will appear here after listing activity accumulates."
-            />
-          ) : null}
-          {agents.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-border text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  <tr>
-                    <th className="py-3 pr-4">Agent</th>
-                    <th className="py-3 pr-4">Agency</th>
-                    <th className="py-3 pr-4">Listings</th>
-                    <th className="py-3 pr-4">Active</th>
-                    <th className="py-3 pr-4">Sold</th>
-                    <th className="py-3 pr-4">Rating</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {agents.slice(0, 20).map((agent) => (
-                    <tr key={agent.user_id}>
-                      <td className="py-3 pr-4 font-medium text-gray-900 dark:text-white">
-                        {agent.agent_name}
-                      </td>
-                      <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
-                        {agent.agency_name ?? "Independent"}
-                      </td>
-                      <td className="py-3 pr-4">{agent.total_listings}</td>
-                      <td className="py-3 pr-4">{agent.active_listings}</td>
-                      <td className="py-3 pr-4">{agent.sold_count}</td>
-                      <td className="py-3 pr-4">
-                        {agent.avg_rating ?? "No reviews"} ({agent.review_count})
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
-          ) : null}
-        </CardBody>
-      </Card>
 
-      <Card>
-        <CardBody className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Top agents
-            </h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Ranked agent performance from `/analytics/agents/top`.
-            </p>
-          </div>
-          {topAgentsQuery.isLoading ? <LoadingState /> : null}
-          {topAgentsQuery.isError ? (
-            <ErrorState
-              title="Could not load top agents"
-              message="The top agents endpoint did not respond successfully."
-              onRetry={() => {
-                void topAgentsQuery.refetch();
-              }}
-            />
-          ) : null}
-          {!topAgentsQuery.isLoading && !topAgentsQuery.isError && topAgents.length === 0 ? (
-            <EmptyState
-              title="No top agents yet"
-              description="Top-agent rankings will appear after listing and review activity accumulates."
-            />
-          ) : null}
-          {topAgents.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-border text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  <tr>
-                    <th className="py-3 pr-4">Agent</th>
-                    <th className="py-3 pr-4">Agency</th>
-                    <th className="py-3 pr-4">Listings</th>
-                    <th className="py-3 pr-4">Sold</th>
-                    <th className="py-3 pr-4">Rating</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {topAgents.map((agent) => (
-                    <tr key={agent.user_id}>
-                      <td className="py-3 pr-4 font-medium text-gray-900 dark:text-white">
-                        {agent.agent_name}
-                      </td>
-                      <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
-                        {agent.agency_name ?? "Independent"}
-                      </td>
-                      <td className="py-3 pr-4">{agent.total_listings}</td>
-                      <td className="py-3 pr-4">{agent.sold_count}</td>
-                      <td className="py-3 pr-4">
-                        {agent.avg_rating ?? "No reviews"} ({agent.review_count})
-                      </td>
+            {/* Table view */}
+            {audit.recent_changes.length > 0 ? (
+              <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                    <tr>
+                      <th className="px-4 py-3">Entity</th>
+                      <th className="px-4 py-3">Action</th>
+                      <th className="px-4 py-3">Timestamp</th>
+                      <th className="px-4 py-3">Actor</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardBody className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Audit activity
-            </h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Creation and deletion counts (last 30 days) and recent changes from the audit trail.
-            </p>
-          </div>
-          {auditQuery.isLoading ? <LoadingState /> : null}
-          {auditQuery.isError ? (
-            <ErrorState
-              title="Could not load audit activity"
-              message="The admin audit endpoint did not respond successfully."
-              onRetry={() => {
-                void auditQuery.refetch();
-              }}
-            />
-          ) : null}
-          {audit ? (
-            <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <MetricCard label="Creations (30d)" value={audit.creation_count_30d} />
-                <MetricCard label="Deletions (30d)" value={audit.deletion_count_30d} />
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {auditPageChanges.map((change) => {
+                      let action: string;
+                      let timestamp: string | null | undefined;
+                      if (change.deleted_at) {
+                        action = "delete";
+                        timestamp = change.deleted_at;
+                      } else if (change.created_at) {
+                        action = "create";
+                        timestamp = change.created_at;
+                      } else if (change.updated_at) {
+                        action = "update";
+                        timestamp = change.updated_at;
+                      } else {
+                        action = "unknown";
+                        timestamp = null;
+                      }
+                      return (
+                        <tr
+                          key={`${change.table_name}-${change.record_id}`}
+                          className="h-14 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                        >
+                          <td className="px-4 py-3 align-middle font-medium text-gray-900 dark:text-white">
+                            {change.table_name} #{change.record_id}
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <Badge
+                              variant={
+                                action === "delete"
+                                  ? "danger"
+                                  : action === "create"
+                                    ? "success"
+                                    : "warning"
+                              }
+                            >
+                              {action}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">
+                            {timestamp ? new Date(timestamp).toLocaleString() : "—"}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">
+                            {change.actor_name}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-              {audit.recent_changes.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-border text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      <tr>
-                        <th className="py-3 pr-4">Entity</th>
-                        <th className="py-3 pr-4">Action</th>
-                        <th className="py-3 pr-4">Timestamp</th>
-                        <th className="py-3 pr-4">Actor</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {audit.recent_changes.map((change) => {
-                        let action: string;
-                        let timestamp: string | null | undefined;
-                        if (change.deleted_at) {
-                          action = "delete";
-                          timestamp = change.deleted_at;
-                        } else if (change.created_at) {
-                          action = "create";
-                          timestamp = change.created_at;
-                        } else if (change.updated_at) {
-                          action = "update";
-                          timestamp = change.updated_at;
-                        } else {
-                          action = "unknown";
-                          timestamp = null;
-                        }
-                        return (
-                          <tr key={`${change.table_name}-${change.record_id}`}>
-                            <td className="py-3 pr-4 font-medium text-gray-900 dark:text-white">
-                              {change.table_name} #{change.record_id}
-                            </td>
-                            <td className="py-3 pr-4">
-                              <Badge variant={action === "delete" ? "danger" : action === "create" ? "success" : "warning"}>
-                                {action}
-                              </Badge>
-                            </td>
-                            <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
-                              {timestamp ? new Date(timestamp).toLocaleString() : "—"}
-                            </td>
-                            <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">
-                              {change.actor_name}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+            ) : (
+              <EmptyState
+                title="No recent changes"
+                description="Audit activity will appear here after data changes occur."
+              />
+            )}
+
+            {/* Pagination controls */}
+            {auditTotalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Page {auditPage} of {auditTotalPages}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={auditPage <= 1}
+                    onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+                    className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={auditPage >= auditTotalPages}
+                    onClick={() => setAuditPage((p) => Math.min(auditTotalPages, p + 1))}
+                    className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    Next
+                  </button>
                 </div>
-              ) : (
-                <EmptyState
-                  title="No recent changes"
-                  description="Audit activity will appear here after data changes occur."
-                />
-              )}
-            </div>
-          ) : null}
-        </CardBody>
-      </Card>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

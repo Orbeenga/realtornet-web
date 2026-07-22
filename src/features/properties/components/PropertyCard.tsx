@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type MouseEvent } from "react";
+import { memo, useRef, type MouseEvent } from "react";
 import Link from "next/link";
 import type { Property } from "@/types";
 import { Badge } from "@/components/Badge";
@@ -16,6 +16,7 @@ import {
   LISTING_TYPE_LABELS,
 } from "@/features/properties/lib/propertyOptions";
 import { formatPrice } from "@/features/properties/lib/formatPrice";
+import { formatUnitMeta } from "@/features/properties/lib/formatUnitMeta";
 import { resolveListingDisplayName } from "@/lib/listing-display";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,7 @@ const statusVariant: Record<
   pending: "warning",
 };
 
-export function PropertyCard({
+export const PropertyCard = memo(function PropertyCard({
   property,
   onNavigateToDetail,
   locationLabel,
@@ -105,6 +106,7 @@ export function PropertyCard({
               <img
                 src={displayImage.image_url}
                 alt={displayImage.caption ?? property.title}
+                loading="lazy"
                 className="h-full w-full object-cover"
               />
             </>
@@ -195,21 +197,18 @@ export function PropertyCard({
             );
           })()}
           <div className="flex items-center gap-3 pt-1 text-xs text-gray-500">
-            {property.bedrooms != null ? (
-              <span>{property.bedrooms} bed{property.bedrooms !== 1 ? "s" : ""}</span>
-            ) : null}
-            {property.bathrooms != null ? (
-              <span>
-                {property.bathrooms} bath{property.bathrooms !== 1 ? "s" : ""}
-              </span>
-            ) : null}
-            {property.property_size != null ? (
+            {formatUnitMeta(property.bedrooms, "bed", "beds") && (
+              <span>{formatUnitMeta(property.bedrooms, "bed", "beds")}</span>
+            )}
+            {formatUnitMeta(property.bathrooms, "bath", "baths") && (
+              <span>{formatUnitMeta(property.bathrooms, "bath", "baths")}</span>
+            )}
+            {property.property_size != null && Number(property.property_size) > 0 ? (
               <span>{property.property_size} sqm</span>
             ) : null}
-            {hydrateEnhancements ? (
+            {hydrateEnhancements && (favoriteCountQuery.data ?? 0) > 0 ? (
               <span>
-                {favoriteCountQuery.data ?? 0} save
-                {(favoriteCountQuery.data ?? 0) === 1 ? "" : "s"}
+                {formatUnitMeta(favoriteCountQuery.data ?? 0, "save", "saves")}
               </span>
             ) : null}
           </div>
@@ -217,4 +216,4 @@ export function PropertyCard({
       </Card>
     </Link>
   );
-}
+});

@@ -34,11 +34,12 @@ export function PostRevocationDashboard() {
 
   const latestRevocation = getLatestRevocation(historyQuery.data ?? []);
 
-  if (!latestRevocation) {
+  if (!latestRevocation || latestRevocation.agency_id == null) {
     return null;
   }
 
-  const hasPendingReview = submittedAgencyIds.has(latestRevocation.agency_id);
+  const agencyId = latestRevocation.agency_id;
+  const hasPendingReview = submittedAgencyIds.has(agencyId);
   const canRequestReview =
     !hasPendingReview &&
     !createReviewRequest.isPending;
@@ -46,11 +47,11 @@ export function PostRevocationDashboard() {
   const handleRequestReview = async () => {
     try {
       await createReviewRequest.mutateAsync({
-        agencyId: latestRevocation.agency_id,
+        agencyId: agencyId,
         payload: { message: message.trim() || null },
       });
       notify.success("Your request has been submitted.");
-      setSubmittedAgencyIds((current) => new Set(current).add(latestRevocation.agency_id));
+      setSubmittedAgencyIds((current) => new Set(current).add(agencyId));
       setMessage("");
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
@@ -62,7 +63,7 @@ export function PostRevocationDashboard() {
         (text.includes("pending") || text.includes("already"))
       ) {
         notify.info("Review request already submitted - waiting for agency response.");
-        setSubmittedAgencyIds((current) => new Set(current).add(latestRevocation.agency_id));
+        setSubmittedAgencyIds((current) => new Set(current).add(agencyId));
         return;
       }
 
@@ -84,7 +85,7 @@ export function PostRevocationDashboard() {
           </h2>
           <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
             You are currently browsing as a seeker. This change was recorded on{" "}
-            {formatMembershipDate(latestRevocation.created_at)}.
+            {formatMembershipDate(latestRevocation.timestamp)}.
           </p>
         </div>
 

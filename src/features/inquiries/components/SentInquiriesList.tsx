@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { EmptyState, ErrorState, Skeleton } from "@/components";
+import { useAuth } from "@/features/auth/AuthContext";
+import { Button, EmptyState, ErrorState, Skeleton } from "@/components";
 import { useInquiryDirectory } from "@/features/inquiries/hooks";
+import { ReplyThread } from "@/features/inquiries/components/ReplyThread";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -46,7 +49,9 @@ function getSentInquiryStatusClasses(status: string) {
 }
 
 export function SentInquiriesList() {
+  const { user } = useAuth();
   const inquiryDirectory = useInquiryDirectory("sent");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   if (inquiryDirectory.isLoading) {
     return <InquiryListSkeleton />;
@@ -75,23 +80,27 @@ export function SentInquiriesList() {
 
   return (
     <div className="space-y-4">
-      {inquiryDirectory.items.map(({ inquiry, property }) => (
-        <Link
-          key={inquiry.inquiry_id}
-          href={
-            typeof inquiry.property_id === "number"
-              ? `/properties/${inquiry.property_id}`
-              : "/properties"
-          }
-          className="block"
-        >
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-gray-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
+      {inquiryDirectory.items.map(({ inquiry, property }) => {
+        const isExpanded = expandedId === inquiry.inquiry_id;
+
+        return (
+          <div
+            key={inquiry.inquiry_id}
+            className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-gray-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
+          >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="truncate text-lg font-semibold text-gray-900 dark:text-white">
+                  <Link
+                    href={
+                      typeof inquiry.property_id === "number"
+                        ? `/properties/${inquiry.property_id}`
+                        : "/properties"
+                    }
+                    className="truncate text-lg font-semibold text-gray-900 hover:text-emerald-600 dark:text-white dark:hover:text-emerald-400"
+                  >
                     {property?.title ?? "Property listing"}
-                  </h2>
+                  </Link>
                   <span
                     className={`rounded-full px-2.5 py-1 text-xs font-medium ${getSentInquiryStatusClasses(
                       inquiry.inquiry_status,
@@ -100,18 +109,49 @@ export function SentInquiriesList() {
                     {getSentInquiryStatusLabel(inquiry.inquiry_status)}
                   </span>
                 </div>
-                <p className="line-clamp-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                  {inquiry.message ?? "No message preview available."}
-                </p>
+                {!isExpanded ? (
+                  <p className="line-clamp-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                    {inquiry.message ?? "No message preview available."}
+                  </p>
+                ) : null}
               </div>
 
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                {formatDate(inquiry.created_at)}
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatDate(inquiry.created_at)}
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setExpandedId(isExpanded ? null : inquiry.inquiry_id)
+                  }
+                >
+                  {isExpanded ? "Hide replies" : "View replies"}
+                </Button>
               </div>
             </div>
+
+            {isExpanded ? (
+              <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                <div className="mb-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-950/40">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Your inquiry
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-200">
+                    {inquiry.message ?? "No message provided."}
+                  </p>
+                </div>
+                <ReplyThread
+                  inquiryId={inquiry.inquiry_id}
+                  currentUserId={user?.user_id}
+                />
+              </div>
+            ) : null}
           </div>
-        </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }
