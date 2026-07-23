@@ -28,28 +28,6 @@ import type { PaginatedProperties, Property } from "@/types";
 
 const PAGE_SIZE = PROPERTIES_PAGE_SIZE;
 
-const PropertyFilters = dynamic(
-  () =>
-    import("@/features/properties/components/PropertyFilters").then(
-      (module) => module.PropertyFilters,
-    ),
-  {
-    loading: () => <PropertyFiltersFallback />,
-  },
-);
-const PropertyMap = dynamic(
-  () =>
-    import("@/features/properties/components/PropertyMap").then(
-      (module) => module.PropertyMap,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[calc(100vh-220px)] min-h-[28rem] rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900" />
-    ),
-  },
-);
-
 function PropertyFiltersFallback() {
   return (
     <div className="mb-8">
@@ -63,6 +41,28 @@ function PropertyFiltersFallback() {
   );
 }
 
+const PropertyFilters = dynamic(
+  () =>
+    import("@/features/properties/components/PropertyFilters").then(
+      (module) => module.PropertyFilters,
+    ),
+  {
+    loading: () => <PropertyFiltersFallback />,
+  },
+);
+
+const PropertyMap = dynamic(
+  () =>
+    import("@/features/properties/components/PropertyMap").then(
+      (module) => module.PropertyMap,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[calc(100vh-220px)] min-h-[28rem] rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900" />
+    ),
+  },
+);
 
 export function PropertiesExplorer({
   initialData,
@@ -311,7 +311,7 @@ export function PropertiesExplorer({
   const hasChips = appliedChips.length > 0;
 
   return (
-    <div>
+    <div className="mt-6">
       <div>
         <div className="min-w-0">
           <PropertyFilters />
@@ -342,31 +342,33 @@ export function PropertiesExplorer({
             </div>
           </div>
 
-          {hasChips ? (
-            <div className="mb-5 flex flex-wrap items-center gap-2">
-              {appliedChips.map((chip) => (
+          <div className={`mb-5 ${hasChips ? "flex flex-wrap items-center gap-2" : "min-h-[2rem]"}`}>
+            {hasChips ? (
+              <>
+                {appliedChips.map((chip) => (
+                  <button
+                    key={`${chip.key}-${chip.label}`}
+                    type="button"
+                    onClick={chip.remove}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  >
+                    <span>{chip.label}</span>
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M10 8.586 4.95 3.536 3.536 4.95 8.586 10l-5.05 5.05 1.414 1.414L10 11.414l5.05 5.05 1.414-1.414L11.414 10l5.05-5.05L15.05 3.536 10 8.586Z" clipRule="evenodd"/></svg>
+                  </button>
+                ))}
                 <button
-                  key={`${chip.key}-${chip.label}`}
                   type="button"
-                  onClick={chip.remove}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  onClick={() => router.push(pathname)}
+                  className="ml-1 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-blue-700 hover:underline focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:text-blue-400"
                 >
-                  <span>{chip.label}</span>
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M10 8.586 4.95 3.536 3.536 4.95 8.586 10l-5.05 5.05 1.414 1.414L10 11.414l5.05 5.05 1.414-1.414L11.414 10l5.05-5.05L15.05 3.536 10 8.586Z" clipRule="evenodd"/></svg>
+                  Clear all
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => router.push(pathname)}
-                className="ml-1 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-blue-700 hover:underline focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:text-blue-400"
-              >
-                Clear all
-              </button>
-            </div>
-          ) : null}
+              </>
+            ) : null}
+          </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="min-h-[28rem] grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, index) => (
                 <PropertyCardSkeleton key={index} />
               ))}

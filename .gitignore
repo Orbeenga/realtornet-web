@@ -64,3 +64,5 @@ SOP.md
 AGENTS.md
 DEFERRED.md
 docs/workbooks
+.secrets/
+.secrets.baseline*

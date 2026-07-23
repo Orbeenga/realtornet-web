@@ -94,22 +94,16 @@ export function PropertyFilters() {
       const query = params.toString();
       const newUrl = query ? `${pathname}?${query}` : pathname;
 
-      const capturedY = pendingScrollYRef.current;
-      pendingScrollYRef.current = null;
-      savePropertiesScrollPosition(newUrl, capturedY ?? undefined);
-
+      savePropertiesScrollPosition(newUrl, window.scrollY);
       router.push(newUrl);
     },
     [pathname, router, searchParams],
   );
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingScrollYRef = useRef<number | null>(null);
 
   const updateFilterDebounced = useCallback(
     (key: string, value: string) => {
-      pendingScrollYRef.current = window.scrollY;
-
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }

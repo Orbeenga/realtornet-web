@@ -10,7 +10,7 @@ export function PropertiesPageIntro() {
     : "Browse active listings, compare prices, and narrow your search before you sign in to save favorites or manage inquiries.";
 
   return (
-    <section className="rounded-[2rem] border border-sky-100 bg-linear-to-br from-white via-sky-50 to-blue-100 px-5 py-6 shadow-sm sm:px-8 sm:py-8 dark:border-sky-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950">
+    <section className="mt-4">
       <div className="space-y-4">
         <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
           Discover verified homes across Nigeria
