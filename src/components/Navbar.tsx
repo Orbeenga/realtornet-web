@@ -13,6 +13,7 @@ import {
   publicNavLinks,
 } from "@/features/auth/navigation";
 import { useMyProfile } from "@/features/profile/hooks";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { getStoredJwtPayload } from "@/lib/jwt";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/features/notifications/components/NotificationBell";
@@ -98,13 +99,13 @@ export function Navbar() {
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
     };
   }, [isMobileMenuOpen]);
+
+  useBodyScrollLock(isMobileMenuOpen);
 
   const handleSignOut = async () => {
     await signOut();

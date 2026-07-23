@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FilterBar } from "@/components/search/FilterBar";
+import { FilterBar, type FilterBarHandle } from "@/components/search/FilterBar";
 import { useLocationSearch } from "@/features/locations/hooks";
+import { useHomeSearch } from "./HomeSearchContext";
 import type { Location } from "@/types";
 
 function optionLabel(value: string) {
@@ -27,12 +28,12 @@ function locationLabel(location: Location) {
 
 export function HomeHeroSearch() {
   const router = useRouter();
-  const [locationQuery, setLocationQuery] = useState("");
+  const { searchQuery: locationQuery, setSearchQuery: setLocationQuery, selectedLocationId, setSelectedLocationId } = useHomeSearch();
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [selectedLocationId, setSelectedLocationId] = useState<number | undefined>();
   const searchQuery = useLocationSearch(debouncedQuery);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const filterBarRef = useRef<FilterBarHandle>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const suggestions = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
@@ -44,10 +45,6 @@ export function HomeHeroSearch() {
 
   useEffect(() => {
     if (suggestions.length > 0 && !selectedLocationId && searchInputRef.current) {
-      // The suggestion list is `position: fixed`, so coordinates must be
-      // viewport-relative. getBoundingClientRect() already returns viewport
-      // coords — adding scrollY/scrollX here would detach the dropdown from the
-      // input the moment the page is scrolled.
       const rect = searchInputRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + 4,
@@ -59,21 +56,22 @@ export function HomeHeroSearch() {
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
     const params = new URLSearchParams();
 
+    // Location params
     if (locationQuery.trim()) {
       params.set("search", locationQuery.trim());
     }
-
     if (typeof selectedLocationId === "number") {
       params.set("location_id", String(selectedLocationId));
       params.delete("search");
     }
 
-    for (const [key, value] of formData.entries()) {
-      if (value && value !== "all" && value !== "custom" && key !== "search" && key !== "location_id") {
-        params.append(key, value as string);
+    // Filter params from FilterBar
+    if (filterBarRef.current) {
+      const filterParams = filterBarRef.current.getFilterParams();
+      for (const [key, value] of filterParams.entries()) {
+        params.append(key, value);
       }
     }
 
@@ -100,7 +98,7 @@ export function HomeHeroSearch() {
       <label htmlFor="home-location-search" className="sr-only">
         Search location
       </label>
-      <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-400" />
       <Input
         ref={searchInputRef}
         id="home-location-search"
@@ -111,7 +109,7 @@ export function HomeHeroSearch() {
         }}
         placeholder="Search by title, keyword, or area"
         autoComplete="off"
-        className="h-12 w-full rounded-xl border border-gray-200 bg-white pr-4 pl-11 text-sm text-gray-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+        className="h-14 w-full rounded-xl border border-gray-200 bg-white pr-4 pl-12 text-base text-gray-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
       />
       {suggestions.length > 0 && !selectedLocationId && typeof window !== "undefined" ? (
         createPortal(
@@ -145,57 +143,25 @@ export function HomeHeroSearch() {
   );
 
   return (
-    <form
-      className="mx-auto w-full max-w-2xl space-y-5"
-      onSubmit={handleSearch}
-    >
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        {searchInput}
-        <Button
-          type="submit"
-          className="hidden h-12 shrink-0 rounded-xl bg-gray-500 px-5 text-sm font-medium text-white hover:bg-gray-600 lg:inline-flex"
-        >
-          Search
-        </Button>
-      </div>
-
-      <FilterBar variant="hero" />
-    </form>
-  );
-}
-
-export function HomeHierarchyCard() {
-  return (
-    <div className="w-full max-w-[420px] rounded-2xl bg-white/95 p-6 shadow-2xl backdrop-blur dark:bg-gray-950/90">
-      <p className="text-sm font-bold tracking-wide text-emerald-600 uppercase dark:text-emerald-300">
-        Public hierarchy
-      </p>
-      <h2 className="mt-5 text-3xl leading-tight font-bold text-gray-950 dark:text-white">
-        Agencies to listings to agents
-      </h2>
-      <p className="mt-4 text-sm leading-7 text-gray-600 dark:text-gray-300">
-        Start with a trusted organization, compare its active inventory, then
-        contact the agent accountable for the listing.
-      </p>
-      <div className="mt-6 space-y-4">
-        {[
-          "Choose a verified agency",
-          "Review its active listings",
-          "Contact the listing agent",
-        ].map((label, index) => (
-          <div
-            key={label}
-            className="flex items-center gap-4 rounded-xl bg-white px-4 py-4 shadow-sm dark:bg-gray-900"
+    <div className="space-y-6">
+      <form className="mx-auto w-full max-w-[60rem]" onSubmit={handleSearch}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {searchInput}
+          <Button
+            type="submit"
+            className="hidden h-14 shrink-0 rounded-xl bg-gray-400 px-8 text-base font-medium text-white hover:bg-gray-500 lg:inline-flex"
           >
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200">
-              {index + 1}
-            </span>
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-              {label}
-            </span>
-          </div>
-        ))}
-      </div>
+            Search
+          </Button>
+        </div>
+      </form>
+
+      <FilterBar
+        ref={filterBarRef}
+        variant="hero"
+        searchQuery={locationQuery}
+        selectedLocationId={selectedLocationId}
+      />
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function useReplyToInquiry() {
       parentReplyId?: number | null;
     }) =>
       apiClient<InquiryReplyResponse>(
-        `/api/v1/inquiries/${inquiryId}/reply/`,
+        `/api/v1/inquiries/${inquiryId}/reply`,
         {
           method: "POST",
           body: JSON.stringify({ body, parent_reply_id: parentReplyId ?? null }),

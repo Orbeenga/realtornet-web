@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { FilterBar } from "@/components/search/FilterBar";
 import { UI_TOKENS } from "@/lib/ui-tokens";
 import { cn } from "@/lib/utils";
 import { PropertyFiltersSavedSearch } from "./PropertyFiltersSavedSearch";
+import { savePropertiesScrollPosition } from "@/features/properties/lib/scrollRestoration";
 
 interface SearchInputProps {
   initialValue: string;
@@ -16,9 +17,13 @@ interface SearchInputProps {
   className?: string;
 }
 
-function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
+const SearchInput = memo(function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
   const [value, setValue] = useState(initialValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
 
   useEffect(() => {
     if (debounceRef.current) {
@@ -66,7 +71,7 @@ function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
       </Button>
     </form>
   );
-}
+});
 
 export function PropertyFilters() {
   const router = useRouter();
@@ -87,7 +92,13 @@ export function PropertyFilters() {
 
       params.delete("page");
       const query = params.toString();
-      router.push(query ? `${pathname}?${query}` : pathname);
+      const newUrl = query ? `${pathname}?${query}` : pathname;
+
+      const capturedY = pendingScrollYRef.current;
+      pendingScrollYRef.current = null;
+      savePropertiesScrollPosition(newUrl, capturedY ?? undefined);
+
+      router.push(newUrl);
     },
     [pathname, router, searchParams],
   );
@@ -109,18 +120,6 @@ export function PropertyFilters() {
     },
     [updateFilter],
   );
-
-  useEffect(() => {
-    if (pendingScrollYRef.current === null) {
-      return;
-    }
-
-    const scrollY = pendingScrollYRef.current;
-    pendingScrollYRef.current = null;
-    requestAnimationFrame(() => {
-      window.scrollTo(0, scrollY);
-    });
-  }, [searchParams]);
 
   const currentView = searchParams.get("view") === "map" ? "map" : "grid";
   const viewHref = (view: "grid" | "map") => {
@@ -158,11 +157,14 @@ export function PropertyFilters() {
   );
 
   const search = searchParams.get("search") || "";
+  const handleSearchCommit = useCallback(
+    (value: string) => updateFilterDebounced("search", value),
+    [updateFilterDebounced],
+  );
   const searchInput = (
     <SearchInput
-      key={search}
       initialValue={search}
-      onCommit={(value) => updateFilterDebounced("search", value)}
+      onCommit={handleSearchCommit}
       className="w-full"
     />
   );

@@ -27,7 +27,7 @@ export function useMyPropertyReviews() {
   return useQuery({
     queryKey: ["myPropertyReviews"],
     queryFn: () =>
-      apiClient<PropertyReviewResponse[]>("/api/v1/reviews/by-user/property/"),
+      apiClient<PropertyReviewResponse[]>("/api/v1/reviews/by-user/property"),
     staleTime: 30_000,
   });
 }
@@ -36,7 +36,7 @@ export function useMyAgentReviews() {
   return useQuery({
     queryKey: ["myAgentReviews"],
     queryFn: () =>
-      apiClient<AgentReviewResponse[]>("/api/v1/reviews/by-user/agent/"),
+      apiClient<AgentReviewResponse[]>("/api/v1/reviews/by-user/agent"),
     staleTime: 30_000,
   });
 }
@@ -46,7 +46,7 @@ export function useCreatePropertyReview() {
 
   return useMutation({
     mutationFn: (payload: PropertyReviewCreate) =>
-      apiClient<PropertyReviewResponse>("/api/v1/reviews/property/", {
+      apiClient<PropertyReviewResponse>("/api/v1/reviews/property", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -111,7 +111,7 @@ export function useCreateAgentReview() {
 
   return useMutation({
     mutationFn: (payload: AgentReviewCreate) =>
-      apiClient<AgentReviewResponse>("/api/v1/reviews/agent/", {
+      apiClient<AgentReviewResponse>("/api/v1/reviews/agent", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -224,7 +224,7 @@ export function useMyAgencyReviews() {
   return useQuery({
     queryKey: ["myAgencyReviews"],
     queryFn: () =>
-      apiClient<AgencyReviewResponse[]>("/api/v1/reviews/by-user/agency/"),
+      apiClient<AgencyReviewResponse[]>("/api/v1/reviews/by-user/agency"),
     staleTime: 30_000,
   });
 }

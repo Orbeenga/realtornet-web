@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AgenciesPage() {
   const initialData = await serverPublicApi<Agency[]>(
-    "/api/v1/agencies/",
+    "/api/v1/agencies",
     60,
   );
 

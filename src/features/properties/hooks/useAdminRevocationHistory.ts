@@ -7,7 +7,7 @@ export const useAdminRevocationHistory = (isEnabled: boolean, page = 0, pageSize
     queryKey: ['adminRevocationHistory', page, pageSize],
     queryFn: async () => {
       const response = await apiClient<{ items?: PropertyList } | PropertyList>(
-        `/api/v1/admin/properties/revocation-history/?skip=${page * pageSize}&limit=${pageSize}`,
+        `/api/v1/admin/properties/revocation-history?skip=${page * pageSize}&limit=${pageSize}`,
       )
       if (Array.isArray(response)) {
         return response
