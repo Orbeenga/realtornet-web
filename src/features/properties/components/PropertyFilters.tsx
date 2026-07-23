@@ -22,6 +22,10 @@ const SearchInput = memo(function SearchInput({ initialValue, onCommit, classNam
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -159,7 +163,6 @@ export function PropertyFilters() {
   );
   const searchInput = (
     <SearchInput
-      key={search}
       initialValue={search}
       onCommit={handleSearchCommit}
       className="w-full"
