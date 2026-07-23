@@ -21,6 +21,10 @@ function SearchInput({ initialValue, onCommit, className }: SearchInputProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -160,7 +164,6 @@ export function PropertyFilters() {
   const search = searchParams.get("search") || "";
   const searchInput = (
     <SearchInput
-      key={search}
       initialValue={search}
       onCommit={(value) => updateFilterDebounced("search", value)}
       className="w-full"
