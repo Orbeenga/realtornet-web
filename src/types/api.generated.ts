@@ -1212,6 +1212,9 @@ export interface paths {
         /**
          * List Agency Review Requests
          * @description List pending agency-level review requests with prior membership history.
+         *
+         *     Also includes pending join requests from returning applicants who
+         *     reapplied after a previous cancelled request (Phase U.4 reapply).
          */
         get: operations["list_agency_review_requests_api_v1_agencies__agency_id__review_requests__get"];
         put?: never;
@@ -1409,6 +1412,53 @@ export interface paths {
         patch: operations["reconsider_agency_join_request_api_v1_agencies__agency_id__join_requests__request_id__reconsider__patch"];
         trace?: never;
     };
+    "/api/v1/agencies/{agency_id}/join-requests/{request_id}/request-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Request Join Request Reactivation
+         * @description Agency owner requests reactivation of an expired join request.
+         *
+         *     Writes `reactivation_requested_at/by`. Notifies the applicant.
+         */
+        patch: operations["request_join_request_reactivation_api_v1_agencies__agency_id__join_requests__request_id__request_reactivation__patch"];
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/join-requests/reapply/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reapply Agency Join Request
+         * @description Applicant re-applies after their own cancelled join request.
+         *
+         *     Creates a new `agency_join_requests` row with status `pending`. The
+         *     original cancelled row stays untouched (append-only). The new row
+         *     surfaces on the agency's Review Requests tab where the agency owner
+         *     can Approve it.
+         */
+        post: operations["reapply_agency_join_request_api_v1_agencies__agency_id__join_requests_reapply__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agencies/{agency_id}/invitations/": {
         parameters: {
             query?: never;
@@ -1427,6 +1477,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agencies/{agency_id}/invitations/{invitation_id}/withdraw/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Withdraw Agency Invitation
+         * @description Withdraw a pending agency invitation.
+         */
+        patch: operations["withdraw_agency_invitation_api_v1_agencies__agency_id__invitations__invitation_id__withdraw__patch"];
         trace?: never;
     };
     "/api/v1/agencies/{agency_id}/invite/": {
@@ -1533,6 +1603,54 @@ export interface paths {
          * @description Reject a pending agency invitation for the authenticated user.
          */
         patch: operations["reject_my_agency_invitation_api_v1_agency_invitations__invitation_id__reject__patch"];
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/request-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Invitation Reactivation
+         * @description Invitee requests reactivation of an expired or withdrawn invitation.
+         *
+         *     On an expired invitation: writes `reactivation_requested_at/by`.
+         *     On a withdrawn invitation: writes `interest_expressed_at`.
+         *     Notifies the agency owner in both cases.
+         */
+        post: operations["request_invitation_reactivation_api_v1_agency_invitations__invitation_id__request_reactivation__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/reactivate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reactivate Agency Invitation
+         * @description Agency owner reactivates an invitation that has been requested for reactivation.
+         *
+         *     Transitions the invitation back to `pending` with a fresh 30-day
+         *     `expires_at`. Preserves all prior timestamps. Writes a `reactivated` audit
+         *     event. Notifies the invitee.
+         */
+        patch: operations["reactivate_agency_invitation_api_v1_agency_invitations__invitation_id__reactivate__patch"];
         trace?: never;
     };
     "/api/v1/agency-memberships/mine/": {
@@ -3330,6 +3448,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/join-requests/{request_id}/accept-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Accept Join Request Reactivation
+         * @description Applicant accepts reactivation of their expired join request.
+         *
+         *     Transitions back to `pending` with a fresh `expires_at`. Writes
+         *     `reactivation_accepted_at` and an audit row. Notifies agency owner.
+         */
+        patch: operations["accept_join_request_reactivation_api_v1_join_requests__request_id__accept_reactivation__patch"];
+        trace?: never;
+    };
     "/api/v1/saved-searches/": {
         parameters: {
             query?: never;
@@ -4366,6 +4507,23 @@ export interface paths {
         patch: operations["mark_all_notifications_read_api_v1_notifications_read_all_patch"];
         trace?: never;
     };
+    "/internal/jobs/expire-pending-items/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Expire Pending Items */
+        post: operations["trigger_expire_pending_items_internal_jobs_expire_pending_items__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -4729,12 +4887,24 @@ export interface components {
             rejected_at?: string | null;
             /** Revoked At */
             revoked_at?: string | null;
+            /** Withdrawn At */
+            withdrawn_at?: string | null;
+            /** Withdrawn By */
+            withdrawn_by?: number | null;
+            /** Reactivation Requested At */
+            reactivation_requested_at?: string | null;
+            /** Reactivation Requested By */
+            reactivation_requested_by?: number | null;
+            /** Interest Expressed At */
+            interest_expressed_at?: string | null;
+            /** Reactivated At */
+            reactivated_at?: string | null;
         };
         /**
          * AgencyInvitationStatus
          * @enum {string}
          */
-        AgencyInvitationStatus: "pending" | "accepted" | "rejected" | "expired" | "revoked";
+        AgencyInvitationStatus: "pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn";
         /** AgencyInviteAcceptRequest */
         AgencyInviteAcceptRequest: {
             /** Invite Token */
@@ -4811,6 +4981,14 @@ export interface components {
             decided_at?: string | null;
             /** Decided By */
             decided_by?: number | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Reactivation Requested At */
+            reactivation_requested_at?: string | null;
+            /** Reactivation Requested By */
+            reactivation_requested_by?: number | null;
+            /** Reactivation Accepted At */
+            reactivation_accepted_at?: string | null;
             /** Seeker Email */
             seeker_email?: string | null;
             /** Seeker Name */
@@ -4830,7 +5008,7 @@ export interface components {
          * AgencyJoinRequestStatus
          * @enum {string}
          */
-        AgencyJoinRequestStatus: "pending" | "approved" | "rejected" | "cancelled";
+        AgencyJoinRequestStatus: "pending" | "approved" | "rejected" | "cancelled" | "expired";
         /** AgencyMembershipReviewDecisionRequest */
         AgencyMembershipReviewDecisionRequest: {
             /** Reason */
@@ -6053,6 +6231,14 @@ export interface components {
             decided_at?: string | null;
             /** Decided By */
             decided_by?: number | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Reactivation Requested At */
+            reactivation_requested_at?: string | null;
+            /** Reactivation Requested By */
+            reactivation_requested_by?: number | null;
+            /** Reactivation Accepted At */
+            reactivation_accepted_at?: string | null;
             /**
              * Submitted At
              * Format: date-time
@@ -9077,7 +9263,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgencyReviewRequestResponse"][];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -9440,6 +9626,69 @@ export interface operations {
             };
         };
     };
+    request_join_request_reactivation_api_v1_agencies__agency_id__join_requests__request_id__request_reactivation__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reapply_agency_join_request_api_v1_agencies__agency_id__join_requests_reapply__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_agency_invitations_api_v1_agencies__agency_id__invitations__get: {
         parameters: {
             query?: {
@@ -9464,6 +9713,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgencyInvitationResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_agency_invitation_api_v1_agencies__agency_id__invitations__invitation_id__withdraw__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: number;
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -9606,6 +9887,68 @@ export interface operations {
         };
     };
     reject_my_agency_invitation_api_v1_agency_invitations__invitation_id__reject__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_invitation_reactivation_api_v1_agency_invitations__invitation_id__request_reactivation__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reactivate_agency_invitation_api_v1_agency_invitations__invitation_id__reactivate__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -12684,6 +13027,37 @@ export interface operations {
             };
         };
     };
+    accept_join_request_reactivation_api_v1_join_requests__request_id__accept_reactivation__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_user_saved_searches_api_v1_saved_searches__get: {
         parameters: {
             query?: {
@@ -14727,6 +15101,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    trigger_expire_pending_items_internal_jobs_expire_pending_items__post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Internal-Jobs-Secret": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
