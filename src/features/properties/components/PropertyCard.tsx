@@ -158,7 +158,7 @@ export const PropertyCard = memo(function PropertyCard({
             <Badge variant={statusVariant[property.listing_status] ?? "default"}>
               {LISTING_STATUS_LABELS[property.listing_status] ?? property.listing_status}
             </Badge>
-            <Badge variant="outline">
+            <Badge variant="default">
               {LISTING_TYPE_LABELS[property.listing_type] ?? property.listing_type}
             </Badge>
           </div>
