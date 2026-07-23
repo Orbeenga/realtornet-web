@@ -9,7 +9,7 @@ export function useReplies(inquiryId: number | null) {
     queryKey: ["inquiryReplies", inquiryId],
     queryFn: () =>
       apiClient<InquiryReplyResponse[]>(
-        `/api/v1/inquiries/${inquiryId}/replies/`,
+        `/api/v1/inquiries/${inquiryId}/replies`,
       ),
     staleTime: 10_000,
     refetchInterval: 10_000,

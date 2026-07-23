@@ -6,7 +6,7 @@ export function useLocations(enabled = true) {
   return useQuery({
     queryKey: ["locations"],
     queryFn: () =>
-      apiClient<Location[]>("/api/v1/locations/", { authMode: "omit" }),
+      apiClient<Location[]>("/api/v1/locations", { authMode: "omit" }),
     staleTime: 60_000,
     enabled,
   });

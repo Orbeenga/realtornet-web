@@ -45,7 +45,7 @@ export function useUpsertMyProfile() {
         });
       }
 
-      return apiClient<Profile>("/api/v1/profiles/", {
+      return apiClient<Profile>("/api/v1/profiles", {
         method: "POST",
         body: JSON.stringify(payload),
       });

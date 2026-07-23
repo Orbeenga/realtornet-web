@@ -15,7 +15,7 @@ export function useSavedSearches() {
 
   return useQuery({
     queryKey: SAVED_SEARCHES_QUERY_KEY,
-    queryFn: () => apiClient<SavedSearch[]>("/api/v1/saved-searches/"),
+    queryFn: () => apiClient<SavedSearch[]>("/api/v1/saved-searches"),
     staleTime: 60_000,
     enabled: typeof profile?.user_id === "number",
   });
@@ -26,7 +26,7 @@ export function useCreateSavedSearch() {
 
   return useMutation({
     mutationFn: (payload: SavedSearchCreateInput) =>
-      apiClient<SavedSearch>("/api/v1/saved-searches/", {
+      apiClient<SavedSearch>("/api/v1/saved-searches", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
