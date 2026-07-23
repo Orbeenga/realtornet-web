@@ -62,11 +62,11 @@ async function fetchInquiryCollection(
   agencyId?: number,
 ) {
   if (source === "sent") {
-    return apiClient<Inquiry[]>("/api/v1/inquiries/");
+    return apiClient<Inquiry[]>("/api/v1/inquiries");
   }
 
   if (source === "received") {
-    return apiClient<Inquiry[]>("/api/v1/inquiries/received/");
+    return apiClient<Inquiry[]>("/api/v1/inquiries/received");
   }
 
   if (source === "agency") {
@@ -75,12 +75,12 @@ async function fetchInquiryCollection(
     }
 
     return apiClient<InquiryExtended[]>(
-      `/api/v1/agencies/${agencyId}/inquiries/?page_size=100`,
+      `/api/v1/agencies/${agencyId}/inquiries?page_size=100`,
     );
   }
 
   const payload = await apiClient<Inquiry[] | Record<string, unknown>>(
-    "/api/v1/admin/inquiries/",
+    "/api/v1/admin/inquiries",
   );
 
   return extractInquiryCollection(payload);
@@ -255,7 +255,7 @@ export function useInquiryDirectory(
   const propertyQueries = useQueries({
     queries: propertyIdsNeedingDetail.map((propertyId) => ({
       queryKey: ["property", propertyId],
-      queryFn: () => apiClient<Property>(`/api/v1/properties/${propertyId}/`),
+      queryFn: () => apiClient<Property>(`/api/v1/properties/${propertyId}`),
       staleTime: 60_000,
     })),
   });
@@ -266,7 +266,7 @@ export function useInquiryDirectory(
       : propertyIds.map((propertyId) => ({
           queryKey: ["propertyImages", propertyId],
           queryFn: () =>
-            apiClient<PropertyImage[]>(`/api/v1/property-images/property/${propertyId}/`),
+            apiClient<PropertyImage[]>(`/api/v1/property-images/property/${propertyId}`),
           staleTime: 60_000,
         })),
   });
@@ -360,7 +360,7 @@ export function useUpdateInquiryStatus() {
       inquiryId: number;
       status: InquiryStatus;
     }) =>
-      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/status/`, {
+      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/status`, {
         method: "PATCH",
         body: JSON.stringify({
           inquiry_status: status,
@@ -380,7 +380,7 @@ export function useMarkInquiryViewed() {
 
   return useMutation({
     mutationFn: (inquiryId: number) =>
-      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/mark-viewed/`, {
+      apiClient<Inquiry>(`/api/v1/inquiries/${inquiryId}/mark-viewed`, {
         method: "POST",
       }),
     onSuccess: async () => {

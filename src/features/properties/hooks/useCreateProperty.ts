@@ -7,7 +7,7 @@ export function useCreateProperty() {
 
   return useMutation({
     mutationFn: (data: PropertyCreate) =>
-      apiClient<Property>("/api/v1/properties/", {
+      apiClient<Property>("/api/v1/properties", {
         method: "POST",
         body: JSON.stringify(data),
       }),

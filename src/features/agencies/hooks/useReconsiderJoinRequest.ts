@@ -7,7 +7,7 @@ export function useReconsiderJoinRequest(agencyId?: string | number | null) {
   return useMutation({
     mutationFn: (requestId: number) =>
       apiClient<void>(
-        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/reconsider/`,
+        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/reconsider`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {

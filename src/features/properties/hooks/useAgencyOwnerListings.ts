@@ -23,7 +23,7 @@ export function useAgencyOwnerListings(
       if (singleStatus) {
         params.set("moderation_status", singleStatus);
       }
-      return apiClient<PropertyList>(`/api/v1/properties/?${params.toString()}`, {
+      return apiClient<PropertyList>(`/api/v1/properties?${params.toString()}`, {
         authMode: "include",
       });
     },

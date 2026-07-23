@@ -13,7 +13,7 @@ export function useTransferOwnership() {
   return useMutation({
     mutationFn: ({ agencyId, payload }: TransferOwnershipVariables) =>
       apiClient<{ detail: string; new_owner_user_id: number; demote_existing_owner_to_agent: boolean }>(
-        `/api/v1/agencies/${agencyId}/transfer-ownership/`,
+        `/api/v1/agencies/${agencyId}/transfer-ownership`,
         {
           method: "POST",
           body: JSON.stringify(payload),

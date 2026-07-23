@@ -7,7 +7,7 @@ export function useSubmitInquiry() {
 
   return useMutation({
     mutationFn: (data: InquiryCreate) =>
-      apiClient<Inquiry>("/api/v1/inquiries/", {
+      apiClient<Inquiry>("/api/v1/inquiries", {
         method: "POST",
         body: JSON.stringify(data),
       }),

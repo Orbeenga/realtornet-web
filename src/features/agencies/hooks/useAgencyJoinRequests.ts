@@ -149,7 +149,7 @@ export function useCancelAgencyJoinRequest() {
 
   return useMutation({
     mutationFn: (requestId: number) =>
-      apiClient<void>(`/api/v1/join-requests/${requestId}/`, {
+      apiClient<void>(`/api/v1/join-requests/${requestId}`, {
         method: "DELETE",
       }),
     onSuccess: async () => {
@@ -234,7 +234,7 @@ export function useWithdrawAgencyInvitation(agencyId?: string | number | null) {
   return useMutation({
     mutationFn: (invitationId: number) =>
       apiClient<AgencyInvitationResponse>(
-        `/api/v1/agencies/${agencyId}/invitations/${invitationId}/withdraw/`,
+        `/api/v1/agencies/${agencyId}/invitations/${invitationId}/withdraw`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {
