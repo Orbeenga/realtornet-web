@@ -130,11 +130,11 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
   const neighborhood = searchParams.get("neighborhood") || "";
 
   const isLocalMinCustom = Boolean(localMinPrice) && !PRICE_OPTIONS.some((o) => o.value === localMinPrice);
-  const showCustomMin = customMinMode || isLocalMinCustom;
-  const minSelectValue = showCustomMin ? "custom" : localMinPrice;
+  const showCustomMin = customMinMode;
+  const minSelectValue = (customMinMode || isLocalMinCustom) ? "custom" : (localMinPrice || "");
   const isLocalMaxCustom = Boolean(localMaxPrice) && !PRICE_OPTIONS.some((o) => o.value === localMaxPrice);
-  const showCustomMax = customMaxMode || isLocalMaxCustom;
-  const maxSelectValue = showCustomMax ? "custom" : localMaxPrice;
+  const showCustomMax = customMaxMode;
+  const maxSelectValue = (customMaxMode || isLocalMaxCustom) ? "custom" : (localMaxPrice || "");
 
   // ── URL update helpers ────────────────────────────────────────────────────
   const updateLocationFilters = useCallback(

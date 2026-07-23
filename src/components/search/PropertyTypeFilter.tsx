@@ -97,7 +97,7 @@ const PropertyTypeFilter = forwardRef<PropertyTypeHandle, Props>(
         </PopoverTrigger>
 
         <PopoverContent
-          className="w-56 p-0"
+          className={`p-0${forceSheet ? " left-4 right-4 !w-auto bg-gray-900 text-white" : " w-56"}`}
           align="start"
           asSheet={forceSheet}
         >
@@ -108,7 +108,7 @@ const PropertyTypeFilter = forwardRef<PropertyTypeHandle, Props>(
           )}
 
           <div className={cn("flex items-center justify-between px-4", forceSheet ? "pb-2" : "py-2 border-b border-gray-100 dark:border-gray-800") }>
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">Property Type</span>
+            <span className={`text-sm font-semibold ${forceSheet ? "text-gray-100" : "text-gray-900 dark:text-white"}`}>Property Type</span>
             {stagedIds.length > 0 && (
               <button
                 type="button"
@@ -122,14 +122,14 @@ const PropertyTypeFilter = forwardRef<PropertyTypeHandle, Props>(
 
           <ul role="listbox" aria-multiselectable="true" aria-label="Property type" className={cn("overflow-y-auto py-1", forceSheet ? "flex-1 min-h-0" : "max-h-60")}>
             <li role="option" aria-selected={allToggled}>
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <label className={`flex cursor-pointer items-center px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 ${forceSheet ? "flex-row-reverse justify-between" : "gap-3"}`}>
                 <input
                   type="checkbox"
                   checked={allToggled}
                   onChange={(e) => { if (e.target.checked) { setAllToggled(true); setStagedIds([]); } else { setAllToggled(false); } }}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-200">All Property Types</span>
+                <span className={`text-sm ${forceSheet ? "text-white" : "text-gray-700 dark:text-gray-200"}`}>All Property Types</span>
               </label>
             </li>
 
@@ -138,7 +138,7 @@ const PropertyTypeFilter = forwardRef<PropertyTypeHandle, Props>(
               const checked = stagedIds.includes(ptId);
               return (
                 <li key={ptId} role="option" aria-selected={checked}>
-                  <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <label className={`flex cursor-pointer items-center px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 ${forceSheet ? "flex-row-reverse justify-between" : "gap-3"}`}>
                     <input
                       type="checkbox"
                       checked={checked}
@@ -148,7 +148,7 @@ const PropertyTypeFilter = forwardRef<PropertyTypeHandle, Props>(
                       }}
                       className="h-4 w-4 rounded border-gray-300 text-blue-600"
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-200">{pt.name}</span>
+                    <span className={`text-sm ${forceSheet ? "text-white" : "text-gray-700 dark:text-gray-200"}`}>{pt.name}</span>
                   </label>
                 </li>
               );
