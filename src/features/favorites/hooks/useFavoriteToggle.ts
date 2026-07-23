@@ -15,12 +15,12 @@ export function useFavoriteToggle() {
   return useMutation({
     mutationFn: async ({ propertyId, isFavorited }: ToggleArgs) => {
       if (isFavorited) {
-        return apiClient<Favorite>(`/api/v1/favorites/?property_id=${propertyId}`, {
+        return apiClient<Favorite>(`/api/v1/favorites?property_id=${propertyId}`, {
           method: "DELETE",
         });
       }
 
-      return apiClient<Favorite>("/api/v1/favorites/", {
+      return apiClient<Favorite>("/api/v1/favorites", {
         method: "POST",
         body: JSON.stringify({ property_id: propertyId } satisfies FavoriteCreate),
       });

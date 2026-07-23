@@ -13,7 +13,7 @@ export function useAmenities() {
   return useQuery({
     queryKey: ["amenities"],
     queryFn: () =>
-      apiClient<Amenity[]>("/api/v1/amenities/", { authMode: "include" }),
+      apiClient<Amenity[]>("/api/v1/amenities", { authMode: "include" }),
     staleTime: 300_000,
   });
 }

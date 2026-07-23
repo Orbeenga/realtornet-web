@@ -10,7 +10,7 @@ export function useAgencyMembershipHistory(
     queryKey: ["agencyMembershipHistory", agencyId],
     queryFn: () =>
       apiClient<MembershipTimelineEntry[]>(
-        `/api/v1/agencies/${agencyId}/membership-history/`,
+        `/api/v1/agencies/${agencyId}/membership-history`,
       ),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId),
