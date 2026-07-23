@@ -16,6 +16,7 @@ import {
   useMyAgencyJoinRequests,
   useMyAgencyMemberships,
   useRejectAgencyInvitation,
+  useRequestInvitationReactivation,
 } from "@/features/agencies/hooks";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
@@ -60,7 +61,7 @@ export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "cancelled">("pending");
-  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked">("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
@@ -76,6 +77,7 @@ export function MyJoinRequestsClient() {
   const createReviewRequest = useCreateAgencyReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
+  const requestReactivation = useRequestInvitationReactivation();
   const cancelJoinRequest = useCancelAgencyJoinRequest();
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
 
@@ -128,6 +130,15 @@ export function MyJoinRequestsClient() {
       notify.success("Invitation rejected");
     } catch {
       notify.error("Could not reject invitation");
+    }
+  };
+
+  const handleRequestReactivation = async (invitationId: number) => {
+    try {
+      await requestReactivation.mutateAsync(invitationId);
+      notify.success("Reactivation requested");
+    } catch {
+      notify.error("Could not request reactivation");
     }
   };
 
@@ -252,9 +263,10 @@ export function MyJoinRequestsClient() {
               { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
               { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
               { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
+              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(i => i.status === "withdrawn").length})` },
               { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
             ].map(({ value, label }) => (
-              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked")}>
+              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn")}>
                 {label}
               </Button>
             ))}
@@ -402,33 +414,111 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No expired invitations" description="Expired invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "expired").map((invitation) => (
-                  <Card key={invitation.invitation_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
-                        <Badge variant="danger">expired</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invitation from {invitation.agency_name} has expired.
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sent {formatDate(invitation.created_at)}
-                      </p>
-                      <Link
-                        href={`/agencies/${invitation.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
-                    </CardBody>
-                  </Card>
-                ))
+                invitations.filter(i => i.status === "expired").map((invitation) => {
+                  const hasRequested = Boolean(invitation.reactivation_requested_at);
+                  return (
+                    <Card key={invitation.invitation_id}>
+                      <CardBody className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <Link
+                            href={`/agencies/${invitation.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                          >
+                            {invitation.agency_name}
+                          </Link>
+                          <Badge variant="danger">expired</Badge>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Invitation from {invitation.agency_name} has expired.
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Sent {formatDate(invitation.created_at)}
+                        </p>
+                        {invitation.expires_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Expired {formatDate(invitation.expires_at)}
+                          </p>
+                        ) : null}
+                        {hasRequested ? (
+                          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            Reactivation requested — awaiting agency response
+                          </p>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              requestReactivation.isPending &&
+                              requestReactivation.variables === invitation.invitation_id
+                            }
+                            onClick={() =>
+                              void handleRequestReactivation(invitation.invitation_id)
+                            }
+                          >
+                            Request Reactivation
+                          </Button>
+                        )}
+                      </CardBody>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          ) : invitationSubTab === "withdrawn" ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {invitations.filter(i => i.status === "withdrawn").length === 0 ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <EmptyState title="No withdrawn invitations" description="Withdrawn invitations will appear here." />
+                </div>
+              ) : (
+                invitations.filter(i => i.status === "withdrawn").map((invitation) => {
+                  const hasExpressedInterest = Boolean(invitation.interest_expressed_at);
+                  return (
+                    <Card key={invitation.invitation_id}>
+                      <CardBody className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <Link
+                            href={`/agencies/${invitation.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                          >
+                            {invitation.agency_name}
+                          </Link>
+                          <Badge variant="danger">withdrawn</Badge>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Invitation from {invitation.agency_name} was withdrawn.
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Sent {formatDate(invitation.created_at)}
+                        </p>
+                        {invitation.withdrawn_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Withdrawn {formatDate(invitation.withdrawn_at)}
+                          </p>
+                        ) : null}
+                        {hasExpressedInterest ? (
+                          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            Interest expressed — awaiting agency response
+                          </p>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              requestReactivation.isPending &&
+                              requestReactivation.variables === invitation.invitation_id
+                            }
+                            onClick={() =>
+                              void handleRequestReactivation(invitation.invitation_id)
+                            }
+                          >
+                            Express Interest
+                          </Button>
+                        )}
+                      </CardBody>
+                    </Card>
+                  );
+                })
               )}
             </div>
           ) : (
