@@ -6,7 +6,7 @@ export function usePublicMarketplace(enabled: boolean) {
   return useQuery({
     queryKey: ["public-marketplace"],
     queryFn: () =>
-      apiClient<PropertyList>("/api/v1/properties/?moderation_status=live", {
+      apiClient<PropertyList>("/api/v1/properties?moderation_status=live", {
         authMode: "include",
       }),
     staleTime: 0,

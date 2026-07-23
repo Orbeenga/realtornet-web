@@ -31,7 +31,7 @@ export function getAgencyAgentCount(stats?: AgencyStats) {
 export function useAgencies(enabled = true, initialData?: Agency[] | null) {
   return useQuery({
     queryKey: ["agencies"],
-    queryFn: () => apiClient<Agency[]>("/api/v1/agencies/", { authMode: "omit" }),
+    queryFn: () => apiClient<Agency[]>("/api/v1/agencies", { authMode: "omit" }),
     staleTime: 60_000,
     enabled,
     initialData: initialData ?? undefined,

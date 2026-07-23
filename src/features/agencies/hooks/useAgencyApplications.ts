@@ -16,7 +16,7 @@ interface AgencyDecisionVariables {
 export function useApplyForAgency() {
   return useMutation({
     mutationFn: (payload: AgencyApplicationCreate) =>
-      apiClient<AgencyApplicationResponse>("/api/v1/agencies/apply/", {
+      apiClient<AgencyApplicationResponse>("/api/v1/agencies/apply", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -46,7 +46,7 @@ export function useApproveAgencyApplication() {
 
   return useMutation({
     mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
-      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/approve/`, {
+      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/approve`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -64,7 +64,7 @@ export function useRejectAgencyApplication() {
 
   return useMutation({
     mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
-      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/reject/`, {
+      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/reject`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -82,7 +82,7 @@ export function useRevokeAgencyApproval() {
 
   return useMutation({
     mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
-      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/revoke/`, {
+      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/revoke`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -100,7 +100,7 @@ export function useSuspendAgency() {
 
   return useMutation({
     mutationFn: ({ agencyId, payload }: AgencyDecisionVariables) =>
-      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/suspend/`, {
+      apiClient<Agency>(`/api/v1/admin/agencies/${agencyId}/suspend`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),

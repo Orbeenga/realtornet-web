@@ -88,7 +88,7 @@ export function useAddFavorite() {
 
   return useMutation({
     mutationFn: (propertyId: number) =>
-      apiClient<Favorite>("/api/v1/favorites/", {
+      apiClient<Favorite>("/api/v1/favorites", {
         method: "POST",
         body: JSON.stringify({ property_id: propertyId } satisfies FavoriteCreate),
     }),
@@ -105,7 +105,7 @@ export function useRemoveFavorite() {
 
   return useMutation({
     mutationFn: (propertyId: number) =>
-      apiClient<Favorite>(`/api/v1/favorites/?property_id=${propertyId}`, {
+      apiClient<Favorite>(`/api/v1/favorites?property_id=${propertyId}`, {
         method: "DELETE",
     }),
     onSuccess: () => {
