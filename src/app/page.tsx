@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { DeferredToaster } from "@/components/DeferredToaster";
 import { AgencyDirectoryClient } from "@/features/agencies/components";
+import { HomeSearchProvider } from "@/features/home/components/HomeSearchContext";
 import { HomeHeroSearch } from "@/features/home/components/HomeHeroSearch";
 import { PublicGuidePopover } from "@/features/home/components/PublicGuidePopover";
 import { FeaturedPropertiesSection } from "@/features/properties/components";
@@ -34,10 +35,10 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   const [featuredProperties, featuredAgencies] = await Promise.allSettled([
     serverPublicApi<PropertyList>(
-      "/api/v1/properties/?page=1&page_size=6&limit=6&moderation_status=live",
+      "/api/v1/properties?page=1&page_size=6&limit=6&moderation_status=live",
       120,
     ),
-    serverPublicApi<Agency[]>("/api/v1/agencies/", 120),
+    serverPublicApi<Agency[]>("/api/v1/agencies", 120),
   ]);
 
   const properties =
@@ -65,39 +66,41 @@ export default async function Home() {
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ldOrg) }}
         />
-        <section className="relative bg-gradient-to-br from-slate-800 to-slate-950">
-          <div className="absolute inset-0 bg-black/55" />
-          <div className="relative mx-auto flex min-h-[360px] max-w-7xl flex-col justify-between gap-6 px-4 py-6 sm:px-6 md:min-h-[420px] md:py-8 lg:min-h-[480px] lg:px-8">
-            <div className="flex flex-col items-start gap-4 text-left text-white">
-              <div className="flex items-center gap-1 sm:gap-2">
-                {(["sale","rent","lease"] as const).map((type) => (
-                  <Link
-                    key={type}
-                    href={`/properties?listing_type=${type}`}
-                    prefetch={false}
-                    className="rounded-full px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
-                  >
-                    {type === "sale" ? "Buy" : type === "rent" ? "Rent" : "Lease"}
-                  </Link>
-                ))}
-                <div className="ml-2">
-                  <PublicGuidePopover />
+        <HomeSearchProvider>
+          <section className="relative bg-gradient-to-br from-slate-800 to-slate-950">
+            <div className="absolute inset-0 bg-black/55" />
+            <div className="relative mx-auto flex min-h-[360px] max-w-7xl flex-col justify-between gap-6 px-4 py-6 sm:px-6 md:min-h-[420px] md:py-8 lg:min-h-[480px] lg:px-8">
+              <div className="flex flex-col items-start gap-4 text-left text-white">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {(["sale","rent","lease"] as const).map((type) => (
+                    <Link
+                      key={type}
+                      href={`/properties?listing_type=${type}`}
+                      prefetch={false}
+                      className="rounded-full px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                    >
+                      {type === "sale" ? "Buy" : type === "rent" ? "Rent" : "Lease"}
+                    </Link>
+                  ))}
+                  <div className="ml-2">
+                    <PublicGuidePopover />
+                  </div>
                 </div>
+                <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+                  Find property through trusted real estate agencies
+                </h1>
+                <p className="max-w-2xl text-base leading-7 text-white/80 sm:text-lg sm:leading-8">
+                  Browse approved agencies, inspect their listings, and move from discovery
+                  to inquiry with visible ownership at every step.
+                </p>
               </div>
-              <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-                Find property through trusted real estate agencies
-              </h1>
-              <p className="max-w-2xl text-base leading-7 text-white/80 sm:text-lg sm:leading-8">
-                Browse approved agencies, inspect their listings, and move from discovery
-                to inquiry with visible ownership at every step.
-              </p>
-            </div>
 
-            <div className="w-full">
-              <HomeHeroSearch />
+              <div className="w-full">
+                <HomeHeroSearch />
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </HomeSearchProvider>
 
         {showFeaturedListings ? (
           <FeaturedPropertiesSection

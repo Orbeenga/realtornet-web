@@ -35,7 +35,7 @@ export function useNotificationList(enabled = true) {
   return useQuery({
     queryKey: ["notifications", "list"],
     queryFn: async () => {
-      return apiClient<NotificationItem[]>("/api/v1/notifications/", {
+      return apiClient<NotificationItem[]>("/api/v1/notifications", {
         method: "GET",
       });
     },

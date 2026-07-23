@@ -14,7 +14,7 @@ export function buildAgentDirectoryPath(filters: AgentDirectoryFilters) {
   params.set("skip", String(filters.skip ?? 0));
   params.set("limit", String(filters.limit ?? 24));
 
-  return `/api/v1/agents/?${params.toString()}`;
+  return `/api/v1/agents?${params.toString()}`;
 }
 
 export function useAgentDirectory(

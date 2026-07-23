@@ -4,11 +4,13 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock"
 
 interface PopoverContextValue {
   open: boolean
   setOpen: (open: boolean) => void
   rootRef: React.RefObject<HTMLDivElement | null>
+  contentRef: React.RefObject<HTMLDivElement | null>
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -37,6 +39,10 @@ function Popover({
   onOpenChange?: (open: boolean) => void
 }) {
   const rootRef = React.useRef<HTMLDivElement>(null)
+  // contentRef is created here and shared via context so the outside-click
+  // handler can check if the click landed inside the floating panel (which
+  // is portalled to document.body and therefore outside rootRef).
+  const contentRef = React.useRef<HTMLDivElement>(null)
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
   const isOpen = open ?? internalOpen
   const setOpen = React.useCallback(
@@ -53,13 +59,17 @@ function Popover({
     }
 
     const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target
+      const target = event.target as Node | null
+      if (!target) return
 
-      if (target instanceof Element && target.closest('[data-slot="popover-content"]')) {
-        return
-      }
+      // The trigger wrapper and the floating content panel are the two
+      // legitimate hit-test zones. Clicks inside either must not close the
+      // popover. The content panel is portalled to document.body so it is
+      // outside rootRef — we must check contentRef separately.
+      const insideTrigger = rootRef.current?.contains(target) ?? false
+      const insideContent = contentRef.current?.contains(target) ?? false
 
-      if (target instanceof Node && !rootRef.current?.contains(target)) {
+      if (!insideTrigger && !insideContent) {
         setOpen(false)
       }
     }
@@ -80,12 +90,12 @@ function Popover({
   }, [isOpen, setOpen])
 
   return (
-    <PopoverContext.Provider value={{ open: isOpen, setOpen, rootRef }}>
+    <PopoverContext.Provider value={{ open: isOpen, setOpen, rootRef, contentRef }}>
       <div
         ref={rootRef}
         data-slot="popover-root"
         data-state={isOpen ? "open" : "closed"}
-        className={cn("relative inline-flex", className)}
+        className={cn("relative flex", className)}
       >
         {children}
       </div>
@@ -150,72 +160,144 @@ function PopoverContent({
   children,
   align = "start",
   sideOffset = 4,
+  asSheet = false,
+  matchTriggerWidth = false,
 }: {
   className?: string
   children: React.ReactNode
   align?: "start" | "center" | "end"
   sideOffset?: number
+  /**
+   * When true, the content renders as a bottom-anchored sheet (full viewport
+   * width, fixed to the bottom edge). Used for the mobile Property Type picker.
+   */
+  asSheet?: boolean
+  /**
+   * When true, the popover width matches the trigger element width exactly.
+   */
+  matchTriggerWidth?: boolean
 }) {
-  const { open, rootRef } = usePopoverContext()
-  const contentRef = React.useRef<HTMLDivElement>(null)
-  const [position, setPosition] = React.useState<{ top: number; left: number; ready: boolean }>({
-    top: 0,
-    left: 0,
-    ready: false,
-  })
+  const { open, setOpen, rootRef, contentRef } = usePopoverContext()
+  // Lock body scroll while the sheet is open so the page behind doesn't scroll
+  useBodyScrollLock(open && !!asSheet)
+  const positionReady = React.useRef(false)
+
+  // Direct DOM manipulation avoids the one-frame lag of React state during
+  // scroll — position is applied synchronously in the scroll handler.
+  const applyPosition = React.useCallback(() => {
+    if (asSheet) return
+    const trigger = rootRef.current
+    const content = contentRef.current
+    if (!trigger || !content) return
+
+    const triggerRect = trigger.getBoundingClientRect()
+    if (triggerRect.width === 0 && triggerRect.height === 0) return
+
+    const contentRect = content.getBoundingClientRect()
+    const contentWidth = contentRect.width
+    const contentHeight = contentRect.height
+
+    let left = triggerRect.left
+    if (align === "end") {
+      left = triggerRect.right - contentWidth
+    } else if (align === "center") {
+      left = triggerRect.left + triggerRect.width / 2 - contentWidth / 2
+    }
+
+    const margin = 8
+    const maxLeft = window.innerWidth - contentWidth - margin
+    left = Math.max(margin, Math.min(left, maxLeft))
+
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const spaceAbove = triggerRect.top
+    const fitsBelow = spaceBelow >= contentHeight + sideOffset
+    const fitsAbove = spaceAbove >= contentHeight + sideOffset
+    const positionAbove = !fitsBelow && fitsAbove
+    const top = positionAbove
+      ? triggerRect.top - contentHeight - sideOffset
+      : triggerRect.bottom + sideOffset
+    const available = positionAbove
+      ? spaceAbove - sideOffset
+      : spaceBelow - sideOffset
+
+    if (matchTriggerWidth) {
+      content.style.width = `${triggerRect.width}px`
+    }
+    content.style.top = `${top}px`
+    content.style.left = `${left}px`
+    content.style.maxHeight = `${Math.min(contentHeight, available)}px`
+    content.style.overflow = contentHeight > available ? 'hidden' : ''
+    content.style.visibility = "visible"
+
+    if (contentHeight > available) {
+      const list = content.querySelector('ul')
+      if (list) {
+        const headerH = list.previousElementSibling?.getBoundingClientRect().height ?? 0
+        const footerH = list.nextElementSibling?.getBoundingClientRect().height ?? 0
+        ;(list as HTMLElement).style.maxHeight = `${Math.max(60, available - headerH - footerH)}px`
+      }
+    }
+
+    positionReady.current = true
+  }, [asSheet, rootRef, contentRef, align, sideOffset, matchTriggerWidth])
 
   useIsomorphicLayoutEffect(() => {
+    const content = contentRef.current
     if (!open) {
-      setPosition({ top: 0, left: 0, ready: false })
+      if (content) content.style.visibility = "hidden"
+      positionReady.current = false
       return
     }
+    if (asSheet) return
 
-    const updatePosition = () => {
-      const trigger = rootRef.current
-      const content = contentRef.current
-      if (!trigger || !content) return
+    applyPosition()
+    window.addEventListener("resize", applyPosition)
 
-      // Both rects are viewport-relative, which is exactly what `position: fixed`
-      // expects. Do NOT add window.scrollY/scrollX here — that was the bug that
-      // caused dropdown content to detach and float when the page was scrolled.
-      const triggerRect = trigger.getBoundingClientRect()
-      const contentRect = content.getBoundingClientRect()
-      if (triggerRect.width === 0 && triggerRect.height === 0) return
-
-      const contentWidth = contentRect.width
-      let left = triggerRect.left
-
-      if (align === "end") {
-        left = triggerRect.right - contentWidth
-      } else if (align === "center") {
-        left = triggerRect.left + triggerRect.width / 2 - contentWidth / 2
+    let ticking = false
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          applyPosition()
+          ticking = false
+        })
+        ticking = true
       }
-
-      // Keep the panel inside the viewport so wide content (e.g. the w-80
-      // notification panel anchored to the right-edge bell) never overflows.
-      const margin = 8
-      const maxLeft = window.innerWidth - contentWidth - margin
-      left = Math.max(margin, Math.min(left, maxLeft))
-
-      setPosition({
-        top: triggerRect.bottom + sideOffset,
-        left,
-        ready: true,
-      })
     }
-
-    updatePosition()
-    window.addEventListener("resize", updatePosition)
-    window.addEventListener("scroll", updatePosition, true)
+    window.addEventListener("scroll", handleScroll)
 
     return () => {
-      window.removeEventListener("resize", updatePosition)
-      window.removeEventListener("scroll", updatePosition, true)
+      window.removeEventListener("resize", applyPosition)
+      window.removeEventListener("scroll", handleScroll)
     }
-  }, [open, rootRef, align, sideOffset])
+  }, [open, rootRef, contentRef, align, sideOffset, asSheet, matchTriggerWidth, applyPosition])
 
   if (!open) {
     return null
+  }
+
+  if (asSheet) {
+    // Bottom sheet mode: full-width panel anchored to the viewport bottom.
+    // Used on mobile where a top-anchored popover is too small.
+    return (
+      <PopoverPortal>
+        <div
+          className="fixed inset-0 z-40 bg-black/10"
+          onClick={() => setOpen(false)}
+        />
+        <div
+          ref={contentRef}
+          data-slot="popover-content"
+          role="dialog"
+          className={cn(
+            "fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl border-t border-gray-200 bg-white text-gray-900 shadow-2xl outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
+            className,
+            "w-full max-h-[75vh] flex flex-col",
+          )}
+        >
+          {children}
+        </div>
+      </PopoverPortal>
+    )
   }
 
   return (
@@ -225,17 +307,10 @@ function PopoverContent({
         data-slot="popover-content"
         role="dialog"
         className={cn(
-          "fixed z-50 rounded-lg border border-gray-200 bg-white p-4 text-gray-900 shadow-lg outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
+          "invisible fixed z-50 rounded-lg border border-gray-200 bg-white p-4 text-gray-900 shadow-lg outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
           className,
         )}
-        style={{
-          top: `${position.top}px`,
-          left: `${position.left}px`,
-          // Hide until the first position calculation lands so the panel never
-          // flashes at the viewport origin. With useIsomorphicLayoutEffect this
-          // happens before paint on the client.
-          visibility: position.ready ? "visible" : "hidden",
-        }}
+        style={{ top: 0, left: 0 }}
       >
         {children}
       </div>
