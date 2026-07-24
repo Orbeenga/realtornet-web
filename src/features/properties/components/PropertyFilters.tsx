@@ -80,9 +80,14 @@ export function PropertyFilters() {
   const plainSearchParams = new URLSearchParams(searchParams.toString());
   plainSearchParams.delete("view");
 
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
   const updateFilter = useCallback(
     (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParamsRef.current.toString());
 
       if (value) {
         params.set(key, value);
@@ -97,7 +102,7 @@ export function PropertyFilters() {
       savePropertiesScrollPosition(newUrl, window.scrollY);
       router.push(newUrl);
     },
-    [pathname, router, searchParams],
+    [pathname, router],
   );
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
