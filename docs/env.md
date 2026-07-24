@@ -16,6 +16,7 @@ For CI, add secrets in GitHub under `Settings -> Secrets and variables -> Action
 
 ## Notes
 
+- **Local dev default: point at production API** (https://realtornet-production.up.railway.app). Production carries real seeded data for day-to-day feature work. Reserve pointing at staging (https://realtornet-staging.up.railway.app) for sessions specifically validating pre-merge backend changes — staging is intentionally sparse/not seeded for general iteration.
 - Keep real production values in `.env.production` locally or in your deployment platform secrets.
 - Commit `.env.production.example`, not `.env.production`.
 - GitHub Actions secrets should mirror the values needed by the workflow build step.

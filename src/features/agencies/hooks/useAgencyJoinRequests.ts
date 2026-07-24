@@ -162,7 +162,7 @@ export function useMyAgencyJoinRequests(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyJoinRequests"],
     queryFn: () =>
-      apiClient<MyAgencyJoinRequestResponse[]>("/api/v1/join-requests/mine"),
+      apiClient<MyAgencyJoinRequestResponse[]>("/api/v1/join-requests/mine/"),
     staleTime: 60_000,
     enabled,
   });
@@ -187,7 +187,7 @@ export function useMyAgencyInvitations(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyInvitations"],
     queryFn: () =>
-      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine"),
+      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/"),
     staleTime: 60_000,
     enabled,
   });
@@ -199,7 +199,7 @@ export function useAcceptAgencyInvitation() {
   return useMutation({
     mutationFn: (invitationId: number) =>
       apiClient<AgencyInviteAcceptResponse>(
-        `/api/v1/agency-invitations/${invitationId}/accept`,
+        `/api/v1/agency-invitations/${invitationId}/accept/`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {
@@ -219,7 +219,7 @@ export function useRejectAgencyInvitation() {
   return useMutation({
     mutationFn: (invitationId: number) =>
       apiClient<AgencyInvitationResponse>(
-        `/api/v1/agency-invitations/${invitationId}/reject`,
+        `/api/v1/agency-invitations/${invitationId}/reject/`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {
@@ -239,6 +239,21 @@ export function useWithdrawAgencyInvitation(agencyId?: string | number | null) {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["agencyInvitations", agencyId] });
+    },
+  });
+}
+
+export function useRequestInvitationReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agency-invitations/${invitationId}/request-reactivation/`,
+        { method: "POST" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] });
     },
   });
 }
