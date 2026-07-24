@@ -170,7 +170,7 @@ export function useMembershipHistory(enabled = true) {
   return useQuery({
     queryKey: ["membershipHistory", "me"],
     queryFn: () =>
-      apiClient<MembershipTimelineEntry[]>("/api/v1/users/me/membership-history"),
+      apiClient<MembershipTimelineEntry[]>("/api/v1/users/me/membership-history/"),
     staleTime: 30_000,
     enabled,
   });
@@ -235,7 +235,7 @@ export function useMyAgencyMemberships(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyMemberships"],
     queryFn: () =>
-      apiClient<MyAgencyMembershipResponse[]>("/api/v1/agency-memberships/mine"),
+      apiClient<MyAgencyMembershipResponse[]>("/api/v1/agency-memberships/mine/"),
     staleTime: 30_000,
     enabled,
   });
