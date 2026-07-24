@@ -58,11 +58,12 @@ RealtorNet_Phase_*_Workbook.md
 
 .vercel
 
-# Documentation 
-CLAUDE.md
-SOP.md
+# Documentation (all local-only — read by absolute path from AGENTS.md)
 AGENTS.md
+CLAUDE.md
 DEFERRED.md
-docs/workbooks
+DESIGN.md
+SOP.md
+docs/
 .secrets/
 .secrets.baseline*
