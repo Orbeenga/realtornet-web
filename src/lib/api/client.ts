@@ -39,9 +39,11 @@ function getApiBasePath() {
 
   try {
     const normalizedUrl = new URL(apiUrl);
-    const pathname = normalizedUrl.pathname.replace(/\/$/, "");
-
-    return pathname === "/" ? "" : pathname;
+    // Return the full origin + pathname as the base for API requests.
+    // This allows absolute URLs (e.g. https://api.example.com/api/v1) to work
+    // directly instead of relying on a proxy/rewrite.
+    const base = `${normalizedUrl.origin}${normalizedUrl.pathname}`.replace(/\/$/, "");
+    return base || "";
   } catch {
     return apiUrl.replace(/\/$/, "");
   }
