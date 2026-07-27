@@ -103,7 +103,7 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
   const averageRating = readStatValue(stats, ["average_rating", "avg_rating"]);
   const inquiryCount = readStatValue(stats, ["inquiry_count", "total_inquiries"]);
 
-  const statCards = [
+  const allStatCards = [
     {
       label: "Total listings",
       value: totalListings,
@@ -120,6 +120,11 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
       formatter: (value: number) => value.toLocaleString(),
     },
   ];
+
+  const statCards = allStatCards.filter(
+    (card): card is (typeof allStatCards)[number] & { value: number } =>
+      typeof card.value === "number",
+  );
 
   const ldPerson = {
     "@context": "https://schema.org",
@@ -154,28 +159,26 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
 
       <AgentProfileHeader agent={agentQuery.data} />
 
-      <section
-        aria-label="Agent performance summary"
-        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-      >
-        {statCards.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
-          >
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              {stat.label}
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
-              {statsQuery.isLoading
-                ? "..."
-                : typeof stat.value === "number"
-                  ? stat.formatter(stat.value)
-                  : "Not recorded"}
-            </p>
-          </div>
-        ))}
-      </section>
+      {statCards.length > 0 ? (
+        <section
+          aria-label="Agent performance summary"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+        >
+          {statCards.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
+            >
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                {stat.label}
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
+                {statsQuery.isLoading ? "..." : stat.formatter(stat.value)}
+              </p>
+            </div>
+          ))}
+        </section>
+      ) : null}
 
       <AgentListingsGrid
         agentName={fullName}
