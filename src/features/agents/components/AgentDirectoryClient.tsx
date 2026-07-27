@@ -170,8 +170,8 @@ export function AgentDirectoryClient({
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1">
+      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+        <div className="relative w-full">
           <svg
             className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-400"
             fill="none"
@@ -198,7 +198,7 @@ export function AgentDirectoryClient({
             )}
           />
         </div>
-        <label className="min-w-0 flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+        <label className="w-full text-sm font-medium text-gray-700 dark:text-gray-200">
           <span className="sr-only">Agency</span>
           <select
             value={selectedAgencyId ?? ""}
