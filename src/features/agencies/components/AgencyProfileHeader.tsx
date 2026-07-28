@@ -197,6 +197,11 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
     if (isReturningApplicant) {
       return (
         <div className="w-full max-w-sm space-y-2">
+          {latestHistory?.reason ? (
+            <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+              {latestHistory.reason}
+            </p>
+          ) : null}
           <textarea
             rows={3}
             className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
