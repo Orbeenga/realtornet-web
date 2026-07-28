@@ -257,3 +257,67 @@ export function useRequestInvitationReactivation() {
     },
   });
 }
+
+export function useReactivateInvitation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agency-invitations/${invitationId}/reactivate/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agencyInvitations"] });
+    },
+  });
+}
+
+export function useRequestJoinRequestReactivation(agencyId?: string | number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: number) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/agencies/${agencyId}/join-requests/${requestId}/request-reactivation/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId, "all"] });
+    },
+  });
+}
+
+export function useAcceptJoinRequestReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: number) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/accept-reactivation/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}
+
+export function useReapplyAgencyJoinRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      agencyId,
+    }: {
+      agencyId: number;
+    }) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/agencies/${agencyId}/join-requests/reapply/`,
+        { method: "POST" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}

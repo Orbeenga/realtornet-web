@@ -46,7 +46,11 @@ export {
   useMyAgencyJoinRequests,
   useRejectAgencyInvitation,
   useRejectAgencyJoinRequest,
+  useAcceptJoinRequestReactivation,
+  useReactivateInvitation,
+  useReapplyAgencyJoinRequest,
   useRequestInvitationReactivation,
+  useRequestJoinRequestReactivation,
   useWithdrawAgencyInvitation,
 } from "./useAgencyJoinRequests";
 export { useReconsiderJoinRequest } from "./useReconsiderJoinRequest";
