@@ -97,7 +97,7 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
     "This agent";
   const stats = statsQuery.data;
   const totalListings =
-    readStatValue(stats, ["total_listings", "listing_count", "active_listings"]) ??
+    readStatValue(stats, ["total_listings", "listing_count", "active_listings", "property_count"]) ??
     listingsQuery.data?.length ??
     null;
   const averageRating = readStatValue(stats, ["average_rating", "avg_rating"]);
@@ -175,7 +175,7 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
               ? "..."
               : typeof inquiryCount === "number"
                 ? inquiryCount.toLocaleString()
-                : "No inquiries yet"}
+                : "Not yet available"}
           </p>
         </div>
       </section>
