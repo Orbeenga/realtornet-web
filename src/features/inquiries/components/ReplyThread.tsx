@@ -128,7 +128,7 @@ function ReplyBubble({
 
   return (
     <div className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
-      <div className="max-w-[75%]">
+      <div className={`max-w-[75%] ${parentReply ? "ml-6 border-l-2 border-gray-200 pl-3 dark:border-gray-700" : ""}`}>
         {parentReply ? <ParentReplyBanner parentReply={parentReply} /> : null}
         <div
           className={`rounded-2xl px-4 py-3 ${
