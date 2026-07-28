@@ -9,15 +9,21 @@ import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDire
 import { MembershipHistoryList } from "@/features/agencies/components/MembershipHistoryList";
 import {
   useAcceptAgencyInvitation,
+  useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
   useCreateAgencyReviewRequest,
   useMembershipHistory,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
   useMyAgencyMemberships,
+  useReapplyAgencyJoinRequest,
   useRejectAgencyInvitation,
   useRequestInvitationReactivation,
 } from "@/features/agencies/hooks";
+import {
+  invitationHasPendingAction,
+  joinRequestHasPendingAction,
+} from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
@@ -60,7 +66,7 @@ type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
-  const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "cancelled">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
@@ -79,6 +85,8 @@ export function MyJoinRequestsClient() {
   const rejectInvitation = useRejectAgencyInvitation();
   const requestReactivation = useRequestInvitationReactivation();
   const cancelJoinRequest = useCancelAgencyJoinRequest();
+  const acceptReactivation = useAcceptJoinRequestReactivation();
+  const reapplyJoinRequest = useReapplyAgencyJoinRequest();
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
@@ -149,6 +157,24 @@ export function MyJoinRequestsClient() {
       setCancelConfirmId(null);
     } catch {
       notify.error("Could not cancel join request");
+    }
+  };
+
+  const handleAcceptReactivation = async (requestId: number) => {
+    try {
+      await acceptReactivation.mutateAsync(requestId);
+      notify.success("Reactivation accepted — request is pending again.");
+    } catch {
+      notify.error("Could not accept reactivation");
+    }
+  };
+
+  const handleReapply = async (agencyId: number) => {
+    try {
+      await reapplyJoinRequest.mutateAsync({ agencyId });
+      notify.success("Application submitted — it will appear in the agency's Review Requests queue.");
+    } catch {
+      notify.error("Could not reapply");
     }
   };
 
@@ -415,7 +441,7 @@ export function MyJoinRequestsClient() {
                 </div>
               ) : (
                 invitations.filter(i => i.status === "expired").map((invitation) => {
-                  const hasRequested = Boolean(invitation.reactivation_requested_at);
+                  const hasPendingAction = invitationHasPendingAction(invitation);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
@@ -439,7 +465,7 @@ export function MyJoinRequestsClient() {
                             Expired {formatDate(invitation.expires_at)}
                           </p>
                         ) : null}
-                        {hasRequested ? (
+                        {hasPendingAction ? (
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             Reactivation requested — awaiting agency response
                           </p>
@@ -472,7 +498,7 @@ export function MyJoinRequestsClient() {
                 </div>
               ) : (
                 invitations.filter(i => i.status === "withdrawn").map((invitation) => {
-                  const hasExpressedInterest = Boolean(invitation.interest_expressed_at);
+                  const hasPendingAction = invitationHasPendingAction(invitation);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
@@ -496,7 +522,7 @@ export function MyJoinRequestsClient() {
                             Withdrawn {formatDate(invitation.withdrawn_at)}
                           </p>
                         ) : null}
-                        {hasExpressedInterest ? (
+                        {hasPendingAction ? (
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             Interest expressed — awaiting agency response
                           </p>
@@ -1041,9 +1067,10 @@ export function MyJoinRequestsClient() {
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
             { value: "accepted" as const, label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
             { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
+            { value: "expired" as const, label: `Expired (${requests.filter(r => r.status === "expired").length})` },
             { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
           ].map(({ value, label }) => (
-            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "accepted" | "rejected" | "cancelled")}>
+            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "cancelled")}>
               {label}
             </Button>
           ))}
@@ -1184,6 +1211,61 @@ export function MyJoinRequestsClient() {
               ))
             )}
           </div>
+        ) : requestSubTab === "expired" ? (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {requests.filter(r => r.status === "expired").length === 0 ? (
+              <div className="md:col-span-2 xl:col-span-3">
+                <EmptyState title="No expired requests" description="Expired join requests will appear here." />
+              </div>
+            ) : (
+              requests.filter(r => r.status === "expired").map((request) => {
+                const hasPendingAction = joinRequestHasPendingAction(request);
+                return (
+                  <Card key={request.join_request_id}>
+                    <CardBody className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Link
+                          href={`/agencies/${request.agency_id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                        >
+                          {request.agency_name}
+                        </Link>
+                        <Badge variant="danger">expired</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Submitted {formatDate(request.submitted_at)}
+                      </p>
+                      {request.expires_at ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Expired {formatDate(request.expires_at)}
+                        </p>
+                      ) : null}
+                      {request.cover_note ? (
+                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                          <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
+                          <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
+                        </div>
+                      ) : null}
+                      {hasPendingAction ? (
+                        <div className="space-y-3">
+                          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            {request.agency_name} requested to reactivate your expired application — {formatDate(request.reactivation_requested_at!)}
+                          </p>
+                          <Button
+                            type="button" size="sm"
+                            loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
+                            onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                          >
+                            Accept Reactivation
+                          </Button>
+                        </div>
+                      ) : null}
+                    </CardBody>
+                  </Card>
+                );
+              })
+            )}
+          </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {requests.filter(r => r.status === "cancelled").length === 0 ? (
@@ -1211,13 +1293,23 @@ export function MyJoinRequestsClient() {
                         Cancelled {formatDate(request.decided_at)}
                       </p>
                     ) : null}
-                    <div className="pt-2">
-                      <Link
-                        href={`/agencies/${request.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                    {request.cover_note ? (
+                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                        <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
+                        <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
+                      </div>
+                    ) : null}
+                    <div className="space-y-2 pt-2">
+                      <Button
+                        type="button" size="sm"
+                        loading={reapplyJoinRequest.isPending}
+                        onClick={() => void handleReapply(request.agency_id)}
                       >
                         Apply Again
-                      </Link>
+                      </Button>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
+                      </p>
                     </div>
                   </CardBody>
                 </Card>
