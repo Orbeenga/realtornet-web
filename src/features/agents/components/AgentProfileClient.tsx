@@ -103,28 +103,7 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
   const averageRating = readStatValue(stats, ["average_rating", "avg_rating"]);
   const inquiryCount = readStatValue(stats, ["inquiry_count", "total_inquiries"]);
 
-  const allStatCards = [
-    {
-      label: "Total listings",
-      value: totalListings,
-      formatter: (value: number) => value.toLocaleString(),
-    },
-    {
-      label: "Average rating",
-      value: averageRating,
-      formatter: (value: number) => value.toFixed(1),
-    },
-    {
-      label: "Inquiries",
-      value: inquiryCount,
-      formatter: (value: number) => value.toLocaleString(),
-    },
-  ];
 
-  const statCards = allStatCards.filter(
-    (card): card is (typeof allStatCards)[number] & { value: number } =>
-      typeof card.value === "number",
-  );
 
   const ldPerson = {
     "@context": "https://schema.org",
@@ -159,26 +138,47 @@ export function AgentProfileClient({ id }: AgentProfileClientProps) {
 
       <AgentProfileHeader agent={agentQuery.data} />
 
-      {statCards.length > 0 ? (
-        <section
-          aria-label="Agent performance summary"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-        >
-          {statCards.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
-            >
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {stat.label}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
-                {statsQuery.isLoading ? "..." : stat.formatter(stat.value)}
-              </p>
-            </div>
-          ))}
-        </section>
-      ) : null}
+      <section
+        aria-label="Agent performance summary"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      >
+        <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            Total listings
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
+            {statsQuery.isLoading
+              ? "..."
+              : typeof totalListings === "number"
+                ? totalListings.toLocaleString()
+                : "0"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            Average rating
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
+            {statsQuery.isLoading
+              ? "..."
+              : typeof averageRating === "number"
+                ? averageRating.toFixed(1)
+                : "0.0"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            Inquiries
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">
+            {statsQuery.isLoading
+              ? "..."
+              : typeof inquiryCount === "number"
+                ? inquiryCount.toLocaleString()
+                : "No inquiries yet"}
+          </p>
+        </div>
+      </section>
 
       <AgentListingsGrid
         agentName={fullName}

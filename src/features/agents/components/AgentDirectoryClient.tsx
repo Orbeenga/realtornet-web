@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState, Skeleton } from "@/components";
+import { SearchInput } from "@/components/search/SearchInput";
 import { useAgencies } from "@/features/agencies/hooks";
 import {
   isPublicDisplayableAgentDirectory,
 } from "@/features/agents/lib/agentDirectoryCompleteness";
 import { useAgentDirectory, useVisibleAgentStats } from "@/features/agents/hooks";
 import { useIdleHydration } from "@/lib/useIdleHydration";
-import { cn } from "@/lib/utils";
 import type { AgentDirectoryResponse } from "@/types";
 
 function readNumberParam(value: string | null) {
@@ -170,40 +170,20 @@ export function AgentDirectoryClient({
         </p>
       </div>
 
-      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-        <div className="relative w-full">
-          <svg
-            className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
-            />
-          </svg>
-          <input
-            type="text"
-            aria-label="Search agents"
+      <div className="mx-auto flex w-full max-w-2xl items-center gap-2">
+        <div className="flex-1">
+          <SearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(nextValue) => setSearch(nextValue)}
+            ariaLabel="Search agents"
             placeholder="Search by agent name..."
-            className={cn(
-              "h-12 w-full rounded-xl border bg-white pl-12 pr-4 text-base text-gray-900 shadow-sm transition-shadow duration-150",
-              "border-[1.5px] border-gray-200 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none focus:shadow-md",
-              "placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500",
-            )}
           />
         </div>
-        <label className="w-full text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span className="sr-only">Agency</span>
+        <div className="shrink-0">
           <select
             value={selectedAgencyId ?? ""}
             onChange={(event) => setAgencyFilter(event.target.value)}
-            className="mt-0 block h-12 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+            className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           >
             <option value="">All agencies</option>
             {!hydrateFilterOptions ? (
@@ -217,7 +197,7 @@ export function AgentDirectoryClient({
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </div>
 
       {agentsQuery.isLoading ? <AgentDirectorySkeleton /> : null}
