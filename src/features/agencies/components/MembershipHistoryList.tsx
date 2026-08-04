@@ -12,6 +12,7 @@ interface MembershipHistoryListProps {
   onRetry?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  defaultUserDisplayName?: string;
 }
 
 function getSourceBadgeLabel(sourceType: string) {
@@ -47,6 +48,7 @@ export function MembershipHistoryList({
   onRetry,
   emptyTitle = "No membership history",
   emptyDescription = "Agency membership events will appear here when they exist.",
+  defaultUserDisplayName,
 }: MembershipHistoryListProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -90,7 +92,7 @@ export function MembershipHistoryList({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {entry.user_display_name ?? entry.agency_name ?? "Unknown"}
+                  {entry.user_display_name ?? defaultUserDisplayName ?? entry.agency_name ?? "Unknown"}
                 </p>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {formatMembershipDate(entry.timestamp)}

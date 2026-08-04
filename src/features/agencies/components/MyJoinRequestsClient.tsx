@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipHistoryList } from "@/features/agencies/components/MembershipHistoryList";
 import {
@@ -126,6 +127,8 @@ export function MyJoinRequestsClient() {
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
+  const { user } = useAuth();
+  const defaultUserDisplayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined;
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
@@ -1052,7 +1055,10 @@ export function MyJoinRequestsClient() {
                               {isHistoryExpanded ? "Hide history" : "View full history"}
                             </Button>
                             {isHistoryExpanded ? (
-                              <MembershipHistoryList history={agencyHistory} />
+                              <MembershipHistoryList
+                                history={agencyHistory}
+                                defaultUserDisplayName={defaultUserDisplayName}
+                              />
                             ) : null}
                           </div>
                         ) : null}
@@ -1128,7 +1134,10 @@ export function MyJoinRequestsClient() {
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {agencyName}
                           </h3>
-                          <MembershipHistoryList history={grouped[agencyName]} />
+                          <MembershipHistoryList
+                            history={grouped[agencyName]}
+                            defaultUserDisplayName={defaultUserDisplayName}
+                          />
                         </div>
                       ))}
                     </div>
