@@ -15,8 +15,8 @@ tags = ["realtornet", "hardcoded-password"]
 
 [[rules]]
 id = "generic-human-password-pattern"
-description = "Low-entropy human-chosen password: capitalized word(s) + digit suffix, assigned to a credential-named variable"
-regex = '''(?i)(password|pwd|db_pass|secret|passwd)\s*[:=]\s*["']?[A-Z][a-zA-Z]{2,20}\d{2,4}[_\-!@#$%^&*]?["']?'''
+description = "Low-entropy human-chosen password: capitalized word(s) + digit suffix, assigned to a credential-named variable"  # pragma: allowlist secret
+regex = '''(?i)(password|pwd|db_pass|secret|passwd)\s*[:=]\s*["']?[A-Z][a-zA-Z]{2,20}\d{2,4}[_\-!@#$%^&*]?["']?'''  # pragma: allowlist secret
 tags = ["password", "generic", "low-entropy"]
 
 [[rules]]

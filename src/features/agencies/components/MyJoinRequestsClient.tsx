@@ -27,6 +27,7 @@ import {
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
+import type { MyAgencyJoinRequestResponse } from "@/types";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -50,18 +51,71 @@ function displayMembershipStatus(status: string) {
   return status;
 }
 
-function getHistoryBadgeVariant(action: string) {
-  if (action === "joined" || action === "reinstated") return "success" as const;
-  if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
-  if (action === "left") return "warning" as const;
-  return "outline" as const;
-}
-
-function formatMembershipAction(action: string) {
-  return action.replace(/_/g, " ");
-}
-
 type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
+
+const COOLDOWN_WINDOW_DAYS = 30;
+const COOLDOWN_LIMIT = 3;
+
+interface MyJoinRequestCycleGroup {
+  agencyId: number;
+  agencyName: string;
+  requests: MyAgencyJoinRequestResponse[];
+  cancelledRequests: MyAgencyJoinRequestResponse[];
+}
+
+function addDays(value: string, days: number) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function getRecentCancelledRequests(requests: MyAgencyJoinRequestResponse[]) {
+  const cutoff = Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000;
+  return requests.filter((request) => {
+    if (request.status !== "cancelled" || !request.decided_at) return false;
+    return new Date(request.decided_at).getTime() >= cutoff;
+  });
+}
+
+function getApplyAgainDate(requests: MyAgencyJoinRequestResponse[]) {
+  const recentCancelled = getRecentCancelledRequests(requests)
+    .sort((first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime());
+  if (recentCancelled.length < COOLDOWN_LIMIT) return null;
+  return addDays(recentCancelled[COOLDOWN_LIMIT - 1].decided_at!, COOLDOWN_WINDOW_DAYS);
+}
+
+function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
+  const groups = new Map<number, MyJoinRequestCycleGroup>();
+
+  for (const request of requests) {
+    const current = groups.get(request.agency_id);
+    if (current) {
+      current.requests.push(request);
+      if (request.status === "cancelled") current.cancelledRequests.push(request);
+      continue;
+    }
+
+    groups.set(request.agency_id, {
+      agencyId: request.agency_id,
+      agencyName: request.agency_name,
+      requests: [request],
+      cancelledRequests: request.status === "cancelled" ? [request] : [],
+    });
+  }
+
+  return [...groups.values()]
+    .filter((group) => group.cancelledRequests.length > 0)
+    .map((group) => ({
+      ...group,
+      requests: [...group.requests].sort(
+        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
+      ),
+      cancelledRequests: [...group.cancelledRequests].sort(
+        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
+      ),
+    }))
+    .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
+}
 
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
@@ -88,6 +142,7 @@ export function MyJoinRequestsClient() {
   const acceptReactivation = useAcceptJoinRequestReactivation();
   const reapplyJoinRequest = useReapplyAgencyJoinRequest();
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
     const message = reviewReasons[membershipId]?.trim();
@@ -151,12 +206,19 @@ export function MyJoinRequestsClient() {
   };
 
   const handleCancelJoinRequest = async (requestId: number) => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      notify.error("Please provide a reason before cancelling the join request.");
+      return;
+    }
     try {
-      await cancelJoinRequest.mutateAsync(requestId);
+      await cancelJoinRequest.mutateAsync({ requestId, reason });
       notify.success("Join request cancelled");
       setCancelConfirmId(null);
-    } catch {
-      notify.error("Could not cancel join request");
+      setCancelReason("");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not cancel join request");
     }
   };
 
@@ -170,11 +232,16 @@ export function MyJoinRequestsClient() {
   };
 
   const handleReapply = async (agencyId: number) => {
+    if (applyAgainDates.has(agencyId)) {
+      notify.error("Limit exceeded. Apply again after the cooldown period.");
+      return;
+    }
     try {
       await reapplyJoinRequest.mutateAsync({ agencyId });
       notify.success("Application submitted — it will appear in the agency's Review Requests queue.");
-    } catch {
-      notify.error("Could not reapply");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not reapply");
     }
   };
 
@@ -222,6 +289,23 @@ export function MyJoinRequestsClient() {
   }
 
   const requests = requestsQuery.data ?? [];
+  const cancelledRequestGroups = groupMyJoinRequestCycles(requests);
+  const applyAgainDates = new Map<number, Date>();
+  for (const group of cancelledRequestGroups) {
+    const applyAgainDate = getApplyAgainDate(group.requests);
+    if (applyAgainDate) applyAgainDates.set(group.agencyId, applyAgainDate);
+  }
+  const cancelConfirmRequest = cancelConfirmId === null
+    ? null
+    : requests.find((request) => request.join_request_id === cancelConfirmId) ?? null;
+  const cancelConfirmRecentCount = cancelConfirmRequest
+    ? getRecentCancelledRequests(requests.filter((request) => request.agency_id === cancelConfirmRequest.agency_id)).length
+    : 0;
+  const cancelWarningMessage = cancelConfirmRecentCount >= COOLDOWN_LIMIT - 1
+    ? "If you proceed, you will not be able to reapply to this agency for 30 days."
+    : cancelConfirmRecentCount >= COOLDOWN_LIMIT - 2
+      ? "If you proceed, you are close to exhausting the maximum allowed limit for reapplications."
+      : "Are you sure you want to cancel this join request? This cannot be undone.";
   const memberships = membershipsQuery.data ?? [];
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
@@ -1118,7 +1202,7 @@ export function MyJoinRequestsClient() {
                         type="button"
                         size="sm"
                         variant="secondary"
-                        loading={cancelJoinRequest.isPending && cancelJoinRequest.variables === request.join_request_id}
+                        loading={cancelJoinRequest.isPending && cancelJoinRequest.variables?.requestId === request.join_request_id}
                         onClick={() => setCancelConfirmId(request.join_request_id)}
                       >
                         Cancel
@@ -1259,7 +1343,11 @@ export function MyJoinRequestsClient() {
                             Accept Reactivation
                           </Button>
                         </div>
-                      ) : null}
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          This expired application is waiting for the agency to request reactivation.
+                        </p>
+                      )}
                     </CardBody>
                   </Card>
                 );
@@ -1268,68 +1356,114 @@ export function MyJoinRequestsClient() {
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "cancelled").length === 0 ? (
+            {cancelledRequestGroups.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No cancelled requests" description="You have no cancelled join requests." />
               </div>
             ) : (
-              requests.filter(r => r.status === "cancelled").map((request) => (
-                <Card key={request.join_request_id}>
+              cancelledRequestGroups.map((group) => {
+                const applyAgainDate = getApplyAgainDate(group.requests);
+                return (
+                <Card key={group.agencyId}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <Link
-                        href={`/agencies/${request.agency_id}`}
+                        href={`/agencies/${group.agencyId}`}
                         className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                       >
-                        {request.agency_name}
+                        {group.agencyName}
                       </Link>
                       <Badge variant="danger">cancelled</Badge>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Submitted {formatDate(request.submitted_at)}
-                    </p>
-                    {request.decided_at ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Cancelled {formatDate(request.decided_at)}
-                      </p>
-                    ) : null}
-                    {request.cover_note ? (
-                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
-                        <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
-                        <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
-                      </div>
-                    ) : null}
+                    <div className="space-y-2">
+                      {(() => {
+                        const sortedRequests = [...group.requests].sort(
+                          (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+                        );
+                        let cancelCount = 0;
+                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number }> = [];
+                        for (let idx = 0; idx < sortedRequests.length; idx++) {
+                          const req = sortedRequests[idx];
+                          const eventNum = idx === 0 ? 0 : cancelCount;
+                          events.push({
+                            key: `submitted-${req.join_request_id}`,
+                            type: "Application submitted",
+                            date: req.submitted_at,
+                            message: req.cover_note ? `Message: ${req.cover_note}` : null,
+                            eventNum,
+                          });
+                          if (req.status === "cancelled") {
+                            cancelCount++;
+                            events.push({
+                              key: `cancelled-${req.join_request_id}`,
+                              type: "Application cancelled",
+                              date: req.decided_at ?? req.submitted_at,
+                              message: req.cancel_reason ? `Reason: ${req.cancel_reason}` : null,
+                              eventNum: cancelCount,
+                            });
+                          }
+                        }
+                        return events.map((event) => (
+                          <div key={event.key} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {event.type} — {formatDate(event.date)}
+                            </p>
+                            {event.message ? (
+                              <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
+                            ) : null}
+                            <p className="mt-0.5 text-xs text-gray-400">Event: {event.eventNum || "—"}</p>
+                          </div>
+                        ));
+                      })()}
+                    </div>
                     <div className="space-y-2 pt-2">
                       <Button
                         type="button" size="sm"
-                        loading={reapplyJoinRequest.isPending}
-                        onClick={() => void handleReapply(request.agency_id)}
+                        loading={reapplyJoinRequest.isPending && reapplyJoinRequest.variables?.agencyId === group.agencyId}
+                        onClick={() => void handleReapply(group.agencyId)}
                       >
                         Apply Again
                       </Button>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
-                      </p>
+                      {applyAgainDate ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          You have exceeded the maximum number of reapplications. Apply again on {formatDate(applyAgainDate.toISOString())}.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
+                        </p>
+                      )}
+                      <div className="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
+                        This cooldown is enforced server-side; the API blocks reapply with the authoritative date.
+                      </div>
                     </div>
                   </CardBody>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         )}
       </section>
       ) : null}
 
-      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) setCancelConfirmId(null); }}>
+      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel join request</DialogTitle>
             <DialogDescription>
-              Are you sure you want to cancel this join request? This cannot be undone.
+              {cancelWarningMessage}
             </DialogDescription>
           </DialogHeader>
+          <textarea
+            rows={3}
+            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            placeholder="Reason for cancelling (required)"
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.target.value)}
+          />
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setCancelConfirmId(null)}>
+            <Button type="button" variant="secondary" onClick={() => { setCancelConfirmId(null); setCancelReason(""); }}>
               Keep
             </Button>
             <Button

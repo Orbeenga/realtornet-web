@@ -148,10 +148,14 @@ export function useCancelAgencyJoinRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (requestId: number) =>
-      apiClient<void>(`/api/v1/join-requests/${requestId}`, {
-        method: "DELETE",
-      }),
+    mutationFn: ({ requestId, reason }: { requestId: number; reason: string }) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/cancel/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ reason }),
+        },
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
     },
