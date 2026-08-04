@@ -6,6 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button, Card, CardBody, EmptyState, ErrorState, Input, LoadingState } from "@/components";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
@@ -41,6 +49,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
   const { user, loading } = useAuth();
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewRequestSubmitted, setReviewRequestSubmitted] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<JoinRequestFormValues | null>(null);
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
   const agencyQuery = useAgencyProfile(agencyId);
   const requestsQuery = useMyAgencyJoinRequests(
@@ -83,7 +92,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
     }));
   }, [reset, user]);
 
-  const onSubmit = async (values: JoinRequestFormValues) => {
+  const submitJoinRequest = async (values: JoinRequestFormValues) => {
     try {
       const profileDetails = [
         `Full name: ${values.full_name.trim()}`,
@@ -101,6 +110,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
         portfolio_details: profileDetails,
       });
       notify.success("Join request submitted");
+      setPendingSubmission(null);
     } catch (error) {
       const message =
         error instanceof ApiError && typeof error.detail === "string"
@@ -111,6 +121,10 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
         message,
       });
     }
+  };
+
+  const onSubmit = (values: JoinRequestFormValues) => {
+    setPendingSubmission(values);
   };
 
   const handleReviewRequest = async (numericAgencyId: number) => {
@@ -345,6 +359,7 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
   }
 
   return (
+    <>
     <Card>
       <CardBody className="space-y-6 p-6">
         <div>
@@ -444,5 +459,33 @@ export function AgencyJoinRequestForm({ agencyId }: AgencyJoinRequestFormProps) 
         </form>
       </CardBody>
     </Card>
+    <Dialog
+      open={Boolean(pendingSubmission)}
+      onOpenChange={(open) => {
+        if (!open) setPendingSubmission(null);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Are you sure you&apos;re ready to submit?</DialogTitle>
+          <DialogDescription>
+            Proceed sends this join request to the agency. Return to editing keeps your current application open.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={() => setPendingSubmission(null)}>
+            Return to editing
+          </Button>
+          <Button
+            type="button"
+            loading={createJoinRequest.isPending}
+            onClick={() => pendingSubmission && void submitJoinRequest(pendingSubmission)}
+          >
+            Proceed
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
