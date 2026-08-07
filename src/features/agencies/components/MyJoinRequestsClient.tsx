@@ -124,7 +124,7 @@ function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
 
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
-  const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
+  const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
@@ -698,15 +698,13 @@ export function MyJoinRequestsClient() {
 
           <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
             {[
-              { value: "active", label: `Active (${activeMemberships.length})` },
-              { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-              { value: "suspended", label: `Suspended (${suspendedMemberships.length})` },
-              { value: "left", label: `Left (${leftMemberships.length})` },
-              { value: "revoked", label: `Revoked (${revokedMemberships.length})` },
-              { value: "blocked", label: `Blocked (${blockedMemberships.length})` },
-              { value: "history", label: `History (${historyQuery.data?.length ?? 0})` },
+              { value: "active" as const, label: `Active (${activeMemberships.length})` },
+              { value: "suspended" as const, label: `Suspended (${suspendedMemberships.length})` },
+              { value: "left" as const, label: `Left (${leftMemberships.length})` },
+              { value: "revoked" as const, label: `Revoked (${revokedMemberships.length})` },
+              { value: "blocked" as const, label: `Blocked (${blockedMemberships.length})` },
+              { value: "history" as const, label: `History (${historyQuery.data?.length ?? 0})` },
             ].filter(t => {
-              if (t.value === "rejected") return requests.some(r => r.status === "rejected") || membershipSubTab === "rejected";
               if (t.value === "history") return (historyQuery.data?.length ?? 0) > 0 || membershipSubTab === "history";
               return true;
             }).map(({ value, label }) => (
@@ -740,51 +738,6 @@ export function MyJoinRequestsClient() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {membership.listing_count} active listing{membership.listing_count !== 1 ? "s" : ""} under this agency.
                       </p>
-                    </CardBody>
-                  </Card>
-                ))
-              )}
-            </div>
-          ) : membershipSubTab === "rejected" ? (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {requests.filter(r => r.status === "rejected").length === 0 ? (
-                <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No rejected applications" description="You have no rejected join requests." />
-                </div>
-              ) : (
-                requests.filter(r => r.status === "rejected").map((request) => (
-                  <Card key={request.join_request_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${request.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {request.agency_name}
-                        </Link>
-                        <Badge variant="danger">rejected</Badge>
-                      </div>
-                      {request.decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Rejected {formatDate(request.decided_at)}
-                        </p>
-                      ) : null}
-                      {request.rejection_reason ? (
-                        <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                          {request.rejection_reason}
-                        </div>
-                      ) : null}
-                      <div className="space-y-2">
-                        <Link
-                          href={`/agencies/${request.agency_id}/join`}
-                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                        >
-                          Apply Again
-                        </Link>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Submitting a new application will appear as a returning applicant.
-                        </p>
-                      </div>
                     </CardBody>
                   </Card>
                 ))

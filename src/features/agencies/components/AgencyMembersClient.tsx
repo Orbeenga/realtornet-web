@@ -69,7 +69,7 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "rejected" | "suspended" | "leftCancelled" | "revoked" | "blocked";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "suspended" | "leftCancelled" | "revoked" | "blocked";
 type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
@@ -90,7 +90,6 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "agents", label: "Agent roster" },
   { value: "inactive", label: "Inactive" },
   { value: "invitations", label: "Invitations" },
-  { value: "rejected", label: "Rejected" },
   { value: "suspended", label: "Suspended" },
   { value: "leftCancelled", label: "Left" },
   { value: "revoked", label: "Revoked" },
@@ -499,7 +498,6 @@ export function AgencyMembersClient() {
     agents: agentsQuery.isSuccess ? agents.filter(a => a.membership_status === "active").length : undefined,
     inactive: agentsQuery.isSuccess ? agents.filter(isAgentInactive).length : undefined,
     invitations: invitations.length,
-    rejected: joinRequests.filter(r => r.status === "rejected").length,
     suspended: agents.filter(a => a.membership_status === "suspended").length,
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
     revoked: agents.filter(a => a.membership_status === "revoked").length,
@@ -665,41 +663,6 @@ export function AgencyMembersClient() {
                             ) : null}
                           </div>
                           <Badge variant="success">approved</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            ) : requestSubTab === "rejected" ? (
-              <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
-                  <EmptyState title="No rejected requests" description="Rejected join requests will appear here." />
-                ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
-                  <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "rejected").map((request) => (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {request.seeker_name ?? "Seeker"}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                            </p>
-                            {request.decided_at ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Rejected {formatDate(request.decided_at)}
-                              </p>
-                            ) : null}
-                            {request.rejection_reason ? (
-                              <div className="mt-2 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                                {request.rejection_reason}
-                              </div>
-                            ) : null}
-                          </div>
-                          <Badge variant="danger">rejected</Badge>
                         </div>
                       </div>
                     ))}
@@ -1382,68 +1345,6 @@ export function AgencyMembersClient() {
               </div>
             ) : null}
             </div>
-          </CardBody>
-        </Card>
-      ) : null}
-
-      {activeTab === "rejected" ? (
-        <Card>
-          <CardBody className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rejected</h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review rejected join requests and their reasons.
-              </p>
-            </div>
-            {joinRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
-            {joinRequestsQuery.isError ? (
-              <ErrorState
-                title="Could not load rejected requests"
-                message="There was a problem loading rejected requests."
-                onRetry={() => { void joinRequestsQuery.refetch(); }}
-              />
-            ) : null}
-            {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
-              <EmptyState title="No rejected applications." description="" />
-            ) : null}
-            {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
-              <div className="space-y-4">
-                {joinRequests.filter(r => r.status === "rejected").map((request) => (
-                  <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {request.seeker_name ?? "Seeker"}
-                          </p>
-                          <Badge variant="danger">{request.status}</Badge>
-                        </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {request.seeker_email ?? "Email unavailable"}
-                        </p>
-                        {request.decided_at ? (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Rejected {formatDate(request.decided_at)}
-                          </p>
-                        ) : null}
-                        {request.rejection_reason ? (
-                          <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                            {request.rejection_reason}
-                          </div>
-                        ) : null}
-                      </div>
-                      <Button
-                        type="button" size="sm" variant="secondary"
-                        loading={reconsiderJoinRequest.isPending && reconsiderJoinRequest.variables === request.join_request_id}
-                        onClick={() => void handleReconsider(request.join_request_id)}
-                      >
-                        Reconsider
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </CardBody>
         </Card>
       ) : null}
