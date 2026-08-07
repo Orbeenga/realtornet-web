@@ -22,8 +22,12 @@ import {
   useRequestInvitationReactivation,
 } from "@/features/agencies/hooks";
 import {
+  hasExpiredHistory,
+  hasWithdrawnHistory,
   invitationHasPendingAction,
   joinRequestHasPendingAction,
+  resolveJoinRequestReactivationTrace,
+  resolveStatusBadge,
 } from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
@@ -203,8 +207,9 @@ export function MyJoinRequestsClient() {
     try {
       await requestReactivation.mutateAsync(invitationId);
       notify.success("Reactivation requested");
-    } catch {
-      notify.error("Could not request reactivation");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
     }
   };
 
@@ -229,8 +234,9 @@ export function MyJoinRequestsClient() {
     try {
       await acceptReactivation.mutateAsync(requestId);
       notify.success("Reactivation accepted — request is pending again.");
-    } catch {
-      notify.error("Could not accept reactivation");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not accept reactivation");
     }
   };
 
@@ -375,8 +381,8 @@ export function MyJoinRequestsClient() {
               { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
               { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
               { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
-              { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
-              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(i => i.status === "withdrawn").length})` },
+              { value: "expired" as const, label: `Expired (${invitations.filter(hasExpiredHistory).length})` },
+              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(hasWithdrawnHistory).length})` },
               { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
             ].map(({ value, label }) => (
               <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn")}>
@@ -522,13 +528,14 @@ export function MyJoinRequestsClient() {
             </div>
           ) : invitationSubTab === "expired" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "expired").length === 0 ? (
+              {invitations.filter(hasExpiredHistory).length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No expired invitations" description="Expired invitations will appear here." />
+                  <EmptyState title="No expired invitations" description="Invitations that ever passed through the expired state will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "expired").map((invitation) => {
-                  const hasPendingAction = invitationHasPendingAction(invitation);
+                invitations.filter(hasExpiredHistory).map((invitation) => {
+                  const hasPendingAction = invitationHasPendingAction(invitation, user?.user_id ?? null);
+                  const badge = resolveStatusBadge(invitation.status);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
@@ -539,7 +546,7 @@ export function MyJoinRequestsClient() {
                           >
                             {invitation.agency_name}
                           </Link>
-                          <Badge variant="danger">expired</Badge>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invitation from {invitation.agency_name} has expired.
@@ -552,7 +559,11 @@ export function MyJoinRequestsClient() {
                             Expired {formatDate(invitation.expires_at)}
                           </p>
                         ) : null}
-                        {hasPendingAction ? (
+                        {invitation.reactivated_at ? (
+                          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                            Invitation reactivated — pending your response.
+                          </p>
+                        ) : hasPendingAction ? (
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             Reactivation requested — awaiting agency response
                           </p>
@@ -579,13 +590,14 @@ export function MyJoinRequestsClient() {
             </div>
           ) : invitationSubTab === "withdrawn" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "withdrawn").length === 0 ? (
+              {invitations.filter(hasWithdrawnHistory).length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No withdrawn invitations" description="Withdrawn invitations will appear here." />
+                  <EmptyState title="No withdrawn invitations" description="Invitations that ever passed through the withdrawn state will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "withdrawn").map((invitation) => {
-                  const hasPendingAction = invitationHasPendingAction(invitation);
+                invitations.filter(hasWithdrawnHistory).map((invitation) => {
+                  const hasPendingAction = invitationHasPendingAction(invitation, user?.user_id ?? null);
+                  const badge = resolveStatusBadge(invitation.status);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
@@ -596,7 +608,7 @@ export function MyJoinRequestsClient() {
                           >
                             {invitation.agency_name}
                           </Link>
-                          <Badge variant="danger">withdrawn</Badge>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invitation from {invitation.agency_name} was withdrawn.
@@ -609,7 +621,11 @@ export function MyJoinRequestsClient() {
                             Withdrawn {formatDate(invitation.withdrawn_at)}
                           </p>
                         ) : null}
-                        {hasPendingAction ? (
+                        {invitation.reactivated_at ? (
+                          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                            Invitation reactivated — pending your response.
+                          </p>
+                        ) : hasPendingAction ? (
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             Interest expressed — awaiting agency response
                           </p>
@@ -1160,7 +1176,7 @@ export function MyJoinRequestsClient() {
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
             { value: "accepted" as const, label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
             { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-            { value: "expired" as const, label: `Expired (${requests.filter(r => r.status === "expired").length})` },
+            { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
             { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
           ].map(({ value, label }) => (
             <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "cancelled")}>
@@ -1306,13 +1322,19 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "expired" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "expired").length === 0 ? (
+            {requests.filter(hasExpiredHistory).length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <EmptyState title="No expired requests" description="Expired join requests will appear here." />
+                <EmptyState title="No expired requests" description="Requests that ever passed through the expired state will appear here." />
               </div>
             ) : (
-              requests.filter(r => r.status === "expired").map((request) => {
-                const hasPendingAction = joinRequestHasPendingAction(request);
+              requests.filter(hasExpiredHistory).map((request) => {
+                const hasPendingAction = joinRequestHasPendingAction(request, user?.user_id ?? null);
+                const badge = resolveStatusBadge(request.status);
+                const reactivationEvents = resolveJoinRequestReactivationTrace(
+                  request,
+                  user?.user_id ?? null,
+                  true,
+                );
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
@@ -1323,14 +1345,14 @@ export function MyJoinRequestsClient() {
                         >
                           {request.agency_name}
                         </Link>
-                        <Badge variant="danger">expired</Badge>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
                       </p>
                       {request.expires_at ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Expired {formatDate(request.expires_at)}
+                          Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
                         </p>
                       ) : null}
                       {request.cover_note ? (
@@ -1339,10 +1361,23 @@ export function MyJoinRequestsClient() {
                           <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
                         </div>
                       ) : null}
-                      {hasPendingAction ? (
+                      {reactivationEvents.length > 0 ? (
+                        <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                          {reactivationEvents.map((event) => (
+                            <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                              {event.text} — {formatDate(event.at!)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                      {request.reactivation_accepted_at ? (
+                        <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                          Request is pending again — the agency can now approve or reject your application.
+                        </p>
+                      ) : hasPendingAction ? (
                         <div className="space-y-3">
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            {request.agency_name} requested to reactivate your expired application — {formatDate(request.reactivation_requested_at!)}
+                            Accept the reactivation to return your application to pending.
                           </p>
                           <Button
                             type="button" size="sm"
@@ -1352,8 +1387,12 @@ export function MyJoinRequestsClient() {
                             Accept Reactivation
                           </Button>
                         </div>
+                      ) : request.reactivation_requested_at ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Reactivation requested — awaiting agency response.
+                        </p>
                       ) : (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
                           This expired application is waiting for the agency to request reactivation.
                         </p>
                       )}
@@ -1389,11 +1428,10 @@ export function MyJoinRequestsClient() {
                         const sortedRequests = [...group.requests].sort(
                           (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
                         );
-                        let cancelCount = 0;
                         const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number }> = [];
                         for (let idx = 0; idx < sortedRequests.length; idx++) {
                           const req = sortedRequests[idx];
-                          const eventNum = idx === 0 ? 0 : cancelCount;
+                          const eventNum = idx + 1;
                           events.push({
                             key: `submitted-${req.join_request_id}`,
                             type: "Application submitted",
@@ -1402,13 +1440,12 @@ export function MyJoinRequestsClient() {
                             eventNum,
                           });
                           if (req.status === "cancelled") {
-                            cancelCount++;
                             events.push({
                               key: `cancelled-${req.join_request_id}`,
                               type: "Application cancelled",
                               date: req.decided_at ?? req.submitted_at,
                               message: req.cancel_reason ? `Reason: ${req.cancel_reason}` : null,
-                              eventNum: cancelCount,
+                              eventNum,
                             });
                           }
                         }
@@ -1420,7 +1457,7 @@ export function MyJoinRequestsClient() {
                             {event.message ? (
                               <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
                             ) : null}
-                            <p className="mt-0.5 text-xs text-gray-400">Event: {event.eventNum || "—"}</p>
+                            <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
                           </div>
                         ));
                       })()}
