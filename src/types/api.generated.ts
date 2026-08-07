@@ -5271,6 +5271,8 @@ export interface components {
             reason?: string | null;
             /** Actor Id */
             actor_id?: number | null;
+            /** Reactivation Requested By */
+            reactivation_requested_by?: number | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */

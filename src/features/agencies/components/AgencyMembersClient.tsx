@@ -244,7 +244,7 @@ export function AgencyMembersClient() {
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "withdrawn">("pending");
-  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "cancelled" | "expired">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "cancelled" | "expired">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
@@ -553,7 +553,6 @@ export function AgencyMembersClient() {
               {[
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending").length})` },
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
-                { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
                 { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
                 { value: "cancelled" as const, label: `Cancelled (${joinRequests.filter(r => r.status === "cancelled").length})` },
               ].map(({ value, label }) => (
@@ -892,12 +891,14 @@ export function AgencyMembersClient() {
                           >
                             Accept
                           </Button>
-                          <Button type="button" size="sm" variant="secondary"
-                            loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
-                            onClick={() => void handleReviewDecision("decline", primaryRequest.id)}
-                          >
-                            Decline
-                          </Button>
+                          {primaryRequest.reactivation_requested_by !== user?.user_id ? (
+                            <Button type="button" size="sm" variant="secondary"
+                              loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
+                              onClick={() => void handleReviewDecision("decline", primaryRequest.id)}
+                            >
+                              Decline
+                            </Button>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
