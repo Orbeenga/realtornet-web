@@ -125,7 +125,7 @@ function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
-  const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "cancelled">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
   const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
@@ -1127,12 +1127,12 @@ export function MyJoinRequestsClient() {
         <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
           {[
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
-            { value: "accepted" as const, label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
-            { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
+            { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length})` },
+            { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length})` },
             { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
             { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
           ].map(({ value, label }) => (
-            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "cancelled")}>
+            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "approved" | "rejected" | "expired" | "cancelled")}>
               {label}
             </Button>
           ))}
@@ -1191,14 +1191,14 @@ export function MyJoinRequestsClient() {
               ))
             )}
           </div>
-        ) : requestSubTab === "accepted" ? (
+        ) : requestSubTab === "approved" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "approved").length === 0 ? (
+            {requests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No accepted requests" description="Approved join requests will appear here." />
               </div>
             ) : (
-              requests.filter(r => r.status === "approved").map((request) => {
+              requests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).map((request) => {
                 const membership = memberships.find(
                   m => m.source_join_request_id === request.join_request_id,
                 );
@@ -1235,12 +1235,12 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "rejected" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "rejected").length === 0 ? (
+            {requests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No rejected requests" description="You have no rejected join requests." />
               </div>
             ) : (
-              requests.filter(r => r.status === "rejected").map((request) => (
+              requests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).map((request) => (
                 <Card key={request.join_request_id}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1255,19 +1255,26 @@ export function MyJoinRequestsClient() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Submitted {formatDate(request.submitted_at)}
                     </p>
+                    {request.decided_at ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Rejected {formatDate(request.decided_at)}
+                      </p>
+                    ) : null}
                     {request.rejection_reason ? (
                       <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
                         {request.rejection_reason}
                       </div>
                     ) : null}
-                    <div className="pt-2">
-                      <Link
-                        href={`/agencies/${request.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
-                    </div>
+                    {request.decided_at && request.rejection_reason ? (
+                      <div className="pt-2">
+                        <Link
+                          href={`/agencies/${request.agency_id}/join`}
+                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                        >
+                          Apply Again
+                        </Link>
+                      </div>
+                    ) : null}
                   </CardBody>
                 </Card>
               ))
@@ -1325,7 +1332,7 @@ export function MyJoinRequestsClient() {
                       ) : null}
                       {request.reactivation_accepted_at ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                          Request is pending again — the agency can now approve or reject your application.
+                          Request is pending again — find it in the Pending tab.
                         </p>
                       ) : hasPendingAction ? (
                         <div className="space-y-3">

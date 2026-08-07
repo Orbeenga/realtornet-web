@@ -244,7 +244,7 @@ export function AgencyMembersClient() {
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "withdrawn">("pending");
-  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "cancelled" | "expired">("pending");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "cancelled" | "expired">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
@@ -552,7 +552,8 @@ export function AgencyMembersClient() {
             <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
               {[
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending").length})` },
-                { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
+                { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length})` },
+                { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length})` },
                 { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
                 { value: "cancelled" as const, label: `Cancelled (${joinRequests.filter(r => r.status === "cancelled").length})` },
               ].map(({ value, label }) => (
@@ -640,12 +641,12 @@ export function AgencyMembersClient() {
               </>
             ) : requestSubTab === "approved" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "approved").length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length === 0 ? (
                   <EmptyState title="No approved requests" description="Approved join requests will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved").length > 0 ? (
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "approved").map((request) => (
+                    {joinRequests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).map((request) => (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
@@ -662,6 +663,41 @@ export function AgencyMembersClient() {
                             ) : null}
                           </div>
                           <Badge variant="success">approved</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : requestSubTab === "rejected" ? (
+              <>
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length === 0 ? (
+                  <EmptyState title="No rejected requests" description="Rejected join requests will appear here." />
+                ) : null}
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length > 0 ? (
+                  <div className="space-y-4">
+                    {joinRequests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).map((request) => (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {request.seeker_name ?? "Seeker"}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                            </p>
+                            {request.decided_at ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Rejected {formatDate(request.decided_at)}
+                              </p>
+                            ) : null}
+                            {request.rejection_reason ? (
+                              <div className="mt-2 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                {request.rejection_reason}
+                              </div>
+                            ) : null}
+                          </div>
+                          <Badge variant="danger">rejected</Badge>
                         </div>
                       </div>
                     ))}
