@@ -1332,7 +1332,7 @@ export function MyJoinRequestsClient() {
                       ) : null}
                       {request.reactivation_accepted_at ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                          Request is pending again — find it in the Pending tab.
+                          Request is pending for agency approval.
                         </p>
                       ) : hasPendingAction ? (
                         <div className="space-y-3">
