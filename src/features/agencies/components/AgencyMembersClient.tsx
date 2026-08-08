@@ -927,7 +927,7 @@ export function AgencyMembersClient() {
                           >
                             Accept
                           </Button>
-                          {primaryRequest.reactivation_requested_by !== user?.user_id ? (
+                          {primaryRequest.actor_id !== user?.user_id ? (
                             <Button type="button" size="sm" variant="secondary"
                               loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
                               onClick={() => void handleReviewDecision("decline", primaryRequest.id)}

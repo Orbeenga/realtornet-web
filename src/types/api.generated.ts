@@ -5068,6 +5068,10 @@ export interface components {
             decided_by?: number | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Originally Expired At */
+            originally_expired_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
@@ -6320,6 +6324,10 @@ export interface components {
             decided_by?: number | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Originally Expired At */
+            originally_expired_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
