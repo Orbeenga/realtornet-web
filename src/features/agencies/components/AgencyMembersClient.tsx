@@ -551,7 +551,7 @@ export function AgencyMembersClient() {
             </div>
             <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
               {[
-                { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !r.reapplied_from_request_id && !r.reactivation_requested_by).length})` },
+                { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length})` },
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
                 { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
                 { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
@@ -577,12 +577,12 @@ export function AgencyMembersClient() {
             ) : null}
             {requestSubTab === "pending" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending" && !r.reapplied_from_request_id && !r.reactivation_requested_by).length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length === 0 ? (
                   <EmptyState title="No pending requests" description="New requests and decision history will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending" && !r.reapplied_from_request_id && !r.reactivation_requested_by).length > 0 ? (
+                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "pending" && !r.reapplied_from_request_id && !r.reactivation_requested_by).map((request) => (
+                    {joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).map((request) => (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                           <div className="space-y-2">
