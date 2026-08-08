@@ -5068,8 +5068,6 @@ export interface components {
             decided_by?: number | null;
             /** Expires At */
             expires_at?: string | null;
-            /** Originally Expired At */
-            originally_expired_at?: string | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
@@ -5271,8 +5269,6 @@ export interface components {
             reason?: string | null;
             /** Actor Id */
             actor_id?: number | null;
-            /** Reactivation Requested By */
-            reactivation_requested_by?: number | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
@@ -6324,8 +6320,6 @@ export interface components {
             decided_by?: number | null;
             /** Expires At */
             expires_at?: string | null;
-            /** Originally Expired At */
-            originally_expired_at?: string | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
