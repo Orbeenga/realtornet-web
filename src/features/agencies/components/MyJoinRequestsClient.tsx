@@ -1127,8 +1127,8 @@ export function MyJoinRequestsClient() {
         <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
           {[
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
-            { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length})` },
-            { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length})` },
+            { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved").length})` },
+            { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
             { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
             { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
           ].map(({ value, label }) => (
@@ -1193,12 +1193,12 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "approved" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).length === 0 ? (
+            {requests.filter(r => r.status === "approved").length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No accepted requests" description="Approved join requests will appear here." />
               </div>
             ) : (
-              requests.filter(r => r.status === "approved" && !r.reactivation_accepted_at).map((request) => {
+              requests.filter(r => r.status === "approved").map((request) => {
                 const membership = memberships.find(
                   m => m.source_join_request_id === request.join_request_id,
                 );
@@ -1235,12 +1235,12 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "rejected" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).length === 0 ? (
+            {requests.filter(r => r.status === "rejected").length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No rejected requests" description="You have no rejected join requests." />
               </div>
             ) : (
-              requests.filter(r => r.status === "rejected" && !r.reactivation_accepted_at).map((request) => (
+              requests.filter(r => r.status === "rejected").map((request) => (
                 <Card key={request.join_request_id}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
