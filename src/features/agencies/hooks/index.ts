@@ -47,10 +47,12 @@ export {
   useRejectAgencyInvitation,
   useRejectAgencyJoinRequest,
   useAcceptJoinRequestReactivation,
+  useRejectJoinRequestReactivation,
   useReactivateInvitation,
   useReapplyAgencyJoinRequest,
   useRequestInvitationReactivation,
   useRequestJoinRequestReactivation,
+  useRequestJoinRequestReactivationAsApplicant,
   useWithdrawAgencyInvitation,
 } from "./useAgencyJoinRequests";
 export { useReconsiderJoinRequest } from "./useReconsiderJoinRequest";
