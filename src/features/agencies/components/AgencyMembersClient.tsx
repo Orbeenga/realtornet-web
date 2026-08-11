@@ -53,6 +53,7 @@ import {
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
+  resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import type {
   AgencyAgentRosterMember,
@@ -698,7 +699,7 @@ export function AgencyMembersClient() {
                             ) : null}
                             {request.reactivation_requested_at ? (
                               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                This application was declined after a reactivation attempt and is now closed.
+                                {resolveTerminalReactivationRejectionMessage()}
                               </p>
                             ) : null}
                           </div>

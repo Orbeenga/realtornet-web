@@ -28,6 +28,7 @@ import {
   joinRequestHasPendingAction,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
+  resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
@@ -1267,7 +1268,7 @@ export function MyJoinRequestsClient() {
                     ) : null}
                     {request.reactivation_requested_at ? (
                       <p className="pt-1 text-sm text-gray-500 dark:text-gray-400">
-                        This application was declined after a reactivation attempt and is now closed.
+                        {resolveTerminalReactivationRejectionMessage()}
                       </p>
                     ) : request.decided_at && request.rejection_reason ? (
                       <div className="pt-2">
