@@ -5070,14 +5070,14 @@ export interface components {
             expires_at?: string | null;
             /** Originally Expired At */
             originally_expired_at?: string | null;
-            /** Reapplied From Request Id */
-            reapplied_from_request_id?: number | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
             /** Seeker Email */
             seeker_email?: string | null;
             /** Seeker Name */
@@ -5266,13 +5266,16 @@ export interface components {
             user_id: number;
             /** Agency Id */
             agency_id: number;
-            status: components["schemas"]["AgencyReviewRequestStatus"];
+            /** Status */
+            status: components["schemas"]["AgencyReviewRequestStatus"] | components["schemas"]["AgencyJoinRequestStatus"];
             /** Message */
             message?: string | null;
             /** Reason */
             reason?: string | null;
             /** Actor Id */
             actor_id?: number | null;
+            /** Reactivation Requested By */
+            reactivation_requested_by?: number | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
@@ -6326,14 +6329,14 @@ export interface components {
             expires_at?: string | null;
             /** Originally Expired At */
             originally_expired_at?: string | null;
-            /** Reapplied From Request Id */
-            reapplied_from_request_id?: number | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
             /**
              * Submitted At
              * Format: date-time
