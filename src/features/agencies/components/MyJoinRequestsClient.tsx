@@ -1265,7 +1265,11 @@ export function MyJoinRequestsClient() {
                         {request.rejection_reason}
                       </div>
                     ) : null}
-                    {request.decided_at && request.rejection_reason ? (
+                    {request.reactivation_requested_at ? (
+                      <p className="pt-1 text-sm text-gray-500 dark:text-gray-400">
+                        This application was declined after a reactivation attempt and is now closed.
+                      </p>
+                    ) : request.decided_at && request.rejection_reason ? (
                       <div className="pt-2">
                         <Link
                           href={`/agencies/${request.agency_id}/join`}

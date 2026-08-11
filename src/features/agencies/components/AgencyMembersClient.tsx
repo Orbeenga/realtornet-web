@@ -696,6 +696,11 @@ export function AgencyMembersClient() {
                                 {request.rejection_reason}
                               </div>
                             ) : null}
+                            {request.reactivation_requested_at ? (
+                              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                This application was declined after a reactivation attempt and is now closed.
+                              </p>
+                            ) : null}
                           </div>
                           <Badge variant="danger">rejected</Badge>
                         </div>
