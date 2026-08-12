@@ -19,7 +19,9 @@ import {
   useMyAgencyMemberships,
   useReapplyAgencyJoinRequest,
   useRejectAgencyInvitation,
+  useRejectJoinRequestReactivation,
   useRequestInvitationReactivation,
+  useRequestJoinRequestReactivationAsApplicant,
 } from "@/features/agencies/hooks";
 import {
   hasExpiredHistory,
@@ -252,6 +254,29 @@ export function MyJoinRequestsClient() {
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not reapply");
+    }
+  };
+
+  const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
+  const rejectReactivation = useRejectJoinRequestReactivation();
+
+  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
+    try {
+      await requestJoinRequestReactivationAsApplicant.mutateAsync(requestId);
+      notify.success("Reactivation requested — awaiting agency response.");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
+    }
+  };
+
+  const handleRejectReactivation = async (requestId: number) => {
+    try {
+      await rejectReactivation.mutateAsync({ requestId });
+      notify.success("Reactivation request rejected.");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not reject reactivation");
     }
   };
 
@@ -1337,29 +1362,47 @@ export function MyJoinRequestsClient() {
                       ) : null}
                       {request.reactivation_accepted_at ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                          Request is pending again — find it in the Pending tab.
+                          Reactivation request is pending. Find it in the Pending tab.
                         </p>
                       ) : hasPendingAction ? (
                         <div className="space-y-3">
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            Accept the reactivation to return your application to pending.
+                            {request.agency_name ?? "The agency"} has requested to reactivate your expired application.
                           </p>
-                          <Button
-                            type="button" size="sm"
-                            loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                            onClick={() => void handleAcceptReactivation(request.join_request_id)}
-                          >
-                            Accept Reactivation
-                          </Button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button" size="sm"
+                              loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
+                              onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                            >
+                              Accept Reactivation
+                            </Button>
+                            <Button
+                              type="button" size="sm" variant="ghost"
+                              loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === request.join_request_id}
+                              onClick={() => void handleRejectReactivation(request.join_request_id)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
                         </div>
                       ) : request.reactivation_requested_at ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Reactivation requested — awaiting agency response.
+                          Request is pending a response from {request.agency_name ?? "the agency"}.
                         </p>
                       ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          This expired application is waiting for the agency to request reactivation.
-                        </p>
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            This application has expired. You can request reactivation, or wait for {request.agency_name ?? "the agency"} to reach out.
+                          </p>
+                          <Button
+                            type="button" size="sm"
+                            loading={requestJoinRequestReactivationAsApplicant.isPending && requestJoinRequestReactivationAsApplicant.variables === request.join_request_id}
+                            onClick={() => void handleRequestJoinRequestReactivationAsApplicant(request.join_request_id)}
+                          >
+                            Request Reactivation
+                          </Button>
+                        </div>
                       )}
                     </CardBody>
                   </Card>
