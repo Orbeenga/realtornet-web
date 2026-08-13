@@ -195,3 +195,14 @@ export function resolveJoinRequestReactivationTrace(
 
   return events;
 }
+
+/**
+ * Terminal-state message for rejected reactivation attempts. A rejected
+ * reactivation is a terminal outcome (U-010, U-013) — the row ends in `rejected`
+ * status but carries `reactivation_requested_at` as the discriminator that this
+ * was a reactivation decline, not a fresh-application decline. This message
+ * replaces the reconsideration CTA on such rows.
+ */
+export function resolveTerminalReactivationRejectionMessage(): string {
+  return "This application was declined after a reactivation attempt and is now closed.";
+}

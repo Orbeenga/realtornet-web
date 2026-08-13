@@ -53,6 +53,7 @@ import {
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
+  resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import type {
   AgencyAgentRosterMember,
@@ -696,6 +697,11 @@ export function AgencyMembersClient() {
                                 {request.rejection_reason}
                               </div>
                             ) : null}
+                            {request.reactivation_requested_at ? (
+                              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                {resolveTerminalReactivationRejectionMessage()}
+                              </p>
+                            ) : null}
                           </div>
                           <Badge variant="danger">rejected</Badge>
                         </div>
@@ -748,16 +754,18 @@ export function AgencyMembersClient() {
                           ) : null}
                           {request.reactivation_accepted_at ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                              Request is pending again — approve or reject in the Pending tab.
+                              Request is pending. Approve in Review Requests.
                             </p>
                           ) : request.reactivation_requested_at ? (
                             <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              Awaiting a response from the applicant to the reactivation request.
+                              {request.reactivation_requested_by === user?.user_id
+                                ? `Request is pending a response from ${request.seeker_name ?? "the applicant"}.`
+                                : `Reactivation request from ${request.seeker_name ?? "Seeker"} is pending in review requests for a decision.`}
                             </p>
                           ) : (
                             <div className="space-y-2">
                               <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-                                Request reactivation so the applicant can accept and return this application to pending.
+                                Application from {request.seeker_name ?? "the applicant"} has expired. Request them to reactivate the application.
                               </p>
                               <Button
                                 type="button" size="sm"
@@ -826,6 +834,15 @@ export function AgencyMembersClient() {
                                 date: req.created_at,
                                 message: req.cover_note ? `Message: ${req.cover_note}` : null,
                                 eventNum,
+                              });
+                              const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, false);
+                              reactivationTrace.forEach((event) => {
+                                events.push({
+                                  key: `${event.text}-${req.join_request_id}`,
+                                  type: event.text,
+                                  date: event.at ?? req.created_at,
+                                  eventNum,
+                                });
                               });
                               if (req.status === "cancelled") {
                                 events.push({

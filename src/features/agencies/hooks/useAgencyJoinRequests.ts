@@ -307,6 +307,39 @@ export function useAcceptJoinRequestReactivation() {
   });
 }
 
+export function useRejectJoinRequestReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ requestId, reason }: { requestId: number; reason?: string }) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/reject-reactivation/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ reason: reason || "Reactivation rejected by applicant" }),
+        },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}
+
+export function useRequestJoinRequestReactivationAsApplicant() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: number) =>
+      apiClient<MyAgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/request-reactivation/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}
+
 export function useReapplyAgencyJoinRequest() {
   const queryClient = useQueryClient();
 
