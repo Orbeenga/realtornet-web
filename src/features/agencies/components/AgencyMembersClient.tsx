@@ -835,6 +835,15 @@ export function AgencyMembersClient() {
                                 message: req.cover_note ? `Message: ${req.cover_note}` : null,
                                 eventNum,
                               });
+                              const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, false);
+                              reactivationTrace.forEach((event) => {
+                                events.push({
+                                  key: `${event.text}-${req.join_request_id}`,
+                                  type: event.text,
+                                  date: event.at ?? req.created_at,
+                                  eventNum,
+                                });
+                              });
                               if (req.status === "cancelled") {
                                 events.push({
                                   key: `cancelled-${req.join_request_id}`,

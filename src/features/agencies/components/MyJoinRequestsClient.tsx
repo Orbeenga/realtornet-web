@@ -1440,22 +1440,31 @@ export function MyJoinRequestsClient() {
                         for (let idx = 0; idx < sortedRequests.length; idx++) {
                           const req = sortedRequests[idx];
                           const eventNum = idx + 1;
-                          events.push({
-                            key: `submitted-${req.join_request_id}`,
-                            type: "Application submitted",
-                            date: req.submitted_at,
-                            message: req.cover_note ? `Message: ${req.cover_note}` : null,
-                            eventNum,
-                          });
-                          if (req.status === "cancelled") {
-                            events.push({
-                              key: `cancelled-${req.join_request_id}`,
-                              type: "Application cancelled",
-                              date: req.decided_at ?? req.submitted_at,
-                              message: req.cancel_reason ? `Reason: ${req.cancel_reason}` : null,
-                              eventNum,
-                            });
-                          }
+                              events.push({
+                                key: `submitted-${req.join_request_id}`,
+                                type: "Application submitted",
+                                date: req.submitted_at,
+                                message: req.cover_note ? `Message: ${req.cover_note}` : null,
+                                eventNum,
+                              });
+                              const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, true);
+                              reactivationTrace.forEach((event) => {
+                                events.push({
+                                  key: `${event.text}-${req.join_request_id}`,
+                                  type: event.text,
+                                  date: event.at ?? req.submitted_at,
+                                  eventNum,
+                                });
+                              });
+                              if (req.status === "cancelled") {
+                                events.push({
+                                  key: `cancelled-${req.join_request_id}`,
+                                  type: "Application cancelled",
+                                  date: req.decided_at ?? req.submitted_at,
+                                  message: req.cancel_reason ? `Reason: ${req.cancel_reason}` : null,
+                                  eventNum,
+                                });
+                              }
                         }
                         return events.map((event) => (
                           <div key={event.key} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
