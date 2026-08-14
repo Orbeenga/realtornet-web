@@ -131,7 +131,6 @@ export function MyJoinRequestsClient() {
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
-  const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
   const { user } = useAuth();
@@ -917,7 +916,6 @@ export function MyJoinRequestsClient() {
                 </div>
               ) : (
                 revokedMemberships.map((membership) => {
-                  const isHistoryExpanded = expandedRevokedIds.has(membership.membership_id);
                   const reapplications = requests
                     .filter(
                       (r) =>
@@ -1030,32 +1028,11 @@ export function MyJoinRequestsClient() {
                           </div>
                         ) : null}
                         {agencyHistory.length > 0 ? (
-                          <div className="space-y-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                setExpandedRevokedIds((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(membership.membership_id)) {
-                                    next.delete(membership.membership_id);
-                                  } else {
-                                    next.add(membership.membership_id);
-                                  }
-                                  return next;
-                                })
-                              }
-                            >
-                              {isHistoryExpanded ? "Hide history" : "View full history"}
-                            </Button>
-                            {isHistoryExpanded ? (
-                              <MembershipHistoryList
-                                history={agencyHistory}
-                                defaultUserDisplayName={defaultUserDisplayName}
-                              />
-                            ) : null}
-                          </div>
+                          <MembershipHistoryList
+                            history={agencyHistory}
+                            defaultUserDisplayName={defaultUserDisplayName}
+                            alwaysExpanded
+                          />
                         ) : null}
                       </CardBody>
                     </Card>

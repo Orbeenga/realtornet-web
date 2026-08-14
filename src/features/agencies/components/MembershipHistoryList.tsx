@@ -13,6 +13,7 @@ interface MembershipHistoryListProps {
   emptyTitle?: string;
   emptyDescription?: string;
   defaultUserDisplayName?: string;
+  alwaysExpanded?: boolean;
 }
 
 function getSourceBadgeLabel(sourceType: string) {
@@ -49,6 +50,7 @@ export function MembershipHistoryList({
   emptyTitle = "No membership history",
   emptyDescription = "Agency membership events will appear here when they exist.",
   defaultUserDisplayName,
+  alwaysExpanded = false,
 }: MembershipHistoryListProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -76,8 +78,8 @@ export function MembershipHistoryList({
       new Date(first.timestamp).getTime(),
   );
 
-  const visibleEntries = isExpanded ? sortedHistory : sortedHistory.slice(0, 2);
-  const hasMoreEntries = sortedHistory.length > 2;
+  const visibleEntries = alwaysExpanded ? sortedHistory : sortedHistory.slice(0, 2);
+  const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
 
   return (
     <div className="space-y-3">

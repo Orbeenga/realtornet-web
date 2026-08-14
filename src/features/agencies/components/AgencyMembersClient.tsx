@@ -31,6 +31,7 @@ import {
   useAgencyAgents,
   useAgencyInvitations,
   useAgencyJoinRequests,
+  useAgencyMembershipHistory,
   useAgencyReviewRequests,
   useAcceptAgencyReviewRequest,
   useApproveAgencyJoinRequest,
@@ -261,9 +262,10 @@ export function AgencyMembersClient() {
   });
 
   const agencyId = user?.agency_id;
-  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", activeTab === "agents" || activeTab === "inactive" || activeTab === "revoked" || activeTab === "suspended" || activeTab === "blocked" || activeTab === "leftCancelled");
+  const agentsQuery = useAgencyAgents(agencyId ?? "", "all", Boolean(agencyId));
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
+  const historyQuery = useAgencyMembershipHistory(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
@@ -647,7 +649,16 @@ export function AgencyMembersClient() {
                 ) : null}
                 {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved").length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "approved").map((request) => (
+                    {joinRequests.filter(r => r.status === "approved").map((request) => {
+                      const agent = agents.find(a => a.user_id === request.user_id);
+                      const liveStatus = agent?.membership_status ?? request.status;
+                      const badge = resolveStatusBadge(liveStatus);
+                      const reactivationEvents = resolveJoinRequestReactivationTrace(
+                        request,
+                        user?.user_id ?? null,
+                        false,
+                      );
+                      return (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
@@ -662,11 +673,26 @@ export function AgencyMembersClient() {
                                 Approved {formatDate(request.decided_at)}
                               </p>
                             ) : null}
+                            {agent ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Membership status: {formatMembershipStatus(agent.membership_status)}
+                              </p>
+                            ) : null}
                           </div>
-                          <Badge variant="success">approved</Badge>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
+                        {reactivationEvents.length > 0 ? (
+                          <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
+                            {reactivationEvents.map((event) => (
+                              <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
+                                {event.text} — {formatDate(event.at!)}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : null}
               </>
@@ -677,7 +703,14 @@ export function AgencyMembersClient() {
                 ) : null}
                 {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "rejected").map((request) => (
+                    {joinRequests.filter(r => r.status === "rejected").map((request) => {
+                      const badge = resolveStatusBadge(request.status);
+                      const reactivationEvents = resolveJoinRequestReactivationTrace(
+                        request,
+                        user?.user_id ?? null,
+                        false,
+                      );
+                      return (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
@@ -697,16 +730,26 @@ export function AgencyMembersClient() {
                                 {request.rejection_reason}
                               </div>
                             ) : null}
-                            {request.reactivation_requested_at ? (
+                            {reactivationEvents.length > 0 ? (
+                              <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
+                                {reactivationEvents.map((event) => (
+                                  <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
+                                    {event.text} — {formatDate(event.at!)}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : null}
+                            {request.reactivation_requested_at && reactivationEvents.length === 0 ? (
                               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                                 {resolveTerminalReactivationRejectionMessage()}
                               </p>
                             ) : null}
                           </div>
-                          <Badge variant="danger">rejected</Badge>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : null}
               </>
@@ -1588,63 +1631,96 @@ export function AgencyMembersClient() {
             {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked").length === 0 ? (
               <EmptyState title="No revoked memberships." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked").length > 0 ? (
-              <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "revoked").map((agent) => (
-                  <div key={agent.membership_id} className="space-y-4 py-4">
-                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Revoked {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button type="button" size="sm"
-                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                          onClick={() =>
-                            setPendingMembershipDecision({
-                              action: "restore", membershipId: agent.membership_id,
-                              agentName: agent.display_name || agent.company_name || "this agent",
-                            })
-                          }
-                        >
-                          Reinstate
-                        </Button>
-                      </div>
-                    </div>
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : null}
+             {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked").length > 0 ? (
+               <div className="divide-y divide-border">
+                 {agents.filter(a => a.membership_status === "revoked").map((agent) => (
+                   <div key={agent.membership_id} className="space-y-4 py-4">
+                     <div className="flex min-w-0 items-center gap-3">
+                       {agent.profile_image_url ? (
+                         // eslint-disable-next-line @next/next/no-img-element
+                         <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                       ) : (
+                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                           {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
+                         </div>
+                       )}
+                       <div className="min-w-0 space-y-1">
+                         <p className="font-medium text-gray-900 dark:text-white">
+                           {agent.display_name || agent.company_name || "Listing agent"}
+                         </p>
+                         <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
+                         {agent.status_decided_at ? (
+                           <p className="text-xs text-gray-500 dark:text-gray-400">
+                             Revoked {formatDate(agent.status_decided_at)}
+                           </p>
+                         ) : null}
+                         {agent.status_reason ? (
+                           <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
+                         ) : null}
+                         <p className="text-xs text-gray-500 dark:text-gray-400">
+                           Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                         </p>
+                       </div>
+                     </div>
+                     {(() => {
+                       const agentHistory = (historyQuery.data ?? []).filter(
+                         (h) => h.user_id === agent.user_id,
+                       );
+                       if (agentHistory.length === 0) return null;
+                       const sortedHistory = [...agentHistory].sort(
+                         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                       );
+                       return (
+                         <div className="space-y-2">
+                           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Membership history</p>
+                           {sortedHistory.map((entry) => (
+                             <div key={entry.id ?? entry.timestamp} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
+                               <p className="font-medium text-gray-900 dark:text-white">
+                                 {entry.action ? entry.action.replace(/_/g, " ") : "Event"} — {formatDate(entry.timestamp)}
+                               </p>
+                               {entry.reason ? (
+                                 <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
+                               ) : null}
+                               {entry.cover_note ? (
+                                 <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                                   <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application message</p>
+                                   <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+                                 </div>
+                               ) : null}
+                               {entry.review_message ? (
+                                 <div className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                                   <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
+                                   <p className="whitespace-pre-wrap">{entry.review_message}</p>
+                                 </div>
+                               ) : null}
+                               {entry.review_response ? (
+                                 <div className="mt-2 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                                   <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
+                                   <p className="whitespace-pre-wrap">{entry.review_response}</p>
+                                 </div>
+                               ) : null}
+                               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                 <span className="text-xs text-gray-400">{entry.source_type === "audit_event" ? "Agency Action" : entry.source_type === "join_request" ? "Application" : entry.source_type === "review_request" ? "Review Request" : entry.source_type}</span>
+                                 {entry.action ? (
+                                   <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                     entry.action === "joined" || entry.action === "reinstated" ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200" :
+                                     entry.action === "revoked" || entry.action === "suspended" || entry.action === "blocked" ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200" :
+                                     entry.action === "left" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200" :
+                                     "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                                   }`}>
+                                     {entry.action.replace(/_/g, " ")}
+                                   </span>
+                                 ) : null}
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       );
+                     })()}
+                   </div>
+                 ))}
+               </div>
+             ) : null}
           </CardBody>
         </Card>
       ) : null}
