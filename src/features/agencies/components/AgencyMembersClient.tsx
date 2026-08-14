@@ -658,35 +658,53 @@ export function AgencyMembersClient() {
                         user?.user_id ?? null,
                         false,
                       );
-                      return (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {request.seeker_name ?? "Seeker"}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                            </p>
-                            {request.decided_at ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Approved {formatDate(request.decided_at)}
-                              </p>
-                            ) : null}
-                          </div>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        {reactivationEvents.length > 0 ? (
-                          <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
-                            {reactivationEvents.map((event) => (
-                              <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
-                                {event.text} — {formatDate(event.at!)}
-                              </p>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                      );
+                       return (
+                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                         <div className="flex flex-wrap items-center justify-between gap-2">
+                           <div>
+                             <p className="font-semibold text-gray-900 dark:text-white">
+                               {request.seeker_name ?? "Seeker"}
+                             </p>
+                             <p className="text-sm text-gray-500 dark:text-gray-400">
+                               {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                             </p>
+                             {request.decided_at ? (
+                               <p className="text-sm text-gray-500 dark:text-gray-400">
+                                 Approved {formatDate(request.decided_at)}
+                               </p>
+                             ) : null}
+                             {(() => {
+                               const requestHistory = (historyQuery.data ?? []).filter(
+                                 (h) => h.user_id === request.user_id,
+                               );
+                               if (requestHistory.length === 0) return null;
+                               const sortedHistory = [...requestHistory].sort(
+                                 (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                               );
+                               return (
+                                 <div className="mt-2 space-y-1">
+                                   {sortedHistory.map((entry) => (
+                                     <p key={entry.id ?? entry.timestamp} className="text-sm text-gray-600 dark:text-gray-300">
+                                       {entry.action ? entry.action.replace(/_/g, " ") : entry.source_type === "join_request" ? "Applied" : entry.source_type === "review_request" ? "Review requested" : "Event"} — {formatDate(entry.timestamp)}
+                                     </p>
+                                   ))}
+                                 </div>
+                               );
+                             })()}
+                           </div>
+                           <Badge variant={badge.variant}>{badge.label}</Badge>
+                         </div>
+                         {reactivationEvents.length > 0 ? (
+                           <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
+                             {reactivationEvents.map((event) => (
+                               <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
+                                 {event.text} — {formatDate(event.at!)}
+                               </p>
+                             ))}
+                           </div>
+                         ) : null}
+                       </div>
+                       );
                     })}
                   </div>
                 ) : null}

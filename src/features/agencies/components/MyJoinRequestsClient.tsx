@@ -1227,17 +1227,30 @@ export function MyJoinRequestsClient() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
                       </p>
-                      {request.decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Approved {formatDate(request.decided_at)}
-                        </p>
-                      ) : null}
-                       {membership ? (
+                       {request.decided_at ? (
                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                           Membership status: {displayMembershipStatus(membership.status)}
+                           Approved {formatDate(request.decided_at)}
                          </p>
                        ) : null}
-                      {reactivationEvents.length > 0 ? (
+                       {(() => {
+                         const requestHistory = (historyQuery.data ?? []).filter(
+                           (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
+                         );
+                         if (requestHistory.length === 0) return null;
+                         const sortedHistory = [...requestHistory].sort(
+                           (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                         );
+                         return (
+                           <div className="mt-2 space-y-1">
+                             {sortedHistory.map((entry) => (
+                               <p key={entry.id ?? entry.timestamp} className="text-sm text-gray-600 dark:text-gray-300">
+                                 {entry.action ? entry.action.replace(/_/g, " ") : entry.source_type === "join_request" ? "Applied" : entry.source_type === "review_request" ? "Review requested" : "Event"} — {formatDate(entry.timestamp)}
+                               </p>
+                             ))}
+                           </div>
+                         );
+                       })()}
+                       {reactivationEvents.length > 0 ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                           {reactivationEvents.map((event) => (
                             <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
