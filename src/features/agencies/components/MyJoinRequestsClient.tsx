@@ -927,7 +927,7 @@ export function MyJoinRequestsClient() {
                         new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
                     );
                   const agencyHistory = (historyQuery.data ?? []).filter(
-                    (h) => h.agency_id === membership.agency_id,
+                    (h) => h.agency_id === membership.agency_id || h.agency_name === membership.agency_name,
                   );
                   const recentReapplication = reapplications[0];
                   const reinstatementEvent = [...agencyHistory]
@@ -1232,11 +1232,11 @@ export function MyJoinRequestsClient() {
                           Approved {formatDate(request.decided_at)}
                         </p>
                       ) : null}
-                      {membership ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Membership status: {displayMembershipStatus(membership.status)}
-                        </p>
-                      ) : null}
+                       {membership ? (
+                         <p className="text-sm text-gray-500 dark:text-gray-400">
+                           Membership status: {displayMembershipStatus(membership.status)}
+                         </p>
+                       ) : null}
                       {reactivationEvents.length > 0 ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                           {reactivationEvents.map((event) => (

@@ -673,11 +673,6 @@ export function AgencyMembersClient() {
                                 Approved {formatDate(request.decided_at)}
                               </p>
                             ) : null}
-                            {agent ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Membership status: {formatMembershipStatus(agent.membership_status)}
-                              </p>
-                            ) : null}
                           </div>
                           <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
@@ -1670,52 +1665,37 @@ export function AgencyMembersClient() {
                        const sortedHistory = [...agentHistory].sort(
                          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
                        );
-                       return (
-                         <div className="space-y-2">
-                           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Membership history</p>
-                           {sortedHistory.map((entry) => (
-                             <div key={entry.id ?? entry.timestamp} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
-                               <p className="font-medium text-gray-900 dark:text-white">
-                                 {entry.action ? entry.action.replace(/_/g, " ") : "Event"} — {formatDate(entry.timestamp)}
-                               </p>
-                               {entry.reason ? (
-                                 <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
-                               ) : null}
-                               {entry.cover_note ? (
-                                 <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                                   <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application message</p>
-                                   <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-                                 </div>
-                               ) : null}
-                               {entry.review_message ? (
-                                 <div className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                                   <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
-                                   <p className="whitespace-pre-wrap">{entry.review_message}</p>
-                                 </div>
-                               ) : null}
-                               {entry.review_response ? (
-                                 <div className="mt-2 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                                   <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
-                                   <p className="whitespace-pre-wrap">{entry.review_response}</p>
-                                 </div>
-                               ) : null}
-                               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                                 <span className="text-xs text-gray-400">{entry.source_type === "audit_event" ? "Agency Action" : entry.source_type === "join_request" ? "Application" : entry.source_type === "review_request" ? "Review Request" : entry.source_type}</span>
-                                 {entry.action ? (
-                                   <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                     entry.action === "joined" || entry.action === "reinstated" ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200" :
-                                     entry.action === "revoked" || entry.action === "suspended" || entry.action === "blocked" ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200" :
-                                     entry.action === "left" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200" :
-                                     "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                                   }`}>
-                                     {entry.action.replace(/_/g, " ")}
-                                   </span>
-                                 ) : null}
-                               </div>
-                             </div>
-                           ))}
-                         </div>
-                       );
+                        return (
+                          <div className="space-y-2">
+                            {sortedHistory.map((entry) => (
+                              <div key={entry.id ?? entry.timestamp} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {entry.action ? entry.action.replace(/_/g, " ") : entry.source_type === "join_request" ? "Applied" : entry.source_type === "review_request" ? "Review requested" : "Event"} — {formatDate(entry.timestamp)}
+                                </p>
+                                {entry.reason ? (
+                                  <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
+                                ) : null}
+                                {entry.cover_note ? (
+                                  <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                                    <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+                                  </div>
+                                ) : null}
+                                {entry.review_message ? (
+                                  <div className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                                    <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
+                                    <p className="whitespace-pre-wrap">{entry.review_message}</p>
+                                  </div>
+                                ) : null}
+                                {entry.review_response ? (
+                                  <div className="mt-2 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                                    <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
+                                    <p className="whitespace-pre-wrap">{entry.review_response}</p>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        );
                      })()}
                    </div>
                  ))}

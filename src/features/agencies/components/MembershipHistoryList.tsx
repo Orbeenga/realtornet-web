@@ -37,9 +37,11 @@ function getActionBadgeVariant(action?: string | null) {
   return "outline" as const;
 }
 
-function formatAction(action?: string | null) {
-  if (!action) return "event";
-  return action.replace(/_/g, " ");
+function formatAction(action?: string | null, sourceType?: string | null) {
+  if (action) return action.replace(/_/g, " ");
+  if (sourceType === "join_request") return "Applied";
+  if (sourceType === "review_request") return "Review requested";
+  return "Event";
 }
 
 export function MembershipHistoryList({
@@ -106,7 +108,7 @@ export function MembershipHistoryList({
                 </Badge>
                 {entry.action ? (
                   <Badge variant={getActionBadgeVariant(entry.action)}>
-                    {formatAction(entry.action)}
+                    {formatAction(entry.action, entry.source_type)}
                   </Badge>
                 ) : null}
               </div>
