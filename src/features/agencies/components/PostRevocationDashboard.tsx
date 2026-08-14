@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, Card, CardBody, LoadingState } from "@/components";
@@ -17,6 +18,7 @@ import { ApiError } from "@/lib/api/client";
 
 export function PostRevocationDashboard() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState("");
   const [submittedAgencyIds, setSubmittedAgencyIds] = useState<Set<number>>(
     () => new Set(),
@@ -25,6 +27,10 @@ export function PostRevocationDashboard() {
   const createReviewRequest = useCreateAgencyReviewRequest();
 
   if (user?.user_role !== "seeker") {
+    return null;
+  }
+
+  if (searchParams.get("membership") !== "revoked") {
     return null;
   }
 

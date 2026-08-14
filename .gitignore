@@ -67,3 +67,5 @@ SOP.md
 docs/
 .secrets/
 .secrets.baseline*
+FRONTEND_CLAUDE.md
+FRONTEND_DEFERRED.md

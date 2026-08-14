@@ -1228,6 +1228,13 @@ export function MyJoinRequestsClient() {
                 const membership = memberships.find(
                   m => m.source_join_request_id === request.join_request_id,
                 );
+                const liveStatus = membership?.status ?? request.status;
+                const badge = resolveStatusBadge(liveStatus);
+                const reactivationEvents = resolveJoinRequestReactivationTrace(
+                  request,
+                  user?.user_id ?? null,
+                  true,
+                );
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
@@ -1238,7 +1245,7 @@ export function MyJoinRequestsClient() {
                         >
                           {request.agency_name}
                         </Link>
-                        <Badge variant="success">approved</Badge>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
@@ -1250,8 +1257,17 @@ export function MyJoinRequestsClient() {
                       ) : null}
                       {membership ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Membership status: {membership.status}
+                          Membership status: {displayMembershipStatus(membership.status)}
                         </p>
+                      ) : null}
+                      {reactivationEvents.length > 0 ? (
+                        <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                          {reactivationEvents.map((event) => (
+                            <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                              {event.text} — {formatDate(event.at!)}
+                            </p>
+                          ))}
+                        </div>
                       ) : null}
                     </CardBody>
                   </Card>
