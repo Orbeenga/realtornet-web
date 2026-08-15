@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipHistoryList } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipHistoryList, SimpleTimeline } from "@/features/agencies/components/MembershipHistoryList";
 import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
@@ -344,7 +344,13 @@ export function MyJoinRequestsClient() {
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
   const leftMemberships = memberships.filter(m => m.status === "left");
-  const revokedMemberships = memberships.filter(m => m.status === "revoked");
+  const revokedMemberships = memberships.filter((m) =>
+    (historyQuery.data ?? []).some(
+      (h) =>
+        (h.agency_id === m.agency_id || h.agency_name === m.agency_name) &&
+        h.action === "revoked",
+    ),
+  );
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
   const invitations = invitationsQuery.data ?? [];
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
@@ -1232,24 +1238,19 @@ export function MyJoinRequestsClient() {
                            Approved {formatDate(request.decided_at)}
                          </p>
                        ) : null}
-                       {(() => {
-                         const requestHistory = (historyQuery.data ?? []).filter(
-                           (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
-                         );
-                         if (requestHistory.length === 0) return null;
-                         const sortedHistory = [...requestHistory].sort(
-                           (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-                         );
-                         return (
-                           <div className="mt-2 space-y-1">
-                             {sortedHistory.map((entry) => (
-                               <p key={entry.id ?? entry.timestamp} className="text-sm text-gray-600 dark:text-gray-300">
-                                 {entry.action ? entry.action.replace(/_/g, " ") : entry.source_type === "join_request" ? "Applied" : entry.source_type === "review_request" ? "Review requested" : "Event"} — {formatDate(entry.timestamp)}
-                               </p>
-                             ))}
-                           </div>
-                         );
-                       })()}
+                        {(() => {
+                          const requestHistory = (historyQuery.data ?? []).filter(
+                            (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
+                          );
+                          if (requestHistory.length === 0) return null;
+                          return (
+                            <SimpleTimeline
+                              history={requestHistory}
+                              emptyTitle="No events"
+                              emptyDescription=""
+                            />
+                          );
+                        })()}
                        {reactivationEvents.length > 0 ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                           {reactivationEvents.map((event) => (

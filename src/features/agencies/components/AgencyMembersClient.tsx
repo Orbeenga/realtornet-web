@@ -56,6 +56,9 @@ import {
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
+import {
+  SimpleTimeline,
+} from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
   AgencyJoinRequestResponse,
@@ -673,24 +676,19 @@ export function AgencyMembersClient() {
                                  Approved {formatDate(request.decided_at)}
                                </p>
                              ) : null}
-                             {(() => {
-                               const requestHistory = (historyQuery.data ?? []).filter(
-                                 (h) => h.user_id === request.user_id,
-                               );
-                               if (requestHistory.length === 0) return null;
-                               const sortedHistory = [...requestHistory].sort(
-                                 (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-                               );
-                               return (
-                                 <div className="mt-2 space-y-1">
-                                   {sortedHistory.map((entry) => (
-                                     <p key={entry.id ?? entry.timestamp} className="text-sm text-gray-600 dark:text-gray-300">
-                                       {entry.action ? entry.action.replace(/_/g, " ") : entry.source_type === "join_request" ? "Applied" : entry.source_type === "review_request" ? "Review requested" : "Event"} — {formatDate(entry.timestamp)}
-                                     </p>
-                                   ))}
-                                 </div>
-                               );
-                             })()}
+                              {(() => {
+                                const requestHistory = (historyQuery.data ?? []).filter(
+                                  (h) => h.user_id === request.user_id,
+                                );
+                                if (requestHistory.length === 0) return null;
+                                return (
+                                  <SimpleTimeline
+                                    history={requestHistory}
+                                    emptyTitle="No events"
+                                    emptyDescription=""
+                                  />
+                                );
+                              })()}
                            </div>
                            <Badge variant={badge.variant}>{badge.label}</Badge>
                          </div>
@@ -1641,12 +1639,17 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "revoked").length === 0 ? (
-              <EmptyState title="No revoked memberships." description="" />
-            ) : null}
-             {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "revoked").length > 0 ? (
-               <div className="divide-y divide-border">
-                 {agents.filter(a => a.membership_status === "revoked").map((agent) => (
+            {(() => {
+              const revokedUserIds = new Set(
+                (historyQuery.data ?? []).filter((h) => h.action === "revoked").map((h) => h.user_id),
+              );
+              const revokedAgents = agents.filter((a) => revokedUserIds.has(a.user_id));
+              if (revokedAgents.length === 0) {
+                return <EmptyState title="No revoked memberships." description="" />;
+              }
+              return (
+                <div className="divide-y divide-border">
+                  {revokedAgents.map((agent) => (
                    <div key={agent.membership_id} className="space-y-4 py-4">
                      <div className="flex min-w-0 items-center gap-3">
                        {agent.profile_image_url ? (
@@ -1680,9 +1683,9 @@ export function AgencyMembersClient() {
                          (h) => h.user_id === agent.user_id,
                        );
                        if (agentHistory.length === 0) return null;
-                       const sortedHistory = [...agentHistory].sort(
-                         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-                       );
+                        const sortedHistory = [...agentHistory].sort(
+                          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+                        );
                         return (
                           <div className="space-y-2">
                             {sortedHistory.map((entry) => (
@@ -1717,8 +1720,9 @@ export function AgencyMembersClient() {
                      })()}
                    </div>
                  ))}
-               </div>
-             ) : null}
+                </div>
+              );
+            })()}
           </CardBody>
         </Card>
       ) : null}

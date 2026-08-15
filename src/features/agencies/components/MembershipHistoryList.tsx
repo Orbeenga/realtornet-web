@@ -16,6 +16,87 @@ interface MembershipHistoryListProps {
   alwaysExpanded?: boolean;
 }
 
+interface SimpleTimelineProps {
+  history?: MembershipTimelineEntry[];
+  emptyTitle?: string;
+  emptyDescription?: string;
+}
+
+const REDUNDANT_ACTIONS = new Set(["joined", "applied"]);
+
+function getTimelineLabel(entry: MembershipTimelineEntry): string {
+  const action = entry.action?.replace(/_/g, " ") ?? "";
+  if (action) return action;
+  if (entry.source_type === "join_request") return "Applied";
+  if (entry.source_type === "review_request") return "Review requested";
+  return "Event";
+}
+
+function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelineEntry[]): boolean {
+  const action = entry.action;
+  if (!action || !REDUNDANT_ACTIONS.has(action)) return false;
+  const sameDay = siblings.filter(
+    (s) =>
+      s.id !== entry.id &&
+      s.action &&
+      new Date(s.timestamp).toDateString() === new Date(entry.timestamp).toDateString(),
+  );
+  if (action === "joined") return sameDay.some((s) => s.action === "approved");
+  if (action === "applied") return sameDay.some((s) => s.action === "submitted");
+  return false;
+}
+
+export function SimpleTimeline({
+  history,
+  emptyTitle = "No events",
+  emptyDescription = "Events will appear here when they exist.",
+}: SimpleTimelineProps) {
+  if (!history || history.length === 0) {
+    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+  }
+
+  const sorted = [...history].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
+  const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
+
+  return (
+    <div className="space-y-2">
+      {visible.map((entry) => (
+        <div
+          key={entry.id ?? entry.timestamp}
+          className="rounded-lg border border-border p-3 text-sm leading-6"
+        >
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            {getTimelineLabel(entry)} — {formatMembershipDate(entry.timestamp)}
+          </p>
+          {entry.reason ? (
+            <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
+          ) : null}
+          {entry.cover_note ? (
+            <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
+              <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+            </div>
+          ) : null}
+          {entry.review_message ? (
+            <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
+              <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Review request</p>
+              <p className="whitespace-pre-wrap">{entry.review_message}</p>
+            </div>
+          ) : null}
+          {entry.review_response ? (
+            <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
+              <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Agency response</p>
+              <p className="whitespace-pre-wrap">{entry.review_response}</p>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function getSourceBadgeLabel(sourceType: string) {
   if (sourceType === "audit_event") return "Agency Action";
   if (sourceType === "join_request") return "Application";
@@ -76,8 +157,8 @@ export function MembershipHistoryList({
 
   const sortedHistory = [...history].sort(
     (first, second) =>
-      new Date(second.timestamp).getTime() -
-      new Date(first.timestamp).getTime(),
+      new Date(first.timestamp).getTime() -
+      new Date(second.timestamp).getTime(),
   );
 
   const visibleEntries = alwaysExpanded ? sortedHistory : sortedHistory.slice(0, 2);
