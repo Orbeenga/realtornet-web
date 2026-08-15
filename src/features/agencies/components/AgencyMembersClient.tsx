@@ -665,17 +665,9 @@ export function AgencyMembersClient() {
                        <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                          <div className="flex flex-wrap items-center justify-between gap-2">
                            <div>
-                             <p className="font-semibold text-gray-900 dark:text-white">
-                               {request.seeker_name ?? "Seeker"}
-                             </p>
-                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                               {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                             </p>
-                             {request.decided_at ? (
-                               <p className="text-sm text-gray-500 dark:text-gray-400">
-                                 Approved {formatDate(request.decided_at)}
-                               </p>
-                             ) : null}
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {request.seeker_name ?? "Seeker"}
+                              </p>
                               {(() => {
                                 const requestHistory = (historyQuery.data ?? []).filter(
                                   (h) => h.user_id === request.user_id,
@@ -1665,13 +1657,8 @@ export function AgencyMembersClient() {
                          <p className="font-medium text-gray-900 dark:text-white">
                            {agent.display_name || agent.company_name || "Listing agent"}
                          </p>
-                         <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
-                         {agent.status_decided_at ? (
-                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                             Revoked {formatDate(agent.status_decided_at)}
-                           </p>
-                         ) : null}
-                         {agent.status_reason ? (
+                          <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
+                          {agent.status_reason ? (
                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
                          ) : null}
                          <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1689,7 +1676,8 @@ export function AgencyMembersClient() {
                             tier="rich"
                             history={agentHistory}
                             alwaysExpanded
-                            showHeader={false}
+                            status={formatMembershipStatus(agent.membership_status)}
+                            lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                           />
                         );
                       })()}

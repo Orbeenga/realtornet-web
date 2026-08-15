@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
+import { Button, EmptyState, ErrorState, LoadingState } from "@/components";
 import { formatMembershipDate } from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
 
@@ -17,6 +17,7 @@ interface MembershipTimelineProps {
   alwaysExpanded?: boolean;
   showHeader?: boolean;
   status?: string;
+  lastSeen?: string;
 }
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
@@ -47,11 +48,34 @@ function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelin
   return false;
 }
 
-function getActionBadgeVariant(action?: string | null) {
-  if (action === "joined" || action === "reinstated") return "success" as const;
-  if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
-  if (action === "left") return "warning" as const;
-  return "outline" as const;
+function TimelineHeader({
+  name,
+  role,
+  status,
+  eventCount,
+  lastSeen,
+}: {
+  name: string;
+  role?: string;
+  status?: string;
+  eventCount: number;
+  lastSeen?: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+      <span className="font-medium text-gray-900 dark:text-white">{name}</span>
+      {role ? (
+        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{role}</span>
+      ) : null}
+      {status ? (
+        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{status}</span>
+      ) : null}
+      <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
+      {lastSeen ? (
+        <span className="text-xs text-gray-400">Last seen: {lastSeen}</span>
+      ) : null}
+    </div>
+  );
 }
 
 export function MembershipTimeline({
@@ -64,7 +88,9 @@ export function MembershipTimeline({
   emptyDescription = tier === "rich" ? "Agency membership events will appear here when they exist." : "Events will appear here when they exist.",
   defaultUserDisplayName,
   alwaysExpanded = false,
-  showHeader = tier === "rich",
+  showHeader = true,
+  status,
+  lastSeen,
 }: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -99,8 +125,22 @@ export function MembershipTimeline({
 
     const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
 
+    const headerName = defaultUserDisplayName ?? sorted[0]?.user_display_name ?? sorted[0]?.agency_name ?? "Unknown";
+    const headerRole = sorted[0]?.author_role ?? "";
+    const headerStatus = status ?? (sorted[0]?.action ? resolveTimelineLabel(sorted[0]) : "");
+    const eventCount = sorted.length;
+
     return (
       <div className="space-y-2">
+        {showHeader ? (
+          <TimelineHeader
+            name={headerName}
+            role={headerRole}
+            status={headerStatus}
+            eventCount={eventCount}
+            lastSeen={lastSeen}
+          />
+        ) : null}
         {visible.map((entry) => (
           <div
             key={entry.id ?? entry.timestamp}
@@ -132,62 +172,46 @@ export function MembershipTimeline({
   return (
     <div className="space-y-3">
       {showHeader ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span className="font-medium text-gray-900 dark:text-white">{headerName}</span>
-          {headerRole ? (
-            <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerRole}</span>
-          ) : null}
-          {headerStatus ? (
-            <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerStatus}</span>
-          ) : null}
-          <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
-        </div>
+        <TimelineHeader
+          name={headerName}
+          role={headerRole}
+          status={headerStatus}
+          eventCount={eventCount}
+          lastSeen={lastSeen}
+        />
       ) : null}
       {visibleEntries.map((entry) => {
         const entryId = String(entry.id ?? entry.timestamp);
+        const label = resolveTimelineLabel(entry);
 
         return (
           <div
             key={entryId}
             className="rounded-lg border border-border p-4 text-sm"
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {formatMembershipDate(entry.timestamp)}
-              </div>
-              {(() => {
-                const label = resolveTimelineLabel(entry);
-                if (!label || label === "Event") return null;
-                const badgeVariant = entry.action ? getActionBadgeVariant(entry.action) : "outline";
-                return (
-                  <Badge variant={badgeVariant}>
-                    {label}
-                  </Badge>
-                );
-              })()}
-            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              {formatMembershipDate(entry.timestamp)} | {label}
+            </p>
             {entry.reason ? (
-              <p className="mt-3 rounded-lg bg-gray-50 p-3 leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                {entry.reason}
-              </p>
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
             ) : null}
             {entry.cover_note ? (
-              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
                 <p className="whitespace-pre-wrap">{entry.cover_note}</p>
               </div>
             ) : null}
             {entry.portfolio_details ? (
-              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
                 <p className="whitespace-pre-wrap">{entry.portfolio_details}</p>
               </div>
             ) : null}
             {entry.review_message ? (
-              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
                 <p className="whitespace-pre-wrap">{entry.review_message}</p>
               </div>
             ) : null}
             {entry.review_response ? (
-              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
                 <p className="whitespace-pre-wrap">{entry.review_response}</p>
               </div>
             ) : null}

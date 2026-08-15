@@ -951,11 +951,6 @@ export function MyJoinRequestsClient() {
                           </Link>
                           <Badge variant="danger">{displayMembershipStatus(membership.status)}</Badge>
                         </div>
-                        {membership.status_decided_at ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Revoked {formatDate(membership.status_decided_at)}
-                          </p>
-                        ) : null}
                         {membership.status_reason ? (
                           <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                             {membership.status_reason}
@@ -1039,7 +1034,7 @@ export function MyJoinRequestsClient() {
                             history={agencyHistory}
                             defaultUserDisplayName={defaultUserDisplayName}
                             alwaysExpanded
-                            showHeader={false}
+                            status={displayMembershipStatus(membership.status)}
                           />
                         ) : null}
                       </CardBody>
@@ -1118,7 +1113,6 @@ export function MyJoinRequestsClient() {
                             tier="rich"
                             history={grouped[agencyName]}
                             defaultUserDisplayName={defaultUserDisplayName}
-                            showHeader={false}
                           />
                         </div>
                       ))}
@@ -1234,28 +1228,21 @@ export function MyJoinRequestsClient() {
                         </Link>
                         <Badge variant={badge.variant}>{badge.label}</Badge>
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Submitted {formatDate(request.submitted_at)}
-                      </p>
-                       {request.decided_at ? (
-                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                           Approved {formatDate(request.decided_at)}
-                         </p>
-                       ) : null}
-                        {(() => {
+                       {(() => {
                           const requestHistory = (historyQuery.data ?? []).filter(
                             (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
                           );
-                          if (requestHistory.length === 0) return null;
+                           if (requestHistory.length === 0) return null;
                            return (
-                            <MembershipTimeline
-                              tier="simple"
-                              history={requestHistory}
-                              emptyTitle="No events"
-                              emptyDescription=""
-                            />
-                          );
-                        })()}
+                             <MembershipTimeline
+                               tier="simple"
+                               history={requestHistory}
+                               emptyTitle="No events"
+                               emptyDescription=""
+                               status={badge.label}
+                             />
+                           );
+                         })()}
                        {reactivationEvents.length > 0 ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                           {reactivationEvents.map((event) => (
