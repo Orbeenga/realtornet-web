@@ -16,6 +16,7 @@ interface MembershipTimelineProps {
   defaultUserDisplayName?: string;
   alwaysExpanded?: boolean;
   showHeader?: boolean;
+  status?: string;
 }
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
@@ -25,7 +26,7 @@ function resolveTimelineLabel(entry: MembershipTimelineEntry): string {
     const raw = entry.action.replace(/_/g, " ");
     if (entry.action === "joined") return "Accepted";
     if (entry.action === "review_requested") return "Review requested";
-    return raw;
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
   if (entry.source_type === "join_request") return "Submitted";
   if (entry.source_type === "review_request") return "Review requested";
@@ -125,6 +126,7 @@ export function MembershipTimeline({
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
   const headerRole = sortedHistory[0]?.author_role ?? "";
+  const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0]) : "");
   const eventCount = sortedHistory.length;
 
   return (
@@ -134,6 +136,9 @@ export function MembershipTimeline({
           <span className="font-medium text-gray-900 dark:text-white">{headerName}</span>
           {headerRole ? (
             <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerRole}</span>
+          ) : null}
+          {headerStatus ? (
+            <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerStatus}</span>
           ) : null}
           <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
         </div>
@@ -150,11 +155,16 @@ export function MembershipTimeline({
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {formatMembershipDate(entry.timestamp)}
               </div>
-              {entry.action ? (
-                <Badge variant={getActionBadgeVariant(entry.action)}>
-                  {resolveTimelineLabel(entry)}
-                </Badge>
-              ) : null}
+              {(() => {
+                const label = resolveTimelineLabel(entry);
+                if (!label || label === "Event") return null;
+                const badgeVariant = entry.action ? getActionBadgeVariant(entry.action) : "outline";
+                return (
+                  <Badge variant={badgeVariant}>
+                    {label}
+                  </Badge>
+                );
+              })()}
             </div>
             {entry.reason ? (
               <p className="mt-3 rounded-lg bg-gray-50 p-3 leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
