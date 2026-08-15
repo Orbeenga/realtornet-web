@@ -1039,6 +1039,7 @@ export function MyJoinRequestsClient() {
                             history={agencyHistory}
                             defaultUserDisplayName={defaultUserDisplayName}
                             alwaysExpanded
+                            showHeader={false}
                           />
                         ) : null}
                       </CardBody>
@@ -1117,6 +1118,7 @@ export function MyJoinRequestsClient() {
                             tier="rich"
                             history={grouped[agencyName]}
                             defaultUserDisplayName={defaultUserDisplayName}
+                            showHeader={false}
                           />
                         </div>
                       ))}

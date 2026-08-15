@@ -1689,6 +1689,7 @@ export function AgencyMembersClient() {
                             tier="rich"
                             history={agentHistory}
                             alwaysExpanded
+                            showHeader={false}
                           />
                         );
                       })()}

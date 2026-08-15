@@ -15,14 +15,19 @@ interface MembershipTimelineProps {
   emptyDescription?: string;
   defaultUserDisplayName?: string;
   alwaysExpanded?: boolean;
+  showHeader?: boolean;
 }
 
-const REDUNDANT_ACTIONS = new Set(["joined", "applied"]);
+const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
-function getTimelineLabel(entry: MembershipTimelineEntry): string {
-  const action = entry.action?.replace(/_/g, " ") ?? "";
-  if (action) return action;
-  if (entry.source_type === "join_request") return "Applied";
+function resolveTimelineLabel(entry: MembershipTimelineEntry): string {
+  if (entry.action) {
+    const raw = entry.action.replace(/_/g, " ");
+    if (entry.action === "joined") return "Accepted";
+    if (entry.action === "review_requested") return "Review requested";
+    return raw;
+  }
+  if (entry.source_type === "join_request") return "Submitted";
   if (entry.source_type === "review_request") return "Review requested";
   return "Event";
 }
@@ -37,7 +42,7 @@ function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelin
       new Date(s.timestamp).toDateString() === new Date(entry.timestamp).toDateString(),
   );
   if (action === "joined") return sameDay.some((s) => s.action === "approved");
-  if (action === "applied") return sameDay.some((s) => s.action === "submitted");
+  if (action === "submitted") return sameDay.some((s) => s.action === "submitted" && s.id !== entry.id);
   return false;
 }
 
@@ -46,13 +51,6 @@ function getActionBadgeVariant(action?: string | null) {
   if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
   if (action === "left") return "warning" as const;
   return "outline" as const;
-}
-
-function formatAction(action?: string | null, sourceType?: string | null) {
-  if (action) return action.replace(/_/g, " ");
-  if (sourceType === "join_request") return "Applied";
-  if (sourceType === "review_request") return "Review requested";
-  return "Event";
 }
 
 export function MembershipTimeline({
@@ -65,6 +63,7 @@ export function MembershipTimeline({
   emptyDescription = tier === "rich" ? "Agency membership events will appear here when they exist." : "Events will appear here when they exist.",
   defaultUserDisplayName,
   alwaysExpanded = false,
+  showHeader = tier === "rich",
 }: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -107,7 +106,7 @@ export function MembershipTimeline({
             className="rounded-lg border border-border p-3 text-sm leading-6"
           >
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              {getTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
+              {resolveTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
             </p>
           </div>
         ))}
@@ -130,13 +129,15 @@ export function MembershipTimeline({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-        <span className="font-medium text-gray-900 dark:text-white">{headerName}</span>
-        {headerRole ? (
-          <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerRole}</span>
-        ) : null}
-        <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
-      </div>
+      {showHeader ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-medium text-gray-900 dark:text-white">{headerName}</span>
+          {headerRole ? (
+            <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerRole}</span>
+          ) : null}
+          <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
+        </div>
+      ) : null}
       {visibleEntries.map((entry) => {
         const entryId = String(entry.id ?? entry.timestamp);
 
@@ -151,7 +152,7 @@ export function MembershipTimeline({
               </div>
               {entry.action ? (
                 <Badge variant={getActionBadgeVariant(entry.action)}>
-                  {formatAction(entry.action, entry.source_type)}
+                  {resolveTimelineLabel(entry)}
                 </Badge>
               ) : null}
             </div>
@@ -161,7 +162,7 @@ export function MembershipTimeline({
               </p>
             ) : null}
             {entry.cover_note ? (
-              <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                 <p className="whitespace-pre-wrap">{entry.cover_note}</p>
               </div>
             ) : null}
@@ -171,12 +172,12 @@ export function MembershipTimeline({
               </div>
             ) : null}
             {entry.review_message ? (
-              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                 <p className="whitespace-pre-wrap">{entry.review_message}</p>
               </div>
             ) : null}
             {entry.review_response ? (
-              <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                 <p className="whitespace-pre-wrap">{entry.review_response}</p>
               </div>
             ) : null}
@@ -196,4 +197,3 @@ export function MembershipTimeline({
     </div>
   );
 }
-
