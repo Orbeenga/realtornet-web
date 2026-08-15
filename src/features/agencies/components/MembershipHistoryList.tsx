@@ -41,20 +41,6 @@ function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelin
   return false;
 }
 
-function getSourceBadgeLabel(sourceType: string) {
-  if (sourceType === "audit_event") return "Agency Action";
-  if (sourceType === "join_request") return "Application";
-  if (sourceType === "review_request") return "Review Request";
-  return sourceType.replace(/_/g, " ");
-}
-
-function getSourceBadgeVariant(sourceType: string): "success" | "danger" | "warning" | "outline" {
-  if (sourceType === "audit_event") return "outline";
-  if (sourceType === "join_request") return "warning";
-  if (sourceType === "review_request") return "success";
-  return "outline";
-}
-
 function getActionBadgeVariant(action?: string | null) {
   if (action === "joined" || action === "reinstated") return "success" as const;
   if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
@@ -123,26 +109,6 @@ export function MembershipTimeline({
             <p className="text-sm text-gray-700 dark:text-gray-300">
               {getTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
             </p>
-            {entry.reason ? (
-              <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
-            ) : null}
-            {entry.cover_note ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-              </div>
-            ) : null}
-            {entry.review_message ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Review request</p>
-                <p className="whitespace-pre-wrap">{entry.review_message}</p>
-              </div>
-            ) : null}
-            {entry.review_response ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Agency response</p>
-                <p className="whitespace-pre-wrap">{entry.review_response}</p>
-              </div>
-            ) : null}
           </div>
         ))}
       </div>
@@ -158,8 +124,19 @@ export function MembershipTimeline({
   const visibleEntries = alwaysExpanded ? sortedHistory : sortedHistory.slice(0, 2);
   const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
 
+  const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
+  const headerRole = sortedHistory[0]?.author_role ?? "";
+  const eventCount = sortedHistory.length;
+
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+        <span className="font-medium text-gray-900 dark:text-white">{headerName}</span>
+        {headerRole ? (
+          <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{headerRole}</span>
+        ) : null}
+        <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
+      </div>
       {visibleEntries.map((entry) => {
         const entryId = String(entry.id ?? entry.timestamp);
 
@@ -169,24 +146,14 @@ export function MembershipTimeline({
             className="rounded-lg border border-border p-4 text-sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  {entry.user_display_name ?? defaultUserDisplayName ?? entry.agency_name ?? "Unknown"}
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {formatMembershipDate(entry.timestamp)}
-                </p>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {formatMembershipDate(entry.timestamp)}
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant={getSourceBadgeVariant(entry.source_type)}>
-                  {getSourceBadgeLabel(entry.source_type)}
+              {entry.action ? (
+                <Badge variant={getActionBadgeVariant(entry.action)}>
+                  {formatAction(entry.action, entry.source_type)}
                 </Badge>
-                {entry.action ? (
-                  <Badge variant={getActionBadgeVariant(entry.action)}>
-                    {formatAction(entry.action, entry.source_type)}
-                  </Badge>
-                ) : null}
-              </div>
+              ) : null}
             </div>
             {entry.reason ? (
               <p className="mt-3 rounded-lg bg-gray-50 p-3 leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
@@ -195,33 +162,23 @@ export function MembershipTimeline({
             ) : null}
             {entry.cover_note ? (
               <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application message</p>
                 <p className="whitespace-pre-wrap">{entry.cover_note}</p>
               </div>
             ) : null}
             {entry.portfolio_details ? (
               <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Portfolio</p>
                 <p className="whitespace-pre-wrap">{entry.portfolio_details}</p>
               </div>
             ) : null}
             {entry.review_message ? (
               <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
                 <p className="whitespace-pre-wrap">{entry.review_message}</p>
               </div>
             ) : null}
             {entry.review_response ? (
               <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
                 <p className="whitespace-pre-wrap">{entry.review_response}</p>
               </div>
-            ) : null}
-            {entry.prior_role || entry.post_role ? (
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Role: {entry.prior_role ?? "not recorded"} to{" "}
-                {entry.post_role ?? "not recorded"}
-              </p>
             ) : null}
           </div>
         );
