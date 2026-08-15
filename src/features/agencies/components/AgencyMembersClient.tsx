@@ -57,7 +57,7 @@ import {
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
-  SimpleTimeline,
+  MembershipTimeline,
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
@@ -682,7 +682,8 @@ export function AgencyMembersClient() {
                                 );
                                 if (requestHistory.length === 0) return null;
                                 return (
-                                  <SimpleTimeline
+                                  <MembershipTimeline
+                                    tier="simple"
                                     history={requestHistory}
                                     emptyTitle="No events"
                                     emptyDescription=""
@@ -1678,46 +1679,19 @@ export function AgencyMembersClient() {
                          </p>
                        </div>
                      </div>
-                     {(() => {
-                       const agentHistory = (historyQuery.data ?? []).filter(
-                         (h) => h.user_id === agent.user_id,
-                       );
-                       if (agentHistory.length === 0) return null;
-                        const sortedHistory = [...agentHistory].sort(
-                          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+                      {(() => {
+                        const agentHistory = (historyQuery.data ?? []).filter(
+                          (h) => h.user_id === agent.user_id,
                         );
+                        if (agentHistory.length === 0) return null;
                         return (
-                          <div className="space-y-2">
-                            {sortedHistory.map((entry) => (
-                              <div key={entry.id ?? entry.timestamp} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {entry.action ? entry.action.replace(/_/g, " ") : entry.source_type === "join_request" ? "Applied" : entry.source_type === "review_request" ? "Review requested" : "Event"} — {formatDate(entry.timestamp)}
-                                </p>
-                                {entry.reason ? (
-                                  <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
-                                ) : null}
-                                {entry.cover_note ? (
-                                  <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                                    <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-                                  </div>
-                                ) : null}
-                                {entry.review_message ? (
-                                  <div className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                                    <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">Review request</p>
-                                    <p className="whitespace-pre-wrap">{entry.review_message}</p>
-                                  </div>
-                                ) : null}
-                                {entry.review_response ? (
-                                  <div className="mt-2 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                                    <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Agency response</p>
-                                    <p className="whitespace-pre-wrap">{entry.review_response}</p>
-                                  </div>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
+                          <MembershipTimeline
+                            tier="rich"
+                            history={agentHistory}
+                            alwaysExpanded
+                          />
                         );
-                     })()}
+                      })()}
                    </div>
                  ))}
                 </div>

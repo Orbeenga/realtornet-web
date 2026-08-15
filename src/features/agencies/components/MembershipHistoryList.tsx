@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
 import { formatMembershipDate } from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
 
-interface MembershipHistoryListProps {
+interface MembershipTimelineProps {
   history?: MembershipTimelineEntry[];
+  tier: "simple" | "rich";
   isLoading?: boolean;
   isError?: boolean;
   onRetry?: () => void;
@@ -14,12 +15,6 @@ interface MembershipHistoryListProps {
   emptyDescription?: string;
   defaultUserDisplayName?: string;
   alwaysExpanded?: boolean;
-}
-
-interface SimpleTimelineProps {
-  history?: MembershipTimelineEntry[];
-  emptyTitle?: string;
-  emptyDescription?: string;
 }
 
 const REDUNDANT_ACTIONS = new Set(["joined", "applied"]);
@@ -44,57 +39,6 @@ function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelin
   if (action === "joined") return sameDay.some((s) => s.action === "approved");
   if (action === "applied") return sameDay.some((s) => s.action === "submitted");
   return false;
-}
-
-export function SimpleTimeline({
-  history,
-  emptyTitle = "No events",
-  emptyDescription = "Events will appear here when they exist.",
-}: SimpleTimelineProps) {
-  if (!history || history.length === 0) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} />;
-  }
-
-  const sorted = [...history].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-  );
-
-  const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
-
-  return (
-    <div className="space-y-2">
-      {visible.map((entry) => (
-        <div
-          key={entry.id ?? entry.timestamp}
-          className="rounded-lg border border-border p-3 text-sm leading-6"
-        >
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            {getTimelineLabel(entry)} — {formatMembershipDate(entry.timestamp)}
-          </p>
-          {entry.reason ? (
-            <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
-          ) : null}
-          {entry.cover_note ? (
-            <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-              <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-            </div>
-          ) : null}
-          {entry.review_message ? (
-            <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-              <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Review request</p>
-              <p className="whitespace-pre-wrap">{entry.review_message}</p>
-            </div>
-          ) : null}
-          {entry.review_response ? (
-            <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-              <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Agency response</p>
-              <p className="whitespace-pre-wrap">{entry.review_response}</p>
-            </div>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function getSourceBadgeLabel(sourceType: string) {
@@ -125,40 +69,90 @@ function formatAction(action?: string | null, sourceType?: string | null) {
   return "Event";
 }
 
-export function MembershipHistoryList({
+export function MembershipTimeline({
   history,
+  tier,
   isLoading,
   isError,
   onRetry,
-  emptyTitle = "No membership history",
-  emptyDescription = "Agency membership events will appear here when they exist.",
+  emptyTitle = tier === "rich" ? "No membership history" : "No events",
+  emptyDescription = tier === "rich" ? "Agency membership events will appear here when they exist." : "Events will appear here when they exist.",
   defaultUserDisplayName,
   alwaysExpanded = false,
-}: MembershipHistoryListProps) {
+}: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (isLoading) {
-    return <LoadingState message="Loading membership history..." />;
+    if (tier === "rich") {
+      return <LoadingState message="Loading membership history..." />;
+    }
+    return null;
   }
 
   if (isError) {
-    return (
-      <ErrorState
-        title="Could not load membership history"
-        message="There was a problem loading agency membership history."
-        onRetry={onRetry}
-      />
-    );
+    if (tier === "rich") {
+      return (
+        <ErrorState
+          title="Could not load membership history"
+          message="There was a problem loading agency membership history."
+          onRetry={onRetry}
+        />
+      );
+    }
+    return null;
   }
 
   if (!history || history.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
 
+  if (tier === "simple") {
+    const sorted = [...history].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+    const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
+
+    return (
+      <div className="space-y-2">
+        {visible.map((entry) => (
+          <div
+            key={entry.id ?? entry.timestamp}
+            className="rounded-lg border border-border p-3 text-sm leading-6"
+          >
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              {getTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
+            </p>
+            {entry.reason ? (
+              <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
+            ) : null}
+            {entry.cover_note ? (
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
+                <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+              </div>
+            ) : null}
+            {entry.review_message ? (
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
+                <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Review request</p>
+                <p className="whitespace-pre-wrap">{entry.review_message}</p>
+              </div>
+            ) : null}
+            {entry.review_response ? (
+              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
+                <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Agency response</p>
+                <p className="whitespace-pre-wrap">{entry.review_response}</p>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const sortedHistory = [...history].sort(
     (first, second) =>
-      new Date(first.timestamp).getTime() -
-      new Date(second.timestamp).getTime(),
+      new Date(second.timestamp).getTime() -
+      new Date(first.timestamp).getTime(),
   );
 
   const visibleEntries = alwaysExpanded ? sortedHistory : sortedHistory.slice(0, 2);
@@ -245,3 +239,4 @@ export function MembershipHistoryList({
     </div>
   );
 }
+

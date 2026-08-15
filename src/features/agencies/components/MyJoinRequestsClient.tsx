@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipHistoryList, SimpleTimeline } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline } from "@/features/agencies/components/MembershipHistoryList";
 import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
@@ -1034,7 +1034,8 @@ export function MyJoinRequestsClient() {
                           </div>
                         ) : null}
                         {agencyHistory.length > 0 ? (
-                          <MembershipHistoryList
+                          <MembershipTimeline
+                            tier="rich"
                             history={agencyHistory}
                             defaultUserDisplayName={defaultUserDisplayName}
                             alwaysExpanded
@@ -1112,7 +1113,8 @@ export function MyJoinRequestsClient() {
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {agencyName}
                           </h3>
-                          <MembershipHistoryList
+                          <MembershipTimeline
+                            tier="rich"
                             history={grouped[agencyName]}
                             defaultUserDisplayName={defaultUserDisplayName}
                           />
@@ -1243,8 +1245,9 @@ export function MyJoinRequestsClient() {
                             (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
                           );
                           if (requestHistory.length === 0) return null;
-                          return (
-                            <SimpleTimeline
+                           return (
+                            <MembershipTimeline
+                              tier="simple"
                               history={requestHistory}
                               emptyTitle="No events"
                               emptyDescription=""
