@@ -191,7 +191,7 @@ export function useMyAgencyInvitations(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyInvitations"],
     queryFn: () =>
-      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/"),
+      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/?status=all"),
     staleTime: 60_000,
     enabled,
   });
