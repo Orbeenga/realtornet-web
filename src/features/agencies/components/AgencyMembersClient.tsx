@@ -40,7 +40,6 @@ import {
   useInviteAgencyAgent,
   useReactivateInvitation,
   useRejectAgencyJoinRequest,
-  useReconsiderJoinRequest,
   useRequestJoinRequestReactivation,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
@@ -272,6 +271,7 @@ export function AgencyMembersClient() {
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
+
   const suspendMembership = useSuspendAgencyMembership(agencyId);
   const revokeMembership = useRevokeAgencyMembership(agencyId);
   const blockMembership = useBlockAgencyMembership(agencyId);
@@ -279,7 +279,6 @@ export function AgencyMembersClient() {
   const unblockMembership = useUnblockAgencyMembership(agencyId);
   const acceptReview = useAcceptAgencyReviewRequest(agencyId);
   const declineReview = useDeclineAgencyReviewRequest(agencyId);
-  const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
   const inviteAgent = useInviteAgencyAgent(agencyId);
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
@@ -310,15 +309,6 @@ export function AgencyMembersClient() {
       });
     } catch {
       notify.error("Could not reject join request");
-    }
-  };
-
-  const handleReconsider = async (requestId: number) => {
-    try {
-      await reconsiderJoinRequest.mutateAsync(requestId);
-      notify.success("Join request reconsidered — moved back to pending.");
-    } catch {
-      notify.error("Could not reconsider join request.");
     }
   };
 
@@ -674,7 +664,9 @@ export function AgencyMembersClient() {
                                 history={requestHistory}
                                 emptyTitle="No events"
                                 emptyDescription=""
+                                entity="person"
                                 defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
+                                role="agent"
                                 status={badge.label}
                               />
                             );
@@ -1648,7 +1640,9 @@ export function AgencyMembersClient() {
                              tier="rich"
                              history={agentHistory}
                              alwaysExpanded
+                             entity="person"
                              defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                             role="agent"
                              status={formatMembershipStatus(agent.membership_status)}
                              lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                            />

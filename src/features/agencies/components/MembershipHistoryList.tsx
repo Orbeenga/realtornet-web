@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
-import { Button, EmptyState, ErrorState, LoadingState } from "@/components";
+import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
 import { formatMembershipDate } from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
 
@@ -16,6 +16,10 @@ interface MembershipTimelineProps {
   defaultUserDisplayName?: string;
   alwaysExpanded?: boolean;
   showHeader?: boolean;
+  /** Header contract discriminator (U-019): person = name|role|status|event_count|last_seen, agency = name|event_count */
+  entity?: "person" | "agency";
+  /** The member's own fixed role. Never derive from entry.author_role (event author ≠ member). */
+  role?: string;
   status?: string;
   lastSeen?: string;
 }
@@ -34,6 +38,16 @@ function resolveTimelineLabel(entry: MembershipTimelineEntry): string {
   return "Event";
 }
 
+// Keyed off the same action/source_type shapes resolveTimelineLabel consumes (U-019).
+function timelineActionBadgeVariant(entry: MembershipTimelineEntry) {
+  const action = entry.action;
+  if (!action) return "outline" as const;
+  if (action === "joined" || action === "reinstated" || action === "approved") return "success" as const;
+  if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
+  if (action === "left") return "warning" as const;
+  return "outline" as const;
+}
+
 function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelineEntry[]): boolean {
   const action = entry.action;
   if (!action || !REDUNDANT_ACTIONS.has(action)) return false;
@@ -49,12 +63,14 @@ function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelin
 }
 
 function TimelineHeader({
+  entity = "person",
   name,
   role,
   status,
   eventCount,
   lastSeen,
 }: {
+  entity?: "person" | "agency";
   name: string;
   role?: string;
   status?: string;
@@ -64,14 +80,14 @@ function TimelineHeader({
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
       <span className="font-medium text-gray-900 dark:text-white">{name}</span>
-      {role ? (
+      {entity === "person" && role ? (
         <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{role}</span>
       ) : null}
-      {status ? (
+      {entity === "person" && status ? (
         <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{status}</span>
       ) : null}
       <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
-      {lastSeen ? (
+      {entity === "person" && lastSeen ? (
         <span className="text-xs text-gray-400">Last seen: {lastSeen}</span>
       ) : null}
     </div>
@@ -89,6 +105,8 @@ export function MembershipTimeline({
   defaultUserDisplayName,
   alwaysExpanded = false,
   showHeader = true,
+  entity = "person",
+  role,
   status,
   lastSeen,
 }: MembershipTimelineProps) {
@@ -126,7 +144,6 @@ export function MembershipTimeline({
     const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
 
     const headerName = defaultUserDisplayName ?? sorted[0]?.user_display_name ?? sorted[0]?.agency_name ?? "Unknown";
-    const headerRole = sorted[0]?.author_role ?? "";
     const headerStatus = status ?? (sorted[0]?.action ? resolveTimelineLabel(sorted[0]) : "");
     const eventCount = sorted.length;
 
@@ -134,8 +151,9 @@ export function MembershipTimeline({
       <div className="space-y-2">
         {showHeader ? (
           <TimelineHeader
+            entity={entity}
             name={headerName}
-            role={headerRole}
+            role={role}
             status={headerStatus}
             eventCount={eventCount}
             lastSeen={lastSeen}
@@ -146,9 +164,16 @@ export function MembershipTimeline({
             key={entry.id ?? entry.timestamp}
             className="rounded-lg border border-border p-3 text-sm leading-6"
           >
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              {resolveTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {formatMembershipDate(entry.timestamp)}
+              </span>
+              {resolveTimelineLabel(entry) !== "Event" ? (
+                <Badge variant={timelineActionBadgeVariant(entry)}>
+                  {resolveTimelineLabel(entry)}
+                </Badge>
+              ) : null}
+            </div>
           </div>
         ))}
       </div>
@@ -165,7 +190,6 @@ export function MembershipTimeline({
   const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
-  const headerRole = sortedHistory[0]?.author_role ?? "";
   const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0]) : "");
   const eventCount = sortedHistory.length;
 
@@ -173,8 +197,9 @@ export function MembershipTimeline({
     <div className="space-y-3">
       {showHeader ? (
         <TimelineHeader
+          entity={entity}
           name={headerName}
-          role={headerRole}
+          role={role}
           status={headerStatus}
           eventCount={eventCount}
           lastSeen={lastSeen}
@@ -189,9 +214,16 @@ export function MembershipTimeline({
             key={entryId}
             className="rounded-lg border border-border p-4 text-sm"
           >
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              {formatMembershipDate(entry.timestamp)} | {label}
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {formatMembershipDate(entry.timestamp)}
+              </div>
+              {label !== "Event" ? (
+                <Badge variant={timelineActionBadgeVariant(entry)}>
+                  {label}
+                </Badge>
+              ) : null}
+            </div>
             {entry.reason ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
             ) : null}

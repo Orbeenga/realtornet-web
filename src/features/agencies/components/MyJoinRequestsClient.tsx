@@ -935,9 +935,9 @@ export function MyJoinRequestsClient() {
                           <MembershipTimeline
                             tier="rich"
                             history={agencyHistory}
+                            entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             alwaysExpanded
-                            status={displayMembershipStatus(membership.status)}
                           />
                         ) : null}
                         {!reinstatementEvent && !membership.pending_review_request_id ? (
@@ -1047,7 +1047,9 @@ export function MyJoinRequestsClient() {
                           <MembershipTimeline
                             tier="rich"
                             history={grouped[agencyName]}
+                            entity="person"
                             defaultUserDisplayName={defaultUserDisplayName}
+                            role={role}
                           />
                         </div>
                       ))}
@@ -1141,11 +1143,6 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               requests.filter(r => r.status === "approved").map((request) => {
-                const membership = memberships.find(
-                  m => m.source_join_request_id === request.join_request_id,
-                );
-                const liveStatus = membership?.status ?? request.status;
-                const badge = resolveStatusBadge(liveStatus);
                 const reactivationEvents = resolveJoinRequestReactivationTrace(
                   request,
                   user?.user_id ?? null,
@@ -1165,8 +1162,8 @@ export function MyJoinRequestsClient() {
                               history={requestHistory}
                               emptyTitle="No events"
                               emptyDescription=""
+                              entity="agency"
                               defaultUserDisplayName={request.agency_name}
-                              status={badge.label}
                             />
                           );
                         })()}
