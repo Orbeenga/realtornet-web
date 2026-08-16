@@ -922,79 +922,23 @@ export function MyJoinRequestsClient() {
                 </div>
               ) : (
                 revokedMemberships.map((membership) => {
-                  const reapplications = requests
-                    .filter(
-                      (r) =>
-                        r.agency_id === membership.agency_id &&
-                        r.join_request_id !== membership.source_join_request_id,
-                    )
-                    .sort(
-                      (a, b) =>
-                        new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
-                    );
                   const agencyHistory = (historyQuery.data ?? []).filter(
                     (h) => h.agency_id === membership.agency_id || h.agency_name === membership.agency_name,
                   );
-                  const recentReapplication = reapplications[0];
                   const reinstatementEvent = [...agencyHistory]
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .find((h) => h.action === "reinstated" || h.action === "joined");
                   return (
                     <Card key={membership.membership_id}>
                       <CardBody className="space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <Link
-                            href={`/agencies/${membership.agency_id}`}
-                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                          >
-                            {membership.agency_name}
-                          </Link>
-                          <Badge variant="danger">{displayMembershipStatus(membership.status)}</Badge>
-                        </div>
-                        {membership.status_reason ? (
-                          <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                            {membership.status_reason}
-                          </div>
-                        ) : null}
-                        {reinstatementEvent ? (
-                          <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm dark:border-green-900 dark:bg-green-950/40">
-                            <p className="font-medium text-green-900 dark:text-green-200">
-                              Reinstated {formatDate(reinstatementEvent.timestamp)}
-                            </p>
-                            {reinstatementEvent.reason ? (
-                              <p className="mt-0.5 text-green-700 dark:text-green-300">
-                                {reinstatementEvent.reason}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {recentReapplication ? (
-                          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950/40">
-                            <p className="font-medium text-blue-900 dark:text-blue-200">
-                              Reapplied {formatDate(recentReapplication.submitted_at)}
-                            </p>
-                            <p className="mt-0.5 text-blue-700 dark:text-blue-300">
-                              Status: <span className="capitalize">{recentReapplication.status}</span>
-                            </p>
-                            {recentReapplication.status === "rejected" && recentReapplication.rejection_reason ? (
-                              <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
-                                Reason: {recentReapplication.rejection_reason}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {!reinstatementEvent && membership.pending_review_request_id ? (
-                          <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            <p className="font-medium">Review requested</p>
-                            {membership.pending_review_reason ? (
-                              <p className="mt-1 text-xs">{membership.pending_review_reason}</p>
-                            ) : null}
-                            {membership.pending_review_submitted_at ? (
-                              <p className="mt-1 text-xs">
-                                Submitted {formatDate(membership.pending_review_submitted_at)}
-                              </p>
-                            ) : null}
-                          </div>
+                        {agencyHistory.length > 0 ? (
+                          <MembershipTimeline
+                            tier="rich"
+                            history={agencyHistory}
+                            defaultUserDisplayName={membership.agency_name}
+                            alwaysExpanded
+                            status={displayMembershipStatus(membership.status)}
+                          />
                         ) : null}
                         {!reinstatementEvent && !membership.pending_review_request_id ? (
                           <div className="space-y-3">
@@ -1027,15 +971,6 @@ export function MyJoinRequestsClient() {
                               Request Review
                             </Button>
                           </div>
-                        ) : null}
-                        {agencyHistory.length > 0 ? (
-                          <MembershipTimeline
-                            tier="rich"
-                            history={agencyHistory}
-                            defaultUserDisplayName={defaultUserDisplayName}
-                            alwaysExpanded
-                            status={displayMembershipStatus(membership.status)}
-                          />
                         ) : null}
                       </CardBody>
                     </Card>
@@ -1217,33 +1152,25 @@ export function MyJoinRequestsClient() {
                   true,
                 );
                 return (
-                  <Card key={request.join_request_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${request.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {request.agency_name}
-                        </Link>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                      </div>
-                       {(() => {
+                    <Card key={request.join_request_id}>
+                      <CardBody className="space-y-4">
+                        {(() => {
                           const requestHistory = (historyQuery.data ?? []).filter(
                             (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
                           );
-                           if (requestHistory.length === 0) return null;
-                           return (
-                             <MembershipTimeline
-                               tier="simple"
-                               history={requestHistory}
-                               emptyTitle="No events"
-                               emptyDescription=""
-                               status={badge.label}
-                             />
-                           );
-                         })()}
-                       {reactivationEvents.length > 0 ? (
+                          if (requestHistory.length === 0) return null;
+                          return (
+                            <MembershipTimeline
+                              tier="simple"
+                              history={requestHistory}
+                              emptyTitle="No events"
+                              emptyDescription=""
+                              defaultUserDisplayName={request.agency_name}
+                              status={badge.label}
+                            />
+                          );
+                        })()}
+                        {reactivationEvents.length > 0 ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                           {reactivationEvents.map((event) => (
                             <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">

@@ -661,31 +661,25 @@ export function AgencyMembersClient() {
                         user?.user_id ?? null,
                         false,
                       );
-                       return (
-                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                         <div className="flex flex-wrap items-center justify-between gap-2">
-                           <div>
-                              <p className="font-semibold text-gray-900 dark:text-white">
-                                {request.seeker_name ?? "Seeker"}
-                              </p>
-                              {(() => {
-                                const requestHistory = (historyQuery.data ?? []).filter(
-                                  (h) => h.user_id === request.user_id,
-                                );
-                                if (requestHistory.length === 0) return null;
-                                return (
-                                  <MembershipTimeline
-                                    tier="simple"
-                                    history={requestHistory}
-                                    emptyTitle="No events"
-                                    emptyDescription=""
-                                  />
-                                );
-                              })()}
-                           </div>
-                           <Badge variant={badge.variant}>{badge.label}</Badge>
-                         </div>
-                         {reactivationEvents.length > 0 ? (
+                        return (
+                        <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                          {(() => {
+                            const requestHistory = (historyQuery.data ?? []).filter(
+                              (h) => h.user_id === request.user_id,
+                            );
+                            if (requestHistory.length === 0) return null;
+                            return (
+                              <MembershipTimeline
+                                tier="simple"
+                                history={requestHistory}
+                                emptyTitle="No events"
+                                emptyDescription=""
+                                defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
+                                status={badge.label}
+                              />
+                            );
+                          })()}
+                          {reactivationEvents.length > 0 ? (
                            <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
                              {reactivationEvents.map((event) => (
                                <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
@@ -1642,47 +1636,26 @@ export function AgencyMembersClient() {
               }
               return (
                 <div className="divide-y divide-border">
-                  {revokedAgents.map((agent) => (
-                   <div key={agent.membership_id} className="space-y-4 py-4">
-                     <div className="flex min-w-0 items-center gap-3">
-                       {agent.profile_image_url ? (
-                         // eslint-disable-next-line @next/next/no-img-element
-                         <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                       ) : (
-                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                           {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                         </div>
-                       )}
-                       <div className="min-w-0 space-y-1">
-                         <p className="font-medium text-gray-900 dark:text-white">
-                           {agent.display_name || agent.company_name || "Listing agent"}
-                         </p>
-                          <Badge variant="danger">{formatMembershipStatus(agent.membership_status)}</Badge>
-                          {agent.status_reason ? (
-                           <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                         ) : null}
-                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                           Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                         </p>
-                       </div>
-                     </div>
-                      {(() => {
-                        const agentHistory = (historyQuery.data ?? []).filter(
-                          (h) => h.user_id === agent.user_id,
-                        );
-                        if (agentHistory.length === 0) return null;
-                        return (
-                          <MembershipTimeline
-                            tier="rich"
-                            history={agentHistory}
-                            alwaysExpanded
-                            status={formatMembershipStatus(agent.membership_status)}
-                            lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
-                          />
-                        );
-                      })()}
-                   </div>
-                 ))}
+                   {revokedAgents.map((agent) => (
+                    <div key={agent.membership_id} className="space-y-4 py-4">
+                       {(() => {
+                         const agentHistory = (historyQuery.data ?? []).filter(
+                           (h) => h.user_id === agent.user_id,
+                         );
+                         if (agentHistory.length === 0) return null;
+                         return (
+                           <MembershipTimeline
+                             tier="rich"
+                             history={agentHistory}
+                             alwaysExpanded
+                             defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                             status={formatMembershipStatus(agent.membership_status)}
+                             lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                           />
+                         );
+                       })()}
+                    </div>
+                  ))}
                 </div>
               );
             })()}
