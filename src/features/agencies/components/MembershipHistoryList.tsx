@@ -78,18 +78,18 @@ function TimelineHeader({
   lastSeen?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-      <span className="font-medium text-gray-900 dark:text-white">{name}</span>
-      {entity === "person" && role ? (
-        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{role}</span>
-      ) : null}
-      {entity === "person" && status ? (
-        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{status}</span>
-      ) : null}
-      <span className="text-xs text-gray-400">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
-      {entity === "person" && lastSeen ? (
-        <span className="text-xs text-gray-400">Last seen: {lastSeen}</span>
-      ) : null}
+    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+      <div className="flex flex-wrap items-center gap-x-2">
+        <span className="font-medium text-gray-900 dark:text-white">{name}</span>
+        {entity === "person" && role ? (
+          <span className="text-xs lowercase text-gray-500 dark:text-gray-400">{role}</span>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
+        {entity === "person" && status ? <span className="lowercase">{status}</span> : null}
+        <span className="lowercase">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
+        {entity === "person" && lastSeen ? <span>Last seen: {lastSeen}</span> : null}
+      </div>
     </div>
   );
 }
@@ -164,16 +164,9 @@ export function MembershipTimeline({
             key={entry.id ?? entry.timestamp}
             className="rounded-lg border border-border p-3 text-sm leading-6"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                {formatMembershipDate(entry.timestamp)}
-              </span>
-              {resolveTimelineLabel(entry) !== "Event" ? (
-                <Badge variant={timelineActionBadgeVariant(entry)}>
-                  {resolveTimelineLabel(entry)}
-                </Badge>
-              ) : null}
-            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              {resolveTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
+            </p>
           </div>
         ))}
       </div>
