@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
+import { resolveStatusBadge } from "@/lib/membership-lifecycle-messages";
 import { formatMembershipDate } from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
 
@@ -62,6 +63,14 @@ function isRedundant(entry: MembershipTimelineEntry, siblings: MembershipTimelin
   return false;
 }
 
+// Text-colour counterparts of the shared Badge variant palette (resolveStatusBadge variants)
+function statusTextClass(variant: "default" | "warning" | "success" | "danger" | "outline") {
+  if (variant === "success") return "text-green-700 dark:text-green-300";
+  if (variant === "danger") return "text-red-700 dark:text-red-300";
+  if (variant === "warning") return "text-amber-700 dark:text-amber-300";
+  return "text-gray-500 dark:text-gray-400";
+}
+
 function TimelineHeader({
   entity = "person",
   name,
@@ -82,14 +91,20 @@ function TimelineHeader({
       <div className="flex flex-wrap items-center gap-x-2">
         <span className="font-medium text-gray-900 dark:text-white">{name}</span>
         {entity === "person" && role ? (
-          <span className="text-xs lowercase text-gray-500 dark:text-gray-400">{role}</span>
+          <span className="text-xs lowercase text-blue-700 dark:text-blue-300">{role}</span>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
-        {entity === "person" && status ? <span className="lowercase">{status}</span> : null}
+        {entity === "person" && status ? (
+          <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
+        ) : null}
         <span className="lowercase">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
-        {entity === "person" && lastSeen ? <span>Last seen: {lastSeen}</span> : null}
       </div>
+      {entity === "person" && lastSeen ? (
+        <div className="flex items-center gap-x-2 text-xs text-gray-400">
+          <span>Last seen: {lastSeen}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
