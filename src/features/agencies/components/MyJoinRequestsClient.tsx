@@ -27,7 +27,7 @@ import {
   hasExpiredHistory,
   hasWithdrawnHistory,
   invitationHasPendingAction,
-  joinRequestHasPendingAction,
+  resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
@@ -35,7 +35,7 @@ import {
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
-import type { MyAgencyJoinRequestResponse } from "@/types";
+import type { MembershipTimelineEntry, MyAgencyJoinRequestResponse } from "@/types";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -53,6 +53,50 @@ function getStatusVariant(status: string) {
   }
 
   return "warning" as const;
+}
+
+function getApprovedRequestCycleHistory(
+  history: MembershipTimelineEntry[],
+  request: MyAgencyJoinRequestResponse,
+) {
+  const sameLifecycleMoment = (entryTimestamp: string, requestTimestamp: string | null | undefined) =>
+    Boolean(requestTimestamp) &&
+    Math.abs(new Date(entryTimestamp).getTime() - new Date(requestTimestamp as string).getTime()) <= 5_000;
+  const cycleTimes = new Set(
+    [
+      request.submitted_at,
+      request.originally_expired_at,
+      request.reactivation_requested_at,
+      request.reactivation_accepted_at,
+      request.decided_at,
+    ]
+      .filter(Boolean)
+      .map((value) => new Date(value as string).getTime()),
+  );
+
+  const selected = history.filter((entry) => {
+    if (entry.source_type === "join_request") return sameLifecycleMoment(entry.timestamp, request.submitted_at);
+    if (entry.source_type !== "audit_event") return false;
+    if (!cycleTimes.has(new Date(entry.timestamp).getTime()) && ![
+      request.reactivation_requested_at,
+      request.reactivation_accepted_at,
+      request.originally_expired_at,
+      request.decided_at,
+    ].some((value) => sameLifecycleMoment(entry.timestamp, value))) return false;
+    return ["expired", "reactivation_requested", "reactivated", "approved"].includes(entry.action ?? "");
+  });
+
+  if (selected.some((entry) => entry.source_type === "join_request")) return selected;
+  return [
+    {
+      source_type: "join_request",
+      author_role: "seeker",
+      timestamp: request.submitted_at,
+      agency_id: request.agency_id,
+      agency_name: request.agency_name,
+    },
+    ...selected,
+  ];
 }
 
 function displayMembershipStatus(status: string) {
@@ -1093,7 +1137,9 @@ export function MyJoinRequestsClient() {
                 />
               </div>
             ) : (
-              requests.filter(r => r.status === "pending").map((request) => (
+              requests.filter(r => r.status === "pending").map((request) => {
+                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
+                return (
                 <Card key={request.join_request_id}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1120,6 +1166,11 @@ export function MyJoinRequestsClient() {
                         <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.portfolio_details}</p>
                       </div>
                     ) : null}
+                    {reactivationStage === "agency_accepted" ? (
+                      <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                        Request is pending. Find it in the Pending tab.
+                      </p>
+                    ) : null}
                     <div className="pt-2">
                       <Button
                         type="button"
@@ -1133,7 +1184,8 @@ export function MyJoinRequestsClient() {
                     </div>
                   </CardBody>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         ) : requestSubTab === "approved" ? (
@@ -1153,9 +1205,7 @@ export function MyJoinRequestsClient() {
                     <Card key={request.join_request_id}>
                       <CardBody className="space-y-4">
                         {(() => {
-                          const requestHistory = (historyQuery.data ?? []).filter(
-                            (h) => h.agency_id === request.agency_id || h.agency_name === request.agency_name,
-                          );
+                          const requestHistory = getApprovedRequestCycleHistory(historyQuery.data ?? [], request);
                           if (requestHistory.length === 0) return null;
                           return (
                             <MembershipTimeline
@@ -1165,9 +1215,19 @@ export function MyJoinRequestsClient() {
                               emptyDescription=""
                               entity="agency"
                               defaultUserDisplayName={request.agency_name}
+                              verified={request.is_verified}
                             />
                           );
                         })()}
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <Link
+                            href={`/agencies/${request.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                          >
+                            {request.agency_name}
+                          </Link>
+                          <Badge variant={resolveStatusBadge(request.status).variant}>{request.status}</Badge>
+                        </div>
                         {reactivationEvents.length > 0 ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                           {reactivationEvents.map((event) => (
@@ -1242,7 +1302,7 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               requests.filter(hasExpiredHistory).map((request) => {
-                const hasPendingAction = joinRequestHasPendingAction(request, user?.user_id ?? null);
+                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
                 const badge = resolveStatusBadge(request.status);
                 const reactivationEvents = resolveJoinRequestReactivationTrace(
                   request,
@@ -1284,11 +1344,11 @@ export function MyJoinRequestsClient() {
                           ))}
                         </div>
                       ) : null}
-                      {request.reactivation_accepted_at ? (
+                      {reactivationStage === "agency_accepted" ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                          Reactivation request is pending. Find it in the Pending tab.
+                          Request is pending. Find it in the Pending tab.
                         </p>
-                      ) : hasPendingAction ? (
+                      ) : reactivationStage === "agency_requested" ? (
                         <div className="space-y-3">
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             {request.agency_name ?? "The agency"} has requested to reactivate your expired application.
@@ -1310,11 +1370,11 @@ export function MyJoinRequestsClient() {
                             </Button>
                           </div>
                         </div>
-                      ) : request.reactivation_requested_at ? (
+                      ) : reactivationStage === "seeker_requested" ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Request is pending a response from {request.agency_name ?? "the agency"}.
                         </p>
-                      ) : (
+                      ) : reactivationStage === "initial" ? (
                         <div className="space-y-3">
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             This application has expired. You can request reactivation, or wait for {request.agency_name ?? "the agency"} to reach out.
@@ -1327,7 +1387,7 @@ export function MyJoinRequestsClient() {
                             Request Reactivation
                           </Button>
                         </div>
-                      )}
+                      ) : null}
                     </CardBody>
                   </Card>
                 );

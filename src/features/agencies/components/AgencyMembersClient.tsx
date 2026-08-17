@@ -52,6 +52,7 @@ import {
   hasWithdrawnHistory,
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
+  resolveJoinRequestReactivationStage,
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
@@ -643,9 +644,7 @@ export function AgencyMembersClient() {
                 {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved").length > 0 ? (
                   <div className="space-y-4">
                     {joinRequests.filter(r => r.status === "approved").map((request) => {
-                      const agent = agents.find(a => a.user_id === request.user_id);
-                      const liveStatus = agent?.membership_status ?? request.status;
-                      const badge = resolveStatusBadge(liveStatus);
+                      const badge = resolveStatusBadge(request.status);
                       const reactivationEvents = resolveJoinRequestReactivationTrace(
                         request,
                         user?.user_id ?? null,
@@ -667,7 +666,7 @@ export function AgencyMembersClient() {
                                 entity="person"
                                 defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
                                 role="agent"
-                                status={badge.label}
+                                status={request.status}
                               />
                             );
                           })()}
@@ -751,6 +750,7 @@ export function AgencyMembersClient() {
                 {!joinRequestsQuery.isLoading && joinRequests.filter(hasExpiredHistory).length > 0 ? (
                   <div className="space-y-4">
                     {joinRequests.filter(hasExpiredHistory).map((request) => {
+                      const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
                       const badge = resolveStatusBadge(request.status);
                       const reactivationEvents = resolveJoinRequestReactivationTrace(
                         request,
@@ -785,17 +785,19 @@ export function AgencyMembersClient() {
                               ))}
                             </div>
                           ) : null}
-                          {request.reactivation_accepted_at ? (
+                          {reactivationStage === "agency_accepted" ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                               Request is pending. Approve in Review Requests.
                             </p>
-                          ) : request.reactivation_requested_at ? (
+                          ) : reactivationStage === "agency_requested" ? (
                             <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              {request.reactivation_requested_by === user?.user_id
-                                ? `Request is pending a response from ${request.seeker_name ?? "the applicant"}.`
-                                : `Reactivation request from ${request.seeker_name ?? "Seeker"} is pending in review requests for a decision.`}
+                              Request is pending a response from {request.seeker_name ?? "the applicant"}.
                             </p>
-                          ) : (
+                          ) : reactivationStage === "seeker_requested" ? (
+                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                              Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
+                            </p>
+                          ) : reactivationStage === "initial" ? (
                             <div className="space-y-2">
                               <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
                                 Application from {request.seeker_name ?? "the applicant"} has expired. Request them to reactivate the application.
@@ -808,7 +810,7 @@ export function AgencyMembersClient() {
                                 Reactivate Application
                               </Button>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     );

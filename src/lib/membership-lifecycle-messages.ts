@@ -26,6 +26,36 @@ interface JoinRequestIdentity {
   seeker_name?: string | null;
 }
 
+export type JoinRequestReactivationStage =
+  | "initial"
+  | "agency_requested"
+  | "agency_accepted"
+  | "seeker_requested"
+  | "terminal";
+
+export function resolveJoinRequestReactivationStage(
+  request: JoinRequestIdentity,
+  viewerUserId: number | null,
+  viewerIsApplicant: boolean,
+): JoinRequestReactivationStage {
+  if (request.status === "approved" || request.status === "rejected") {
+    return "terminal";
+  }
+  if (!request.reactivation_requested_at) return "initial";
+
+  const applicantId = viewerIsApplicant ? viewerUserId : (request.user_id ?? null);
+  const seekerInitiated =
+    request.reactivation_requested_by != null &&
+    applicantId != null &&
+    request.reactivation_requested_by === applicantId;
+
+  if (seekerInitiated) return "seeker_requested";
+  if (request.status === "pending" && request.reactivation_accepted_at) {
+    return "agency_accepted";
+  }
+  return "agency_requested";
+}
+
 interface StatusBadge {
   label: string;
   variant: "default" | "success" | "warning" | "danger" | "outline";
