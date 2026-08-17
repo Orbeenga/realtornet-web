@@ -5053,6 +5053,11 @@ export interface components {
             agency_id: number;
             /** User Id */
             user_id: number;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             status: components["schemas"]["AgencyJoinRequestStatus"];
             /** Cover Note */
             cover_note?: string | null;
@@ -6312,6 +6317,11 @@ export interface components {
             agency_id: number;
             /** Agency Name */
             agency_name: string;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             status: components["schemas"]["AgencyJoinRequestStatus"];
             /** Cover Note */
             cover_note?: string | null;
@@ -6351,6 +6361,11 @@ export interface components {
             agency_id: number;
             /** Agency Name */
             agency_name: string;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             status: components["schemas"]["AgencyAgentMembershipStatus"];
             /** Status Reason */
             status_reason?: string | null;

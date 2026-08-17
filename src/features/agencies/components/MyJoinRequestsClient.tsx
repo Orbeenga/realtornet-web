@@ -937,6 +937,7 @@ export function MyJoinRequestsClient() {
                             history={agencyHistory}
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
                             alwaysExpanded
                           />
                         ) : null}

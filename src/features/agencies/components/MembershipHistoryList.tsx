@@ -17,11 +17,12 @@ interface MembershipTimelineProps {
   defaultUserDisplayName?: string;
   alwaysExpanded?: boolean;
   showHeader?: boolean;
-  /** Header contract discriminator (U-019): person = name|role|status|event_count|last_seen, agency = name|event_count */
+  /** Header contract discriminator (U-019): person = name|role|status|event_count|last_seen, agency = name|verified|event_count */
   entity?: "person" | "agency";
   /** The member's own fixed role. Never derive from entry.author_role (event author ≠ member). */
   role?: string;
   status?: string;
+  verified?: boolean;
   lastSeen?: string;
 }
 
@@ -76,6 +77,7 @@ function TimelineHeader({
   name,
   role,
   status,
+  verified,
   eventCount,
   lastSeen,
 }: {
@@ -83,6 +85,7 @@ function TimelineHeader({
   name: string;
   role?: string;
   status?: string;
+  verified?: boolean;
   eventCount: number;
   lastSeen?: string;
 }) {
@@ -97,6 +100,11 @@ function TimelineHeader({
       <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
         {entity === "person" && status ? (
           <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
+        ) : null}
+        {entity === "agency" && verified !== undefined ? (
+          <span className={verified ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
+            {verified ? "Verified" : "Not verified"}
+          </span>
         ) : null}
         <span className="lowercase">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
       </div>
@@ -123,6 +131,7 @@ export function MembershipTimeline({
   entity = "person",
   role,
   status,
+  verified,
   lastSeen,
 }: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -170,6 +179,7 @@ export function MembershipTimeline({
             name={headerName}
             role={role}
             status={headerStatus}
+            verified={verified}
             eventCount={eventCount}
             lastSeen={lastSeen}
           />
@@ -209,6 +219,7 @@ export function MembershipTimeline({
           name={headerName}
           role={role}
           status={headerStatus}
+          verified={verified}
           eventCount={eventCount}
           lastSeen={lastSeen}
         />
