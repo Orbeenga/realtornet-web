@@ -24,14 +24,27 @@ interface MembershipTimelineProps {
   status?: string;
   verified?: boolean;
   lastSeen?: string;
+  /** Discriminator for action→label resolution (U-017 option b): the lifecycle
+      context this timeline renders. `joined` renders as "Approved" under
+      "join_request" (join-request approval) and stays "Accepted" (U-014) for
+      invitation acceptance. Consumers pass this explicitly; no silent per-tier map. */
+  labelStage?: "invitation" | "join_request";
+  /** Application-level status badge rendered top-right on the header, independent
+      of the membership-status qualifier below. Used where application status and
+      membership status need to coexist (e.g., Approved tab showing "approved"
+      badge + "active" qualifier). */
+  applicationStatus?: string;
 }
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
-function resolveTimelineLabel(entry: MembershipTimelineEntry): string {
+function resolveTimelineLabel(
+  entry: MembershipTimelineEntry,
+  labelStage: "invitation" | "join_request" = "invitation",
+): string {
   if (entry.action) {
     const raw = entry.action.replace(/_/g, " ");
-    if (entry.action === "joined") return "Accepted";
+    if (entry.action === "joined") return labelStage === "join_request" ? "Approved" : "Accepted";
     if (entry.action === "review_requested") return "Review requested";
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
@@ -80,6 +93,7 @@ function TimelineHeader({
   verified,
   eventCount,
   lastSeen,
+  applicationStatus,
 }: {
   entity?: "person" | "agency";
   name: string;
@@ -88,23 +102,36 @@ function TimelineHeader({
   verified?: boolean;
   eventCount: number;
   lastSeen?: string;
+  applicationStatus?: string;
 }) {
   return (
     <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-      <div className="flex flex-wrap items-center gap-x-2">
-        <span className="font-medium text-gray-900 dark:text-white">{name}</span>
-        {entity === "person" && role ? (
-          <span className="text-xs lowercase text-blue-700 dark:text-blue-300">{role}</span>
-        ) : null}
+            <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-2">
+          <span className="font-medium text-gray-900 dark:text-white">{name}</span>
+          {entity === "person" && role ? (
+            <span className="text-xs lowercase text-blue-700 dark:text-blue-300">{role}</span>
+          ) : null}
+          {entity === "agency" && verified !== undefined ? (
+            <span className={`text-xs ${verified ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
+              {verified ? "Verified" : "Not verified"}
+            </span>
+          ) : null}
+        </div>
+        {applicationStatus
+          ? (() => {
+              const appBadge = resolveStatusBadge(applicationStatus);
+              return (
+                <Badge variant={appBadge.variant} className="ml-auto">
+                  {appBadge.label}
+                </Badge>
+              );
+            })()
+          : null}
       </div>
       <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
-        {entity === "person" && status ? (
+        {status ? (
           <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
-        ) : null}
-        {entity === "agency" && verified !== undefined ? (
-          <span className={verified ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
-            {verified ? "Verified" : "Not verified"}
-          </span>
         ) : null}
         <span className="lowercase">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
       </div>
@@ -133,6 +160,8 @@ export function MembershipTimeline({
   status,
   verified,
   lastSeen,
+  labelStage = "invitation",
+  applicationStatus,
 }: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -168,7 +197,7 @@ export function MembershipTimeline({
     const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
 
     const headerName = defaultUserDisplayName ?? sorted[0]?.user_display_name ?? sorted[0]?.agency_name ?? "Unknown";
-    const headerStatus = status ?? (sorted[0]?.action ? resolveTimelineLabel(sorted[0]) : "");
+    const headerStatus = status ?? (sorted[0]?.action ? resolveTimelineLabel(sorted[0], labelStage) : "");
     const eventCount = sorted.length;
 
     return (
@@ -182,6 +211,7 @@ export function MembershipTimeline({
             verified={verified}
             eventCount={eventCount}
             lastSeen={lastSeen}
+            applicationStatus={applicationStatus}
           />
         ) : null}
         {visible.map((entry) => (
@@ -190,7 +220,7 @@ export function MembershipTimeline({
             className="rounded-lg border border-border p-3 text-sm leading-6"
           >
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              {resolveTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
+              {resolveTimelineLabel(entry, labelStage)} - {formatMembershipDate(entry.timestamp)}
             </p>
           </div>
         ))}
@@ -208,7 +238,7 @@ export function MembershipTimeline({
   const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
-  const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0]) : "");
+  const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0], labelStage) : "");
   const eventCount = sortedHistory.length;
 
   return (
@@ -222,11 +252,12 @@ export function MembershipTimeline({
           verified={verified}
           eventCount={eventCount}
           lastSeen={lastSeen}
+          applicationStatus={applicationStatus}
         />
       ) : null}
       {visibleEntries.map((entry) => {
         const entryId = String(entry.id ?? entry.timestamp);
-        const label = resolveTimelineLabel(entry);
+        const label = resolveTimelineLabel(entry, labelStage);
 
         return (
           <div

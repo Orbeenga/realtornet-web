@@ -31,7 +31,7 @@ import {
   useAgencyAgents,
   useAgencyInvitations,
   useAgencyJoinRequests,
-  useAgencyMembershipHistory,
+  useAgencyMembershipHistories,
   useAgencyReviewRequests,
   useAcceptAgencyReviewRequest,
   useApproveAgencyJoinRequest,
@@ -56,6 +56,10 @@ import {
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
+import {
+  getApprovedRequestCycleHistory,
+  getRevokedMembershipHistory,
+} from "./membershipHistory";
 import {
   MembershipTimeline,
 } from "@/features/agencies/components/MembershipHistoryList";
@@ -268,8 +272,22 @@ export function AgencyMembersClient() {
   const agentsQuery = useAgencyAgents(agencyId ?? "", "all", Boolean(agencyId));
   const joinRequestsQuery = useAgencyJoinRequests(agencyId, Boolean(agencyId));
   const reviewRequestsQuery = useAgencyReviewRequests(agencyId, Boolean(agencyId));
-  const historyQuery = useAgencyMembershipHistory(agencyId, Boolean(agencyId));
   const invitationsQuery = useAgencyInvitations(agencyId, Boolean(agencyId));
+
+  const approvedRequests = joinRequestsQuery.data?.filter((r) => r.status === "approved") ?? [];
+  const approvedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    approvedRequests.map((r) => r.user_id),
+    Boolean(agencyId) && approvedRequests.length > 0,
+  );
+
+  const revokedAgents = agentsQuery.data?.filter((a) => a.membership_status === "revoked") ?? [];
+  const revokedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    revokedAgents.map((a) => a.user_id),
+    Boolean(agencyId) && revokedAgents.length > 0,
+  );
+
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
 
@@ -638,52 +656,49 @@ export function AgencyMembersClient() {
               </>
             ) : requestSubTab === "approved" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "approved").length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && approvedRequests.length === 0 ? (
                   <EmptyState title="No approved requests" description="Approved join requests will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "approved").length > 0 ? (
+                {!joinRequestsQuery.isLoading && approvedRequests.length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "approved").map((request) => {
-                      const badge = resolveStatusBadge(request.status);
-                      const reactivationEvents = resolveJoinRequestReactivationTrace(
-                        request,
-                        user?.user_id ?? null,
-                        false,
-                      );
-                        return (
-                        <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                          {(() => {
-                            const requestHistory = (historyQuery.data ?? []).filter(
-                              (h) => h.user_id === request.user_id,
-                            );
-                            if (requestHistory.length === 0) return null;
-                            return (
-                              <MembershipTimeline
-                                tier="simple"
-                                history={requestHistory}
-                                emptyTitle="No events"
-                                emptyDescription=""
-                                entity="person"
-                                defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
-                                role="agent"
-                                status={request.status}
-                              />
-                            );
-                          })()}
-                          {reactivationEvents.length > 0 ? (
-                           <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
-                             {reactivationEvents.map((event) => (
-                               <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
-                                 {event.text} — {formatDate(event.at!)}
-                               </p>
-                             ))}
-                           </div>
-                         ) : null}
-                       </div>
-                       );
-                    })}
-                  </div>
-                ) : null}
+                    {approvedRequests.map((request, index) => {
+                      const agent = agents.find((a) => a.user_id === request.user_id);
+                      const liveStatus = agent?.membership_status ?? request.status;
+                      const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
+                      return (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                        {(() => {
+                          const requestHistory = getApprovedRequestCycleHistory(approvedHistoryQueries[index]?.data ?? [], request);
+                          if (requestHistory.length === 0) return null;
+                          return (
+                            <MembershipTimeline
+                              tier="simple"
+                              history={requestHistory}
+                              emptyTitle="No events"
+                              emptyDescription=""
+                              entity="person"
+                              defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
+                              role="agent"
+                              status={liveStatus}
+                              applicationStatus={request.status}
+                              labelStage="join_request"
+                            />
+                          );
+                        })()}
+                        {reactivationStage !== "terminal" ? (
+                         <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
+                           {resolveJoinRequestReactivationTrace(request, user?.user_id ?? null, false).map((event) => (
+                             <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
+                               {event.text} — {formatDate(event.at!)}
+                             </p>
+                           ))}
+                         </div>
+                       ) : null}
+                     </div>
+                     );
+                   })}
+                 </div>
+               ) : null}
               </>
             ) : requestSubTab === "rejected" ? (
               <>
@@ -1621,35 +1636,32 @@ export function AgencyMembersClient() {
               />
             ) : null}
             {(() => {
-              const revokedUserIds = new Set(
-                (historyQuery.data ?? []).filter((h) => h.action === "revoked").map((h) => h.user_id),
-              );
-              const revokedAgents = agents.filter((a) => revokedUserIds.has(a.user_id));
               if (revokedAgents.length === 0) {
                 return <EmptyState title="No revoked memberships." description="" />;
               }
               return (
                 <div className="divide-y divide-border">
-                   {revokedAgents.map((agent) => (
+                   {revokedAgents.map((agent, index) => (
                     <div key={agent.membership_id} className="space-y-4 py-4">
-                       {(() => {
-                         const agentHistory = (historyQuery.data ?? []).filter(
-                           (h) => h.user_id === agent.user_id,
-                         );
-                         if (agentHistory.length === 0) return null;
-                         return (
-                           <MembershipTimeline
-                             tier="rich"
-                             history={agentHistory}
-                             alwaysExpanded
-                             entity="person"
-                             defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
-                             role="agent"
-                             status={formatMembershipStatus(agent.membership_status)}
-                             lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
-                           />
-                         );
-                       })()}
+            {(() => {
+              const agentHistory = getRevokedMembershipHistory(
+                revokedHistoryQueries[index]?.data ?? [],
+                { user_id: agent.user_id, agency_id: agent.agency_id },
+              );
+              if (agentHistory.length === 0) return null;
+              return (
+                <MembershipTimeline
+                  tier="rich"
+                  history={agentHistory}
+                  alwaysExpanded
+                  entity="person"
+                  defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                  role="agent"
+                  status={formatMembershipStatus(agent.membership_status)}
+                  lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                />
+              );
+            })()}
                     </div>
                   ))}
                 </div>

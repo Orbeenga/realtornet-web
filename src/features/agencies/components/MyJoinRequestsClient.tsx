@@ -9,6 +9,9 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline } from "@/features/agencies/components/MembershipHistoryList";
 import {
+  getApprovedRequestCycleHistory,
+} from "./membershipHistory";
+import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
@@ -35,7 +38,7 @@ import {
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
-import type { MembershipTimelineEntry, MyAgencyJoinRequestResponse } from "@/types";
+import type { MyAgencyJoinRequestResponse } from "@/types";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -53,50 +56,6 @@ function getStatusVariant(status: string) {
   }
 
   return "warning" as const;
-}
-
-function getApprovedRequestCycleHistory(
-  history: MembershipTimelineEntry[],
-  request: MyAgencyJoinRequestResponse,
-) {
-  const sameLifecycleMoment = (entryTimestamp: string, requestTimestamp: string | null | undefined) =>
-    Boolean(requestTimestamp) &&
-    Math.abs(new Date(entryTimestamp).getTime() - new Date(requestTimestamp as string).getTime()) <= 5_000;
-  const cycleTimes = new Set(
-    [
-      request.submitted_at,
-      request.originally_expired_at,
-      request.reactivation_requested_at,
-      request.reactivation_accepted_at,
-      request.decided_at,
-    ]
-      .filter(Boolean)
-      .map((value) => new Date(value as string).getTime()),
-  );
-
-  const selected = history.filter((entry) => {
-    if (entry.source_type === "join_request") return sameLifecycleMoment(entry.timestamp, request.submitted_at);
-    if (entry.source_type !== "audit_event") return false;
-    if (!cycleTimes.has(new Date(entry.timestamp).getTime()) && ![
-      request.reactivation_requested_at,
-      request.reactivation_accepted_at,
-      request.originally_expired_at,
-      request.decided_at,
-    ].some((value) => sameLifecycleMoment(entry.timestamp, value))) return false;
-    return ["expired", "reactivation_requested", "reactivated", "approved"].includes(entry.action ?? "");
-  });
-
-  if (selected.some((entry) => entry.source_type === "join_request")) return selected;
-  return [
-    {
-      source_type: "join_request",
-      author_role: "seeker",
-      timestamp: request.submitted_at,
-      agency_id: request.agency_id,
-      agency_name: request.agency_name,
-    },
-    ...selected,
-  ];
 }
 
 function displayMembershipStatus(status: string) {
@@ -121,19 +80,17 @@ function addDays(value: string, days: number) {
   return date;
 }
 
-function getRecentCancelledRequests(requests: MyAgencyJoinRequestResponse[]) {
+function getApplyAgainDate(requests: MyAgencyJoinRequestResponse[]) {
   const cutoff = Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000;
-  return requests.filter((request) => {
+  const recentCancelled = requests.filter((request) => {
     if (request.status !== "cancelled" || !request.decided_at) return false;
     return new Date(request.decided_at).getTime() >= cutoff;
   });
-}
-
-function getApplyAgainDate(requests: MyAgencyJoinRequestResponse[]) {
-  const recentCancelled = getRecentCancelledRequests(requests)
-    .sort((first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime());
   if (recentCancelled.length < COOLDOWN_LIMIT) return null;
-  return addDays(recentCancelled[COOLDOWN_LIMIT - 1].decided_at!, COOLDOWN_WINDOW_DAYS);
+  const sorted = [...recentCancelled].sort(
+    (first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime(),
+  );
+  return addDays(sorted[COOLDOWN_LIMIT - 1].decided_at!, COOLDOWN_WINDOW_DAYS);
 }
 
 function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
@@ -196,6 +153,8 @@ export function MyJoinRequestsClient() {
   const reapplyJoinRequest = useReapplyAgencyJoinRequest();
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+
+  const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
     const message = reviewReasons[membershipId]?.trim();
@@ -377,7 +336,11 @@ export function MyJoinRequestsClient() {
     ? null
     : requests.find((request) => request.join_request_id === cancelConfirmId) ?? null;
   const cancelConfirmRecentCount = cancelConfirmRequest
-    ? getRecentCancelledRequests(requests.filter((request) => request.agency_id === cancelConfirmRequest.agency_id)).length
+    ? requests.filter((request) => {
+        if (request.agency_id !== cancelConfirmRequest.agency_id) return false;
+        if (request.status !== "cancelled" || !request.decided_at) return false;
+        return new Date(request.decided_at).getTime() >= cooldownCutoff;
+      }).length
     : 0;
   const cancelWarningMessage = cancelConfirmRecentCount >= COOLDOWN_LIMIT - 1
     ? "If you proceed, you will not be able to reapply to this agency for 30 days."
@@ -1084,7 +1047,9 @@ export function MyJoinRequestsClient() {
                   const sortedAgencies = Object.keys(grouped).sort();
                   return (
                     <div className="space-y-6">
-                      {sortedAgencies.map((agencyName) => (
+                      {sortedAgencies.map((agencyName) => {
+                        const membershipStatus = memberships.find((m) => m.agency_name === agencyName)?.status;
+                        return (
                         <div key={agencyName} className="space-y-3">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {agencyName}
@@ -1095,9 +1060,11 @@ export function MyJoinRequestsClient() {
                             entity="person"
                             defaultUserDisplayName={defaultUserDisplayName}
                             role={role}
+                            status={membershipStatus}
                           />
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()
@@ -1196,11 +1163,7 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               requests.filter(r => r.status === "approved").map((request) => {
-                const reactivationEvents = resolveJoinRequestReactivationTrace(
-                  request,
-                  user?.user_id ?? null,
-                  true,
-                );
+                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
                 return (
                     <Card key={request.join_request_id}>
                       <CardBody className="space-y-4">
@@ -1208,33 +1171,33 @@ export function MyJoinRequestsClient() {
                           const requestHistory = getApprovedRequestCycleHistory(historyQuery.data ?? [], request);
                           if (requestHistory.length === 0) return null;
                           return (
-                            <MembershipTimeline
-                              tier="simple"
-                              history={requestHistory}
-                              emptyTitle="No events"
-                              emptyDescription=""
-                              entity="agency"
-                              defaultUserDisplayName={request.agency_name}
-                              verified={request.is_verified}
-                            />
+                             <MembershipTimeline
+                               tier="simple"
+                               history={requestHistory}
+                               emptyTitle="No events"
+                               emptyDescription=""
+                               entity="agency"
+                               defaultUserDisplayName={request.agency_name}
+                               verified={request.is_verified}
+                               applicationStatus={request.status}
+                               labelStage="join_request"
+                             />
                           );
                         })()}
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <Link
-                            href={`/agencies/${request.agency_id}`}
-                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                          >
-                            {request.agency_name}
-                          </Link>
-                          <Badge variant={resolveStatusBadge(request.status).variant}>{request.status}</Badge>
-                        </div>
-                        {reactivationEvents.length > 0 ? (
+                        {reactivationStage !== "terminal" ? (
                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                          {reactivationEvents.map((event) => (
-                            <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
-                              {event.text} — {formatDate(event.at!)}
-                            </p>
-                          ))}
+                          {(() => {
+                            const reactivationEvents = resolveJoinRequestReactivationTrace(
+                              request,
+                              user?.user_id ?? null,
+                              true,
+                            );
+                            return reactivationEvents.map((event) => (
+                              <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                {event.text} — {formatDate(event.at!)}
+                              </p>
+                            ));
+                          })()}
                         </div>
                       ) : null}
                     </CardBody>
