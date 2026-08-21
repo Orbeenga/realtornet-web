@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipTimeline } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline, TimelineHeader } from "@/features/agencies/components/MembershipHistoryList";
 import {
   getApprovedRequestCycleHistory,
 } from "./membershipHistory";
@@ -1266,7 +1266,6 @@ export function MyJoinRequestsClient() {
             ) : (
               requests.filter(hasExpiredHistory).map((request) => {
                 const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                const badge = resolveStatusBadge(request.status);
                 const reactivationEvents = resolveJoinRequestReactivationTrace(
                   request,
                   user?.user_id ?? null,
@@ -1275,15 +1274,13 @@ export function MyJoinRequestsClient() {
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${request.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {request.agency_name}
-                        </Link>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                      </div>
+                      <TimelineHeader
+                        entity="agency"
+                        name={request.agency_name}
+                        verified={request.is_verified}
+                        applicationStatus={request.status}
+                        eventCount={2 + reactivationEvents.length}
+                      />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
                       </p>

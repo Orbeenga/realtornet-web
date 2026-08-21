@@ -85,7 +85,7 @@ function statusTextClass(variant: "default" | "warning" | "success" | "danger" |
   return "text-gray-500 dark:text-gray-400";
 }
 
-function TimelineHeader({
+export function TimelineHeader({
   entity = "person",
   name,
   role,

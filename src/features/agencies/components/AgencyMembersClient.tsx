@@ -62,6 +62,7 @@ import {
 } from "./membershipHistory";
 import {
   MembershipTimeline,
+  TimelineHeader,
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
@@ -766,7 +767,6 @@ export function AgencyMembersClient() {
                   <div className="space-y-4">
                     {joinRequests.filter(hasExpiredHistory).map((request) => {
                       const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                      const badge = resolveStatusBadge(request.status);
                       const reactivationEvents = resolveJoinRequestReactivationTrace(
                         request,
                         user?.user_id ?? null,
@@ -774,22 +774,21 @@ export function AgencyMembersClient() {
                       );
                       return (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {request.seeker_name ?? "Seeker"}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                            </p>
-                            {request.expires_at ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
-                              </p>
-                            ) : null}
-                          </div>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
+                        <TimelineHeader
+                          entity="person"
+                          name={request.seeker_name ?? "Seeker"}
+                          role="agent"
+                          applicationStatus={request.status}
+                          eventCount={2 + reactivationEvents.length}
+                        />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                        </p>
+                        {request.expires_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
+                          </p>
+                        ) : null}
                         <div className="mt-2 space-y-2">
                           {reactivationEvents.length > 0 ? (
                             <div className="space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
