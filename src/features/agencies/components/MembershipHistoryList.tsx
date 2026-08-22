@@ -114,7 +114,7 @@ export function TimelineHeader({
           ) : null}
           {entity === "agency" && verified !== undefined ? (
             <span className={`text-xs ${verified ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
-              {verified ? "Verified" : "Not verified"}
+              {verified ? "Verified" : "Unverified"}
             </span>
           ) : null}
         </div>
