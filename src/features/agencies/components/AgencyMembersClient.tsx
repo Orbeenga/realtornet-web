@@ -766,6 +766,8 @@ export function AgencyMembersClient() {
                 {!joinRequestsQuery.isLoading && joinRequests.filter(hasExpiredHistory).length > 0 ? (
                   <div className="space-y-4">
                     {joinRequests.filter(hasExpiredHistory).map((request) => {
+                      const agent = agents.find((a) => a.user_id === request.user_id);
+                      const liveStatus = agent?.membership_status ?? request.status;
                       const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
                       const reactivationEvents = resolveJoinRequestReactivationTrace(
                         request,
@@ -778,6 +780,7 @@ export function AgencyMembersClient() {
                           entity="person"
                           name={request.seeker_name ?? "Seeker"}
                           role="agent"
+                          status={liveStatus}
                           applicationStatus={request.status}
                           eventCount={2 + reactivationEvents.length}
                         />
