@@ -1,7 +1,7 @@
 export { useAgencyProfile, useUpdateAgencyProfile } from "./useAgencyProfile";
 export { useAgencyAgents } from "./useAgencyAgents";
 export { useAgencyListings } from "./useAgencyListings";
-export { useAgencyMembershipHistory } from "./useAgencyMembershipHistory";
+export { useAgencyMembershipHistory, useAgencyMembershipHistories } from "./useAgencyMembershipHistory";
 export {
   useAgentMembershipStatus,
   useAgencyMemberHistory,
@@ -47,10 +47,12 @@ export {
   useRejectAgencyInvitation,
   useRejectAgencyJoinRequest,
   useAcceptJoinRequestReactivation,
+  useRejectJoinRequestReactivation,
   useReactivateInvitation,
   useReapplyAgencyJoinRequest,
   useRequestInvitationReactivation,
   useRequestJoinRequestReactivation,
+  useRequestJoinRequestReactivationAsApplicant,
   useWithdrawAgencyInvitation,
 } from "./useAgencyJoinRequests";
 export { useReconsiderJoinRequest } from "./useReconsiderJoinRequest";

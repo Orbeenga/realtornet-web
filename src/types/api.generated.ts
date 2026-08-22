@@ -731,6 +731,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read User Me
+         * @description Return the authenticated user's own profile.
+         */
+        get: operations["read_user_me_api_v1_users_me_get"];
+        /**
+         * Update User Me
+         * @description Update own user profile.
+         *
+         *     Audit: Tracks updater via updated_by (Supabase UUID)
+         */
+        put: operations["update_user_me_api_v1_users_me_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{user_id}": {
         parameters: {
             query?: never;
@@ -761,28 +787,6 @@ export interface paths {
          *     Audit: Tracks who deleted via deleted_by (Supabase UUID)
          */
         delete: operations["delete_user_api_v1_users__user_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/users/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update User Me
-         * @description Update own user profile.
-         *
-         *     Audit: Tracks updater via updated_by (Supabase UUID)
-         */
-        put: operations["update_user_me_api_v1_users_me_put"];
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3419,13 +3423,39 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Cancel My Join Request
-         * @description Cancel a pending join request owned by the authenticated user.
+         * Cancel My Join Request Deprecated
+         * @description Deprecated — use PATCH /{request_id}/cancel/ instead.
+         *
+         *     This DELETE endpoint has been replaced by PATCH /{request_id}/cancel/
+         *     which requires a reason for cancellation. See G3 migration.
          */
-        delete: operations["cancel_my_join_request_api_v1_join_requests__request_id___delete"];
+        delete: operations["cancel_my_join_request_deprecated_api_v1_join_requests__request_id___delete"];
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join-requests/{request_id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cancel My Join Request
+         * @description Cancel a pending join request owned by the authenticated user.
+         *
+         *     Requires a reason. Writes a `cancelled` audit event and notifies the
+         *     agency owner.
+         */
+        patch: operations["cancel_my_join_request_api_v1_join_requests__request_id__cancel__patch"];
         trace?: never;
     };
     "/api/v1/join-requests/mine/": {
@@ -3469,6 +3499,54 @@ export interface paths {
          *     `reactivation_accepted_at` and an audit row. Notifies agency owner.
          */
         patch: operations["accept_join_request_reactivation_api_v1_join_requests__request_id__accept_reactivation__patch"];
+        trace?: never;
+    };
+    "/api/v1/join-requests/{request_id}/request-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Request Join Request Reactivation As Applicant
+         * @description Applicant requests reactivation of their own expired join request.
+         *
+         *     Path 2 (seeker-initiated) reactivation flow. Writes
+         *     `reactivation_requested_at/by`. Notifies agency owner.
+         */
+        patch: operations["request_join_request_reactivation_as_applicant_api_v1_join_requests__request_id__request_reactivation__patch"];
+        trace?: never;
+    };
+    "/api/v1/join-requests/{request_id}/reject-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reject Join Request Reactivation
+         * @description Reject a reactivation request for an expired join request.
+         *
+         *     The rejecting party is the one who did NOT initiate the reactivation:
+         *     - If the applicant initiated: agency_owner can reject
+         *     - If the agency_owner initiated: applicant can reject
+         *     Requires a reason. Transitions to the existing `rejected` status.
+         */
+        patch: operations["reject_join_request_reactivation_api_v1_join_requests__request_id__reject_reactivation__patch"];
         trace?: never;
     };
     "/api/v1/saved-searches/": {
@@ -4850,6 +4928,11 @@ export interface components {
             /** Status Reason */
             status_reason?: string | null;
         };
+        /** AgencyDecisionRequest */
+        AgencyDecisionRequest: {
+            /** Reason */
+            reason: string;
+        };
         /** AgencyInvitationResponse */
         AgencyInvitationResponse: {
             /** Invitation Id */
@@ -4970,6 +5053,11 @@ export interface components {
             agency_id: number;
             /** User Id */
             user_id: number;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             status: components["schemas"]["AgencyJoinRequestStatus"];
             /** Cover Note */
             cover_note?: string | null;
@@ -4977,18 +5065,24 @@ export interface components {
             portfolio_details?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
             /** Decided At */
             decided_at?: string | null;
             /** Decided By */
             decided_by?: number | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Originally Expired At */
+            originally_expired_at?: string | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
             /** Seeker Email */
             seeker_email?: string | null;
             /** Seeker Name */
@@ -5177,13 +5271,16 @@ export interface components {
             user_id: number;
             /** Agency Id */
             agency_id: number;
-            status: components["schemas"]["AgencyReviewRequestStatus"];
+            /** Status */
+            status: components["schemas"]["AgencyReviewRequestStatus"] | components["schemas"]["AgencyJoinRequestStatus"];
             /** Message */
             message?: string | null;
             /** Reason */
             reason?: string | null;
             /** Actor Id */
             actor_id?: number | null;
+            /** Reactivation Requested By */
+            reactivation_requested_by?: number | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
@@ -6220,6 +6317,11 @@ export interface components {
             agency_id: number;
             /** Agency Name */
             agency_name: string;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             status: components["schemas"]["AgencyJoinRequestStatus"];
             /** Cover Note */
             cover_note?: string | null;
@@ -6227,18 +6329,24 @@ export interface components {
             portfolio_details?: string | null;
             /** Rejection Reason */
             rejection_reason?: string | null;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
             /** Decided At */
             decided_at?: string | null;
             /** Decided By */
             decided_by?: number | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Originally Expired At */
+            originally_expired_at?: string | null;
             /** Reactivation Requested At */
             reactivation_requested_at?: string | null;
             /** Reactivation Requested By */
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
             /**
              * Submitted At
              * Format: date-time
@@ -6253,6 +6361,11 @@ export interface components {
             agency_id: number;
             /** Agency Name */
             agency_name: string;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             status: components["schemas"]["AgencyAgentMembershipStatus"];
             /** Status Reason */
             status_reason?: string | null;
@@ -8374,6 +8487,59 @@ export interface operations {
             };
         };
     };
+    read_user_me_api_v1_users_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+        };
+    };
+    update_user_me_api_v1_users_me_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_user_by_id_api_v1_users__user_id__get: {
         parameters: {
             query?: never;
@@ -8450,39 +8616,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_user_me_api_v1_users_me_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UserUpdate"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12964,7 +13097,7 @@ export interface operations {
             };
         };
     };
-    cancel_my_join_request_api_v1_join_requests__request_id___delete: {
+    cancel_my_join_request_deprecated_api_v1_join_requests__request_id___delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -12976,11 +13109,48 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_my_join_request_api_v1_join_requests__request_id__cancel__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -13037,6 +13207,72 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_join_request_reactivation_as_applicant_api_v1_join_requests__request_id__request_reactivation__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyJoinRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_join_request_reactivation_api_v1_join_requests__request_id__reject_reactivation__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestRejectRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -123,7 +123,7 @@ export function AgencyOwnerDashboardClient() {
   const agencyId = agency?.agency_id;
   const agencyAgentsQuery = useAgencyAgents(agencyId ?? "", "all", Boolean(agencyId));
   const statsQuery = useAgencyStats(agencyId ?? undefined, Boolean(agencyId), "include");
-  const historyQuery = useAgencyMembershipHistory(agencyId ?? null, Boolean(agencyId));
+  const historyQuery = useAgencyMembershipHistory(agencyId ?? null, undefined, Boolean(agencyId));
   const agencyQueueQuery = useAgencyQueue(Boolean(agencyId));
   const pendingAdminQuery = usePendingAdmin(Boolean(agencyId));
   const agencyInventoryQuery = useAgencyInventory(Boolean(agencyId));

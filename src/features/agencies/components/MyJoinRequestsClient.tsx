@@ -5,8 +5,12 @@ import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipHistoryList } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline, TimelineHeader } from "@/features/agencies/components/MembershipHistoryList";
+import {
+  getApprovedRequestCycleHistory,
+} from "./membershipHistory";
 import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
@@ -18,15 +22,23 @@ import {
   useMyAgencyMemberships,
   useReapplyAgencyJoinRequest,
   useRejectAgencyInvitation,
+  useRejectJoinRequestReactivation,
   useRequestInvitationReactivation,
+  useRequestJoinRequestReactivationAsApplicant,
 } from "@/features/agencies/hooks";
 import {
+  hasExpiredHistory,
+  hasWithdrawnHistory,
   invitationHasPendingAction,
-  joinRequestHasPendingAction,
+  resolveJoinRequestReactivationStage,
+  resolveJoinRequestReactivationTrace,
+  resolveStatusBadge,
+  resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
+import type { MyAgencyJoinRequestResponse } from "@/types";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -50,28 +62,80 @@ function displayMembershipStatus(status: string) {
   return status;
 }
 
-function getHistoryBadgeVariant(action: string) {
-  if (action === "joined" || action === "reinstated") return "success" as const;
-  if (action === "revoked" || action === "suspended" || action === "blocked") return "danger" as const;
-  if (action === "left") return "warning" as const;
-  return "outline" as const;
-}
-
-function formatMembershipAction(action: string) {
-  return action.replace(/_/g, " ");
-}
-
 type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
+
+const COOLDOWN_WINDOW_DAYS = 30;
+const COOLDOWN_LIMIT = 3;
+
+interface MyJoinRequestCycleGroup {
+  agencyId: number;
+  agencyName: string;
+  requests: MyAgencyJoinRequestResponse[];
+  cancelledRequests: MyAgencyJoinRequestResponse[];
+}
+
+function addDays(value: string, days: number) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function getApplyAgainDate(requests: MyAgencyJoinRequestResponse[]) {
+  const cutoff = Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000;
+  const recentCancelled = requests.filter((request) => {
+    if (request.status !== "cancelled" || !request.decided_at) return false;
+    return new Date(request.decided_at).getTime() >= cutoff;
+  });
+  if (recentCancelled.length < COOLDOWN_LIMIT) return null;
+  const sorted = [...recentCancelled].sort(
+    (first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime(),
+  );
+  return addDays(sorted[COOLDOWN_LIMIT - 1].decided_at!, COOLDOWN_WINDOW_DAYS);
+}
+
+function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
+  const groups = new Map<number, MyJoinRequestCycleGroup>();
+
+  for (const request of requests) {
+    const current = groups.get(request.agency_id);
+    if (current) {
+      current.requests.push(request);
+      if (request.status === "cancelled") current.cancelledRequests.push(request);
+      continue;
+    }
+
+    groups.set(request.agency_id, {
+      agencyId: request.agency_id,
+      agencyName: request.agency_name,
+      requests: [request],
+      cancelledRequests: request.status === "cancelled" ? [request] : [],
+    });
+  }
+
+  return [...groups.values()]
+    .filter((group) => group.cancelledRequests.length > 0)
+    .map((group) => ({
+      ...group,
+      requests: [...group.requests].sort(
+        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
+      ),
+      cancelledRequests: [...group.cancelledRequests].sort(
+        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
+      ),
+    }))
+    .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
+}
 
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
-  const [membershipSubTab, setMembershipSubTab] = useState<string>("active");
-  const [requestSubTab, setRequestSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "cancelled">("pending");
+  const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
+  const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
-  const [expandedRevokedIds, setExpandedRevokedIds] = useState<Set<number>>(new Set());
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
+  const { user } = useAuth();
+  const defaultUserDisplayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined;
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
@@ -88,6 +152,9 @@ export function MyJoinRequestsClient() {
   const acceptReactivation = useAcceptJoinRequestReactivation();
   const reapplyJoinRequest = useReapplyAgencyJoinRequest();
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
 
   const handleReviewRequest = async (agencyId: number, membershipId: number) => {
     const message = reviewReasons[membershipId]?.trim();
@@ -145,18 +212,26 @@ export function MyJoinRequestsClient() {
     try {
       await requestReactivation.mutateAsync(invitationId);
       notify.success("Reactivation requested");
-    } catch {
-      notify.error("Could not request reactivation");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
     }
   };
 
   const handleCancelJoinRequest = async (requestId: number) => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      notify.error("Please provide a reason before cancelling the join request.");
+      return;
+    }
     try {
-      await cancelJoinRequest.mutateAsync(requestId);
+      await cancelJoinRequest.mutateAsync({ requestId, reason });
       notify.success("Join request cancelled");
       setCancelConfirmId(null);
-    } catch {
-      notify.error("Could not cancel join request");
+      setCancelReason("");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not cancel join request");
     }
   };
 
@@ -164,17 +239,46 @@ export function MyJoinRequestsClient() {
     try {
       await acceptReactivation.mutateAsync(requestId);
       notify.success("Reactivation accepted — request is pending again.");
-    } catch {
-      notify.error("Could not accept reactivation");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not accept reactivation");
     }
   };
 
   const handleReapply = async (agencyId: number) => {
+    if (applyAgainDates.has(agencyId)) {
+      notify.error("Limit exceeded. Apply again after the cooldown period.");
+      return;
+    }
     try {
       await reapplyJoinRequest.mutateAsync({ agencyId });
       notify.success("Application submitted — it will appear in the agency's Review Requests queue.");
-    } catch {
-      notify.error("Could not reapply");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not reapply");
+    }
+  };
+
+  const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
+  const rejectReactivation = useRejectJoinRequestReactivation();
+
+  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
+    try {
+      await requestJoinRequestReactivationAsApplicant.mutateAsync(requestId);
+      notify.success("Reactivation requested — awaiting agency response.");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
+    }
+  };
+
+  const handleRejectReactivation = async (requestId: number) => {
+    try {
+      await rejectReactivation.mutateAsync({ requestId });
+      notify.success("Reactivation request rejected.");
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not reject reactivation");
     }
   };
 
@@ -222,11 +326,38 @@ export function MyJoinRequestsClient() {
   }
 
   const requests = requestsQuery.data ?? [];
+  const cancelledRequestGroups = groupMyJoinRequestCycles(requests);
+  const applyAgainDates = new Map<number, Date>();
+  for (const group of cancelledRequestGroups) {
+    const applyAgainDate = getApplyAgainDate(group.requests);
+    if (applyAgainDate) applyAgainDates.set(group.agencyId, applyAgainDate);
+  }
+  const cancelConfirmRequest = cancelConfirmId === null
+    ? null
+    : requests.find((request) => request.join_request_id === cancelConfirmId) ?? null;
+  const cancelConfirmRecentCount = cancelConfirmRequest
+    ? requests.filter((request) => {
+        if (request.agency_id !== cancelConfirmRequest.agency_id) return false;
+        if (request.status !== "cancelled" || !request.decided_at) return false;
+        return new Date(request.decided_at).getTime() >= cooldownCutoff;
+      }).length
+    : 0;
+  const cancelWarningMessage = cancelConfirmRecentCount >= COOLDOWN_LIMIT - 1
+    ? "If you proceed, you will not be able to reapply to this agency for 30 days."
+    : cancelConfirmRecentCount >= COOLDOWN_LIMIT - 2
+      ? "If you proceed, you are close to exhausting the maximum allowed limit for reapplications."
+      : "Are you sure you want to cancel this join request? This cannot be undone.";
   const memberships = membershipsQuery.data ?? [];
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
   const leftMemberships = memberships.filter(m => m.status === "left");
-  const revokedMemberships = memberships.filter(m => m.status === "revoked");
+  const revokedMemberships = memberships.filter((m) =>
+    (historyQuery.data ?? []).some(
+      (h) =>
+        (h.agency_id === m.agency_id || h.agency_name === m.agency_name) &&
+        h.action === "revoked",
+    ),
+  );
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
   const invitations = invitationsQuery.data ?? [];
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
@@ -288,8 +419,8 @@ export function MyJoinRequestsClient() {
               { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
               { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
               { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
-              { value: "expired" as const, label: `Expired (${invitations.filter(i => i.status === "expired").length})` },
-              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(i => i.status === "withdrawn").length})` },
+              { value: "expired" as const, label: `Expired (${invitations.filter(hasExpiredHistory).length})` },
+              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(hasWithdrawnHistory).length})` },
               { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
             ].map(({ value, label }) => (
               <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn")}>
@@ -435,13 +566,14 @@ export function MyJoinRequestsClient() {
             </div>
           ) : invitationSubTab === "expired" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "expired").length === 0 ? (
+              {invitations.filter(hasExpiredHistory).length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No expired invitations" description="Expired invitations will appear here." />
+                  <EmptyState title="No expired invitations" description="Invitations that ever passed through the expired state will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "expired").map((invitation) => {
-                  const hasPendingAction = invitationHasPendingAction(invitation);
+                invitations.filter(hasExpiredHistory).map((invitation) => {
+                  const hasPendingAction = invitationHasPendingAction(invitation, user?.user_id ?? null);
+                  const badge = resolveStatusBadge(invitation.status);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
@@ -452,7 +584,7 @@ export function MyJoinRequestsClient() {
                           >
                             {invitation.agency_name}
                           </Link>
-                          <Badge variant="danger">expired</Badge>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invitation from {invitation.agency_name} has expired.
@@ -465,7 +597,11 @@ export function MyJoinRequestsClient() {
                             Expired {formatDate(invitation.expires_at)}
                           </p>
                         ) : null}
-                        {hasPendingAction ? (
+                        {invitation.reactivated_at ? (
+                          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                            Invitation reactivated — pending your response.
+                          </p>
+                        ) : hasPendingAction ? (
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             Reactivation requested — awaiting agency response
                           </p>
@@ -492,13 +628,14 @@ export function MyJoinRequestsClient() {
             </div>
           ) : invitationSubTab === "withdrawn" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "withdrawn").length === 0 ? (
+              {invitations.filter(hasWithdrawnHistory).length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No withdrawn invitations" description="Withdrawn invitations will appear here." />
+                  <EmptyState title="No withdrawn invitations" description="Invitations that ever passed through the withdrawn state will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "withdrawn").map((invitation) => {
-                  const hasPendingAction = invitationHasPendingAction(invitation);
+                invitations.filter(hasWithdrawnHistory).map((invitation) => {
+                  const hasPendingAction = invitationHasPendingAction(invitation, user?.user_id ?? null);
+                  const badge = resolveStatusBadge(invitation.status);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
@@ -509,7 +646,7 @@ export function MyJoinRequestsClient() {
                           >
                             {invitation.agency_name}
                           </Link>
-                          <Badge variant="danger">withdrawn</Badge>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invitation from {invitation.agency_name} was withdrawn.
@@ -522,7 +659,11 @@ export function MyJoinRequestsClient() {
                             Withdrawn {formatDate(invitation.withdrawn_at)}
                           </p>
                         ) : null}
-                        {hasPendingAction ? (
+                        {invitation.reactivated_at ? (
+                          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                            Invitation reactivated — pending your response.
+                          </p>
+                        ) : hasPendingAction ? (
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                             Interest expressed — awaiting agency response
                           </p>
@@ -595,15 +736,13 @@ export function MyJoinRequestsClient() {
 
           <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
             {[
-              { value: "active", label: `Active (${activeMemberships.length})` },
-              { value: "rejected", label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-              { value: "suspended", label: `Suspended (${suspendedMemberships.length})` },
-              { value: "left", label: `Left (${leftMemberships.length})` },
-              { value: "revoked", label: `Revoked (${revokedMemberships.length})` },
-              { value: "blocked", label: `Blocked (${blockedMemberships.length})` },
-              { value: "history", label: `History (${historyQuery.data?.length ?? 0})` },
+              { value: "active" as const, label: `Active (${activeMemberships.length})` },
+              { value: "suspended" as const, label: `Suspended (${suspendedMemberships.length})` },
+              { value: "left" as const, label: `Left (${leftMemberships.length})` },
+              { value: "revoked" as const, label: `Revoked (${revokedMemberships.length})` },
+              { value: "blocked" as const, label: `Blocked (${blockedMemberships.length})` },
+              { value: "history" as const, label: `History (${historyQuery.data?.length ?? 0})` },
             ].filter(t => {
-              if (t.value === "rejected") return requests.some(r => r.status === "rejected") || membershipSubTab === "rejected";
               if (t.value === "history") return (historyQuery.data?.length ?? 0) > 0 || membershipSubTab === "history";
               return true;
             }).map(({ value, label }) => (
@@ -637,51 +776,6 @@ export function MyJoinRequestsClient() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {membership.listing_count} active listing{membership.listing_count !== 1 ? "s" : ""} under this agency.
                       </p>
-                    </CardBody>
-                  </Card>
-                ))
-              )}
-            </div>
-          ) : membershipSubTab === "rejected" ? (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {requests.filter(r => r.status === "rejected").length === 0 ? (
-                <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No rejected applications" description="You have no rejected join requests." />
-                </div>
-              ) : (
-                requests.filter(r => r.status === "rejected").map((request) => (
-                  <Card key={request.join_request_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${request.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {request.agency_name}
-                        </Link>
-                        <Badge variant="danger">rejected</Badge>
-                      </div>
-                      {request.decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Rejected {formatDate(request.decided_at)}
-                        </p>
-                      ) : null}
-                      {request.rejection_reason ? (
-                        <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                          {request.rejection_reason}
-                        </div>
-                      ) : null}
-                      <div className="space-y-2">
-                        <Link
-                          href={`/agencies/${request.agency_id}/join`}
-                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                        >
-                          Apply Again
-                        </Link>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Submitting a new application will appear as a returning applicant.
-                        </p>
-                      </div>
                     </CardBody>
                   </Card>
                 ))
@@ -835,85 +929,24 @@ export function MyJoinRequestsClient() {
                 </div>
               ) : (
                 revokedMemberships.map((membership) => {
-                  const isHistoryExpanded = expandedRevokedIds.has(membership.membership_id);
-                  const reapplications = requests
-                    .filter(
-                      (r) =>
-                        r.agency_id === membership.agency_id &&
-                        r.join_request_id !== membership.source_join_request_id,
-                    )
-                    .sort(
-                      (a, b) =>
-                        new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
-                    );
                   const agencyHistory = (historyQuery.data ?? []).filter(
-                    (h) => h.agency_id === membership.agency_id,
+                    (h) => h.agency_id === membership.agency_id || h.agency_name === membership.agency_name,
                   );
-                  const recentReapplication = reapplications[0];
                   const reinstatementEvent = [...agencyHistory]
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .find((h) => h.action === "reinstated" || h.action === "joined");
                   return (
                     <Card key={membership.membership_id}>
                       <CardBody className="space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <Link
-                            href={`/agencies/${membership.agency_id}`}
-                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                          >
-                            {membership.agency_name}
-                          </Link>
-                          <Badge variant="danger">{displayMembershipStatus(membership.status)}</Badge>
-                        </div>
-                        {membership.status_decided_at ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Revoked {formatDate(membership.status_decided_at)}
-                          </p>
-                        ) : null}
-                        {membership.status_reason ? (
-                          <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                            {membership.status_reason}
-                          </div>
-                        ) : null}
-                        {reinstatementEvent ? (
-                          <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm dark:border-green-900 dark:bg-green-950/40">
-                            <p className="font-medium text-green-900 dark:text-green-200">
-                              Reinstated {formatDate(reinstatementEvent.timestamp)}
-                            </p>
-                            {reinstatementEvent.reason ? (
-                              <p className="mt-0.5 text-green-700 dark:text-green-300">
-                                {reinstatementEvent.reason}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {recentReapplication ? (
-                          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950/40">
-                            <p className="font-medium text-blue-900 dark:text-blue-200">
-                              Reapplied {formatDate(recentReapplication.submitted_at)}
-                            </p>
-                            <p className="mt-0.5 text-blue-700 dark:text-blue-300">
-                              Status: <span className="capitalize">{recentReapplication.status}</span>
-                            </p>
-                            {recentReapplication.status === "rejected" && recentReapplication.rejection_reason ? (
-                              <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
-                                Reason: {recentReapplication.rejection_reason}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {!reinstatementEvent && membership.pending_review_request_id ? (
-                          <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            <p className="font-medium">Review requested</p>
-                            {membership.pending_review_reason ? (
-                              <p className="mt-1 text-xs">{membership.pending_review_reason}</p>
-                            ) : null}
-                            {membership.pending_review_submitted_at ? (
-                              <p className="mt-1 text-xs">
-                                Submitted {formatDate(membership.pending_review_submitted_at)}
-                              </p>
-                            ) : null}
-                          </div>
+                        {agencyHistory.length > 0 ? (
+                          <MembershipTimeline
+                            tier="rich"
+                            history={agencyHistory}
+                            entity="agency"
+                            defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
+                            alwaysExpanded
+                          />
                         ) : null}
                         {!reinstatementEvent && !membership.pending_review_request_id ? (
                           <div className="space-y-3">
@@ -945,31 +978,6 @@ export function MyJoinRequestsClient() {
                             >
                               Request Review
                             </Button>
-                          </div>
-                        ) : null}
-                        {agencyHistory.length > 0 ? (
-                          <div className="space-y-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                setExpandedRevokedIds((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(membership.membership_id)) {
-                                    next.delete(membership.membership_id);
-                                  } else {
-                                    next.add(membership.membership_id);
-                                  }
-                                  return next;
-                                })
-                              }
-                            >
-                              {isHistoryExpanded ? "Hide history" : "View full history"}
-                            </Button>
-                            {isHistoryExpanded ? (
-                              <MembershipHistoryList history={agencyHistory} />
-                            ) : null}
                           </div>
                         ) : null}
                       </CardBody>
@@ -1039,14 +1047,24 @@ export function MyJoinRequestsClient() {
                   const sortedAgencies = Object.keys(grouped).sort();
                   return (
                     <div className="space-y-6">
-                      {sortedAgencies.map((agencyName) => (
+                      {sortedAgencies.map((agencyName) => {
+                        const membershipStatus = memberships.find((m) => m.agency_name === agencyName)?.status;
+                        return (
                         <div key={agencyName} className="space-y-3">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {agencyName}
                           </h3>
-                          <MembershipHistoryList history={grouped[agencyName]} />
+                          <MembershipTimeline
+                            tier="rich"
+                            history={grouped[agencyName]}
+                            entity="person"
+                            defaultUserDisplayName={defaultUserDisplayName}
+                            role={role}
+                            status={membershipStatus}
+                          />
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()
@@ -1065,12 +1083,12 @@ export function MyJoinRequestsClient() {
         <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
           {[
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
-            { value: "accepted" as const, label: `Accepted (${requests.filter(r => r.status === "approved").length})` },
+            { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved").length})` },
             { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-            { value: "expired" as const, label: `Expired (${requests.filter(r => r.status === "expired").length})` },
+            { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
             { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
           ].map(({ value, label }) => (
-            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "cancelled")}>
+            <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "approved" | "rejected" | "expired" | "cancelled")}>
               {label}
             </Button>
           ))}
@@ -1086,7 +1104,9 @@ export function MyJoinRequestsClient() {
                 />
               </div>
             ) : (
-              requests.filter(r => r.status === "pending").map((request) => (
+              requests.filter(r => r.status === "pending").map((request) => {
+                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
+                return (
                 <Card key={request.join_request_id}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1113,12 +1133,17 @@ export function MyJoinRequestsClient() {
                         <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.portfolio_details}</p>
                       </div>
                     ) : null}
+                    {reactivationStage === "agency_accepted" ? (
+                      <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                        Request is pending. Find it in the Pending tab.
+                      </p>
+                    ) : null}
                     <div className="pt-2">
                       <Button
                         type="button"
                         size="sm"
                         variant="secondary"
-                        loading={cancelJoinRequest.isPending && cancelJoinRequest.variables === request.join_request_id}
+                        loading={cancelJoinRequest.isPending && cancelJoinRequest.variables?.requestId === request.join_request_id}
                         onClick={() => setCancelConfirmId(request.join_request_id)}
                       >
                         Cancel
@@ -1126,10 +1151,11 @@ export function MyJoinRequestsClient() {
                     </div>
                   </CardBody>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
-        ) : requestSubTab === "accepted" ? (
+        ) : requestSubTab === "approved" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {requests.filter(r => r.status === "approved").length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
@@ -1137,33 +1163,42 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               requests.filter(r => r.status === "approved").map((request) => {
-                const membership = memberships.find(
-                  m => m.source_join_request_id === request.join_request_id,
-                );
+                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
                 return (
-                  <Card key={request.join_request_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${request.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {request.agency_name}
-                        </Link>
-                        <Badge variant="success">approved</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Submitted {formatDate(request.submitted_at)}
-                      </p>
-                      {request.decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Approved {formatDate(request.decided_at)}
-                        </p>
-                      ) : null}
-                      {membership ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Membership status: {membership.status}
-                        </p>
+                    <Card key={request.join_request_id}>
+                      <CardBody className="space-y-4">
+                        {(() => {
+                          const requestHistory = getApprovedRequestCycleHistory(historyQuery.data ?? [], request);
+                          if (requestHistory.length === 0) return null;
+                          return (
+                             <MembershipTimeline
+                               tier="simple"
+                               history={requestHistory}
+                               emptyTitle="No events"
+                               emptyDescription=""
+                               entity="agency"
+                               defaultUserDisplayName={request.agency_name}
+                               verified={request.is_verified}
+                               applicationStatus={request.status}
+                               labelStage="join_request"
+                             />
+                          );
+                        })()}
+                        {reactivationStage !== "terminal" ? (
+                        <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                          {(() => {
+                            const reactivationEvents = resolveJoinRequestReactivationTrace(
+                              request,
+                              user?.user_id ?? null,
+                              true,
+                            );
+                            return reactivationEvents.map((event) => (
+                              <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                {event.text} — {formatDate(event.at!)}
+                              </p>
+                            ));
+                          })()}
+                        </div>
                       ) : null}
                     </CardBody>
                   </Card>
@@ -1193,19 +1228,30 @@ export function MyJoinRequestsClient() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Submitted {formatDate(request.submitted_at)}
                     </p>
+                    {request.decided_at ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Rejected {formatDate(request.decided_at)}
+                      </p>
+                    ) : null}
                     {request.rejection_reason ? (
                       <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
                         {request.rejection_reason}
                       </div>
                     ) : null}
-                    <div className="pt-2">
-                      <Link
-                        href={`/agencies/${request.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
-                    </div>
+                    {request.reactivation_requested_at ? (
+                      <p className="pt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {resolveTerminalReactivationRejectionMessage()}
+                      </p>
+                    ) : request.decided_at && request.rejection_reason ? (
+                      <div className="pt-2">
+                        <Link
+                          href={`/agencies/${request.agency_id}/join`}
+                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                        >
+                          Apply Again
+                        </Link>
+                      </div>
+                    ) : null}
                   </CardBody>
                 </Card>
               ))
@@ -1213,31 +1259,34 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "expired" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "expired").length === 0 ? (
+            {requests.filter(hasExpiredHistory).length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <EmptyState title="No expired requests" description="Expired join requests will appear here." />
+                <EmptyState title="No expired requests" description="Requests that ever passed through the expired state will appear here." />
               </div>
             ) : (
-              requests.filter(r => r.status === "expired").map((request) => {
-                const hasPendingAction = joinRequestHasPendingAction(request);
+              requests.filter(hasExpiredHistory).map((request) => {
+                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
+                const reactivationEvents = resolveJoinRequestReactivationTrace(
+                  request,
+                  user?.user_id ?? null,
+                  true,
+                );
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${request.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {request.agency_name}
-                        </Link>
-                        <Badge variant="danger">expired</Badge>
-                      </div>
+                      <TimelineHeader
+                        entity="agency"
+                        name={request.agency_name}
+                        verified={request.is_verified}
+                        applicationStatus={request.status}
+                        eventCount={2 + reactivationEvents.length}
+                      />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
                       </p>
                       {request.expires_at ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Expired {formatDate(request.expires_at)}
+                          Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
                         </p>
                       ) : null}
                       {request.cover_note ? (
@@ -1246,17 +1295,56 @@ export function MyJoinRequestsClient() {
                           <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
                         </div>
                       ) : null}
-                      {hasPendingAction ? (
+                      {reactivationEvents.length > 0 ? (
+                        <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                          {reactivationEvents.map((event) => (
+                            <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                              {event.text} — {formatDate(event.at!)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                      {reactivationStage === "agency_accepted" ? (
+                        <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                          Request is pending. Find it in the Pending tab.
+                        </p>
+                      ) : reactivationStage === "agency_requested" ? (
                         <div className="space-y-3">
                           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            {request.agency_name} requested to reactivate your expired application — {formatDate(request.reactivation_requested_at!)}
+                            {request.agency_name ?? "The agency"} has requested to reactivate your expired application.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button" size="sm"
+                              loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
+                              onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                            >
+                              Accept Reactivation
+                            </Button>
+                            <Button
+                              type="button" size="sm" variant="ghost"
+                              loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === request.join_request_id}
+                              onClick={() => void handleRejectReactivation(request.join_request_id)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      ) : reactivationStage === "seeker_requested" ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Request is pending a response from {request.agency_name ?? "the agency"}.
+                        </p>
+                      ) : reactivationStage === "initial" ? (
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            This application has expired. You can request reactivation, or wait for {request.agency_name ?? "the agency"} to reach out.
                           </p>
                           <Button
                             type="button" size="sm"
-                            loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                            onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                            loading={requestJoinRequestReactivationAsApplicant.isPending && requestJoinRequestReactivationAsApplicant.variables === request.join_request_id}
+                            onClick={() => void handleRequestJoinRequestReactivationAsApplicant(request.join_request_id)}
                           >
-                            Accept Reactivation
+                            Request Reactivation
                           </Button>
                         </div>
                       ) : null}
@@ -1268,68 +1356,121 @@ export function MyJoinRequestsClient() {
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "cancelled").length === 0 ? (
+            {cancelledRequestGroups.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No cancelled requests" description="You have no cancelled join requests." />
               </div>
             ) : (
-              requests.filter(r => r.status === "cancelled").map((request) => (
-                <Card key={request.join_request_id}>
+              cancelledRequestGroups.map((group) => {
+                const applyAgainDate = getApplyAgainDate(group.requests);
+                return (
+                <Card key={group.agencyId}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <Link
-                        href={`/agencies/${request.agency_id}`}
+                        href={`/agencies/${group.agencyId}`}
                         className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                       >
-                        {request.agency_name}
+                        {group.agencyName}
                       </Link>
                       <Badge variant="danger">cancelled</Badge>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Submitted {formatDate(request.submitted_at)}
-                    </p>
-                    {request.decided_at ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Cancelled {formatDate(request.decided_at)}
-                      </p>
-                    ) : null}
-                    {request.cover_note ? (
-                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
-                        <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
-                        <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
-                      </div>
-                    ) : null}
+                    <div className="space-y-2">
+                      {(() => {
+                        const sortedRequests = [...group.requests].sort(
+                          (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+                        );
+                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number }> = [];
+                        for (let idx = 0; idx < sortedRequests.length; idx++) {
+                          const req = sortedRequests[idx];
+                          const eventNum = idx + 1;
+                              events.push({
+                                key: `submitted-${req.join_request_id}`,
+                                type: "Application submitted",
+                                date: req.submitted_at,
+                                message: req.cover_note ? `Message: ${req.cover_note}` : null,
+                                eventNum,
+                              });
+                              const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, true);
+                              reactivationTrace.forEach((event) => {
+                                events.push({
+                                  key: `${event.text}-${req.join_request_id}`,
+                                  type: event.text,
+                                  date: event.at ?? req.submitted_at,
+                                  eventNum,
+                                });
+                              });
+                              if (req.status === "cancelled") {
+                                events.push({
+                                  key: `cancelled-${req.join_request_id}`,
+                                  type: "Application cancelled",
+                                  date: req.decided_at ?? req.submitted_at,
+                                  message: req.cancel_reason ? `Reason: ${req.cancel_reason}` : null,
+                                  eventNum,
+                                });
+                              }
+                        }
+                        return events.map((event) => (
+                          <div key={event.key} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {event.type} — {formatDate(event.date)}
+                            </p>
+                            {event.message ? (
+                              <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
+                            ) : null}
+                            <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
+                          </div>
+                        ));
+                      })()}
+                    </div>
                     <div className="space-y-2 pt-2">
                       <Button
                         type="button" size="sm"
-                        loading={reapplyJoinRequest.isPending}
-                        onClick={() => void handleReapply(request.agency_id)}
+                        loading={reapplyJoinRequest.isPending && reapplyJoinRequest.variables?.agencyId === group.agencyId}
+                        onClick={() => void handleReapply(group.agencyId)}
                       >
                         Apply Again
                       </Button>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
-                      </p>
+                      {applyAgainDate ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          You have exceeded the maximum number of reapplications. Apply again on {formatDate(applyAgainDate.toISOString())}.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
+                        </p>
+                      )}
+                      <div className="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
+                        This cooldown is enforced server-side; the API blocks reapply with the authoritative date.
+                      </div>
                     </div>
                   </CardBody>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         )}
       </section>
       ) : null}
 
-      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) setCancelConfirmId(null); }}>
+      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel join request</DialogTitle>
             <DialogDescription>
-              Are you sure you want to cancel this join request? This cannot be undone.
+              {cancelWarningMessage}
             </DialogDescription>
           </DialogHeader>
+          <textarea
+            rows={3}
+            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            placeholder="Reason for cancelling (required)"
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.target.value)}
+          />
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setCancelConfirmId(null)}>
+            <Button type="button" variant="secondary" onClick={() => { setCancelConfirmId(null); setCancelReason(""); }}>
               Keep
             </Button>
             <Button

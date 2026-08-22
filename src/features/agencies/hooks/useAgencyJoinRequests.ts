@@ -148,10 +148,14 @@ export function useCancelAgencyJoinRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (requestId: number) =>
-      apiClient<void>(`/api/v1/join-requests/${requestId}`, {
-        method: "DELETE",
-      }),
+    mutationFn: ({ requestId, reason }: { requestId: number; reason: string }) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/cancel/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ reason }),
+        },
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
     },
@@ -187,7 +191,7 @@ export function useMyAgencyInvitations(enabled = true) {
   return useQuery({
     queryKey: ["myAgencyInvitations"],
     queryFn: () =>
-      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/"),
+      apiClient<AgencyInvitationResponse[]>("/api/v1/agency-invitations/mine/?status=all"),
     staleTime: 60_000,
     enabled,
   });
@@ -295,6 +299,39 @@ export function useAcceptJoinRequestReactivation() {
     mutationFn: (requestId: number) =>
       apiClient<AgencyJoinRequestResponse>(
         `/api/v1/join-requests/${requestId}/accept-reactivation/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}
+
+export function useRejectJoinRequestReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ requestId, reason }: { requestId: number; reason?: string }) =>
+      apiClient<AgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/reject-reactivation/`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ reason: reason || "Reactivation rejected by applicant" }),
+        },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+    },
+  });
+}
+
+export function useRequestJoinRequestReactivationAsApplicant() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: number) =>
+      apiClient<MyAgencyJoinRequestResponse>(
+        `/api/v1/join-requests/${requestId}/request-reactivation/`,
         { method: "PATCH" },
       ),
     onSuccess: async () => {
