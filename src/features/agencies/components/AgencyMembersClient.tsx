@@ -678,11 +678,12 @@ export function AgencyMembersClient() {
                               emptyTitle="No events"
                               emptyDescription=""
                               entity="person"
-                              defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
-                              role="agent"
+                               defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
+                              role={agent?.membership_status === "active" ? "agent" : "seeker"}
                               status={liveStatus}
                               applicationStatus={request.status}
                               labelStage="join_request"
+                              lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                             />
                           );
                         })()}
@@ -776,14 +777,15 @@ export function AgencyMembersClient() {
                       );
                       return (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                        <TimelineHeader
-                          entity="person"
-                          name={request.seeker_name ?? "Seeker"}
-                          role="agent"
-                          status={liveStatus}
-                          applicationStatus={request.status}
-                          eventCount={2 + reactivationEvents.length}
-                        />
+                         <TimelineHeader
+                           entity="person"
+                           name={request.seeker_name ?? "Seeker"}
+                           role={agent?.membership_status === "active" ? "agent" : "seeker"}
+                           status={liveStatus}
+                           applicationStatus={request.status}
+                           eventCount={2 + reactivationEvents.length}
+                           lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                         />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
                         </p>
@@ -1657,8 +1659,8 @@ export function AgencyMembersClient() {
                   history={agentHistory}
                   alwaysExpanded
                   entity="person"
-                  defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
-                  role="agent"
+                   defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                  role={agent.membership_status === "active" ? "agent" : "seeker"}
                   status={formatMembershipStatus(agent.membership_status)}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                 />
