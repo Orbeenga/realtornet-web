@@ -1171,18 +1171,17 @@ export function MyJoinRequestsClient() {
                           const requestHistory = getApprovedRequestCycleHistory(historyQuery.data ?? [], request);
                           if (requestHistory.length === 0) return null;
                           return (
-                              <MembershipTimeline
-                                tier="simple"
-                                history={requestHistory}
-                                emptyTitle="No events"
-                                emptyDescription=""
-                                entity="agency"
-                                defaultUserDisplayName={request.agency_name}
-                                verified={request.is_verified}
-                                status={request.status}
-                                applicationStatus={request.status}
-                                labelStage="join_request"
-                              />
+                             <MembershipTimeline
+                               tier="simple"
+                               history={requestHistory}
+                               emptyTitle="No events"
+                               emptyDescription=""
+                               entity="agency"
+                               defaultUserDisplayName={request.agency_name}
+                               verified={request.is_verified}
+                               applicationStatus={request.status}
+                               labelStage="join_request"
+                             />
                           );
                         })()}
                         {reactivationStage !== "terminal" ? (
@@ -1275,14 +1274,13 @@ export function MyJoinRequestsClient() {
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
-                       <TimelineHeader
-                         entity="agency"
-                         name={request.agency_name}
-                         verified={request.is_verified}
-                         status={request.status}
-                         applicationStatus={request.status}
-                         eventCount={2 + reactivationEvents.length}
-                       />
+                      <TimelineHeader
+                        entity="agency"
+                        name={request.agency_name}
+                        verified={request.is_verified}
+                        applicationStatus={request.status}
+                        eventCount={2 + reactivationEvents.length}
+                      />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
                       </p>
