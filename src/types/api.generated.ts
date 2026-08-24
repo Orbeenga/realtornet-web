@@ -993,6 +993,7 @@ export interface paths {
         /**
          * Read Agency Membership History
          * @description Return this agency's full membership history across all users (agency_owner/admin only).
+         *     If user_id is provided, returns only that member's history.
          */
         get: operations["read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get"];
         put?: never;
@@ -4800,6 +4801,12 @@ export interface components {
             /** Membership Id */
             membership_id: number;
             membership_status: components["schemas"]["AgencyAgentMembershipStatus"];
+            user_role: components["schemas"]["UserRole"];
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
             /** Status Reason */
             status_reason?: string | null;
             /** Status Decided At */
@@ -8982,6 +8989,7 @@ export interface operations {
     read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get: {
         parameters: {
             query?: {
+                user_id?: number | null;
                 /** @description Records to skip */
                 skip?: number;
                 /** @description Page size (max 100) */

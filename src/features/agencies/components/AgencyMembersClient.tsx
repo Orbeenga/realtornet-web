@@ -679,7 +679,7 @@ export function AgencyMembersClient() {
                               emptyDescription=""
                               entity="person"
                                defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
-                              role={agent?.membership_status === "active" ? "agent" : "seeker"}
+                               role={agent?.user_role}
                               status={liveStatus}
                               applicationStatus={request.status}
                               labelStage="join_request"
@@ -780,7 +780,7 @@ export function AgencyMembersClient() {
                          <TimelineHeader
                            entity="person"
                            name={request.seeker_name ?? "Seeker"}
-                           role={agent?.membership_status === "active" ? "agent" : "seeker"}
+                            role={agent?.user_role}
                            status={liveStatus}
                            applicationStatus={request.status}
                            eventCount={2 + reactivationEvents.length}
@@ -1660,7 +1660,7 @@ export function AgencyMembersClient() {
                   alwaysExpanded
                   entity="person"
                    defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
-                  role={agent.membership_status === "active" ? "agent" : "seeker"}
+                  role={agent.user_role}
                   status={formatMembershipStatus(agent.membership_status)}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                 />
