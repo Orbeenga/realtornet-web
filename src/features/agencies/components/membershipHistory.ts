@@ -63,9 +63,9 @@ export function getApprovedRequestCycleHistory(
     const entryDate = new Date(entryTimestamp);
     const requestDate = new Date(requestTimestamp);
     return (
-      entryDate.getFullYear() === requestDate.getFullYear() &&
-      entryDate.getMonth() === requestDate.getMonth() &&
-      entryDate.getDate() === requestDate.getDate()
+      entryDate.getUTCFullYear() === requestDate.getUTCFullYear() &&
+      entryDate.getUTCMonth() === requestDate.getUTCMonth() &&
+      entryDate.getUTCDate() === requestDate.getUTCDate()
     );
   };
 

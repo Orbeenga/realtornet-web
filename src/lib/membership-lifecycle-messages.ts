@@ -226,6 +226,41 @@ export function resolveJoinRequestReactivationTrace(
   return events;
 }
 
+export function resolveTerminalApprovalEvent(
+  request: JoinRequestIdentity & { decided_at?: string | null; reactivation_accepted_at?: string | null },
+  viewerUserId: number | null,
+  viewerIsApplicant: boolean,
+): { text: string; at: string | null } | null {
+  if (request.status !== "approved" && request.status !== "reactivated") return null;
+
+  const timestamp = request.decided_at ?? request.reactivation_accepted_at ?? null;
+  if (!timestamp) return null;
+
+  const applicantId = viewerIsApplicant ? viewerUserId : (request.user_id ?? null);
+  const seekerInitiated =
+    request.reactivation_requested_by != null &&
+    applicantId != null &&
+    request.reactivation_requested_by === applicantId;
+  const viewerInitiated =
+    request.reactivation_requested_by != null &&
+    request.reactivation_requested_by === viewerUserId;
+
+  let text: string;
+  if (viewerInitiated) {
+    text = "Reactivated";
+  } else if (seekerInitiated) {
+    text = `${request.seeker_name ?? "Applicant"} reactivated application`;
+  } else if (!viewerIsApplicant) {
+    text = "Approved";
+  } else {
+    text = request.agency_name
+      ? `${request.agency_name} approved reactivated application`
+      : "Agency approved reactivated application";
+  }
+
+  return { text, at: timestamp };
+}
+
 /**
  * Terminal-state message for rejected reactivation attempts. A rejected
  * reactivation is a terminal outcome (U-010, U-013) — the row ends in `rejected`

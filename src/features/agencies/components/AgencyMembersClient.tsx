@@ -54,6 +54,7 @@ import {
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
   resolveStatusBadge,
+  resolveTerminalApprovalEvent,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
@@ -770,45 +771,45 @@ export function AgencyMembersClient() {
                       const agent = agents.find((a) => a.user_id === request.user_id);
                       const liveStatus = agent?.membership_status ?? request.status;
                       const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                      const reactivationEvents = resolveJoinRequestReactivationTrace(
-                        request,
-                        user?.user_id ?? null,
-                        false,
-                      );
-                      return (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                         <TimelineHeader
-                           entity="person"
-                           name={request.seeker_name ?? "Seeker"}
-                            role={agent?.user_role}
-                           status={liveStatus}
-                           applicationStatus={request.status}
-                             eventCount={2 + reactivationEvents.length + (request.status === "approved" ? 1 : 0)}
-                           lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
-                         />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                        </p>
-                        {request.expires_at ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
-                          </p>
-                        ) : null}
-                        <div className="mt-2 space-y-2">
-                          {reactivationEvents.length > 0 ? (
-                            <div className="space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
-                              {reactivationEvents.map((event) => (
-                                <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
-                                  {event.text} — {formatDate(event.at!)}
-                                </p>
-                              ))}
-                            </div>
-                           ) : null}
-                           {request.status === "approved" ? (
-                             <p className="text-sm text-gray-700 dark:text-gray-300">
-                               Approved — {formatDate(request.decided_at ?? request.reactivation_accepted_at ?? request.created_at)}
-                             </p>
-                           ) : null}
+                       const reactivationEvents = resolveJoinRequestReactivationTrace(
+                         request,
+                         user?.user_id ?? null,
+                         false,
+                       );
+                       const terminalEvent = resolveTerminalApprovalEvent(request, user?.user_id ?? null, false);
+                       return (
+                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                          <TimelineHeader
+                            entity="person"
+                            name={request.seeker_name ?? "Seeker"}
+                             role={agent?.user_role}
+                            status={liveStatus}
+                            applicationStatus={request.status}
+                              eventCount={2 + reactivationEvents.length + (terminalEvent ? 1 : 0)}
+                            lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                          />
+                         <p className="text-sm text-gray-500 dark:text-gray-400">
+                           {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
+                         </p>
+                         {request.expires_at ? (
+                           <p className="text-sm text-gray-500 dark:text-gray-400">
+                             Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
+                           </p>
+                         ) : null}
+                         <div className="mt-2 space-y-2">
+                           {(() => {
+                             const allEvents = [...reactivationEvents];
+                             if (terminalEvent) allEvents.push(terminalEvent);
+                             return allEvents.length > 0 ? (
+                               <div className="space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
+                                 {allEvents.map((event) => (
+                                   <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
+                                     {event.text} — {formatDate(event.at!)}
+                                   </p>
+                                 ))}
+                               </div>
+                             ) : null;
+                           })()}
                            {reactivationStage === "agency_accepted" ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                               Request is pending. Approve in Review Requests.

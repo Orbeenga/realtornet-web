@@ -33,6 +33,7 @@ import {
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
+  resolveTerminalApprovalEvent,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
@@ -1271,6 +1272,7 @@ export function MyJoinRequestsClient() {
                   user?.user_id ?? null,
                   true,
                 );
+                const terminalEvent = resolveTerminalApprovalEvent(request, user?.user_id ?? null, true);
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
@@ -1279,7 +1281,7 @@ export function MyJoinRequestsClient() {
                         name={request.agency_name}
                         verified={request.is_verified}
                         applicationStatus={request.status}
-                         eventCount={2 + reactivationEvents.length + (request.status === "approved" ? 1 : 0)}
+                         eventCount={2 + reactivationEvents.length + (terminalEvent ? 1 : 0)}
                       />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submitted_at)}
@@ -1295,20 +1297,19 @@ export function MyJoinRequestsClient() {
                           <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
                         </div>
                       ) : null}
-                       {reactivationEvents.length > 0 ? (
-                         <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                           {reactivationEvents.map((event) => (
-                             <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
-                               {event.text} — {formatDate(event.at!)}
-                             </p>
-                           ))}
-                         </div>
-                        ) : null}
-                        {request.status === "approved" ? (
-                          <p className="text-sm text-gray-700 dark:text-gray-300">
-                            Approved — {formatDate(request.decided_at ?? request.reactivation_accepted_at ?? request.submitted_at)}
-                          </p>
-                        ) : null}
+                       {(() => {
+                         const allEvents = [...reactivationEvents];
+                         if (terminalEvent) allEvents.push(terminalEvent);
+                         return allEvents.length > 0 ? (
+                           <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                             {allEvents.map((event) => (
+                               <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                 {event.text} — {formatDate(event.at!)}
+                               </p>
+                             ))}
+                           </div>
+                         ) : null;
+                       })()}
                       {reactivationStage === "agency_accepted" ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                           Request is pending. Find it in the Pending tab.
