@@ -695,10 +695,10 @@ export function AgencyMembersClient() {
                              </p>
                            ))}
                          </div>
-                       ) : null}
-                     </div>
-                     );
-                   })}
+                            ) : null}
+                          </div>
+                      );
+                    })}
                  </div>
                ) : null}
               </>
@@ -783,7 +783,7 @@ export function AgencyMembersClient() {
                             role={agent?.user_role}
                            status={liveStatus}
                            applicationStatus={request.status}
-                           eventCount={2 + reactivationEvents.length}
+                             eventCount={2 + reactivationEvents.length + (request.status === "approved" ? 1 : 0)}
                            lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                          />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -803,8 +803,13 @@ export function AgencyMembersClient() {
                                 </p>
                               ))}
                             </div>
-                          ) : null}
-                          {reactivationStage === "agency_accepted" ? (
+                           ) : null}
+                           {request.status === "approved" ? (
+                             <p className="text-sm text-gray-700 dark:text-gray-300">
+                               Approved — {formatDate(request.decided_at ?? request.reactivation_accepted_at ?? request.created_at)}
+                             </p>
+                           ) : null}
+                           {reactivationStage === "agency_accepted" ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                               Request is pending. Approve in Review Requests.
                             </p>
@@ -1007,8 +1012,8 @@ export function AgencyMembersClient() {
                             </Button>
                           ) : null}
                         </div>
-                      ) : null}
-                    </div>
+                            ) : null}
+                          </div>
                     {primaryRequest.status === "pending" ? (
                       <Input className="mt-4" label="Decision reason" placeholder="Required for decline, optional for accept"
                         value={membershipReasons[primaryRequest.id] ?? ""}
@@ -1016,10 +1021,10 @@ export function AgencyMembersClient() {
                           setMembershipReasons((current) => ({ ...current, [primaryRequest.id]: event.target.value }))
                         }
                       />
-                    ) : null}
-                  </div>
-                  );
-                })}
+                            ) : null}
+                          </div>
+                   );
+                 })}
               </div>
             ) : null}
           </CardBody>

@@ -58,6 +58,17 @@ export function getApprovedRequestCycleHistory(
     Boolean(requestTimestamp) &&
     Math.abs(new Date(entryTimestamp).getTime() - new Date(requestTimestamp as string).getTime()) <= 5_000;
 
+  const sameDay = (entryTimestamp: string, requestTimestamp: string | null | undefined) => {
+    if (!requestTimestamp) return false;
+    const entryDate = new Date(entryTimestamp);
+    const requestDate = new Date(requestTimestamp);
+    return (
+      entryDate.getFullYear() === requestDate.getFullYear() &&
+      entryDate.getMonth() === requestDate.getMonth() &&
+      entryDate.getDate() === requestDate.getDate()
+    );
+  };
+
   const cycleTimes = new Set(
     [
       submittedTime,
@@ -87,6 +98,9 @@ export function getApprovedRequestCycleHistory(
         request.decided_at,
       ].some((value) => sameLifecycleMoment(entry.timestamp, value))
     ) {
+      if (entry.action === "expired" && sameDay(entry.timestamp, request.originally_expired_at)) {
+        return true;
+      }
       return false;
     }
     return ["expired", "reactivation_requested", "reactivated", "joined", "approved"].includes(entry.action ?? "");
