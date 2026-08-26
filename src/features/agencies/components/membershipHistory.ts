@@ -1,3 +1,4 @@
+import { hasExpiredHistory } from "@/lib/membership-lifecycle-messages";
 import type { MembershipTimelineEntry } from "@/types";
 
 export function formatMembershipDate(value: string) {
@@ -38,6 +39,7 @@ export function isReturningMembershipAction(action?: string | null) {
 }
 
 export interface RequestLifecycleMatch {
+  status?: string | null;
   submitted_at?: string | null;
   created_at?: string | null;
   originally_expired_at?: string | null;
@@ -98,7 +100,7 @@ export function getApprovedRequestCycleHistory(
         request.decided_at,
       ].some((value) => sameLifecycleMoment(entry.timestamp, value))
     ) {
-      if (entry.action === "expired" && sameDay(entry.timestamp, request.originally_expired_at)) {
+      if (entry.action === "expired" && hasExpiredHistory(request) && sameDay(entry.timestamp, request.originally_expired_at)) {
         return true;
       }
       return false;
@@ -120,6 +122,7 @@ export function getApprovedRequestCycleHistory(
   }
 
   if (
+    hasExpiredHistory(request) &&
     request.originally_expired_at &&
     !result.some((entry) => entry.action === "expired")
   ) {
