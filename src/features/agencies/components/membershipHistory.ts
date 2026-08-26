@@ -106,18 +106,35 @@ export function getApprovedRequestCycleHistory(
     return ["expired", "reactivation_requested", "reactivated", "joined", "approved"].includes(entry.action ?? "");
   });
 
-  if (selected.some((entry) => entry.source_type === "join_request")) return selected;
-  return [
-    {
+  const result = [...selected];
+
+  if (!result.some((entry) => entry.source_type === "join_request")) {
+    result.push({
       source_type: "join_request",
       author_role: "seeker",
       timestamp: submittedTime || new Date().toISOString(),
       agency_id: request.agency_id ?? undefined,
       agency_name: request.agency_name ?? undefined,
       user_id: request.user_id ?? undefined,
-    },
-    ...selected,
-  ];
+    });
+  }
+
+  if (
+    request.originally_expired_at &&
+    !result.some((entry) => entry.action === "expired")
+  ) {
+    result.push({
+      source_type: "audit_event",
+      action: "expired",
+      author_role: "system",
+      timestamp: request.originally_expired_at,
+      agency_id: request.agency_id ?? undefined,
+      agency_name: request.agency_name ?? undefined,
+      user_id: request.user_id ?? undefined,
+    });
+  }
+
+  return result;
 }
 
 const REVOKED_MEMBERSHIP_ACTIONS = new Set([

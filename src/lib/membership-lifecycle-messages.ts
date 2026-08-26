@@ -203,7 +203,7 @@ export function resolveJoinRequestReactivationTrace(
 
     let text: string;
     if (viewerInitiated) {
-      text = "reactivation requested";
+      text = "Reactivation requested";
     } else if (seekerInitiated) {
       text = `${request.seeker_name ?? "Applicant"} requested reactivation`;
     } else {
@@ -217,7 +217,7 @@ export function resolveJoinRequestReactivationTrace(
   if (request.reactivation_accepted_at) {
     events.push({
       text: viewerIsApplicant
-        ? "reactivation accepted"
+        ? "Reactivation accepted"
         : `${request.seeker_name ?? "Applicant"} accepted reactivation`,
       at: request.reactivation_accepted_at,
     });
