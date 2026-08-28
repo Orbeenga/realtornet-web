@@ -59,6 +59,7 @@ import {
 } from "@/lib/membership-lifecycle-messages";
 import {
   getApprovedRequestCycleHistory,
+  getMembershipHistoryByAction,
   getRevokedMembershipHistory,
 } from "./membershipHistory";
 import {
@@ -283,11 +284,28 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && approvedRequests.length > 0,
   );
 
-  const revokedAgents = agentsQuery.data?.filter((a) => a.membership_status === "revoked") ?? [];
+  // U-028: agency side groups by user_id — one cumulative card per member,
+  // not one per membership row.
+  const revokedAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "revoked") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
   const revokedHistoryQueries = useAgencyMembershipHistories(
     agencyId,
     revokedAgents.map((a) => a.user_id),
     Boolean(agencyId) && revokedAgents.length > 0,
+  );
+  // U-028: Left tab joins the same cumulative-card model, scoped to 'left' events.
+  const leftAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "left") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
+  const leftHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    leftAgents.map((a) => a.user_id),
+    Boolean(agencyId) && leftAgents.length > 0,
   );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -1562,13 +1580,13 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "left").length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && leftAgents.length === 0 ? (
               <EmptyState title="No departed members." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "left").length > 0 ? (
+            {!agentsQuery.isLoading && leftAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "left").map((agent) => (
-                  <div key={agent.membership_id} className="space-y-4 py-4">
+                {leftAgents.map((agent, index) => (
+                  <div key={agent.user_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 items-center gap-3">
                         {agent.profile_image_url ? (
@@ -1614,6 +1632,28 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
+                    {/* U-028: cumulative card — this member's 'left' events render
+                        inside the card via the shared scoped filter (SSOT). */}
+                    {(() => {
+                      const leftEvents = getMembershipHistoryByAction(
+                        leftHistoryQueries[index]?.data ?? [],
+                        { user_id: agent.user_id, agency_id: agent.agency_id },
+                        "left",
+                      );
+                      if (leftEvents.length === 0) return null;
+                      return (
+                        <MembershipTimeline
+                          tier="rich"
+                          history={leftEvents}
+                          alwaysExpanded
+                          entity="person"
+                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                        />
+                      );
+                    })()}
                     <Input
                       label="Decision reason" placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}

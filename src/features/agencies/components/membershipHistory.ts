@@ -51,6 +51,9 @@ export interface RequestLifecycleMatch {
   user_id?: number | null;
 }
 
+/* Shared join-request cycle-scoping lives HERE ONLY (canonical membershipHistory module).
+   Scopes a timeline to one join request's own lifecycle; downstream membership
+   events appended per U-026. Callers: Approved tab (MyJoinRequestsClient). */
 export function getApprovedRequestCycleHistory(
   history: MembershipTimelineEntry[],
   request: RequestLifecycleMatch,
@@ -110,6 +113,32 @@ export function getApprovedRequestCycleHistory(
 
   const result = [...selected];
 
+  // U-026: downstream membership-lifecycle events. The Approved tab remains
+  // scoped to the join request's own lifecycle (U-022), but audit events
+  // `revoked`/`reinstated` on the membership this request CREATED, timestamped
+  // after `decided_at`, are appended as additional rows — never renaming the
+  // terminal "Approved" label (Rule 21 append-only preserved).
+  const decidedTime = request.decided_at ? new Date(request.decided_at).getTime() : null;
+  if (decidedTime != null) {
+    const downstream = history.filter(
+      (entry) =>
+        entry.source_type === "audit_event" &&
+        (entry.action === "revoked" || entry.action === "reinstated") &&
+        new Date(entry.timestamp).getTime() > decidedTime &&
+        !(request.agency_id != null && entry.agency_id != null && entry.agency_id !== request.agency_id) &&
+        !(request.user_id != null && entry.user_id != null && entry.user_id !== request.user_id),
+    );
+    for (const entry of downstream) {
+      const alreadyPresent = result.some(
+        (existing) =>
+          (existing.id !== undefined && existing.id === entry.id) ||
+          (!existing.action && !entry.action) ||
+          (existing.action === entry.action && existing.timestamp === entry.timestamp),
+      );
+      if (!alreadyPresent) result.push(entry);
+    }
+  }
+
   if (!result.some((entry) => entry.source_type === "join_request")) {
     result.push({
       source_type: "join_request",
@@ -140,30 +169,38 @@ export function getApprovedRequestCycleHistory(
   return result;
 }
 
-const REVOKED_MEMBERSHIP_ACTIONS = new Set([
-  "joined",
-  "revoked",
-  "suspended",
-  "reinstated",
-  "left",
-  "blocked",
-  "review_requested",
-]);
-
-export function getRevokedMembershipHistory(
+/* Shared tab-scoped membership-history filter lives HERE ONLY (canonical
+   membershipHistory module). Single implementation of the PREFLIGHT Rule 22
+   discriminator contract for membership history tabs: consumes BOTH
+   `source_type` and `action`. `action` parameter selects the tab scope
+   ('revoked', 'left', ...). Callers: seeker Revoked/Left tabs
+   (MyJoinRequestsClient), agency Revoked tab (AgencyMembersClient). */
+export function getMembershipHistoryByAction(
   history: MembershipTimelineEntry[],
   match: { agency_id?: number | null; agency_name?: string | null; user_id?: number | null },
+  action: string,
 ): MembershipTimelineEntry[] {
   return history.filter((entry) => {
     if (match.user_id != null && entry.user_id != null && entry.user_id !== match.user_id) return false;
     if (match.agency_id != null && entry.agency_id != null && entry.agency_id !== match.agency_id) return false;
     if (match.agency_name && entry.agency_name && entry.agency_name !== match.agency_name && match.agency_id == null) return false;
 
-    if (entry.source_type === "join_request") return true;
-    if (entry.source_type === "review_request") return true;
-    if (entry.source_type === "audit_event") {
-      return entry.action ? REVOKED_MEMBERSHIP_ACTIONS.has(entry.action) : false;
-    }
-    return false;
+    return entry.source_type === "audit_event" && entry.action === action;
   });
+}
+
+/**
+ * Revoked-tab scope filter (DEF-U-REVOKED-TAB-DISCRIMINATOR-001).
+ * Preflight Rule 22 pre-check (2026-08-26): every entry exposed by
+ * `/agencies/{id}/membership-history/` carries `source_type` + `action`;
+ * this filter consumes BOTH discriminators. Only audit events whose action
+ * is literally `revoked` belong on this append-only history tab — join
+ * requests, review requests, and other audit actions have their own tabs,
+ * and rendering them here was the discriminator gap.
+ */
+export function getRevokedMembershipHistory(
+  history: MembershipTimelineEntry[],
+  match: { agency_id?: number | null; agency_name?: string | null; user_id?: number | null },
+): MembershipTimelineEntry[] {
+  return getMembershipHistoryByAction(history, match, "revoked");
 }

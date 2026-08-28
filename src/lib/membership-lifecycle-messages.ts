@@ -241,22 +241,17 @@ export function resolveTerminalApprovalEvent(
     request.reactivation_requested_by != null &&
     applicantId != null &&
     request.reactivation_requested_by === applicantId;
-  const viewerInitiated =
-    request.reactivation_requested_by != null &&
-    request.reactivation_requested_by === viewerUserId;
 
-  let text: string;
-  if (viewerInitiated) {
-    text = "Reactivated";
-  } else if (seekerInitiated) {
-    text = `${request.seeker_name ?? "Applicant"} reactivated application`;
-  } else if (!viewerIsApplicant) {
-    text = "Approved";
-  } else {
-    text = request.agency_name
+  // Terminal-outcome label fix (item b, 2026-08-26): this event IS the
+  // resolution of the cycle, so it always states the actual outcome:
+  // "Approved". Who requested the reactivation is historical context and is
+  // already carried by resolveJoinRequestReactivationTrace — never let the
+  // initiator direction relabel a terminal approval as "Reactivated".
+  const text = !viewerIsApplicant && !seekerInitiated
+    ? "Approved"
+    : request.agency_name
       ? `${request.agency_name} approved reactivated application`
       : "Agency approved reactivated application";
-  }
 
   return { text, at: timestamp };
 }

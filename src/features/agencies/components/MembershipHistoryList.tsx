@@ -36,6 +36,13 @@ interface MembershipTimelineProps {
   applicationStatus?: string;
 }
 
+/* Shared timeline row zebra-banding lives HERE ONLY (canonical MembershipHistoryList
+   component). Alternating grey/white row banding by index; consumed by both timeline
+   tiers and any surface rendering timeline rows. */
+export function timelineRowBandClass(index: number): string {
+  return index % 2 === 1 ? "bg-gray-100 dark:bg-gray-800/60" : "";
+}
+
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
 function resolveTimelineLabel(
@@ -214,15 +221,18 @@ export function MembershipTimeline({
             applicationStatus={applicationStatus}
           />
         ) : null}
-        {visible.map((entry) => (
-          <div
+        {visible.map((entry, index) => (
+          <p
             key={entry.id ?? entry.timestamp}
-            className="rounded-lg border border-border p-3 text-sm leading-6"
+            className={`text-sm leading-6 text-gray-700 dark:text-gray-300 ${
+              timelineRowBandClass(index)
+            }`}
           >
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              {resolveTimelineLabel(entry, labelStage)} - {formatMembershipDate(entry.timestamp)}
-            </p>
-          </div>
+            {/* Shared zebra banding lives HERE ONLY (canonical timeline component).
+                Light pair: transparent / gray-50. Dark pair: transparent / white/5. */}
+
+            {resolveTimelineLabel(entry, labelStage)} - {formatMembershipDate(entry.timestamp)}
+          </p>
         ))}
       </div>
     );
@@ -255,14 +265,16 @@ export function MembershipTimeline({
           applicationStatus={applicationStatus}
         />
       ) : null}
-      {visibleEntries.map((entry) => {
+      {visibleEntries.map((entry, index) => {
         const entryId = String(entry.id ?? entry.timestamp);
         const label = resolveTimelineLabel(entry, labelStage);
 
         return (
           <div
             key={entryId}
-            className="rounded-lg border border-border p-4 text-sm"
+            // Shared zebra banding (grey/white alternating), no borders — same
+            // pairing as the simple tier, defined here only (canonical component).
+            className={`px-4 py-3 text-sm ${timelineRowBandClass(index)}`}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="text-xs text-gray-500 dark:text-gray-400">
