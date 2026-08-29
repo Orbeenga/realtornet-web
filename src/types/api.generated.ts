@@ -6330,6 +6330,7 @@ export interface components {
              */
             is_verified: boolean;
             status: components["schemas"]["AgencyJoinRequestStatus"];
+            membership_status?: components["schemas"]["AgencyAgentMembershipStatus"] | null;
             /** Cover Note */
             cover_note?: string | null;
             /** Portfolio Details */
