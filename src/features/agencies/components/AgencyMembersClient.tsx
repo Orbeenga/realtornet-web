@@ -935,9 +935,10 @@ export function AgencyMembersClient() {
                                 });
                               }
                             }
-                            return events.map((event) => (
-                              <div key={event.key} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
-                                <p className="font-medium text-gray-900 dark:text-white">
+                            return events.map((event, eventIndex) => (
+                              // Rule 24: same shared banding as every other timeline surface.
+                              <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
+                                <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
                                   {event.type} — {formatDate(event.date)}
                                 </p>
                                 {event.message ? (
@@ -950,12 +951,9 @@ export function AgencyMembersClient() {
                         </div>
                         {cooldownDate ? (
                           <div className="mt-2 rounded-lg bg-gray-100 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                            Cooldown period active. User can apply again on {formatDate(cooldownDate.toISOString())}.
+                            Cooldown period active. {group.seekerName} can apply again on {formatDate(cooldownDate.toISOString())}.
                           </div>
                         ) : null}
-                        <div className="mt-2 rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-                          This cooldown is enforced server-side; the API blocks reapply with the authoritative date.
-                        </div>
                       </div>
                       );
                     })}
