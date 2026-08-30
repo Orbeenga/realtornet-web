@@ -53,10 +53,15 @@ export interface RequestLifecycleMatch {
 
 /* Shared join-request cycle-scoping lives HERE ONLY (canonical membershipHistory module).
    Scopes a timeline to one join request's own lifecycle; downstream membership
-   events appended per U-026. Callers: Approved tab (MyJoinRequestsClient). */
+   events appended per U-026. Callers: Approved tab (MyJoinRequestsClient),
+   Expired tabs (MyJoinRequestsClient, AgencyMembersClient — U-026 parity).
+   U-022d: callers serving the Expired tab pass `excludeReactivationSubEvents`
+   while the record is mid-cycle, so reactivation sub-events render only via
+   resolveJoinRequestReactivationTrace narrative lines, never flattened. */
 export function getApprovedRequestCycleHistory(
   history: MembershipTimelineEntry[],
   request: RequestLifecycleMatch,
+  opts?: { excludeReactivationSubEvents?: boolean },
 ): MembershipTimelineEntry[] {
   const submittedTime = request.submitted_at ?? request.created_at;
   const sameLifecycleMoment = (entryTimestamp: string, requestTimestamp: string | null | undefined) =>
@@ -89,6 +94,11 @@ export function getApprovedRequestCycleHistory(
   const selected = history.filter((entry) => {
     if (request.agency_id != null && entry.agency_id != null && entry.agency_id !== request.agency_id) return false;
     if (request.user_id != null && entry.user_id != null && entry.user_id !== request.user_id) return false;
+    // U-022d: mid-cycle Expired rendering — reactivation sub-events are
+    // reserved for the narrative trace renderer in the caller.
+    if (opts?.excludeReactivationSubEvents && ["reactivation_requested", "reactivated"].includes(entry.action ?? "")) {
+      return false;
+    }
 
     if (entry.source_type === "join_request") {
       return sameLifecycleMoment(entry.timestamp, submittedTime);
@@ -167,6 +177,96 @@ export function getApprovedRequestCycleHistory(
   }
 
   return result;
+}
+
+/* Shared Expired-tab narration lives HERE ONLY (canonical membershipHistory module).
+   U-022d + expired-tab incident fix (2026-08-29): the Expired tab narrates its
+   ENTIRE lifecycle as ONE chronological stream — submitted, expired, reactivation
+   requested/accepted, approval, and downstream revoked/reinstated (U-026) — merged
+   into a single array carrying real timestamps, sorted ascending, rendered as one
+   banded loop. Never two separate lists (that produced out-of-order rows). */
+export function resolveExpiredNarrativeTimeline(
+  history: MembershipTimelineEntry[],
+  request: RequestLifecycleMatch & {
+    seeker_name?: string | null;
+    reactivation_requested_by?: number | null;
+  },
+  viewer: { viewerUserId: number | null; viewerIsApplicant: boolean },
+): Array<{ text: string; at: string }> {
+  const { viewerUserId, viewerIsApplicant } = viewer;
+  const viewerInitiated =
+    request.reactivation_requested_by != null &&
+    viewerUserId != null &&
+    request.reactivation_requested_by === viewerUserId;
+
+  const agencyName = request.agency_name ?? "Agency";
+  const seekerName = request.seeker_name ?? "Applicant";
+
+  const events: Array<{ text: string; at: string }> = [];
+
+  const submittedAt = request.submitted_at ?? request.created_at;
+  if (submittedAt) {
+    events.push({
+      text: viewerIsApplicant ? "You submitted application" : `${seekerName} submitted application`,
+      at: submittedAt,
+    });
+  }
+
+  if (request.originally_expired_at) {
+    events.push({ text: "Application expired", at: request.originally_expired_at });
+  }
+
+  if (request.reactivation_requested_at) {
+    const text = viewerInitiated
+      ? "You requested to reactivate application"
+      : viewerIsApplicant
+        ? `${agencyName} requested to reactivate application`
+        : `${seekerName} requested to reactivate application`;
+    events.push({ text, at: request.reactivation_requested_at });
+  }
+
+  if (request.reactivation_accepted_at) {
+    const text = viewerInitiated
+      ? viewerIsApplicant
+        ? `${agencyName} accepted your reactivation request`
+        : `${seekerName} accepted your reactivation request`
+      : "You accepted reactivation request";
+    events.push({ text, at: request.reactivation_accepted_at });
+  }
+
+  if (request.decided_at && (request.status === "approved" || request.status === "reactivated")) {
+    events.push({
+      text: viewerIsApplicant
+        ? `${agencyName} approved application`
+        : `You approved ${seekerName}'s application`,
+      at: request.decided_at,
+    });
+  }
+
+  // U-026 downstream membership events (revoked/reinstated) tied to the
+  // membership this request created, timestamped strictly after approval.
+  const decidedTime = request.decided_at ? new Date(request.decided_at).getTime() : null;
+  if (decidedTime != null) {
+    const downstream = history.filter(
+      (entry) =>
+        entry.source_type === "audit_event" &&
+        (entry.action === "revoked" || entry.action === "reinstated") &&
+        new Date(entry.timestamp).getTime() > decidedTime &&
+        !(request.agency_id != null && entry.agency_id != null && entry.agency_id !== request.agency_id) &&
+        !(request.user_id != null && entry.user_id != null && entry.user_id !== request.user_id),
+    );
+    for (const entry of downstream) {
+      const pastTense = entry.action === "revoked" ? "revoked" : "reinstated";
+      events.push({
+        text: viewerIsApplicant
+          ? `${agencyName} ${pastTense} membership`
+          : `You ${pastTense} ${seekerName}'s membership`,
+        at: entry.timestamp,
+      });
+    }
+  }
+
+  return events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }
 
 /* Shared tab-scoped membership-history filter lives HERE ONLY (canonical

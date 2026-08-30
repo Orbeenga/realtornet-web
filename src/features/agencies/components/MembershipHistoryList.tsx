@@ -101,6 +101,7 @@ export function TimelineHeader({
   eventCount,
   lastSeen,
   applicationStatus,
+  email,
 }: {
   entity?: "person" | "agency";
   name: string;
@@ -110,6 +111,9 @@ export function TimelineHeader({
   eventCount: number;
   lastSeen?: string;
   applicationStatus?: string;
+  /** Person-entity contact line, rendered directly under the name/role row
+      (agency-side member cards) before the status/event-count qualifiers. */
+  email?: string;
 }) {
   return (
     <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
@@ -136,6 +140,9 @@ export function TimelineHeader({
             })()
           : null}
       </div>
+      {entity === "person" && email ? (
+        <div className="text-xs text-gray-500 dark:text-gray-400">{email}</div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
         {status ? (
           <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
@@ -244,7 +251,8 @@ export function MembershipTimeline({
       new Date(first.timestamp).getTime(),
   );
 
-  const visibleEntries = alwaysExpanded ? sortedHistory : sortedHistory.slice(0, 2);
+  const showAllEntries = alwaysExpanded || isExpanded;
+  const visibleEntries = showAllEntries ? sortedHistory : sortedHistory.slice(0, 2);
   const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";

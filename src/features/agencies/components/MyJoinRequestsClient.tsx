@@ -12,6 +12,7 @@ import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
+  resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
 import {
   useAcceptAgencyInvitation,
@@ -35,7 +36,6 @@ import {
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
-  resolveTerminalApprovalEvent,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
@@ -1337,12 +1337,17 @@ export function MyJoinRequestsClient() {
             ) : (
               requests.filter(hasExpiredHistory).map((request) => {
                 const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                const reactivationEvents = resolveJoinRequestReactivationTrace(
+                // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                // chronological stream. resolveExpiredNarrativeTimeline merges all
+                // events (submitted, expired, reactivation, approval, downstream
+                // revoked/reinstated) into a single sorted array with real
+                // timestamps — never two separately-rendered lists, which is what
+                // previously produced out-of-order rows and broken banding.
+                const narrativeEvents = resolveExpiredNarrativeTimeline(
+                  historyQuery.data ?? [],
                   request,
-                  user?.user_id ?? null,
-                  true,
+                  { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
                 );
-                const terminalEvent = resolveTerminalApprovalEvent(request, user?.user_id ?? null, true);
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
@@ -1351,41 +1356,26 @@ export function MyJoinRequestsClient() {
                         name={request.agency_name}
                         verified={request.is_verified}
                         applicationStatus={request.status}
-                         eventCount={2 + reactivationEvents.length + (terminalEvent ? 1 : 0)}
+                         eventCount={narrativeEvents.length}
                       />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Submitted {formatDate(request.submitted_at)}
-                      </p>
-                      {request.expires_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
-                        </p>
-                      ) : null}
                       {request.cover_note ? (
                         <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
                           <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
                           <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
                         </div>
                       ) : null}
-                       {(() => {
-                         const allEvents = [...reactivationEvents, ...(terminalEvent ? [terminalEvent] : [])]
-
-                           .filter((event) => event.at)
-
-                           .sort((a, b) => new Date(a.at!).getTime() - new Date(b.at!).getTime());
-                         return allEvents.length > 0 ? (
-                           // Flat, no wrapper background — the shared per-row
-                           // banding (timelineRowBandClass) shows against the
-                           // card instead of blending into a gray panel (finding a).
-                           <div className="space-y-1.5 pt-1">
-                             {allEvents.map((event, index) => (
-                               <p key={`${event.at ?? ""}-${event.text}`} className={`text-sm text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}>
-                                 {event.text} — {formatDate(event.at!)}
-                               </p>
-                             ))}
-                           </div>
-                         ) : null;
-                       })()}
+                      {narrativeEvents.length > 0 ? (
+                        <div className="space-y-2">
+                          {narrativeEvents.map((event, index) => (
+                            <p
+                              key={`${event.at}-${event.text}`}
+                              className={`px-2 py-1 text-sm leading-6 text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}
+                            >
+                              {event.text} — {formatDate(event.at)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                       {reactivationStage === "agency_accepted" ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                           Request is pending. Find it in the Pending tab.
@@ -1492,8 +1482,8 @@ export function MyJoinRequestsClient() {
                                 });
                               }
                         }
-                        return events.map((event) => (
-                          <div key={event.key} className="rounded-lg bg-gray-100 p-3 text-sm leading-6 dark:bg-gray-950/40">
+                        return events.map((event, eventIndex) => (
+                          <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
                             <p className="font-medium text-gray-900 dark:text-white">
                               {event.type} — {formatDate(event.date)}
                             </p>
@@ -1522,9 +1512,6 @@ export function MyJoinRequestsClient() {
                           This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
                         </p>
                       )}
-                      <div className="rounded-lg bg-gray-100 p-3 text-xs leading-5 text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-                        This cooldown is enforced server-side; the API blocks reapply with the authoritative date.
-                      </div>
                     </div>
                   </CardBody>
                 </Card>

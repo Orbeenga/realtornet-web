@@ -54,17 +54,18 @@ import {
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
   resolveStatusBadge,
-  resolveTerminalApprovalEvent,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
+  resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
 import {
   MembershipTimeline,
   TimelineHeader,
+  timelineRowBandClass,
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
@@ -306,6 +307,14 @@ export function AgencyMembersClient() {
     agencyId,
     leftAgents.map((a) => a.user_id),
     Boolean(agencyId) && leftAgents.length > 0,
+  );
+
+  // U-022d/U-026 parity: per-member history for the Expired join-request tab
+  const expiredRequests = joinRequestsQuery.data?.filter(hasExpiredHistory) ?? [];
+  const expiredHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    expiredRequests.map((r) => r.user_id),
+    Boolean(agencyId) && expiredRequests.length > 0,
   );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -785,49 +794,43 @@ export function AgencyMembersClient() {
                 ) : null}
                 {!joinRequestsQuery.isLoading && joinRequests.filter(hasExpiredHistory).length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(hasExpiredHistory).map((request) => {
+                    {joinRequests.filter(hasExpiredHistory).map((request, expiredIndex) => {
                       const agent = agents.find((a) => a.user_id === request.user_id);
                       const liveStatus = agent?.membership_status ?? request.status;
                       const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                       const reactivationEvents = resolveJoinRequestReactivationTrace(
-                         request,
-                         user?.user_id ?? null,
-                         false,
-                       );
-                       const terminalEvent = resolveTerminalApprovalEvent(request, user?.user_id ?? null, false);
-                       return (
-                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                      // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                      // chronological stream via resolveExpiredNarrativeTimeline
+                      // (single sorted array, single banded loop - no second list).
+                      const narrativeEvents = resolveExpiredNarrativeTimeline(
+                        expiredHistoryQueries[expiredIndex]?.data ?? [],
+                        request,
+                        { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                      );
+                      return (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                           <TimelineHeader
                             entity="person"
                             name={request.seeker_name ?? "Seeker"}
-                             role={agent?.user_role}
+                            role={agent?.user_role}
                             status={liveStatus}
                             applicationStatus={request.status}
-                              eventCount={2 + reactivationEvents.length + (terminalEvent ? 1 : 0)}
+                            email={request.seeker_email ?? undefined}
                             lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                            eventCount={narrativeEvents.length}
                           />
-                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                           {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                         </p>
-                         {request.expires_at ? (
-                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                             Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
-                           </p>
-                         ) : null}
-                         <div className="mt-2 space-y-2">
-                           {(() => {
-                             const allEvents = [...reactivationEvents];
-                             if (terminalEvent) allEvents.push(terminalEvent);
-                             return allEvents.length > 0 ? (
-                               <div className="space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
-                                 {allEvents.map((event) => (
-                                   <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
-                                     {event.text} — {formatDate(event.at!)}
-                                   </p>
-                                 ))}
-                               </div>
-                             ) : null;
-                           })()}
+                        <div className="mt-2 space-y-2">
+                          {narrativeEvents.length > 0 ? (
+                            <div className="space-y-1">
+                              {narrativeEvents.map((event, index) => (
+                                <p
+                                  key={`${event.at}-${event.text}`}
+                                  className={`px-2 py-1 text-sm leading-6 text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}
+                                >
+                                  {event.text} — {formatDate(event.at)}
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
                            {reactivationStage === "agency_accepted" ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                               Request is pending. Approve in Review Requests.
