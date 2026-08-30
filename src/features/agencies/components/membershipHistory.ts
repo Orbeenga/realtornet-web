@@ -301,6 +301,23 @@ export function getMembershipHistoryByAction(
 export function getRevokedMembershipHistory(
   history: MembershipTimelineEntry[],
   match: { agency_id?: number | null; agency_name?: string | null; user_id?: number | null },
+  opts?: { includeReviewRequests?: boolean },
 ): MembershipTimelineEntry[] {
-  return getMembershipHistoryByAction(history, match, "revoked");
+  const revoked = getMembershipHistoryByAction(history, match, "revoked");
+  if (!opts?.includeReviewRequests) return revoked;
+  // In-flight + resolved review requests tied to this revoked membership,
+  // appended to the same array (U-019 Tier 2b: decision-history tabs carry the
+  // full artifact timeline, including the review message). The renderer labels
+  // source_type === "review_request" rows canonically ("Review requested") and
+  // the submitted request surfaces immediately via the existing
+  // useCreateAgencyReviewRequest invalidation of ["membershipHistory"].
+  const reviewRows = history.filter(
+    (entry) =>
+      entry.source_type === "review_request" &&
+      !(match.user_id != null && entry.user_id != null && entry.user_id !== match.user_id) &&
+      !(match.agency_id != null && entry.agency_id != null && entry.agency_id !== match.agency_id),
+  );
+  return [...revoked, ...reviewRows].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
 }

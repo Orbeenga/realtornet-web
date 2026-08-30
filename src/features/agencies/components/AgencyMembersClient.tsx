@@ -1113,7 +1113,7 @@ export function AgencyMembersClient() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
                           </p>
-                          {agent.pending_review_request_id ? (
+                  {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>
                               {agent.pending_review_reason ? <p className="mt-1">{agent.pending_review_reason}</p> : null}
@@ -1698,6 +1698,7 @@ export function AgencyMembersClient() {
               const agentHistory = getRevokedMembershipHistory(
                 revokedHistoryQueries[index]?.data ?? [],
                 { user_id: agent.user_id, agency_id: agent.agency_id },
+                { includeReviewRequests: true },
               );
               if (agentHistory.length === 0) return null;
               return (
@@ -1713,6 +1714,16 @@ export function AgencyMembersClient() {
                 />
               );
             })()}
+            {agent.pending_review_request_id ? (
+              // Ambient in-flight state (U-019 Tier 2b): the membership canonical
+              // status stays "revoked"; this block only narrates the open review
+              // request - same pattern as the Expired tab ambient blocks.
+              <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                <p className="font-medium">Review requested</p>
+                {agent.pending_review_reason ? <p className="mt-1">{agent.pending_review_reason}</p> : null}
+                {agent.pending_review_submitted_at ? <p className="mt-1">Submitted {formatOptionalDate(agent.pending_review_submitted_at)}</p> : null}
+              </div>
+            ) : null}
                     </div>
                   ))}
                 </div>

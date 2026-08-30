@@ -976,7 +976,7 @@ export function MyJoinRequestsClient() {
                   const revokedTimeline = getRevokedMembershipHistory(historyQuery.data ?? [], {
                     agency_id: membership.agency_id,
                     agency_name: membership.agency_name,
-                  });
+                  }, { includeReviewRequests: true });
                   // Reinstatement means: a `reinstated` audit event that happened
                   // AFTER the most recent `revoked`. The original `joined`
                   // approval from a prior cycle must not suppress the CTA
@@ -1002,6 +1002,14 @@ export function MyJoinRequestsClient() {
                             verified={membership.is_verified}
                             alwaysExpanded
                           />
+                        ) : null}
+                        {membership.pending_review_request_id ? (
+                          // Ambient in-flight state (U-019 Tier 2b): the membership
+                          // status stays canonically "revoked" in data and header;
+                          // this block carries the pending review state instead.
+                          <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            You requested a review of this revoked membership. It is pending a response from {membership.agency_name}.
+                          </p>
                         ) : null}
                         {!reinstatementEvent && !membership.pending_review_request_id ? (
                           <div className="space-y-3">
