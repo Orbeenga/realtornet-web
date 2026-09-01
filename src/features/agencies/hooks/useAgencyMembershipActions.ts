@@ -4,6 +4,7 @@ import type {
   AgencyAgentMembershipActionRequest,
   AgencyAgentMembershipResponse,
   AgencyAgentRosterMember,
+  AgencyMembershipReviewRequestResponse,
   AgencyReviewRequestCreate,
   AgencyReviewRequestAcceptRequest,
   AgencyReviewRequestDeclineRequest,
@@ -103,6 +104,40 @@ export function useCreateAgencyReviewRequest() {
   });
 }
 
+/**
+ * Membership-scoped review request (revoked/suspended/blocked memberships).
+ * This is the endpoint `MyAgencyMembershipResponse.pending_review_request_id`
+ * tracks — the generic /agencies/{id}/review-requests endpoint writes a
+ * different table (ReviewRequest) that the pending flag never reflects.
+ */
+export function useCreateAgencyMembershipReviewRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      agencyId,
+      membershipId,
+      reason,
+    }: {
+      agencyId: number;
+      membershipId: number;
+      reason: string;
+    }) =>
+      apiClient<AgencyMembershipReviewRequestResponse>(
+        `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-request/`,
+        {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["membershipHistory"] }),
+      ]);
+    },
+  });
+}
 export function useAgencyReviewRequests(
   agencyId?: string | number | null,
   enabled = true,

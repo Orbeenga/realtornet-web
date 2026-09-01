@@ -50,6 +50,8 @@ import {
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
+  ambientTextToneClass,
+  resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
@@ -123,14 +125,6 @@ function formatOptionalDate(value?: string | null) {
 
 function formatMembershipStatus(status: string) {
   return status;
-}
-
-function getMembershipBadgeVariant(status: string) {
-  if (status === "active") return "success" as const;
-  if (status === "suspended") return "warning" as const;
-  if (status === "revoked" || status === "inactive") return "danger" as const;
-  if (status === "left") return "outline" as const;
-  return "outline" as const;
 }
 
 function fmtTimeAgo(dateStr: string): string {
@@ -950,9 +944,17 @@ export function AgencyMembersClient() {
                           })()}
                         </div>
                         {cooldownDate ? (
-                          <div className="mt-2 rounded-lg bg-gray-100 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                            Cooldown period active. {group.seekerName} can apply again on {formatDate(cooldownDate.toISOString())}.
-                          </div>
+                          (() => {
+                            const cooldown = resolveCooldownAmbient({
+                              applicantName: group.seekerName,
+                              cooldownDate,
+                            });
+                            return (
+                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
+                                {cooldown.text}
+                              </p>
+                            );
+                          })()
                         ) : null}
                       </div>
                       );
@@ -1075,44 +1077,24 @@ export function AgencyMembersClient() {
                 {agents.filter(a => a.membership_status === "active").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {agent.display_name || agent.company_name || "Listing agent"}
-                            </p>
-                            <Badge variant={getMembershipBadgeVariant(agent.membership_status)}>
-                              {formatMembershipStatus(agent.membership_status)}
-                            </Badge>
-                          </div>
-                          <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                            {agent.email}{agent.phone_number ? ` - ${agent.phone_number}` : ""}
-                          </p>
-                          <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                            <span>{agent.specialization ?? "Real estate agent"}</span>
-                            {agent.years_experience != null ? <span>{agent.years_experience} years experience</span> : null}
-                            {agent.license_number ? <span>License {agent.license_number}</span> : null}
-                          </div>
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Decision reason: {agent.status_reason}</p>
-                          ) : null}
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Last decision {formatOptionalDate(agent.status_decided_at)}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.phone_number ? `${agent.email} - ${agent.phone_number}` : agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            agent.specialization ?? "Real estate agent",
+                            ...(agent.years_experience != null ? [`${agent.years_experience} years experience`] : []),
+                            ...(agent.license_number ? [`License ${agent.license_number}`] : []),
+                            ...(agent.status_reason ? [`Decision reason: ${agent.status_reason}`] : []),
+                            ...(agent.status_decided_at ? [`Last decision ${formatOptionalDate(agent.status_decided_at)}`] : []),
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                   {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>
@@ -1141,7 +1123,6 @@ export function AgencyMembersClient() {
                               );
                             })()
                           ) : null}
-                        </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         {agent.profile_id ? (
@@ -1262,29 +1243,18 @@ export function AgencyMembersClient() {
                 {agents.filter(isAgentInactive).map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {agent.email}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1506,32 +1476,21 @@ export function AgencyMembersClient() {
                 {agents.filter(a => a.membership_status === "suspended").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="warning">suspended</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Suspended {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            ...(agent.status_decided_at ? [`Suspended ${formatDate(agent.status_decided_at)}`] : []),
+                            ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button type="button" size="sm"
@@ -1547,9 +1506,6 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                    </p>
                     <Input
                       label="Decision reason" placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}
@@ -1589,35 +1545,21 @@ export function AgencyMembersClient() {
                 {leftAgents.map((agent, index) => (
                   <div key={agent.user_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="outline">left</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Left {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            ...(agent.status_decided_at ? [`Left ${formatDate(agent.status_decided_at)}`] : []),
+                            ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button type="button" size="sm"
@@ -1647,6 +1589,7 @@ export function AgencyMembersClient() {
                           tier="rich"
                           history={leftEvents}
                           alwaysExpanded
+                          showHeader={false}
                           entity="person"
                           defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
                           role={agent.user_role}
@@ -1707,23 +1650,16 @@ export function AgencyMembersClient() {
                   history={agentHistory}
                   alwaysExpanded
                   entity="person"
-                   defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                  avatarUrl={agent.profile_image_url}
+                  defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
                   role={agent.user_role}
                   status={formatMembershipStatus(agent.membership_status)}
+                  email={agent.email}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                 />
               );
             })()}
-            {agent.pending_review_request_id ? (
-              // Ambient in-flight state (U-019 Tier 2b): the membership canonical
-              // status stays "revoked"; this block only narrates the open review
-              // request - same pattern as the Expired tab ambient blocks.
-              <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                <p className="font-medium">Review requested</p>
-                {agent.pending_review_reason ? <p className="mt-1">{agent.pending_review_reason}</p> : null}
-                {agent.pending_review_submitted_at ? <p className="mt-1">Submitted {formatOptionalDate(agent.pending_review_submitted_at)}</p> : null}
-              </div>
-            ) : null}
+            {null}
                     </div>
                   ))}
                 </div>
@@ -1757,32 +1693,20 @@ export function AgencyMembersClient() {
                 {agents.filter(a => a.membership_status === "blocked").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="danger">blocked</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Blocked {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            ...(agent.status_decided_at ? [`Blocked ${formatDate(agent.status_decided_at)}`] : []),
+                            ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
+                          ]}
+                        />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button type="button" size="sm"

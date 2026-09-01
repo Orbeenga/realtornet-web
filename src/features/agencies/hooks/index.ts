@@ -8,6 +8,7 @@ export {
   useAcceptAgencyReviewRequest,
   useBlockAgencyMembership,
   useAgencyReviewRequests,
+  useCreateAgencyMembershipReviewRequest,
   useCreateAgencyReviewRequest,
   useDeclineAgencyReviewRequest,
   useLeaveAgencyMembership,

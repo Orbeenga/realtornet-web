@@ -298,6 +298,11 @@ export function getMembershipHistoryByAction(
  * requests, review requests, and other audit actions have their own tabs,
  * and rendering them here was the discriminator gap.
  */
+/* Shared revoked-membership scoped filter lives HERE ONLY (canonical
+   membershipHistory.ts scoped-filter family). Variants: `match` keys on
+   user_id (agency viewer) or agency_id/agency_name (seeker viewer);
+   `opts.includeReviewRequests` appends membership-scoped review_request
+   rows (pending + resolved) tied to the revoked cycle. */
 export function getRevokedMembershipHistory(
   history: MembershipTimelineEntry[],
   match: { agency_id?: number | null; agency_name?: string | null; user_id?: number | null },

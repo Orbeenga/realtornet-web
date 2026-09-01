@@ -34,6 +34,12 @@ interface MembershipTimelineProps {
       membership status need to coexist (e.g., Approved tab showing "approved"
       badge + "active" qualifier). */
   applicationStatus?: string;
+  /** Person-entity contact line — forwarded to the canonical TimelineHeader. */
+  email?: string;
+  /** Person-entity avatar — forwarded to the canonical TimelineHeader. */
+  avatarUrl?: string | null;
+  /** Extra person-entity qualifier lines — forwarded to the canonical TimelineHeader. */
+  qualifiers?: string[];
 }
 
 /* Shared timeline row zebra-banding lives HERE ONLY (canonical MembershipHistoryList
@@ -102,58 +108,102 @@ export function TimelineHeader({
   lastSeen,
   applicationStatus,
   email,
+  avatarUrl,
+  qualifiers,
 }: {
   entity?: "person" | "agency";
   name: string;
   role?: string;
   status?: string;
   verified?: boolean;
-  eventCount: number;
+  /** Optional — member-card headers without a timeline render without a
+      count; timeline tiers always pass the computed count. */
+  eventCount?: number;
   lastSeen?: string;
   applicationStatus?: string;
   /** Person-entity contact line, rendered directly under the name/role row
       (agency-side member cards) before the status/event-count qualifiers. */
   email?: string;
+  /** Person-entity avatar (profile photo or name initials). Canonical avatar
+      block shared by all member-card headers that opt in. */
+  avatarUrl?: string | null;
+  /** Extra person-entity qualifier lines (specialization, listing count,
+      decision reason, ...). Rendered as small gray lines after the
+      status/event-count row, before Last seen. */
+  qualifiers?: string[];
 }) {
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  /* CANONICAL SEPARATION (two distinct items, deliberately not merged):
+     1. ENTITY HEADER  — name/role|verified, email, membership status,
+        event count, qualifiers, last seen. Describes WHO the record is.
+        Rendered in normal flow below.
+     2. APPLICATION STATUS — a card-level canonical status of its own
+        (approved/rejected/expired/...). It is NOT part of the header
+        identity block; it is pinned to the TOP-RIGHT CORNER of the whole
+        card via absolute positioning so it reads as belonging to the
+        entire card, never bundled inline with the header row. */
   return (
-    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-            <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
-        <div className="flex flex-wrap items-center gap-x-2">
-          <span className="font-medium text-gray-900 dark:text-white">{name}</span>
-          {entity === "person" && role ? (
-            <span className="text-xs lowercase text-blue-700 dark:text-blue-300">{role}</span>
-          ) : null}
-          {entity === "agency" && verified !== undefined ? (
-            <span className={`text-xs ${verified ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
-              {verified ? "Verified" : "Unverified"}
-            </span>
-          ) : null}
-        </div>
-        {applicationStatus
-          ? (() => {
-              const appBadge = resolveStatusBadge(applicationStatus);
-              return (
-                <Badge variant={appBadge.variant} className="ml-auto">
-                  {appBadge.label}
-                </Badge>
-              );
-            })()
-          : null}
-      </div>
-      {entity === "person" && email ? (
-        <div className="text-xs text-gray-500 dark:text-gray-400">{email}</div>
+    <div className="relative flex min-w-0 items-center gap-3">
+      {/* --- Canonical item 2: application status, card top-right corner --- */}
+      {applicationStatus ? (
+        (() => {
+          const appBadge = resolveStatusBadge(applicationStatus);
+          return (
+            <Badge variant={appBadge.variant} className="absolute right-0 top-0">
+              {appBadge.label}
+            </Badge>
+          );
+        })()
       ) : null}
-      <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
-        {status ? (
-          <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
+      {/* --- Canonical item 1: entity header (normal flow) --- */}
+      {entity === "person" ? (
+        avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+            {initials}
+          </div>
+        )
+      ) : null}
+      <div className={`min-w-0 space-y-1 text-sm text-gray-600 dark:text-gray-400${applicationStatus ? " pr-24" : ""}`}>
+        <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-2">
+            <span className="font-medium text-gray-900 dark:text-white">{name}</span>
+            {entity === "person" && role ? (
+              <span className="text-xs lowercase text-blue-700 dark:text-blue-300">{role}</span>
+            ) : null}
+            {entity === "agency" && verified !== undefined ? (
+              <span className={`text-xs ${verified ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
+                {verified ? "Verified" : "Unverified"}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {entity === "person" && email ? (
+          <div className="truncate text-xs text-gray-500 dark:text-gray-400">{email}</div>
         ) : null}
-        <span className="lowercase">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
-      </div>
-      {entity === "person" && lastSeen ? (
-        <div className="flex items-center gap-x-2 text-xs text-gray-400">
-          <span>Last seen: {lastSeen}</span>
+        <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
+          {status ? (
+            <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
+          ) : null}
+          {eventCount != null ? (
+            <span className="lowercase">{eventCount} event{eventCount === 1 ? "" : "s"}</span>
+          ) : null}
         </div>
-      ) : null}
+        {(qualifiers ?? []).filter(Boolean).map((line) => (
+          <div key={line} className="text-xs text-gray-500 dark:text-gray-400">{line}</div>
+        ))}
+        {entity === "person" && lastSeen ? (
+          <div className="flex items-center gap-x-2 text-xs text-gray-400">
+            <span>Last seen: {lastSeen}</span>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -176,6 +226,9 @@ export function MembershipTimeline({
   lastSeen,
   labelStage = "invitation",
   applicationStatus,
+  email,
+  avatarUrl,
+  qualifiers,
 }: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -226,6 +279,9 @@ export function MembershipTimeline({
             eventCount={eventCount}
             lastSeen={lastSeen}
             applicationStatus={applicationStatus}
+            email={email}
+            avatarUrl={avatarUrl}
+            qualifiers={qualifiers}
           />
         ) : null}
         {visible.map((entry, index) => (
@@ -271,51 +327,74 @@ export function MembershipTimeline({
           eventCount={eventCount}
           lastSeen={lastSeen}
           applicationStatus={applicationStatus}
+          email={email}
+          avatarUrl={avatarUrl}
+          qualifiers={qualifiers}
         />
       ) : null}
       {visibleEntries.map((entry, index) => {
         const entryId = String(entry.id ?? entry.timestamp);
         const label = resolveTimelineLabel(entry, labelStage);
+        /* Shared pending-review row-variant lives HERE ONLY (canonical
+           MembershipHistoryList rich tier). Derived from live row data per
+           O-002 — no stored seen/resolved flag: a membership-scoped
+           review_request row (the only kind carrying a `review_response`
+           key) renders highlighted while `review_response` is null, and
+           re-renders through the canonical badge path once the existing
+           Review Requests accept/decline populates it. Same event id, same
+           row — one boolean-derived render branch. */
+        const isPendingReviewRow =
+          entry.source_type === "review_request" &&
+          entry.review_response !== undefined &&
+          entry.review_response === null;
 
         return (
           <div
             key={entryId}
             // Shared zebra banding (grey/white alternating), no borders — same
             // pairing as the simple tier, defined here only (canonical component).
-            className={`px-4 py-3 text-sm ${timelineRowBandClass(index)}`}
+            // Pending-review rows swap the band for the shared amber ambient
+            // treatment (same tokens as the ambient banner family) for the
+            // whole row, so the event stays fully inside one visual unit.
+            className={
+              isPendingReviewRow
+                ? "rounded-lg bg-amber-50 px-4 py-3 text-sm dark:bg-amber-950/40"
+                : `px-4 py-3 text-sm ${timelineRowBandClass(index)}`
+            }
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {formatMembershipDate(entry.timestamp)}
               </div>
-              {label !== "Event" ? (
+              {isPendingReviewRow ? (
+                <Badge variant="warning">Pending</Badge>
+              ) : label !== "Event" ? (
                 <Badge variant={timelineActionBadgeVariant(entry)}>
                   {label}
                 </Badge>
               ) : null}
             </div>
+            {isPendingReviewRow ? (
+              <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                {entity === "person"
+                  ? `${entry.user_display_name ?? "This member"} has requested a review of their revoked membership. Find it in Review Requests.`
+                  : `You requested a review of this revoked membership. It is pending a response from ${entry.agency_name ?? "the agency"}.`}
+              </p>
+            ) : null}
             {entry.reason ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
             ) : null}
             {entry.cover_note ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-              </div>
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.cover_note}</p>
             ) : null}
             {entry.portfolio_details ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="whitespace-pre-wrap">{entry.portfolio_details}</p>
-              </div>
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.portfolio_details}</p>
             ) : null}
             {entry.review_message ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="whitespace-pre-wrap">{entry.review_message}</p>
-              </div>
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.review_message}</p>
             ) : null}
             {entry.review_response ? (
-              <div className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-800 dark:bg-gray-950/40 dark:text-gray-200">
-                <p className="whitespace-pre-wrap">{entry.review_response}</p>
-              </div>
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.review_response}</p>
             ) : null}
           </div>
         );

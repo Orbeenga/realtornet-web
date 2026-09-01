@@ -18,7 +18,7 @@ import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
-  useCreateAgencyReviewRequest,
+  useCreateAgencyMembershipReviewRequest,
   useMembershipHistory,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
@@ -30,9 +30,11 @@ import {
   useRequestJoinRequestReactivationAsApplicant,
 } from "@/features/agencies/hooks";
 import {
+  ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
   invitationHasPendingAction,
+  resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
@@ -147,7 +149,7 @@ export function MyJoinRequestsClient() {
   const membershipsQuery = useMyAgencyMemberships(canViewAgencyMemberships);
   const historyQuery = useMembershipHistory(canViewAgencyMemberships);
   const invitationsQuery = useMyAgencyInvitations(canViewAgencyInvitations);
-  const createReviewRequest = useCreateAgencyReviewRequest();
+  const createReviewRequest = useCreateAgencyMembershipReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
   const requestReactivation = useRequestInvitationReactivation();
@@ -159,7 +161,19 @@ export function MyJoinRequestsClient() {
 
   const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
 
-  const handleReviewRequest = async (agencyId: number, membershipId: number) => {
+  const handleReviewRequest = async (
+    agencyId: number,
+    membershipId: number,
+    pendingReviewRequestId?: number | null,
+  ) => {
+    // UI-008 gate order: the pending-review check must short-circuit FIRST,
+    // before any reason-field validation (mirrors handleReapply's
+    // cooldown-check-first shape); the server 409 path below stays as the
+    // defensive second layer.
+    if (pendingReviewRequestId != null) {
+      notify.info("Review request already submitted - waiting for agency response.");
+      return;
+    }
     const message = reviewReasons[membershipId]?.trim();
     if (!message) {
       notify.error("Please provide a reason before submitting a review request.");
@@ -168,7 +182,8 @@ export function MyJoinRequestsClient() {
     try {
       await createReviewRequest.mutateAsync({
         agencyId,
-        payload: { message },
+        membershipId,
+        reason: message,
       });
       notify.success("Your request has been submitted.");
       setReviewReasons((current) => {
@@ -182,7 +197,7 @@ export function MyJoinRequestsClient() {
 
       if (
         error instanceof ApiError &&
-        error.status === 409 &&
+        (error.status === 409 || error.status === 400) &&
         (text.includes("pending") || text.includes("already"))
       ) {
         notify.info("Review request already submitted - waiting for agency response.");
@@ -248,6 +263,10 @@ export function MyJoinRequestsClient() {
     }
   };
 
+  /* Shared cooldown-gated CTA handler lives HERE ONLY (canonical UI-008
+     reapply pattern). Variants: client-side cooldown-gate first (fast/local,
+     notify.error), then fire; server 403/409 detail surfaced as the defensive
+     second layer. Button stays clickable — never hard-disable. */
   const handleReapply = async (agencyId: number) => {
     if (applyAgainDates.has(agencyId)) {
       notify.error("Limit exceeded. Apply again after the cooldown period.");
@@ -854,6 +873,7 @@ export function MyJoinRequestsClient() {
                               void handleReviewRequest(
                                 membership.agency_id,
                                 membership.membership_id,
+                                membership.pending_review_request_id,
                               )
                             }
                           >
@@ -946,6 +966,7 @@ export function MyJoinRequestsClient() {
                               void handleReviewRequest(
                                 membership.agency_id,
                                 membership.membership_id,
+                                membership.pending_review_request_id,
                               )
                             }
                           >
@@ -1003,15 +1024,9 @@ export function MyJoinRequestsClient() {
                             alwaysExpanded
                           />
                         ) : null}
-                        {membership.pending_review_request_id ? (
-                          // Ambient in-flight state (U-019 Tier 2b): the membership
-                          // status stays canonically "revoked" in data and header;
-                          // this block carries the pending review state instead.
-                          <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            You requested a review of this revoked membership. It is pending a response from {membership.agency_name}.
-                          </p>
-                        ) : null}
-                        {!reinstatementEvent && !membership.pending_review_request_id ? (
+                        {/* UI-008: button stays clickable while a review is pending;
+                            the existing handleReviewRequest 409 -> notify.info path explains. */}
+                        {!reinstatementEvent ? (
                           <div className="space-y-3">
                             <textarea
                               rows={3}
@@ -1036,6 +1051,7 @@ export function MyJoinRequestsClient() {
                                 void handleReviewRequest(
                                   membership.agency_id,
                                   membership.membership_id,
+                                  membership.pending_review_request_id,
                                 )
                               }
                             >
@@ -1492,7 +1508,7 @@ export function MyJoinRequestsClient() {
                         }
                         return events.map((event, eventIndex) => (
                           <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
                               {event.type} — {formatDate(event.date)}
                             </p>
                             {event.message ? (
@@ -1511,15 +1527,15 @@ export function MyJoinRequestsClient() {
                       >
                         Apply Again
                       </Button>
-                      {applyAgainDate ? (
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                          You have exceeded the maximum number of reapplications. Apply again on {formatDate(applyAgainDate.toISOString())}.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
-                        </p>
-                      )}
+                      {(() => {
+                        const ambient = resolveCancelledApplicationAmbient({
+                          agencyName: group.agencyName,
+                          applyAgainDate,
+                        });
+                        return (
+                          <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
+                        );
+                      })()}
                     </div>
                   </CardBody>
                 </Card>
