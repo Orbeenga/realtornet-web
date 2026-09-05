@@ -7,15 +7,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipTimeline, TimelineHeader } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
 import {
   getApprovedRequestCycleHistory,
+  getMembershipHistoryByAction,
+  getRevokedMembershipHistory,
+  resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
 import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
-  useCreateAgencyReviewRequest,
+  useCreateAgencyMembershipReviewRequest,
   useMembershipHistory,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
@@ -27,13 +30,14 @@ import {
   useRequestJoinRequestReactivationAsApplicant,
 } from "@/features/agencies/hooks";
 import {
+  ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
   invitationHasPendingAction,
+  resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
-  resolveTerminalApprovalEvent,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
@@ -145,7 +149,7 @@ export function MyJoinRequestsClient() {
   const membershipsQuery = useMyAgencyMemberships(canViewAgencyMemberships);
   const historyQuery = useMembershipHistory(canViewAgencyMemberships);
   const invitationsQuery = useMyAgencyInvitations(canViewAgencyInvitations);
-  const createReviewRequest = useCreateAgencyReviewRequest();
+  const createReviewRequest = useCreateAgencyMembershipReviewRequest();
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
   const requestReactivation = useRequestInvitationReactivation();
@@ -157,7 +161,19 @@ export function MyJoinRequestsClient() {
 
   const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
 
-  const handleReviewRequest = async (agencyId: number, membershipId: number) => {
+  const handleReviewRequest = async (
+    agencyId: number,
+    membershipId: number,
+    pendingReviewRequestId?: number | null,
+  ) => {
+    // UI-008 gate order: the pending-review check must short-circuit FIRST,
+    // before any reason-field validation (mirrors handleReapply's
+    // cooldown-check-first shape); the server 409 path below stays as the
+    // defensive second layer.
+    if (pendingReviewRequestId != null) {
+      notify.info("Review request already submitted - waiting for agency response.");
+      return;
+    }
     const message = reviewReasons[membershipId]?.trim();
     if (!message) {
       notify.error("Please provide a reason before submitting a review request.");
@@ -166,7 +182,8 @@ export function MyJoinRequestsClient() {
     try {
       await createReviewRequest.mutateAsync({
         agencyId,
-        payload: { message },
+        membershipId,
+        reason: message,
       });
       notify.success("Your request has been submitted.");
       setReviewReasons((current) => {
@@ -180,7 +197,7 @@ export function MyJoinRequestsClient() {
 
       if (
         error instanceof ApiError &&
-        error.status === 409 &&
+        (error.status === 409 || error.status === 400) &&
         (text.includes("pending") || text.includes("already"))
       ) {
         notify.info("Review request already submitted - waiting for agency response.");
@@ -246,6 +263,10 @@ export function MyJoinRequestsClient() {
     }
   };
 
+  /* Shared cooldown-gated CTA handler lives HERE ONLY (canonical UI-008
+     reapply pattern). Variants: client-side cooldown-gate first (fast/local,
+     notify.error), then fire; server 403/409 detail surfaced as the defensive
+     second layer. Button stays clickable — never hard-disable. */
   const handleReapply = async (agencyId: number) => {
     if (applyAgainDates.has(agencyId)) {
       notify.error("Limit exceeded. Apply again after the cooldown period.");
@@ -328,6 +349,18 @@ export function MyJoinRequestsClient() {
 
   const requests = requestsQuery.data ?? [];
   const cancelledRequestGroups = groupMyJoinRequestCycles(requests);
+  // U-028 / U-009: rejected requests grouped per (user, agency) pair — one
+  // cumulative card per agency, every rejected cycle inside it.
+  const groupedRejectedRequests = [
+    ...requests
+      .filter((r) => r.status === "rejected")
+      .reduce((acc, request) => {
+        const group = acc.get(request.agency_id) ?? [];
+        group.push(request);
+        acc.set(request.agency_id, group);
+        return acc;
+      }, new Map<number, MyAgencyJoinRequestResponse[]>()),
+  ];
   const applyAgainDates = new Map<number, Date>();
   for (const group of cancelledRequestGroups) {
     const applyAgainDate = getApplyAgainDate(group.requests);
@@ -807,7 +840,7 @@ export function MyJoinRequestsClient() {
                         </p>
                       ) : null}
                       {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                           {membership.status_reason}
                         </div>
                       ) : null}
@@ -840,6 +873,7 @@ export function MyJoinRequestsClient() {
                               void handleReviewRequest(
                                 membership.agency_id,
                                 membership.membership_id,
+                                membership.pending_review_request_id,
                               )
                             }
                           >
@@ -862,6 +896,28 @@ export function MyJoinRequestsClient() {
                 leftMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
+                      {/* U-028: cumulative card — the relationship's own 'left'
+                          events render inside the card via the shared scoped
+                          filter (SSOT with the Revoked tabs), not scattered rows. */}
+                      {(() => {
+                        const leftEvents = getMembershipHistoryByAction(
+                          historyQuery.data ?? [],
+                          { agency_id: membership.agency_id, agency_name: membership.agency_name },
+                          "left",
+                        );
+                        if (leftEvents.length === 0) return null;
+                        return (
+                          <MembershipTimeline
+                            tier="simple"
+                            history={leftEvents}
+                            emptyTitle="No events"
+                            emptyDescription=""
+                            entity="agency"
+                            defaultUserDisplayName={membership.agency_name}
+                            labelStage="join_request"
+                          />
+                        );
+                      })()}
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <Link
                           href={`/agencies/${membership.agency_id}`}
@@ -877,7 +933,7 @@ export function MyJoinRequestsClient() {
                         </p>
                       ) : null}
                       {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                           {membership.status_reason}
                         </div>
                       ) : null}
@@ -910,6 +966,7 @@ export function MyJoinRequestsClient() {
                               void handleReviewRequest(
                                 membership.agency_id,
                                 membership.membership_id,
+                                membership.pending_review_request_id,
                               )
                             }
                           >
@@ -930,26 +987,46 @@ export function MyJoinRequestsClient() {
                 </div>
               ) : (
                 revokedMemberships.map((membership) => {
-                  const agencyHistory = (historyQuery.data ?? []).filter(
+                  const fullAgencyHistory = (historyQuery.data ?? []).filter(
                     (h) => h.agency_id === membership.agency_id || h.agency_name === membership.agency_name,
                   );
-                  const reinstatementEvent = [...agencyHistory]
-                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                    .find((h) => h.action === "reinstated" || h.action === "joined");
+                  // Rule 20 (SSOT): the rendered timeline consumes the SAME
+                  // discriminator filter as the agency-side Revoked tab
+                  // (getRevokedMembershipHistory) — not a parallel implementation.
+                  // Full history is kept only for the reinstatement/CTA check below.
+                  const revokedTimeline = getRevokedMembershipHistory(historyQuery.data ?? [], {
+                    agency_id: membership.agency_id,
+                    agency_name: membership.agency_name,
+                  }, { includeReviewRequests: true });
+                  // Reinstatement means: a `reinstated` audit event that happened
+                  // AFTER the most recent `revoked`. The original `joined`
+                  // approval from a prior cycle must not suppress the CTA
+                  // (DEF-U-REVOKED-TAB-DISCRIMINATOR-001, CTA half).
+                  const sortedHistory = [...fullAgencyHistory].sort(
+                    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                  );
+                  const lastRevokedAt = sortedHistory.find((h) => h.action === "revoked")?.timestamp ?? null;
+                  const reinstatementEvent = sortedHistory.find(
+                    (h) =>
+                      h.action === "reinstated" &&
+                      (!lastRevokedAt || new Date(h.timestamp).getTime() > new Date(lastRevokedAt).getTime()),
+                  );
                   return (
                     <Card key={membership.membership_id}>
                       <CardBody className="space-y-4">
-                        {agencyHistory.length > 0 ? (
+                        {revokedTimeline.length > 0 ? (
                           <MembershipTimeline
                             tier="rich"
-                            history={agencyHistory}
+                            history={revokedTimeline}
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
                             alwaysExpanded
                           />
                         ) : null}
-                        {!reinstatementEvent && !membership.pending_review_request_id ? (
+                        {/* UI-008: button stays clickable while a review is pending;
+                            the existing handleReviewRequest 409 -> notify.info path explains. */}
+                        {!reinstatementEvent ? (
                           <div className="space-y-3">
                             <textarea
                               rows={3}
@@ -974,6 +1051,7 @@ export function MyJoinRequestsClient() {
                                 void handleReviewRequest(
                                   membership.agency_id,
                                   membership.membership_id,
+                                  membership.pending_review_request_id,
                                 )
                               }
                             >
@@ -1012,7 +1090,7 @@ export function MyJoinRequestsClient() {
                         </p>
                       ) : null}
                       {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
                           {membership.status_reason}
                         </div>
                       ) : null}
@@ -1123,13 +1201,13 @@ export function MyJoinRequestsClient() {
                       Submitted {formatDate(request.submitted_at)}
                     </p>
                     {request.cover_note ? (
-                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                      <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
                         <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
                         <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
                       </div>
                     ) : null}
                     {request.portfolio_details ? (
-                      <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                      <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
                         <p className="font-medium text-gray-700 dark:text-gray-300">Portfolio details</p>
                         <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.portfolio_details}</p>
                       </div>
@@ -1186,7 +1264,7 @@ export function MyJoinRequestsClient() {
                           );
                         })()}
                         {reactivationStage !== "terminal" ? (
-                        <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                        <div className="space-y-1.5 pt-1">
                           {(() => {
                             const reactivationEvents = resolveJoinRequestReactivationTrace(
                               request,
@@ -1214,39 +1292,51 @@ export function MyJoinRequestsClient() {
                 <EmptyState title="No rejected requests" description="You have no rejected join requests." />
               </div>
             ) : (
-              requests.filter(r => r.status === "rejected").map((request) => (
-                <Card key={request.join_request_id}>
+              groupedRejectedRequests.map(([agencyId, groupRequests]) => {
+                // U-028 / U-009: one cumulative card per (user, agency) pair —
+                // every rejected cycle's decision stays visible inside the card.
+                const sortedRequests = [...groupRequests].sort(
+                  (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+                );
+                const latestRequest = sortedRequests[sortedRequests.length - 1];
+                return (
+                <Card key={agencyId}>
                   <CardBody className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <Link
-                        href={`/agencies/${request.agency_id}`}
+                        href={`/agencies/${agencyId}`}
                         className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                       >
-                        {request.agency_name}
+                        {latestRequest.agency_name}
                       </Link>
                       <Badge variant="danger">rejected</Badge>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Submitted {formatDate(request.submitted_at)}
-                    </p>
-                    {request.decided_at ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Rejected {formatDate(request.decided_at)}
-                      </p>
-                    ) : null}
-                    {request.rejection_reason ? (
-                      <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                        {request.rejection_reason}
+                    {sortedRequests.map((request) => (
+                      <div key={request.join_request_id} className={`space-y-2 ${timelineRowBandClass(sortedRequests.indexOf(request))}`}>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Submitted {formatDate(request.submitted_at)}
+                        </p>
+                        {request.decided_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Rejected {formatDate(request.decided_at)}
+                          </p>
+                        ) : null}
+                        {request.rejection_reason ? (
+                          <div className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                            {request.rejection_reason}
+                          </div>
+                        ) : null}
+                        {request.reactivation_requested_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {resolveTerminalReactivationRejectionMessage()}
+                          </p>
+                        ) : null}
                       </div>
-                    ) : null}
-                    {request.reactivation_requested_at ? (
-                      <p className="pt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {resolveTerminalReactivationRejectionMessage()}
-                      </p>
-                    ) : request.decided_at && request.rejection_reason ? (
+                    ))}
+                    {latestRequest.decided_at && latestRequest.rejection_reason && !latestRequest.reactivation_requested_at ? (
                       <div className="pt-2">
                         <Link
-                          href={`/agencies/${request.agency_id}/join`}
+                          href={`/agencies/${agencyId}/join`}
                           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                         >
                           Apply Again
@@ -1255,7 +1345,8 @@ export function MyJoinRequestsClient() {
                     ) : null}
                   </CardBody>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         ) : requestSubTab === "expired" ? (
@@ -1267,12 +1358,17 @@ export function MyJoinRequestsClient() {
             ) : (
               requests.filter(hasExpiredHistory).map((request) => {
                 const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                const reactivationEvents = resolveJoinRequestReactivationTrace(
+                // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                // chronological stream. resolveExpiredNarrativeTimeline merges all
+                // events (submitted, expired, reactivation, approval, downstream
+                // revoked/reinstated) into a single sorted array with real
+                // timestamps — never two separately-rendered lists, which is what
+                // previously produced out-of-order rows and broken banding.
+                const narrativeEvents = resolveExpiredNarrativeTimeline(
+                  historyQuery.data ?? [],
                   request,
-                  user?.user_id ?? null,
-                  true,
+                  { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
                 );
-                const terminalEvent = resolveTerminalApprovalEvent(request, user?.user_id ?? null, true);
                 return (
                   <Card key={request.join_request_id}>
                     <CardBody className="space-y-4">
@@ -1281,35 +1377,26 @@ export function MyJoinRequestsClient() {
                         name={request.agency_name}
                         verified={request.is_verified}
                         applicationStatus={request.status}
-                         eventCount={2 + reactivationEvents.length + (terminalEvent ? 1 : 0)}
+                         eventCount={narrativeEvents.length}
                       />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Submitted {formatDate(request.submitted_at)}
-                      </p>
-                      {request.expires_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
-                        </p>
-                      ) : null}
                       {request.cover_note ? (
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                        <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
                           <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
                           <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
                         </div>
                       ) : null}
-                       {(() => {
-                         const allEvents = [...reactivationEvents];
-                         if (terminalEvent) allEvents.push(terminalEvent);
-                         return allEvents.length > 0 ? (
-                           <div className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                             {allEvents.map((event) => (
-                               <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
-                                 {event.text} — {formatDate(event.at!)}
-                               </p>
-                             ))}
-                           </div>
-                         ) : null;
-                       })()}
+                      {narrativeEvents.length > 0 ? (
+                        <div className="space-y-2">
+                          {narrativeEvents.map((event, index) => (
+                            <p
+                              key={`${event.at}-${event.text}`}
+                              className={`px-2 py-1 text-sm leading-6 text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}
+                            >
+                              {event.text} — {formatDate(event.at)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                       {reactivationStage === "agency_accepted" ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                           Request is pending. Find it in the Pending tab.
@@ -1416,9 +1503,9 @@ export function MyJoinRequestsClient() {
                                 });
                               }
                         }
-                        return events.map((event) => (
-                          <div key={event.key} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
-                            <p className="font-medium text-gray-900 dark:text-white">
+                        return events.map((event, eventIndex) => (
+                          <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
+                            <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
                               {event.type} — {formatDate(event.date)}
                             </p>
                             {event.message ? (
@@ -1437,18 +1524,15 @@ export function MyJoinRequestsClient() {
                       >
                         Apply Again
                       </Button>
-                      {applyAgainDate ? (
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                          You have exceeded the maximum number of reapplications. Apply again on {formatDate(applyAgainDate.toISOString())}.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          This will appear to the agency alongside your prior cancelled request, in their Review Requests queue.
-                        </p>
-                      )}
-                      <div className="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-                        This cooldown is enforced server-side; the API blocks reapply with the authoritative date.
-                      </div>
+                      {(() => {
+                        const ambient = resolveCancelledApplicationAmbient({
+                          agencyName: group.agencyName,
+                          applyAgainDate,
+                        });
+                        return (
+                          <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
+                        );
+                      })()}
                     </div>
                   </CardBody>
                 </Card>

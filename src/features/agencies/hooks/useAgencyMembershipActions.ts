@@ -4,6 +4,7 @@ import type {
   AgencyAgentMembershipActionRequest,
   AgencyAgentMembershipResponse,
   AgencyAgentRosterMember,
+  AgencyMembershipReviewRequestResponse,
   AgencyReviewRequestCreate,
   AgencyReviewRequestAcceptRequest,
   AgencyReviewRequestDeclineRequest,
@@ -103,6 +104,40 @@ export function useCreateAgencyReviewRequest() {
   });
 }
 
+/**
+ * Membership-scoped review request (revoked/suspended/blocked memberships).
+ * This is the endpoint `MyAgencyMembershipResponse.pending_review_request_id`
+ * tracks — the generic /agencies/{id}/review-requests endpoint writes a
+ * different table (ReviewRequest) that the pending flag never reflects.
+ */
+export function useCreateAgencyMembershipReviewRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      agencyId,
+      membershipId,
+      reason,
+    }: {
+      agencyId: number;
+      membershipId: number;
+      reason: string;
+    }) =>
+      apiClient<AgencyMembershipReviewRequestResponse>(
+        `/api/v1/agencies/${agencyId}/agents/${membershipId}/review-request/`,
+        {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["membershipHistory"] }),
+      ]);
+    },
+  });
+}
 export function useAgencyReviewRequests(
   agencyId?: string | number | null,
   enabled = true,
@@ -128,24 +163,33 @@ function useAgencyReviewRequestDecision(
     mutationFn: ({
       requestId,
       payload,
+      sourceType,
     }: {
       requestId: number;
-      payload: AgencyReviewRequestAcceptRequest | AgencyReviewRequestDeclineRequest;
+      payload:
+        | Omit<AgencyReviewRequestAcceptRequest, "source_type">
+        | Omit<AgencyReviewRequestDeclineRequest, "source_type">;
+      /* U-033: REQUIRED queue-identity discriminator. The backend no longer
+         falls back across tables — bare numeric ids collide across the three
+         merged queue tables, so every decision names its owning table. */
+      sourceType: string;
     }) =>
       apiClient<AgencyReviewRequestResponse>(
         `/api/v1/agencies/${agencyId}/review-requests/${requestId}/${action}`,
         {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...payload, source_type: sourceType }),
         },
       ),
     onSuccess: async (reviewRequest) => {
+      /* Rule 21 action-queue discipline (Fix 2): the moment accept/decline
+         fires, the item is REMOVED from the cached queue — not updated
+         in place. A resolved row must never linger as an actionable
+         card, even for one render, regardless of invalidation timing. */
       queryClient.setQueryData<AgencyReviewRequestResponse[]>(
         ["agencyReviewRequests", agencyId],
         (current) =>
-          current?.map((request) =>
-            request.id === reviewRequest.id ? reviewRequest : request,
-          ) ?? current,
+          current?.filter((request) => request.id !== reviewRequest.id) ?? current,
       );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", agencyId] }),

@@ -50,20 +50,24 @@ import {
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
+  ambientTextToneClass,
+  resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
   resolveStatusBadge,
-  resolveTerminalApprovalEvent,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
   getApprovedRequestCycleHistory,
+  getMembershipHistoryByAction,
   getRevokedMembershipHistory,
+  resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
 import {
   MembershipTimeline,
   TimelineHeader,
+  timelineRowBandClass,
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
@@ -123,14 +127,6 @@ function formatMembershipStatus(status: string) {
   return status;
 }
 
-function getMembershipBadgeVariant(status: string) {
-  if (status === "active") return "success" as const;
-  if (status === "suspended") return "warning" as const;
-  if (status === "revoked" || status === "inactive") return "danger" as const;
-  if (status === "left") return "outline" as const;
-  return "outline" as const;
-}
-
 function fmtTimeAgo(dateStr: string): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
   const diffMinutes = Math.floor(diffMs / 60_000);
@@ -179,7 +175,16 @@ function groupAgencyReviewRequests(
 ): AgencyReviewRequestGroup[] {
   const groups = new Map<number, AgencyReviewRequestGroup>();
 
-  for (const request of reviewRequests) {
+  /* Rule 21 action-queue discipline (Fix 2, belt-and-suspenders): this tab
+     renders ONLY unresolved rows. Filtering here — not just in the cache
+     mutation — guarantees a stale resolved entry (30s staleTime or any
+     race) can never surface as an actionable card. The server already
+     excludes non-pending rows; this defends against cache staleness. */
+  const pendingRequests = reviewRequests.filter(
+    (request) => request.status === "pending",
+  );
+
+  for (const request of pendingRequests) {
     const current = groups.get(request.user_id);
     if (current) {
       current.requests.push(request);
@@ -283,11 +288,40 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && approvedRequests.length > 0,
   );
 
-  const revokedAgents = agentsQuery.data?.filter((a) => a.membership_status === "revoked") ?? [];
+  // U-028 + DEF-U-AGENCY-HISTORY-TAB-001 fix: the Revoked tab's card list uses
+  // a HISTORICAL-FACT predicate (has ever had a revoked audit event), not a
+  // current-status predicate. This ensures a reinstated member's full lifecycle
+  // (original Revoked event + resolved appeal) remains visible on the Revoked
+  // tab even after membership_status flips to "active". All agents are included
+  // here; the render-time check below filters by history data.
+  const revokedAgents = [
+    ...new Map(
+      (agentsQuery.data ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
   const revokedHistoryQueries = useAgencyMembershipHistories(
     agencyId,
     revokedAgents.map((a) => a.user_id),
     Boolean(agencyId) && revokedAgents.length > 0,
+  );
+  // U-028: Left tab joins the same cumulative-card model, scoped to 'left' events.
+  const leftAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "left") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
+  const leftHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    leftAgents.map((a) => a.user_id),
+    Boolean(agencyId) && leftAgents.length > 0,
+  );
+
+  // U-022d/U-026 parity: per-member history for the Expired join-request tab
+  const expiredRequests = joinRequestsQuery.data?.filter(hasExpiredHistory) ?? [];
+  const expiredHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    expiredRequests.map((r) => r.user_id),
+    Boolean(agencyId) && expiredRequests.length > 0,
   );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -463,7 +497,18 @@ export function AgencyMembersClient() {
     setPendingMembershipDecision(null);
   };
 
-  const handleReviewDecision = async (action: "accept" | "decline", requestId: number) => {
+  const handleReviewDecision = async (
+    action: "accept" | "decline",
+    requestId: number,
+    sourceType?: string | null,
+  ) => {
+    /* U-033: the queue row's discriminator MUST be echoed back — the backend
+       routes strictly by source_type (no fallback). A row without one is a
+       contract violation; fail loudly rather than guess a table. */
+    if (!sourceType) {
+      notify.error("Review request is missing its source type. Refresh and try again.");
+      return;
+    }
     const reason = membershipReasons[requestId]?.trim() || null;
     if (action === "decline" && !reason) {
       notify.error("Enter a reason before declining this review request.");
@@ -471,10 +516,10 @@ export function AgencyMembersClient() {
     }
     try {
       if (action === "accept") {
-        await acceptReview.mutateAsync({ requestId, payload: { reason } });
+        await acceptReview.mutateAsync({ requestId, payload: { reason }, sourceType });
         notify.success("Review request accepted. The agent role has been reinstated if needed.");
       } else {
-        await declineReview.mutateAsync({ requestId, payload: { reason } });
+        await declineReview.mutateAsync({ requestId, payload: { reason }, sourceType });
         notify.success("Review request declined. The requester has been notified.");
       }
       setMembershipReasons((current) => {
@@ -767,49 +812,43 @@ export function AgencyMembersClient() {
                 ) : null}
                 {!joinRequestsQuery.isLoading && joinRequests.filter(hasExpiredHistory).length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(hasExpiredHistory).map((request) => {
+                    {joinRequests.filter(hasExpiredHistory).map((request, expiredIndex) => {
                       const agent = agents.find((a) => a.user_id === request.user_id);
                       const liveStatus = agent?.membership_status ?? request.status;
                       const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                       const reactivationEvents = resolveJoinRequestReactivationTrace(
-                         request,
-                         user?.user_id ?? null,
-                         false,
-                       );
-                       const terminalEvent = resolveTerminalApprovalEvent(request, user?.user_id ?? null, false);
-                       return (
-                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
+                      // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                      // chronological stream via resolveExpiredNarrativeTimeline
+                      // (single sorted array, single banded loop - no second list).
+                      const narrativeEvents = resolveExpiredNarrativeTimeline(
+                        expiredHistoryQueries[expiredIndex]?.data ?? [],
+                        request,
+                        { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                      );
+                      return (
+                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                           <TimelineHeader
                             entity="person"
                             name={request.seeker_name ?? "Seeker"}
-                             role={agent?.user_role}
+                            role={agent?.user_role}
                             status={liveStatus}
                             applicationStatus={request.status}
-                              eventCount={2 + reactivationEvents.length + (terminalEvent ? 1 : 0)}
+                            email={request.seeker_email ?? undefined}
                             lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                            eventCount={narrativeEvents.length}
                           />
-                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                           {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                         </p>
-                         {request.expires_at ? (
-                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                             Expired {formatDate(request.originally_expired_at ?? request.expires_at)}
-                           </p>
-                         ) : null}
-                         <div className="mt-2 space-y-2">
-                           {(() => {
-                             const allEvents = [...reactivationEvents];
-                             if (terminalEvent) allEvents.push(terminalEvent);
-                             return allEvents.length > 0 ? (
-                               <div className="space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
-                                 {allEvents.map((event) => (
-                                   <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
-                                     {event.text} — {formatDate(event.at!)}
-                                   </p>
-                                 ))}
-                               </div>
-                             ) : null;
-                           })()}
+                        <div className="mt-2 space-y-2">
+                          {narrativeEvents.length > 0 ? (
+                            <div className="space-y-1">
+                              {narrativeEvents.map((event, index) => (
+                                <p
+                                  key={`${event.at}-${event.text}`}
+                                  className={`px-2 py-1 text-sm leading-6 text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}
+                                >
+                                  {event.text} — {formatDate(event.at)}
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
                            {reactivationStage === "agency_accepted" ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                               Request is pending. Approve in Review Requests.
@@ -914,9 +953,10 @@ export function AgencyMembersClient() {
                                 });
                               }
                             }
-                            return events.map((event) => (
-                              <div key={event.key} className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
-                                <p className="font-medium text-gray-900 dark:text-white">
+                            return events.map((event, eventIndex) => (
+                              // Rule 24: same shared banding as every other timeline surface.
+                              <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
+                                <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
                                   {event.type} — {formatDate(event.date)}
                                 </p>
                                 {event.message ? (
@@ -928,13 +968,18 @@ export function AgencyMembersClient() {
                           })()}
                         </div>
                         {cooldownDate ? (
-                          <div className="mt-2 rounded-lg bg-gray-100 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                            Cooldown period active. User can apply again on {formatDate(cooldownDate.toISOString())}.
-                          </div>
+                          (() => {
+                            const cooldown = resolveCooldownAmbient({
+                              applicantName: group.seekerName,
+                              cooldownDate,
+                            });
+                            return (
+                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
+                                {cooldown.text}
+                              </p>
+                            );
+                          })()
                         ) : null}
-                        <div className="mt-2 rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-                          This cooldown is enforced server-side; the API blocks reapply with the authoritative date.
-                        </div>
                       </div>
                       );
                     })}
@@ -968,7 +1013,25 @@ export function AgencyMembersClient() {
             {!reviewRequestsQuery.isLoading && reviewRequestGroups.length > 0 ? (
               <div className="space-y-4">
                 {reviewRequestGroups.map((group) => {
-                  const primaryRequest = group.requests.find((request) => request.status === "pending") ?? group.requests[0];
+                  /* U-021 fix: a user may have several pending queue rows
+                     (generic review request, reapply join request,
+                     membership-scoped appeal). One actionable card per
+                     user — the actionable target is the MOST RECENT
+                     pending request, not find()'s oldest-first first
+                     match. Superseded priors stay grouped for follow-up
+                     surfacing (DEF-U-REVIEWQUEUE-PRIORS-001). */
+                  const pendingRequests = group.requests.filter(
+                    (request) => request.status === "pending",
+                  );
+                  const primaryRequest =
+                    pendingRequests.length > 0
+                      ? pendingRequests.reduce((latest, request) =>
+                          new Date(request.created_at).getTime() >
+                          new Date(latest.created_at).getTime()
+                            ? request
+                            : latest,
+                        )
+                      : group.requests[0];
 
                   return (
                   <div key={group.userId} className="rounded-lg border border-border p-4">
@@ -1000,14 +1063,14 @@ export function AgencyMembersClient() {
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <Button type="button" size="sm"
                             loading={acceptReview.isPending && acceptReview.variables?.requestId === primaryRequest.id}
-                            onClick={() => void handleReviewDecision("accept", primaryRequest.id)}
+                            onClick={() => void handleReviewDecision("accept", primaryRequest.id, primaryRequest.source_type)}
                           >
                             Accept
                           </Button>
                           {primaryRequest.actor_id !== user?.user_id ? (
                             <Button type="button" size="sm" variant="secondary"
                               loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
-                              onClick={() => void handleReviewDecision("decline", primaryRequest.id)}
+                              onClick={() => void handleReviewDecision("decline", primaryRequest.id, primaryRequest.source_type)}
                             >
                               Decline
                             </Button>
@@ -1056,45 +1119,25 @@ export function AgencyMembersClient() {
                 {agents.filter(a => a.membership_status === "active").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {agent.display_name || agent.company_name || "Listing agent"}
-                            </p>
-                            <Badge variant={getMembershipBadgeVariant(agent.membership_status)}>
-                              {formatMembershipStatus(agent.membership_status)}
-                            </Badge>
-                          </div>
-                          <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                            {agent.email}{agent.phone_number ? ` - ${agent.phone_number}` : ""}
-                          </p>
-                          <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                            <span>{agent.specialization ?? "Real estate agent"}</span>
-                            {agent.years_experience != null ? <span>{agent.years_experience} years experience</span> : null}
-                            {agent.license_number ? <span>License {agent.license_number}</span> : null}
-                          </div>
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Decision reason: {agent.status_reason}</p>
-                          ) : null}
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Last decision {formatOptionalDate(agent.status_decided_at)}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                          {agent.pending_review_request_id ? (
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.phone_number ? `${agent.email} - ${agent.phone_number}` : agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            agent.specialization ?? "Real estate agent",
+                            ...(agent.years_experience != null ? [`${agent.years_experience} years experience`] : []),
+                            ...(agent.license_number ? [`License ${agent.license_number}`] : []),
+                            ...(agent.status_reason ? [`Decision reason: ${agent.status_reason}`] : []),
+                            ...(agent.status_decided_at ? [`Last decision ${formatOptionalDate(agent.status_decided_at)}`] : []),
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
+                  {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>
                               {agent.pending_review_reason ? <p className="mt-1">{agent.pending_review_reason}</p> : null}
@@ -1122,7 +1165,6 @@ export function AgencyMembersClient() {
                               );
                             })()
                           ) : null}
-                        </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         {agent.profile_id ? (
@@ -1243,29 +1285,18 @@ export function AgencyMembersClient() {
                 {agents.filter(isAgentInactive).map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {agent.email}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1487,32 +1518,21 @@ export function AgencyMembersClient() {
                 {agents.filter(a => a.membership_status === "suspended").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="warning">suspended</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Suspended {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            ...(agent.status_decided_at ? [`Suspended ${formatDate(agent.status_decided_at)}`] : []),
+                            ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button type="button" size="sm"
@@ -1528,9 +1548,6 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                    </p>
                     <Input
                       label="Decision reason" placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}
@@ -1562,43 +1579,29 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "left").length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && leftAgents.length === 0 ? (
               <EmptyState title="No departed members." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "left").length > 0 ? (
+            {!agentsQuery.isLoading && leftAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "left").map((agent) => (
-                  <div key={agent.membership_id} className="space-y-4 py-4">
+                {leftAgents.map((agent, index) => (
+                  <div key={agent.user_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="outline">left</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Left {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {agent.listing_count} active listing{agent.listing_count !== 1 ? "s" : ""}.
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            ...(agent.status_decided_at ? [`Left ${formatDate(agent.status_decided_at)}`] : []),
+                            ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
+                            `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
+                          ]}
+                        />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button type="button" size="sm"
@@ -1614,6 +1617,29 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
+                    {/* U-028: cumulative card — this member's 'left' events render
+                        inside the card via the shared scoped filter (SSOT). */}
+                    {(() => {
+                      const leftEvents = getMembershipHistoryByAction(
+                        leftHistoryQueries[index]?.data ?? [],
+                        { user_id: agent.user_id, agency_id: agent.agency_id },
+                        "left",
+                      );
+                      if (leftEvents.length === 0) return null;
+                      return (
+                        <MembershipTimeline
+                          tier="rich"
+                          history={leftEvents}
+                          alwaysExpanded
+                          showHeader={false}
+                          entity="person"
+                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                        />
+                      );
+                    })()}
                     <Input
                       label="Decision reason" placeholder="Required before membership decisions or review responses"
                       value={membershipReasons[agent.membership_id] ?? ""}
@@ -1651,12 +1677,24 @@ export function AgencyMembersClient() {
               }
               return (
                 <div className="divide-y divide-border">
-                   {revokedAgents.map((agent, index) => (
+                   {revokedAgents.map((agent, index) => {
+                    // DEF-U-AGENCY-HISTORY-TAB-001: render-time historical-fact
+                    // check — only render agents whose history contains at least
+                    // one revoked audit event. The card list includes all agents;
+                    // this filter keeps the Revoked tab scoped to ever-revoked
+                    // members regardless of current membership_status.
+                    const agentHistData = revokedHistoryQueries[index]?.data ?? [];
+                    const hasEverBeenRevoked = agentHistData.some(
+                      (h) => h.source_type === "audit_event" && h.action === "revoked" && h.user_id === agent.user_id,
+                    );
+                    if (!hasEverBeenRevoked) return null;
+                    return (
                     <div key={agent.membership_id} className="space-y-4 py-4">
             {(() => {
               const agentHistory = getRevokedMembershipHistory(
                 revokedHistoryQueries[index]?.data ?? [],
                 { user_id: agent.user_id, agency_id: agent.agency_id },
+                { includeReviewRequests: true },
               );
               if (agentHistory.length === 0) return null;
               return (
@@ -1665,15 +1703,20 @@ export function AgencyMembersClient() {
                   history={agentHistory}
                   alwaysExpanded
                   entity="person"
-                   defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                  avatarUrl={agent.profile_image_url}
+                  defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
                   role={agent.user_role}
                   status={formatMembershipStatus(agent.membership_status)}
+                  email={agent.email}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                  pendingReviewHighlight
                 />
               );
             })()}
+            {null}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}
@@ -1705,32 +1748,20 @@ export function AgencyMembersClient() {
                 {agents.filter(a => a.membership_status === "blocked").map((agent) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {agent.profile_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={agent.profile_image_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                            {(agent.display_name || "Agent").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
-                          </div>
-                        )}
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {agent.display_name || agent.company_name || "Listing agent"}
-                          </p>
-                          <Badge variant="danger">blocked</Badge>
-                          {agent.status_decided_at ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Blocked {formatDate(agent.status_decided_at)}
-                            </p>
-                          ) : null}
-                          {agent.status_reason ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Reason: {agent.status_reason}</p>
-                          ) : null}
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last seen: {agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
-                          </p>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <TimelineHeader
+                          entity="person"
+                          avatarUrl={agent.profile_image_url}
+                          name={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                          status={formatMembershipStatus(agent.membership_status)}
+                          email={agent.email}
+                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          qualifiers={[
+                            ...(agent.status_decided_at ? [`Blocked ${formatDate(agent.status_decided_at)}`] : []),
+                            ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
+                          ]}
+                        />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button type="button" size="sm"
