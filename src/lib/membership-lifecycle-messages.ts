@@ -305,6 +305,19 @@ export function resolveCancelledApplicationAmbient(params: {
   };
 }
 
+/* Revoked-tab review-request notice (canonical ambient family). Rendered by
+   the agency Revoked tab below the canonical event row while the appeal is
+   unresolved. Same tone system as every other ambient text — caution, matching
+   the cancelled-tab action cue. Text derives here only. */
+export function resolveRevokedReviewNotice(params: {
+  seekerName?: string | null;
+}): { text: string; tone: AmbientTextTone } {
+  return {
+    text: `${params.seekerName ?? "This member"} has requested a review of their revoked membership. Find it in Review Requests.`,
+    tone: "caution",
+  };
+}
+
 /* Agency-side cancelled-tab cooldown ambient (canonical source). Ambient
    state, NOT a timeline event: renders as a plain ambient paragraph (caution
    tone) below the banded event rows — never inside the banding. */

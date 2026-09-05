@@ -298,31 +298,99 @@ export function getMembershipHistoryByAction(
  * requests, review requests, and other audit actions have their own tabs,
  * and rendering them here was the discriminator gap.
  */
-/* Shared revoked-membership scoped filter lives HERE ONLY (canonical
-   membershipHistory.ts scoped-filter family). Variants: `match` keys on
-   user_id (agency viewer) or agency_id/agency_name (seeker viewer);
-   `opts.includeReviewRequests` appends membership-scoped review_request
-   rows (pending + resolved) tied to the revoked cycle. */
+/* ===========================================================================
+   Revoked-tab scope filter (DEF-U-REVOKED-TAB-DISCRIMINATOR-001) + U-035
+   two-row appeal rendering (supersedes U-034's single-row fold).
+
+   INTENDED SEMANTICS: the appeal (a membership-scoped review_request against
+   a revocation) and its resolution are ALWAYS two distinct, permanent,
+   canonical rows — structurally identical to how every event already renders
+   in the History tab. The request row keeps its canonical "Review requested"
+   badge permanently (never mutated in place); the resolution audit event
+   (reinstated/review_declined) renders as its own row with its own badge,
+   message, timestamp, and actor. The ONLY conditional element is the
+   ephemeral "New" marker + ambient notice on the UNRESOLVED request row
+   (agency tab only, gated via pendingReviewHighlight), which discharges on
+   resolution.
+
+   The `reviewResolution` annotation below is retained SOLELY as the
+   unresolved-detection lookup (does a resolution audit exist downstream of
+   this request's lineage?) — it never merges or mutates row content
+   (U-035; Rule 20 SSOT).
+   ========================================================================== */
+
+export type MembershipReviewResolutionAction = "reinstated" | "review_declined";
+
+/** A timeline entry annotated by the Revoked-tab filter with its matched
+    resolution action. Used ONLY for unresolved-detection of the ephemeral
+    "New" marker / ambient notice affordance (U-035) — never merges or
+    mutates row content. Not part of the wire contract. */
+export type MembershipTimelineEntryWithResolution = MembershipTimelineEntry & {
+  reviewResolution?: MembershipReviewResolutionAction;
+};
+
 export function getRevokedMembershipHistory(
   history: MembershipTimelineEntry[],
   match: { agency_id?: number | null; agency_name?: string | null; user_id?: number | null },
   opts?: { includeReviewRequests?: boolean },
-): MembershipTimelineEntry[] {
+): MembershipTimelineEntryWithResolution[] {
   const revoked = getMembershipHistoryByAction(history, match, "revoked");
   if (!opts?.includeReviewRequests) return revoked;
-  // In-flight + resolved review requests tied to this revoked membership,
-  // appended to the same array (U-019 Tier 2b: decision-history tabs carry the
-  // full artifact timeline, including the review message). The renderer labels
-  // source_type === "review_request" rows canonically ("Review requested") and
-  // the submitted request surfaces immediately via the existing
-  // useCreateAgencyReviewRequest invalidation of ["membershipHistory"].
-  const reviewRows = history.filter(
+
+  const entityMatch = (entry: MembershipTimelineEntry): boolean => {
+    if (match.user_id != null && entry.user_id != null && entry.user_id !== match.user_id) return false;
+    if (match.agency_id != null && entry.agency_id != null && entry.agency_id !== match.agency_id) return false;
+    return true;
+  };
+
+  // The appeal is a SINGLE row. Filter for membership-scoped review_request
+  // rows, then annotate each with its matched resolution action (the latest
+  // reinstated/review_declined audit for the same agency+user that happened
+  // AFTER this appeal). Do NOT append those audit events as separate rows.
+  const reviewRows: MembershipTimelineEntryWithResolution[] = history
+    .filter((entry) => entry.source_type === "review_request" && entityMatch(entry))
+    .map((entry) => {
+      const entityTime = (x: MembershipTimelineEntry) => new Date(x.timestamp).getTime();
+
+      // Find the immediately following resolution event for this specific appeal
+      const resolutionEvent = history
+        .filter(
+          (other) =>
+            other.source_type === "audit_event" &&
+            (other.action === "review_declined" || other.action === "reinstated") &&
+            entityMatch(other) &&
+            (other.agency_id ?? null) === (entry.agency_id ?? null) &&
+            (other.user_id ?? null) === (entry.user_id ?? null) &&
+            entityTime(other) > entityTime(entry),
+        )
+        .sort((a, b) => entityTime(a) - entityTime(b))[0];
+
+      const reviewResolution =
+        resolutionEvent?.action === "reinstated" || resolutionEvent?.action === "review_declined"
+          ? resolutionEvent.action
+          : undefined;
+
+      return {
+        ...entry,
+        reviewResolution,
+      };
+    });
+
+  // Resolution rows: EVERY reinstated/review_declined audit event on this
+  // entity renders as its own permanent, canonical row (U-035) — with or
+  // without a preceding review_request — identical in shape to how the
+  // History tab already renders these events.
+  const resolutionRows = history.filter(
     (entry) =>
-      entry.source_type === "review_request" &&
-      !(match.user_id != null && entry.user_id != null && entry.user_id !== match.user_id) &&
-      !(match.agency_id != null && entry.agency_id != null && entry.agency_id !== match.agency_id),
+      entry.source_type === "audit_event" &&
+      (entry.action === "reinstated" || entry.action === "review_declined") &&
+      entityMatch(entry),
   );
-  return [...revoked, ...reviewRows].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+
+  // Single uniform chronological sort by each row's OWN timestamp, descending
+  // (newest first) — no resolvedAt substitution, matching MembershipTimeline's
+  // default sort and the History tab exactly (U-035).
+  return [...revoked, ...reviewRows, ...resolutionRows].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 }

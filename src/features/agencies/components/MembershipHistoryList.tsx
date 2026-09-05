@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
-import { resolveStatusBadge } from "@/lib/membership-lifecycle-messages";
-import { formatMembershipDate } from "./membershipHistory";
+import {
+  ambientTextToneClass,
+  resolveRevokedReviewNotice,
+  resolveStatusBadge,
+} from "@/lib/membership-lifecycle-messages";
+import {
+  formatMembershipDate,
+  type MembershipTimelineEntryWithResolution,
+} from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
 
 interface MembershipTimelineProps {
@@ -40,6 +47,11 @@ interface MembershipTimelineProps {
   avatarUrl?: string | null;
   /** Extra person-entity qualifier lines — forwarded to the canonical TimelineHeader. */
   qualifiers?: string[];
+  /** OPT-IN, agency Revoked tab ONLY: renders a sibling notice line below
+      unresolved membership-scoped review_request rows (row itself stays
+      canonical). All other consumers omit this — canonical rendering
+      everywhere else. */
+  pendingReviewHighlight?: boolean;
 }
 
 /* Shared timeline row zebra-banding lives HERE ONLY (canonical MembershipHistoryList
@@ -188,7 +200,11 @@ export function TimelineHeader({
           <div className="truncate text-xs text-gray-500 dark:text-gray-400">{email}</div>
         ) : null}
         <div className="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
-          {status ? (
+          {/* U-019 contract: the status qualifier slot exists on person-entity
+              headers ONLY — agency entities are name | verified | event_count.
+              Gated here at the shared component so no consumer can reintroduce
+              a status qualifier on an agency-entity header. */}
+          {entity === "person" && status ? (
             <span className={`lowercase ${statusTextClass(resolveStatusBadge(status).variant)}`}>{status}</span>
           ) : null}
           {eventCount != null ? (
@@ -229,6 +245,7 @@ export function MembershipTimeline({
   email,
   avatarUrl,
   qualifiers,
+  pendingReviewHighlight,
 }: MembershipTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -301,10 +318,12 @@ export function MembershipTimeline({
     );
   }
 
+  // Single uniform chronological sort by each row's OWN timestamp, descending
+  // (newest first) — U-035: request and resolution are independent entries
+  // with genuine timestamps; no resolvedAt substitution, identical to History.
   const sortedHistory = [...history].sort(
     (first, second) =>
-      new Date(second.timestamp).getTime() -
-      new Date(first.timestamp).getTime(),
+      new Date(second.timestamp).getTime() - new Date(first.timestamp).getTime(),
   );
 
   const showAllEntries = alwaysExpanded || isExpanded;
@@ -335,68 +354,114 @@ export function MembershipTimeline({
       {visibleEntries.map((entry, index) => {
         const entryId = String(entry.id ?? entry.timestamp);
         const label = resolveTimelineLabel(entry, labelStage);
-        /* Shared pending-review row-variant lives HERE ONLY (canonical
-           MembershipHistoryList rich tier). Derived from live row data per
-           O-002 — no stored seen/resolved flag: a membership-scoped
-           review_request row (the only kind carrying a `review_response`
-           key) renders highlighted while `review_response` is null, and
-           re-renders through the canonical badge path once the existing
-           Review Requests accept/decline populates it. Same event id, same
-           row — one boolean-derived render branch. */
+        /* Pending-review NOTICE — OPT-IN (pendingReviewHighlight, consumed
+           only by the agency Revoked tab). Per the locked design spec: the
+           event row is ALWAYS canonical — same zebra banding, same neutral
+           outline badge treatment (U-019 variant map) — the row itself
+           never changes. The only conditional element is a SIBLING notice
+           line rendered below the row (canonical ambient text style, no
+           background block) while the membership-scoped review_request is
+           unresolved; on resolution the notice unmounts and nothing else
+           ever differed. Derived from live row data per O-002 — no stored
+           seen/resolved flag.
+           Resolution derivation (Fix 3, post phase_u_011): the backend no
+           longer grafts `review_response` onto the request row — a decline
+           is its OWN audit_event (`review_declined`), accept writes
+           `reinstated`. So "unresolved" = no resolution audit event for
+           the same agency+user with a timestamp AFTER this request's.
+           Both resolution actions reach this component via
+           getRevokedMembershipHistory's resolutionRows (single SSOT
+           filter). `review_message == null` still excludes generic
+           (ReviewRequest-table) rows, whose pending state is tracked by
+           their own `review_response` column. */
+        const isMembershipReviewRow =
+          entry.source_type === "review_request" && entry.review_message == null;
+        /* U-035 (supersedes the single-row fold): the request row and its
+           resolution row are ALWAYS two distinct, permanent, canonical rows.
+           The request row keeps its "Review requested" badge permanently —
+           the badge never mutates in place. The `reviewResolution` annotation
+           from getRevokedMembershipHistory is used ONLY to decide whether the
+           ephemeral "New" marker + ambient notice is shown on the UNRESOLVED
+           request row (discharges when a resolution row exists). An
+           unresolved-but-audit-less row (legacy pre-phase_u_011 decline)
+           yields undefined -> renders as unresolved
+           (DEF-U-LEGACY-DECLINE-BACKFILL-001). Resolution audit events render
+           as their own rows via the generic badge path below (reinstated ->
+           success "Reinstated", review_declined -> outline "Review declined").
+           The "New" marker + ambient notice are gated to the agency tab via
+           pendingReviewHighlight (entity-gate — never leaked to the seeker
+           view). */
+        const resolutionAction: MembershipTimelineEntryWithResolution["reviewResolution"] =
+          isMembershipReviewRow
+            ? (entry as MembershipTimelineEntryWithResolution).reviewResolution
+            : undefined;
         const isPendingReviewRow =
-          entry.source_type === "review_request" &&
-          entry.review_response !== undefined &&
-          entry.review_response === null;
+          isMembershipReviewRow &&
+          !resolutionAction &&
+          Boolean(pendingReviewHighlight);
+        /* Hoist the sibling-notice computation (instead of an IIFE-in-JSX, which
+           Turbopack's JSX parser rejects when nested in a ternary) so the
+           render below is a plain conditional. The notice + "New" marker are
+           agency-gated via pendingReviewHighlight (entity-gate — never leaked
+           to the seeker view. */
+        const pendingNotice =
+          isPendingReviewRow
+            ? resolveRevokedReviewNotice({ seekerName: entry.user_display_name })
+            : null;
 
         return (
-          <div
-            key={entryId}
-            // Shared zebra banding (grey/white alternating), no borders — same
-            // pairing as the simple tier, defined here only (canonical component).
-            // Pending-review rows swap the band for the shared amber ambient
-            // treatment (same tokens as the ambient banner family) for the
-            // whole row, so the event stays fully inside one visual unit.
-            className={
-              isPendingReviewRow
-                ? "rounded-lg bg-amber-50 px-4 py-3 text-sm dark:bg-amber-950/40"
-                : `px-4 py-3 text-sm ${timelineRowBandClass(index)}`
-            }
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {formatMembershipDate(entry.timestamp)}
+          <Fragment key={entryId}>
+            <div
+              // Shared zebra banding (grey/white alternating), no borders — same
+              // pairing as the simple tier, defined here only (canonical component).
+              className={`px-4 py-3 text-sm ${timelineRowBandClass(index)}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {formatMembershipDate(entry.timestamp)}
+                </div>
+                {label !== "Event" ? (
+                  /* U-035: every row renders its OWN canonical badge —
+                     "Review requested" stays on the request row permanently
+                     (never mutated in place); resolution audit rows render
+                     their own badge via the shared variant map (reinstated ->
+                     success "Reinstated", review_declined -> outline
+                     "Review declined"). */
+                  <Badge variant={timelineActionBadgeVariant(entry)}>
+                    {label}
+                  </Badge>
+                ) : null}
               </div>
-              {isPendingReviewRow ? (
-                <Badge variant="warning">Pending</Badge>
-              ) : label !== "Event" ? (
-                <Badge variant={timelineActionBadgeVariant(entry)}>
-                  {label}
-                </Badge>
+              {entry.reason ? (
+                <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
               ) : null}
-            </div>
-            {isPendingReviewRow ? (
-              <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
-                {entity === "person"
-                  ? `${entry.user_display_name ?? "This member"} has requested a review of their revoked membership. Find it in Review Requests.`
-                  : `You requested a review of this revoked membership. It is pending a response from ${entry.agency_name ?? "the agency"}.`}
-              </p>
-            ) : null}
-            {entry.reason ? (
-              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
-            ) : null}
             {entry.cover_note ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.cover_note}</p>
             ) : null}
             {entry.portfolio_details ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.portfolio_details}</p>
             ) : null}
-            {entry.review_message ? (
+                        {entry.review_message ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.review_message}</p>
             ) : null}
             {entry.review_response ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.review_response}</p>
             ) : null}
-          </div>
+            {/* U-035: resolution messages belong to the resolution's OWN row
+                (its own reason/review_message fields render above). Nothing is
+                merged into the request row. */}
+            </div>
+            {/* Sibling notice (ASCII rebuild per LESSONS.md 2026-08-30: em-dash byte roundtrip through the editor tool is the documented corruption class; kept ASCII-only. */}
+            {pendingNotice ? (
+              <div className="mt-2 space-y-1">
+                {/* SEPARATE small New attention marker (gated via pendingReviewHighlight), placed just above the ambient notice it introduces - never a badge masquerading as the label, never competing with the canonical Review requested badge in the top row. */}
+                <Badge variant="default">New</Badge>
+                <p className={ambientTextToneClass[pendingNotice.tone]}>
+                  {pendingNotice.text}
+                </p>
+              </div>
+            ) : null}
+          </Fragment>
         );
       })}
       {hasMoreEntries ? (
