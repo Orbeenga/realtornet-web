@@ -1259,9 +1259,6 @@ export function MyJoinRequestsClient() {
                                defaultUserDisplayName={request.agency_name}
                                verified={request.is_verified}
                                applicationStatus={request.status}
-                               /* U-023d seeker half: live membership qualifier
-                                  alongside the application badge (U-021). */
-                               status={request.membership_status ?? undefined}
                                labelStage="join_request"
                              />
                           );

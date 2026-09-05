@@ -175,7 +175,16 @@ function groupAgencyReviewRequests(
 ): AgencyReviewRequestGroup[] {
   const groups = new Map<number, AgencyReviewRequestGroup>();
 
-  for (const request of reviewRequests) {
+  /* Rule 21 action-queue discipline (Fix 2, belt-and-suspenders): this tab
+     renders ONLY unresolved rows. Filtering here — not just in the cache
+     mutation — guarantees a stale resolved entry (30s staleTime or any
+     race) can never surface as an actionable card. The server already
+     excludes non-pending rows; this defends against cache staleness. */
+  const pendingRequests = reviewRequests.filter(
+    (request) => request.status === "pending",
+  );
+
+  for (const request of pendingRequests) {
     const current = groups.get(request.user_id);
     if (current) {
       current.requests.push(request);
@@ -279,11 +288,15 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && approvedRequests.length > 0,
   );
 
-  // U-028: agency side groups by user_id — one cumulative card per member,
-  // not one per membership row.
+  // U-028 + DEF-U-AGENCY-HISTORY-TAB-001 fix: the Revoked tab's card list uses
+  // a HISTORICAL-FACT predicate (has ever had a revoked audit event), not a
+  // current-status predicate. This ensures a reinstated member's full lifecycle
+  // (original Revoked event + resolved appeal) remains visible on the Revoked
+  // tab even after membership_status flips to "active". All agents are included
+  // here; the render-time check below filters by history data.
   const revokedAgents = [
     ...new Map(
-      (agentsQuery.data?.filter((a) => a.membership_status === "revoked") ?? []).map((a) => [a.user_id, a]),
+      (agentsQuery.data ?? []).map((a) => [a.user_id, a]),
     ).values(),
   ];
   const revokedHistoryQueries = useAgencyMembershipHistories(
@@ -484,7 +497,18 @@ export function AgencyMembersClient() {
     setPendingMembershipDecision(null);
   };
 
-  const handleReviewDecision = async (action: "accept" | "decline", requestId: number) => {
+  const handleReviewDecision = async (
+    action: "accept" | "decline",
+    requestId: number,
+    sourceType?: string | null,
+  ) => {
+    /* U-033: the queue row's discriminator MUST be echoed back — the backend
+       routes strictly by source_type (no fallback). A row without one is a
+       contract violation; fail loudly rather than guess a table. */
+    if (!sourceType) {
+      notify.error("Review request is missing its source type. Refresh and try again.");
+      return;
+    }
     const reason = membershipReasons[requestId]?.trim() || null;
     if (action === "decline" && !reason) {
       notify.error("Enter a reason before declining this review request.");
@@ -492,10 +516,10 @@ export function AgencyMembersClient() {
     }
     try {
       if (action === "accept") {
-        await acceptReview.mutateAsync({ requestId, payload: { reason } });
+        await acceptReview.mutateAsync({ requestId, payload: { reason }, sourceType });
         notify.success("Review request accepted. The agent role has been reinstated if needed.");
       } else {
-        await declineReview.mutateAsync({ requestId, payload: { reason } });
+        await declineReview.mutateAsync({ requestId, payload: { reason }, sourceType });
         notify.success("Review request declined. The requester has been notified.");
       }
       setMembershipReasons((current) => {
@@ -989,7 +1013,25 @@ export function AgencyMembersClient() {
             {!reviewRequestsQuery.isLoading && reviewRequestGroups.length > 0 ? (
               <div className="space-y-4">
                 {reviewRequestGroups.map((group) => {
-                  const primaryRequest = group.requests.find((request) => request.status === "pending") ?? group.requests[0];
+                  /* U-021 fix: a user may have several pending queue rows
+                     (generic review request, reapply join request,
+                     membership-scoped appeal). One actionable card per
+                     user — the actionable target is the MOST RECENT
+                     pending request, not find()'s oldest-first first
+                     match. Superseded priors stay grouped for follow-up
+                     surfacing (DEF-U-REVIEWQUEUE-PRIORS-001). */
+                  const pendingRequests = group.requests.filter(
+                    (request) => request.status === "pending",
+                  );
+                  const primaryRequest =
+                    pendingRequests.length > 0
+                      ? pendingRequests.reduce((latest, request) =>
+                          new Date(request.created_at).getTime() >
+                          new Date(latest.created_at).getTime()
+                            ? request
+                            : latest,
+                        )
+                      : group.requests[0];
 
                   return (
                   <div key={group.userId} className="rounded-lg border border-border p-4">
@@ -1021,14 +1063,14 @@ export function AgencyMembersClient() {
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <Button type="button" size="sm"
                             loading={acceptReview.isPending && acceptReview.variables?.requestId === primaryRequest.id}
-                            onClick={() => void handleReviewDecision("accept", primaryRequest.id)}
+                            onClick={() => void handleReviewDecision("accept", primaryRequest.id, primaryRequest.source_type)}
                           >
                             Accept
                           </Button>
                           {primaryRequest.actor_id !== user?.user_id ? (
                             <Button type="button" size="sm" variant="secondary"
                               loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
-                              onClick={() => void handleReviewDecision("decline", primaryRequest.id)}
+                              onClick={() => void handleReviewDecision("decline", primaryRequest.id, primaryRequest.source_type)}
                             >
                               Decline
                             </Button>
@@ -1635,7 +1677,18 @@ export function AgencyMembersClient() {
               }
               return (
                 <div className="divide-y divide-border">
-                   {revokedAgents.map((agent, index) => (
+                   {revokedAgents.map((agent, index) => {
+                    // DEF-U-AGENCY-HISTORY-TAB-001: render-time historical-fact
+                    // check — only render agents whose history contains at least
+                    // one revoked audit event. The card list includes all agents;
+                    // this filter keeps the Revoked tab scoped to ever-revoked
+                    // members regardless of current membership_status.
+                    const agentHistData = revokedHistoryQueries[index]?.data ?? [];
+                    const hasEverBeenRevoked = agentHistData.some(
+                      (h) => h.source_type === "audit_event" && h.action === "revoked" && h.user_id === agent.user_id,
+                    );
+                    if (!hasEverBeenRevoked) return null;
+                    return (
                     <div key={agent.membership_id} className="space-y-4 py-4">
             {(() => {
               const agentHistory = getRevokedMembershipHistory(
@@ -1656,12 +1709,14 @@ export function AgencyMembersClient() {
                   status={formatMembershipStatus(agent.membership_status)}
                   email={agent.email}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                  pendingReviewHighlight
                 />
               );
             })()}
             {null}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}

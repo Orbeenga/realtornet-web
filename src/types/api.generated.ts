@@ -1219,7 +1219,10 @@ export interface paths {
          * @description List pending agency-level review requests with prior membership history.
          *
          *     Also includes pending join requests from returning applicants who
-         *     reapplied after a previous cancelled request (Phase U.4 reapply).
+         *     reapplied after a previous cancelled request (Phase U.4 reapply), and
+         *     pending membership-scoped review requests (revoked/inactive members
+         *     appealing via the membership-scoped endpoint) â€” one queue, one
+         *     actionable surface.
          */
         get: operations["list_agency_review_requests_api_v1_agencies__agency_id__review_requests__get"];
         put?: never;
@@ -5251,9 +5254,14 @@ export interface components {
         };
         /**
          * AgencyReviewRequestAcceptRequest
-         * @description Accept a review request — reason is optional.
+         * @description Accept a review request â€” reason is optional.
          */
         AgencyReviewRequestAcceptRequest: {
+            /**
+             * Source Type
+             * @enum {string}
+             */
+            source_type: "review_request" | "membership_review_request" | "join_request";
             /** Reason */
             reason?: string | null;
         };
@@ -5264,9 +5272,14 @@ export interface components {
         };
         /**
          * AgencyReviewRequestDeclineRequest
-         * @description Decline a review request — reason is required for audit trail.
+         * @description Decline a review request â€” reason is required for audit trail.
          */
         AgencyReviewRequestDeclineRequest: {
+            /**
+             * Source Type
+             * @enum {string}
+             */
+            source_type: "review_request" | "membership_review_request" | "join_request";
             /** Reason */
             reason: string;
         };
@@ -5274,6 +5287,8 @@ export interface components {
         AgencyReviewRequestResponse: {
             /** Id */
             id: number;
+            /** Source Type */
+            source_type?: string | null;
             /** User Id */
             user_id: number;
             /** Agency Id */
