@@ -4,7 +4,13 @@ import type { MembershipTimelineEntry } from "@/types";
 
 function membershipHistoryUrl(agencyId?: number | null, userId?: number | null): string {
   const base = `/api/v1/agencies/${agencyId}/membership-history`;
-  return userId != null ? `${base}?user_id=${userId}` : base;
+  /* limit=100 (backend max): stopgap for the default-20 pagination cap —
+     the aggregate History tab needs the full log, not one page. A real
+     pagination or unpaginated mode is a backend ticket (see audit
+     2026-09-05, DEF-U-AGENCY-HISTORY-TAB-001). */
+  const query = new URLSearchParams({ limit: "100" });
+  if (userId != null) query.set("user_id", String(userId));
+  return `${base}?${query.toString()}`;
 }
 
 export function useAgencyMembershipHistory(
