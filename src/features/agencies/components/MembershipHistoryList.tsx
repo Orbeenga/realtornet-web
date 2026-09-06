@@ -63,7 +63,7 @@ export function timelineRowBandClass(index: number): string {
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
-function resolveTimelineLabel(
+export function resolveTimelineLabel(
   entry: MembershipTimelineEntry,
   labelStage: "invitation" | "join_request" = "invitation",
 ): string {
@@ -79,7 +79,7 @@ function resolveTimelineLabel(
 }
 
 // Keyed off the same action/source_type shapes resolveTimelineLabel consumes (U-019).
-function timelineActionBadgeVariant(entry: MembershipTimelineEntry) {
+export function timelineActionBadgeVariant(entry: MembershipTimelineEntry) {
   const action = entry.action;
   if (!action) return "outline" as const;
   if (action === "joined" || action === "reinstated" || action === "approved") return "success" as const;

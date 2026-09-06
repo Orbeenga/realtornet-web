@@ -32,6 +32,7 @@ import {
   useAgencyInvitations,
   useAgencyJoinRequests,
   useAgencyMembershipHistories,
+  useAgencyMembershipHistory,
   useAgencyReviewRequests,
   useAcceptAgencyReviewRequest,
   useApproveAgencyJoinRequest,
@@ -40,6 +41,7 @@ import {
   useInviteAgencyAgent,
   useReactivateInvitation,
   useRejectAgencyJoinRequest,
+  useRejectJoinRequestReactivation,
   useRequestJoinRequestReactivation,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
@@ -59,6 +61,7 @@ import {
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  formatMembershipDate,
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
@@ -66,6 +69,8 @@ import {
 } from "./membershipHistory";
 import {
   MembershipTimeline,
+  resolveTimelineLabel,
+  timelineActionBadgeVariant,
   TimelineHeader,
   timelineRowBandClass,
 } from "@/features/agencies/components/MembershipHistoryList";
@@ -84,7 +89,7 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "suspended" | "leftCancelled" | "revoked" | "blocked";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "suspended" | "leftCancelled" | "revoked" | "blocked" | "history";
 type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
@@ -109,6 +114,7 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "leftCancelled", label: "Left" },
   { value: "revoked", label: "Revoked" },
   { value: "blocked", label: "Blocked" },
+  { value: "history", label: "Membership history" },
 ];
 
 function formatDate(value: string) {
@@ -324,6 +330,9 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && expiredRequests.length > 0,
   );
 
+  // Membership history tab: full agency-wide timeline (all users, all events)
+  const historyQuery = useAgencyMembershipHistory(agencyId, undefined, Boolean(agencyId));
+
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
 
@@ -338,6 +347,7 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
+  const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -364,6 +374,29 @@ export function AgencyMembersClient() {
       });
     } catch {
       notify.error("Could not reject join request");
+    }
+  };
+
+  const handleRejectJoinRequestReactivation = async (requestId: number) => {
+    const reason = rejectReasons[requestId]?.trim();
+    if (!reason) {
+      notify.error("Enter a reason before rejecting this reactivation request.");
+      return;
+    }
+    try {
+      await rejectReactivation.mutateAsync({ requestId, reason });
+      notify.success("Reactivation request rejected. The applicant can see the decision in My Agencies.");
+      setRejectReasons((current) => {
+        const next = { ...current };
+        delete next[requestId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not reject reactivation request.";
+      notify.error(message);
     }
   };
 
@@ -564,6 +597,7 @@ export function AgencyMembersClient() {
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
     revoked: agents.filter(a => a.membership_status === "revoked").length,
     blocked: agents.filter(a => a.membership_status === "blocked").length,
+    history: undefined,
   };
   const pendingDecisionReason = pendingMembershipDecision
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
@@ -858,9 +892,40 @@ export function AgencyMembersClient() {
                               Request is pending a response from {request.seeker_name ?? "the applicant"}.
                             </p>
                           ) : reactivationStage === "seeker_requested" ? (
-                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
-                            </p>
+                            <div className="space-y-3">
+                              <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                                Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
+                              </p>
+                              <div className="space-y-2">
+                                <Input
+                                  label="Rejection reason"
+                                  placeholder="Required to reject reactivation"
+                                  value={rejectReasons[request.join_request_id] ?? ""}
+                                  onChange={(event) =>
+                                    setRejectReasons((current) => ({
+                                      ...current,
+                                      [request.join_request_id]: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    loading={
+                                      rejectReactivation.isPending &&
+                                      rejectReactivation.variables?.requestId === request.join_request_id
+                                    }
+                                    onClick={() =>
+                                      void handleRejectJoinRequestReactivation(request.join_request_id)
+                                    }
+                                  >
+                                    Reject Reactivation
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
                           ) : reactivationStage === "initial" ? (
                             <div className="space-y-2">
                               <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
@@ -1033,6 +1098,10 @@ export function AgencyMembersClient() {
                         )
                       : group.requests[0];
 
+                  const priorRequests = group.requests.filter(
+                    (request) => request.id !== primaryRequest.id,
+                  );
+
                   return (
                   <div key={group.userId} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -1078,6 +1147,48 @@ export function AgencyMembersClient() {
                         </div>
                             ) : null}
                           </div>
+                    {priorRequests.length > 0 ? (
+                      <div className="mt-3 space-y-2 border-t border-border pt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Prior requests ({priorRequests.length})
+                        </p>
+                        <div className="space-y-1">
+                          {priorRequests.map((req, idx) => (
+                            <div
+                              key={`${req.source_type ?? "req"}-${req.id}`}
+                              className={`rounded-md px-3 py-2 text-xs leading-5 ${timelineRowBandClass(idx)}`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 font-medium">
+                                <span className="text-gray-900 dark:text-white">
+                                  {req.status === "pending"
+                                    ? "Review request"
+                                    : req.status === "accepted"
+                                      ? "Review accepted"
+                                      : "Review declined"}{" "}
+                                  — {formatDate(req.created_at)}
+                                </span>
+                                <Badge
+                                  variant={
+                                    req.status === "accepted"
+                                      ? "success"
+                                      : req.status === "declined"
+                                        ? "danger"
+                                        : "warning"
+                                  }
+                                >
+                                  {req.status}
+                                </Badge>
+                              </div>
+                              {req.message ? (
+                                <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                                  {req.message}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {primaryRequest.status === "pending" ? (
                       <Input className="mt-4" label="Decision reason" placeholder="Required for decline, optional for accept"
                         value={membershipReasons[primaryRequest.id] ?? ""}
@@ -1781,6 +1892,67 @@ export function AgencyMembersClient() {
                 ))}
               </div>
             ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "history" ? (
+        <Card>
+          <CardBody className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Membership history</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Full chronological log of all membership events across your agency.
+              </p>
+            </div>
+            {historyQuery.isLoading ? (
+              <AgencyOwnerTabListSkeleton />
+            ) : historyQuery.isError ? (
+              <ErrorState
+                title="Could not load membership history"
+                message="There was a problem loading your agency's membership history."
+                onRetry={() => { void historyQuery.refetch(); }}
+              />
+            ) : !historyQuery.data || historyQuery.data.length === 0 ? (
+              <EmptyState title="No membership history" description="Agent joins, role changes, and departures will appear here." />
+            ) : (
+              <div className="space-y-0">
+                {[...historyQuery.data]
+                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                  .map((entry) => {
+                    return (
+                      <div key={entry.id ?? entry.timestamp} className="pb-4 last:pb-0">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.user_display_name ?? "Unknown"}</p>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Canonical badge resolution (U-019 map, Rule 20 SSOT):
+                                  resolveTimelineLabel supplies the canonical fallback
+                                  labels for action-less rows (join_request -> "Submitted",
+                                  review_request -> "Review requested") so every event row
+                                  carries its proper badge — the earlier action-only guard
+                                  silently dropped these (DEF-U-AGENCY-HISTORY-TAB-001). */}
+                              <Badge variant={timelineActionBadgeVariant(entry)}>
+                                {resolveTimelineLabel(entry)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-500">{formatMembershipDate(entry.timestamp)}</p>
+                          {entry.reason ? (
+                            <p className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-400">{entry.reason}</p>
+                          ) : null}
+                          {entry.cover_note ? (
+                            <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs leading-5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                              <p className="mb-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application</p>
+                              <p className="whitespace-pre-wrap">{entry.cover_note}</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </CardBody>
         </Card>
       ) : null}

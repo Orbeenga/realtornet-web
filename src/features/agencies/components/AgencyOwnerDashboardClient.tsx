@@ -41,7 +41,6 @@ import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
   useAgencyAgents,
-  useAgencyMembershipHistory,
   useAgencyStats,
   useAgencyProfile,
   useUpdateAgencyProfile,
@@ -66,8 +65,6 @@ import {
 } from "@/components/ui/dialog";
 import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { AgencyOwnerDashboardSkeleton } from "./AgencyOwnerDashboardSkeleton";
-import { formatMembershipAction, formatMembershipDate } from "./membershipHistory";
-
 const CLICKABLE_CARD_CLASS =
   "cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50";
 
@@ -123,7 +120,6 @@ export function AgencyOwnerDashboardClient() {
   const agencyId = agency?.agency_id;
   const agencyAgentsQuery = useAgencyAgents(agencyId ?? "", "all", Boolean(agencyId));
   const statsQuery = useAgencyStats(agencyId ?? undefined, Boolean(agencyId), "include");
-  const historyQuery = useAgencyMembershipHistory(agencyId ?? null, undefined, Boolean(agencyId));
   const agencyQueueQuery = useAgencyQueue(Boolean(agencyId));
   const pendingAdminQuery = usePendingAdmin(Boolean(agencyId));
   const agencyInventoryQuery = useAgencyInventory(Boolean(agencyId));
@@ -701,88 +697,6 @@ export function AgencyOwnerDashboardClient() {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">Membership history</h2>
-        {historyQuery.isLoading ? (
-          <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-white py-12 dark:border-gray-800 dark:bg-gray-900">
-            <Clock className="h-5 w-5 animate-pulse text-gray-300" />
-            <span className="ml-2 text-sm text-gray-400">Loading...</span>
-          </div>
-        ) : historyQuery.isError ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
-            Could not load membership history.
-          </div>
-        ) : !historyQuery.data || historyQuery.data.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/50">
-            <Users className="mx-auto h-8 w-8 text-gray-300" />
-            <p className="mt-2 text-sm text-gray-500">No membership history recorded for this agency.</p>
-            <p className="text-xs text-gray-400">Agent joins, role changes, and departures will appear here.</p>
-          </div>
-        ) : (
-          <div className="relative">
-            <div className="absolute left-5 top-0 h-full w-px bg-gray-200 dark:bg-gray-700" />
-            <div className="space-y-0">
-              {[...historyQuery.data]
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .map((entry) => {
-                  const dotColor =
-                    entry.action === "joined" || entry.action === "reinstated"
-                      ? "bg-emerald-500"
-                      : entry.action === "revoked" || entry.action === "suspended"
-                        ? "bg-red-500"
-                        : entry.action === "left"
-                          ? "bg-amber-500"
-                          : "bg-gray-400";
-                  const sourceLabel =
-                    entry.source_type === "audit_event" ? "Agency Action"
-                    : entry.source_type === "join_request" ? "Application"
-                    : entry.source_type === "review_request" ? "Review Request"
-                    : entry.source_type;
-                  const badgeVariant: "success" | "danger" | "warning" | "outline" =
-                    entry.action === "joined" || entry.action === "reinstated"
-                      ? "success"
-                      : entry.action === "revoked" || entry.action === "suspended"
-                        ? "danger"
-                        : entry.action === "left"
-                          ? "warning"
-                          : "outline";
-                  return (
-                    <div key={entry.id ?? entry.timestamp} className="relative flex gap-5 pb-8 pl-5 last:pb-0">
-                      <div className={`relative z-10 mt-1.5 h-3 w-3 shrink-0 rounded-full ring-2 ring-white dark:ring-gray-950 ${dotColor}`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.user_display_name ?? "Unknown"}</p>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge variant="outline">{sourceLabel}</Badge>
-                            {entry.action ? (
-                              <Badge variant={badgeVariant}>{formatMembershipAction(entry.action)}</Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                        <p className="mt-0.5 text-xs text-gray-500">{formatMembershipDate(entry.timestamp)}</p>
-                        {entry.reason ? (
-                          <p className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-400">{entry.reason}</p>
-                        ) : null}
-                        {entry.cover_note ? (
-                          <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs leading-5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                            <p className="mb-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application</p>
-                            <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-                          </div>
-                        ) : null}
-                        {entry.prior_role || entry.post_role ? (
-                          <p className="mt-1 text-xs text-gray-400">
-                            {entry.prior_role ?? "—"} &rarr; {entry.post_role ?? "—"}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
           </div>
         )}
       </section>
