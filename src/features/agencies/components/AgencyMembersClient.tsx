@@ -278,6 +278,11 @@ function AgencyMemberHistoryGroup({
   enabled: boolean;
 }) {
   const feed = useAgencyMembershipHistory(agencyId, member.userId, Boolean(agencyId) && enabled);
+  const [expanded, setExpanded] = useState(false);
+  /* Disclosure sequencing (lead decision): "Load more events" — the FETCH
+     control — only renders once the bounded reveal is expanded, i.e. every
+     already-fetched page is visible. Collapsed state exposes only the
+     count-based "View N more events" reveal. Never both at once. */
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{member.displayName}</h3>
@@ -289,8 +294,10 @@ function AgencyMemberHistoryGroup({
         onRetry={() => { feed.refetch(); }}
         showHeader={false}
         defaultUserDisplayName={member.displayName}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
       />
-      {feed.hasMore ? (
+      {expanded && feed.hasMore ? (
         <Button
           type="button"
           size="sm"
