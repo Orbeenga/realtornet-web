@@ -1148,6 +1148,17 @@ export function MyJoinRequestsClient() {
                   );
                 })()
               )}
+              {historyQuery.hasMore ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={historyQuery.loadMore}
+                  disabled={historyQuery.isFetchingNextPage}
+                >
+                  {historyQuery.isFetchingNextPage ? "Loading..." : "Load more events"}
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </section>

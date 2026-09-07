@@ -1953,6 +1953,19 @@ export function AgencyMembersClient() {
                   })}
               </div>
             )}
+            {historyQuery.hasMore ? (
+              <div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={historyQuery.loadMore}
+                  disabled={historyQuery.isFetchingNextPage}
+                >
+                  {historyQuery.isFetchingNextPage ? "Loading..." : "Load more events"}
+                </Button>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
       ) : null}

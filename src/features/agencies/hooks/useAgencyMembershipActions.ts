@@ -10,9 +10,11 @@ import type {
   AgencyReviewRequestDeclineRequest,
   AgencyReviewRequestResponse,
   MembershipTimelineEntry,
+  MembershipTimelinePage,
   MyAgencyMembershipResponse,
   MyAgentMembershipStatusResponse,
 } from "@/types";
+import { useMembershipHistoryFeed, normalizeMembershipHistoryPage } from "./useAgencyMembershipHistory";
 
 type MembershipAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 
@@ -211,13 +213,14 @@ export function useDeclineAgencyReviewRequest(agencyId?: string | number | null)
 }
 
 export function useMembershipHistory(enabled = true) {
-  return useQuery({
-    queryKey: ["membershipHistory", "me"],
-    queryFn: () =>
-      apiClient<MembershipTimelineEntry[]>("/api/v1/users/me/membership-history/"),
-    staleTime: 30_000,
+  return useMembershipHistoryFeed(
+    (cursor) => {
+      const base = "/api/v1/users/me/membership-history/";
+      return cursor ? `${base}?cursor=${encodeURIComponent(cursor)}` : base;
+    },
+    ["membershipHistory", "me"],
     enabled,
-  });
+  );
 }
 
 export function useAgencyMemberHistory(
@@ -228,9 +231,9 @@ export function useAgencyMemberHistory(
   return useQuery({
     queryKey: ["agencyMemberHistory", agencyId, userId],
     queryFn: () =>
-      apiClient<MembershipTimelineEntry[]>(
+      apiClient<MembershipTimelinePage | MembershipTimelineEntry[]>(
         `/api/v1/agencies/${agencyId}/member-history/${userId}`,
-      ),
+      ).then(normalizeMembershipHistoryPage).then((page) => page.items),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId) && Boolean(userId),
   });
