@@ -347,7 +347,7 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
-  const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
+  const rejectReactivation = useRejectJoinRequestReactivation();
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
