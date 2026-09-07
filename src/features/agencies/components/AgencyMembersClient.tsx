@@ -61,7 +61,6 @@ import {
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
-  formatMembershipDate,
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
@@ -69,8 +68,6 @@ import {
 } from "./membershipHistory";
 import {
   MembershipTimeline,
-  resolveTimelineLabel,
-  timelineActionBadgeVariant,
   TimelineHeader,
   timelineRowBandClass,
 } from "@/features/agencies/components/MembershipHistoryList";
@@ -258,6 +255,56 @@ function groupAgencyCancelledCycles(requests: AgencyJoinRequestResponse[]) {
     .sort((first, second) => first.seekerName.localeCompare(second.seekerName));
 }
 
+interface AgencyHistoryMember {
+  userId: number;
+  displayName: string;
+  role?: string;
+  status?: string;
+}
+
+/* Per-member history group for the agency Membership history tab (Rule 20/22):
+   one cursor-paginated feed PER MEMBER (user_id) — never a per-tab aggregate —
+   via the canonical useAgencyMembershipHistory feed. The member block is always
+   visible; the 2-row cap + "View more" reveal and the zebra banding come from
+   the canonical MembershipTimeline rich tier, so seeker and agency sides share
+   the exact same group rendering (grouped by agency_id there, user_id here). */
+function AgencyMemberHistoryGroup({
+  agencyId,
+  member,
+  enabled,
+}: {
+  agencyId?: number;
+  member: AgencyHistoryMember;
+  enabled: boolean;
+}) {
+  const feed = useAgencyMembershipHistory(agencyId, member.userId, Boolean(agencyId) && enabled);
+  return (
+    <div className="space-y-3">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{member.displayName}</h3>
+      <MembershipTimeline
+        tier="rich"
+        history={feed.data}
+        isLoading={feed.isLoading}
+        isError={feed.isError}
+        onRetry={() => { feed.refetch(); }}
+        showHeader={false}
+        defaultUserDisplayName={member.displayName}
+      />
+      {feed.hasMore ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={feed.loadMore}
+          disabled={feed.isFetchingNextPage}
+        >
+          {feed.isFetchingNextPage ? "Loading..." : "Load more events"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 
 export function AgencyMembersClient() {
   const gate = useAgentRoleGate();
@@ -329,9 +376,6 @@ export function AgencyMembersClient() {
     expiredRequests.map((r) => r.user_id),
     Boolean(agencyId) && expiredRequests.length > 0,
   );
-
-  // Membership history tab: full agency-wide timeline (all users, all events)
-  const historyQuery = useAgencyMembershipHistory(agencyId, undefined, Boolean(agencyId));
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
@@ -584,6 +628,30 @@ export function AgencyMembersClient() {
 
   const joinRequests = joinRequestsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
+  // Membership history tab: PER-MEMBER cursor pagination (lead decision — not
+  // per-tab). Grouped by user_id; every member block is always visible and each
+  // runs its own cursor feed via useAgencyMembershipHistory inside
+  // AgencyMemberHistoryGroup. Member set = roster ∪ join-request applicants.
+  const historyMembers = (() => {
+    const byId = new Map<number, { userId: number; displayName: string; role?: string; status?: string }>();
+    for (const a of agents) {
+      byId.set(a.user_id, {
+        userId: a.user_id,
+        displayName: a.display_name || a.company_name || `User ${a.user_id}`,
+        role: a.user_role,
+        status: formatMembershipStatus(a.membership_status),
+      });
+    }
+    for (const r of joinRequests) {
+      if (!byId.has(r.user_id)) {
+        byId.set(r.user_id, {
+          userId: r.user_id,
+          displayName: r.seeker_name || r.seeker_email || `User ${r.user_id}`,
+        });
+      }
+    }
+    return [...byId.values()].sort((x, y) => x.displayName.localeCompare(y.displayName));
+  })();
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const invitations = invitationsQuery.data ?? [];
@@ -1898,74 +1966,31 @@ export function AgencyMembersClient() {
 
       {activeTab === "history" ? (
         <Card>
-          <CardBody className="space-y-4">
+          <CardBody className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Membership history</h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Full chronological log of all membership events across your agency.
+                Every member and applicant, grouped individually. Each member shows their two most recent
+                events; open a member&apos;s history to see all their activities.
               </p>
             </div>
-            {historyQuery.isLoading ? (
-              <AgencyOwnerTabListSkeleton />
-            ) : historyQuery.isError ? (
-              <ErrorState
-                title="Could not load membership history"
-                message="There was a problem loading your agency's membership history."
-                onRetry={() => { void historyQuery.refetch(); }}
+            {historyMembers.length === 0 ? (
+              <EmptyState
+                title="No members yet"
+                description="Member history will appear here once your agency has members or applications."
               />
-            ) : !historyQuery.data || historyQuery.data.length === 0 ? (
-              <EmptyState title="No membership history" description="Agent joins, role changes, and departures will appear here." />
             ) : (
-              <div className="space-y-0">
-                {[...historyQuery.data]
-                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                  .map((entry) => {
-                    return (
-                      <div key={entry.id ?? entry.timestamp} className="pb-4 last:pb-0">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.user_display_name ?? "Unknown"}</p>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {/* Canonical badge resolution (U-019 map, Rule 20 SSOT):
-                                  resolveTimelineLabel supplies the canonical fallback
-                                  labels for action-less rows (join_request -> "Submitted",
-                                  review_request -> "Review requested") so every event row
-                                  carries its proper badge — the earlier action-only guard
-                                  silently dropped these (DEF-U-AGENCY-HISTORY-TAB-001). */}
-                              <Badge variant={timelineActionBadgeVariant(entry)}>
-                                {resolveTimelineLabel(entry)}
-                              </Badge>
-                            </div>
-                          </div>
-                          <p className="mt-0.5 text-xs text-gray-500">{formatMembershipDate(entry.timestamp)}</p>
-                          {entry.reason ? (
-                            <p className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-400">{entry.reason}</p>
-                          ) : null}
-                          {entry.cover_note ? (
-                            <div className="mt-2 rounded-lg bg-blue-50 p-2 text-xs leading-5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                              <p className="mb-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Original application</p>
-                              <p className="whitespace-pre-wrap">{entry.cover_note}</p>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="space-y-8">
+                {historyMembers.map((member) => (
+                  <AgencyMemberHistoryGroup
+                    key={member.userId}
+                    agencyId={agencyId}
+                    member={member}
+                    enabled={activeTab === "history"}
+                  />
+                ))}
               </div>
             )}
-            {historyQuery.hasMore ? (
-              <div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={historyQuery.loadMore}
-                  disabled={historyQuery.isFetchingNextPage}
-                >
-                  {historyQuery.isFetchingNextPage ? "Loading..." : "Load more events"}
-                </Button>
-              </div>
-            ) : null}
           </CardBody>
         </Card>
       ) : null}
