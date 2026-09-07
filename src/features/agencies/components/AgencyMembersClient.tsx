@@ -260,14 +260,23 @@ interface AgencyHistoryMember {
   displayName: string;
   role?: string;
   status?: string;
+  email?: string;
+  avatarUrl?: string | null;
+  lastSeen?: string;
+  /* Canonical person-header qualifier lines (specialization, listing count,
+     license, decision reason) — derived here from the roster record and passed
+     through the shared MembershipTimeline/TimelineHeader SSOT. */
+  qualifiers?: string[];
 }
 
 /* Per-member history group for the agency Membership history tab (Rule 20/22):
    one cursor-paginated feed PER MEMBER (user_id) — never a per-tab aggregate —
    via the canonical useAgencyMembershipHistory feed. The member block is always
-   visible; the 2-row cap + "View more" reveal and the zebra banding come from
-   the canonical MembershipTimeline rich tier, so seeker and agency sides share
-   the exact same group rendering (grouped by agency_id there, user_id here). */
+   visible; the 2-row cap + "View more" reveal, the zebra banding, and the full
+   person header (name/role/status/qualifiers/event count) all come from the
+   canonical MembershipTimeline rich tier rendering the shared TimelineHeader
+   SSOT — so seeker and agency sides share the exact same group rendering
+   (grouped by agency_id there, user_id here). */
 function AgencyMemberHistoryGroup({
   agencyId,
   member,
@@ -285,15 +294,20 @@ function AgencyMemberHistoryGroup({
      count-based "View N more events" reveal. Never both at once. */
   return (
     <div className="space-y-3">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{member.displayName}</h3>
       <MembershipTimeline
         tier="rich"
+        entity="person"
         history={feed.data}
         isLoading={feed.isLoading}
         isError={feed.isError}
         onRetry={() => { feed.refetch(); }}
-        showHeader={false}
         defaultUserDisplayName={member.displayName}
+        role={member.role}
+        status={member.status}
+        email={member.email}
+        avatarUrl={member.avatarUrl}
+        lastSeen={member.lastSeen}
+        qualifiers={member.qualifiers}
         expanded={expanded}
         onExpandedChange={setExpanded}
       />
@@ -640,13 +654,24 @@ export function AgencyMembersClient() {
   // runs its own cursor feed via useAgencyMembershipHistory inside
   // AgencyMemberHistoryGroup. Member set = roster ∪ join-request applicants.
   const historyMembers = (() => {
-    const byId = new Map<number, { userId: number; displayName: string; role?: string; status?: string }>();
+    const byId = new Map<number, AgencyHistoryMember>();
     for (const a of agents) {
       byId.set(a.user_id, {
         userId: a.user_id,
         displayName: a.display_name || a.company_name || `User ${a.user_id}`,
         role: a.user_role,
         status: formatMembershipStatus(a.membership_status),
+        email: a.phone_number ? `${a.email} - ${a.phone_number}` : a.email,
+        avatarUrl: a.profile_image_url,
+        lastSeen: a.last_login ? fmtTimeAgo(a.last_login) : "Never logged in",
+        qualifiers: [
+          a.specialization ?? "Real estate agent",
+          ...(a.years_experience != null ? [`${a.years_experience} years experience`] : []),
+          ...(a.license_number ? [`License ${a.license_number}`] : []),
+          ...(a.status_reason ? [`Decision reason: ${a.status_reason}`] : []),
+          ...(a.status_decided_at ? [`Last decision ${formatOptionalDate(a.status_decided_at)}`] : []),
+          `${a.listing_count} active listing${a.listing_count !== 1 ? "s" : ""}.`,
+        ],
       });
     }
     for (const r of joinRequests) {
@@ -654,6 +679,8 @@ export function AgencyMembersClient() {
         byId.set(r.user_id, {
           userId: r.user_id,
           displayName: r.seeker_name || r.seeker_email || `User ${r.user_id}`,
+          email: r.seeker_email ?? undefined,
+          qualifiers: [],
         });
       }
     }
@@ -672,7 +699,9 @@ export function AgencyMembersClient() {
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
     revoked: agents.filter(a => a.membership_status === "revoked").length,
     blocked: agents.filter(a => a.membership_status === "blocked").length,
-    history: undefined,
+    /* History tab counter = count of UNIQUE members/applicants surfaced in it
+       (same derived set the tab renders). Not a hardcoded value. */
+    history: historyMembers.length,
   };
   const pendingDecisionReason = pendingMembershipDecision
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
@@ -828,7 +857,7 @@ export function AgencyMembersClient() {
                           if (requestHistory.length === 0) return null;
                           return (
                             <MembershipTimeline
-                              tier="simple"
+                              tier="rich"
                               history={requestHistory}
                               emptyTitle="No events"
                               emptyDescription=""
@@ -1816,7 +1845,6 @@ export function AgencyMembersClient() {
                         <MembershipTimeline
                           tier="rich"
                           history={leftEvents}
-                          alwaysExpanded
                           showHeader={false}
                           entity="person"
                           defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
@@ -1887,7 +1915,6 @@ export function AgencyMembersClient() {
                 <MembershipTimeline
                   tier="rich"
                   history={agentHistory}
-                  alwaysExpanded
                   entity="person"
                   avatarUrl={agent.profile_image_url}
                   defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}

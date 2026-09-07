@@ -908,7 +908,7 @@ export function MyJoinRequestsClient() {
                         if (leftEvents.length === 0) return null;
                         return (
                           <MembershipTimeline
-                            tier="simple"
+                            tier="rich"
                             history={leftEvents}
                             emptyTitle="No events"
                             emptyDescription=""
@@ -1021,7 +1021,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            alwaysExpanded
                           />
                         ) : null}
                         {/* UI-008: button stays clickable while a review is pending;
@@ -1262,7 +1261,7 @@ export function MyJoinRequestsClient() {
                           if (requestHistory.length === 0) return null;
                           return (
                              <MembershipTimeline
-                               tier="simple"
+                               tier="rich"
                                history={requestHistory}
                                emptyTitle="No events"
                                emptyDescription=""
