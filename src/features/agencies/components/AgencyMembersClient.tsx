@@ -1476,15 +1476,9 @@ export function AgencyMembersClient() {
                         )}
                       </div>
                     </div>
-                    {agent.is_agency_owner || agent.user_id === user?.user_id ? null : (
-                      <Input
-                        label="Decision reason" placeholder="Required before membership decisions or review responses"
-                        value={membershipReasons[agent.membership_id] ?? ""}
-                        onChange={(event) =>
-                          setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                        }
-                      />
-                    )}
+                    {/* Decision reason is captured in the confirmation dialog only
+                        (single canonical entry point); the former inline input
+                        duplicated the dialog's own reason field. */}
                   </div>
                 ))}
               </div>
@@ -1887,13 +1881,8 @@ export function AgencyMembersClient() {
                         />
                       );
                     })()}
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
+                    {/* Decision reason captured in the confirmation dialog only —
+                        inline input removed (duplicated the dialog's field). */}
                   </div>
                 ))}
               </div>
