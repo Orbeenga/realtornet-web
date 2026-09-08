@@ -32,6 +32,7 @@ import {
   useAgencyInvitations,
   useAgencyJoinRequests,
   useAgencyMembershipHistories,
+  useAgencyMembershipHistory,
   useAgencyReviewRequests,
   useAcceptAgencyReviewRequest,
   useApproveAgencyJoinRequest,
@@ -40,6 +41,7 @@ import {
   useInviteAgencyAgent,
   useReactivateInvitation,
   useRejectAgencyJoinRequest,
+  useRejectJoinRequestReactivation,
   useRequestJoinRequestReactivation,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
@@ -84,7 +86,7 @@ const inviteSchema = z.object({
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
-type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "suspended" | "leftCancelled" | "revoked" | "blocked";
+type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "suspended" | "leftCancelled" | "revoked" | "blocked" | "history";
 type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
@@ -109,6 +111,7 @@ const AGENCY_OWNER_TABS: Array<{ value: AgencyOwnerTab; label: string }> = [
   { value: "leftCancelled", label: "Left" },
   { value: "revoked", label: "Revoked" },
   { value: "blocked", label: "Blocked" },
+  { value: "history", label: "Membership history" },
 ];
 
 function formatDate(value: string) {
@@ -252,6 +255,77 @@ function groupAgencyCancelledCycles(requests: AgencyJoinRequestResponse[]) {
     .sort((first, second) => first.seekerName.localeCompare(second.seekerName));
 }
 
+interface AgencyHistoryMember {
+  userId: number;
+  displayName: string;
+  role?: string;
+  status?: string;
+  email?: string;
+  avatarUrl?: string | null;
+  lastSeen?: string;
+  /* Canonical person-header qualifier lines (specialization, listing count,
+     license, decision reason) — derived here from the roster record and passed
+     through the shared MembershipTimeline/TimelineHeader SSOT. */
+  qualifiers?: string[];
+}
+
+/* Per-member history group for the agency Membership history tab (Rule 20/22):
+   one cursor-paginated feed PER MEMBER (user_id) — never a per-tab aggregate —
+   via the canonical useAgencyMembershipHistory feed. The member block is always
+   visible; the 2-row cap + "View more" reveal, the zebra banding, and the full
+   person header (name/role/status/qualifiers/event count) all come from the
+   canonical MembershipTimeline rich tier rendering the shared TimelineHeader
+   SSOT — so seeker and agency sides share the exact same group rendering
+   (grouped by agency_id there, user_id here). */
+function AgencyMemberHistoryGroup({
+  agencyId,
+  member,
+  enabled,
+}: {
+  agencyId?: number;
+  member: AgencyHistoryMember;
+  enabled: boolean;
+}) {
+  const feed = useAgencyMembershipHistory(agencyId, member.userId, Boolean(agencyId) && enabled);
+  const [expanded, setExpanded] = useState(false);
+  /* Disclosure sequencing (lead decision): "Load more events" — the FETCH
+     control — only renders once the bounded reveal is expanded, i.e. every
+     already-fetched page is visible. Collapsed state exposes only the
+     count-based "View N more events" reveal. Never both at once. */
+  return (
+    <div className="space-y-3">
+      <MembershipTimeline
+        tier="rich"
+        entity="person"
+        history={feed.data}
+        isLoading={feed.isLoading}
+        isError={feed.isError}
+        onRetry={() => { feed.refetch(); }}
+        defaultUserDisplayName={member.displayName}
+        role={member.role}
+        status={member.status}
+        email={member.email}
+        avatarUrl={member.avatarUrl}
+        lastSeen={member.lastSeen}
+        qualifiers={member.qualifiers}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+      />
+      {expanded && feed.hasMore ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={feed.loadMore}
+          disabled={feed.isFetchingNextPage}
+        >
+          {feed.isFetchingNextPage ? "Loading..." : "Load more events"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 
 export function AgencyMembersClient() {
   const gate = useAgentRoleGate();
@@ -316,6 +390,21 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && leftAgents.length > 0,
   );
 
+  // U-035-parity (lead decision, batch DEF-U-SUSPENDED-ACCORDION-001): the
+  // Suspended tab is a multi-event append-only lifecycle (suspend -> reinstate ->
+  // suspend), same shape as Left/Revoked, so it joins the cumulative-card model
+  // via the exact Left/Revoked SSOT pattern (per-member feed + scoped filter).
+  const suspendedAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "suspended") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
+  const suspendedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    suspendedAgents.map((a) => a.user_id),
+    Boolean(agencyId) && suspendedAgents.length > 0,
+  );
+
   // U-022d/U-026 parity: per-member history for the Expired join-request tab
   const expiredRequests = joinRequestsQuery.data?.filter(hasExpiredHistory) ?? [];
   const expiredHistoryQueries = useAgencyMembershipHistories(
@@ -338,6 +427,7 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
+  const rejectReactivation = useRejectJoinRequestReactivation();
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -364,6 +454,29 @@ export function AgencyMembersClient() {
       });
     } catch {
       notify.error("Could not reject join request");
+    }
+  };
+
+  const handleRejectJoinRequestReactivation = async (requestId: number) => {
+    const reason = rejectReasons[requestId]?.trim();
+    if (!reason) {
+      notify.error("Enter a reason before rejecting this reactivation request.");
+      return;
+    }
+    try {
+      await rejectReactivation.mutateAsync({ requestId, reason });
+      notify.success("Reactivation request rejected. The applicant can see the decision in My Agencies.");
+      setRejectReasons((current) => {
+        const next = { ...current };
+        delete next[requestId];
+        return next;
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError && typeof error.detail === "string"
+          ? error.detail
+          : "Could not reject reactivation request.";
+      notify.error(message);
     }
   };
 
@@ -551,6 +664,45 @@ export function AgencyMembersClient() {
 
   const joinRequests = joinRequestsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
+  // Membership history tab: PER-MEMBER cursor pagination (lead decision — not
+  // per-tab). Grouped by user_id; every member block is always visible and each
+  // runs its own cursor feed via useAgencyMembershipHistory inside
+  // AgencyMemberHistoryGroup. Member set = roster ∪ join-request applicants.
+  const historyMembers = (() => {
+    const byId = new Map<number, AgencyHistoryMember>();
+    for (const a of agents) {
+      byId.set(a.user_id, {
+        userId: a.user_id,
+        displayName: a.display_name || a.company_name || `User ${a.user_id}`,
+        role: a.user_role,
+        status: formatMembershipStatus(a.membership_status),
+        email: a.phone_number ? `${a.email} - ${a.phone_number}` : a.email,
+        avatarUrl: a.profile_image_url,
+        lastSeen: a.last_login ? fmtTimeAgo(a.last_login) : "Never logged in",
+        qualifiers: [
+          // Profile context only. Role/status already render in TimelineHeader's
+          // identity slots; decision metadata (status_reason / status_decided_at)
+          // is intentionally NOT repeated here — the history events carry it, and
+          // an acceptance/restore carries a message, not a "Decision reason".
+          ...(a.specialization ? [a.specialization] : []),
+          ...(a.years_experience != null ? [`${a.years_experience} years experience`] : []),
+          ...(a.license_number ? [`License ${a.license_number}`] : []),
+          `${a.listing_count} active listing${a.listing_count !== 1 ? "s" : ""}.`,
+        ],
+      });
+    }
+    for (const r of joinRequests) {
+      if (!byId.has(r.user_id)) {
+        byId.set(r.user_id, {
+          userId: r.user_id,
+          displayName: r.seeker_name || r.seeker_email || `User ${r.user_id}`,
+          email: r.seeker_email ?? undefined,
+          qualifiers: [],
+        });
+      }
+    }
+    return [...byId.values()].sort((x, y) => x.displayName.localeCompare(y.displayName));
+  })();
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const invitations = invitationsQuery.data ?? [];
@@ -564,6 +716,9 @@ export function AgencyMembersClient() {
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
     revoked: agents.filter(a => a.membership_status === "revoked").length,
     blocked: agents.filter(a => a.membership_status === "blocked").length,
+    /* History tab counter = count of UNIQUE members/applicants surfaced in it
+       (same derived set the tab renders). Not a hardcoded value. */
+    history: historyMembers.length,
   };
   const pendingDecisionReason = pendingMembershipDecision
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
@@ -719,7 +874,7 @@ export function AgencyMembersClient() {
                           if (requestHistory.length === 0) return null;
                           return (
                             <MembershipTimeline
-                              tier="simple"
+                              tier="rich"
                               history={requestHistory}
                               emptyTitle="No events"
                               emptyDescription=""
@@ -858,9 +1013,40 @@ export function AgencyMembersClient() {
                               Request is pending a response from {request.seeker_name ?? "the applicant"}.
                             </p>
                           ) : reactivationStage === "seeker_requested" ? (
-                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
-                            </p>
+                            <div className="space-y-3">
+                              <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                                Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
+                              </p>
+                              <div className="space-y-2">
+                                <Input
+                                  label="Rejection reason"
+                                  placeholder="Required to reject reactivation"
+                                  value={rejectReasons[request.join_request_id] ?? ""}
+                                  onChange={(event) =>
+                                    setRejectReasons((current) => ({
+                                      ...current,
+                                      [request.join_request_id]: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    loading={
+                                      rejectReactivation.isPending &&
+                                      rejectReactivation.variables?.requestId === request.join_request_id
+                                    }
+                                    onClick={() =>
+                                      void handleRejectJoinRequestReactivation(request.join_request_id)
+                                    }
+                                  >
+                                    Reject Reactivation
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
                           ) : reactivationStage === "initial" ? (
                             <div className="space-y-2">
                               <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
@@ -1033,6 +1219,10 @@ export function AgencyMembersClient() {
                         )
                       : group.requests[0];
 
+                  const priorRequests = group.requests.filter(
+                    (request) => request.id !== primaryRequest.id,
+                  );
+
                   return (
                   <div key={group.userId} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -1078,6 +1268,48 @@ export function AgencyMembersClient() {
                         </div>
                             ) : null}
                           </div>
+                    {priorRequests.length > 0 ? (
+                      <div className="mt-3 space-y-2 border-t border-border pt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Prior requests ({priorRequests.length})
+                        </p>
+                        <div className="space-y-1">
+                          {priorRequests.map((req, idx) => (
+                            <div
+                              key={`${req.source_type ?? "req"}-${req.id}`}
+                              className={`rounded-md px-3 py-2 text-xs leading-5 ${timelineRowBandClass(idx)}`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 font-medium">
+                                <span className="text-gray-900 dark:text-white">
+                                  {req.status === "pending"
+                                    ? "Review request"
+                                    : req.status === "accepted"
+                                      ? "Review accepted"
+                                      : "Review declined"}{" "}
+                                  — {formatDate(req.created_at)}
+                                </span>
+                                <Badge
+                                  variant={
+                                    req.status === "accepted"
+                                      ? "success"
+                                      : req.status === "declined"
+                                        ? "danger"
+                                        : "warning"
+                                  }
+                                >
+                                  {req.status}
+                                </Badge>
+                              </div>
+                              {req.message ? (
+                                <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                                  {req.message}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {primaryRequest.status === "pending" ? (
                       <Input className="mt-4" label="Decision reason" placeholder="Required for decline, optional for accept"
                         value={membershipReasons[primaryRequest.id] ?? ""}
@@ -1244,15 +1476,9 @@ export function AgencyMembersClient() {
                         )}
                       </div>
                     </div>
-                    {agent.is_agency_owner || agent.user_id === user?.user_id ? null : (
-                      <Input
-                        label="Decision reason" placeholder="Required before membership decisions or review responses"
-                        value={membershipReasons[agent.membership_id] ?? ""}
-                        onChange={(event) =>
-                          setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                        }
-                      />
-                    )}
+                    {/* Decision reason is captured in the confirmation dialog only
+                        (single canonical entry point); the former inline input
+                        duplicated the dialog's own reason field. */}
                   </div>
                 ))}
               </div>
@@ -1513,9 +1739,9 @@ export function AgencyMembersClient() {
             {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "suspended").length === 0 ? (
               <EmptyState title="No suspended agents." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "suspended").length > 0 ? (
+            {!agentsQuery.isLoading && suspendedAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "suspended").map((agent) => (
+                {suspendedAgents.map((agent, index) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -1548,13 +1774,29 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
+                    {(() => {
+                      // U-035-parity: this member's suspension lifecycle renders
+                      // via the shared scoped filter (SSOT) + canonical rich tier —
+                      // Shows 2 / expand accordion, same as Left/Revoked.
+                      const suspendedEvents = getMembershipHistoryByAction(
+                        suspendedHistoryQueries[index]?.data ?? [],
+                        { user_id: agent.user_id, agency_id: agent.agency_id },
+                        "suspended",
+                      );
+                      if (suspendedEvents.length === 0) return null;
+                      return (
+                        <MembershipTimeline
+                          tier="rich"
+                          history={suspendedEvents}
+                          showHeader={false}
+                          entity="person"
+                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                        />
+                      );
+                    })()}
+                    {/* Decision reason captured in the confirmation dialog only —
+                        inline input removed (duplicated the dialog's field). */}
                   </div>
                 ))}
               </div>
@@ -1630,7 +1872,6 @@ export function AgencyMembersClient() {
                         <MembershipTimeline
                           tier="rich"
                           history={leftEvents}
-                          alwaysExpanded
                           showHeader={false}
                           entity="person"
                           defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
@@ -1640,13 +1881,8 @@ export function AgencyMembersClient() {
                         />
                       );
                     })()}
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
+                    {/* Decision reason captured in the confirmation dialog only —
+                        inline input removed (duplicated the dialog's field). */}
                   </div>
                 ))}
               </div>
@@ -1701,7 +1937,6 @@ export function AgencyMembersClient() {
                 <MembershipTimeline
                   tier="rich"
                   history={agentHistory}
-                  alwaysExpanded
                   entity="person"
                   avatarUrl={agent.profile_image_url}
                   defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
@@ -1781,6 +2016,37 @@ export function AgencyMembersClient() {
                 ))}
               </div>
             ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeTab === "history" ? (
+        <Card>
+          <CardBody className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Membership history</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Every member and applicant, grouped individually. Each member shows their two most recent
+                events; open a member&apos;s history to see all their activities.
+              </p>
+            </div>
+            {historyMembers.length === 0 ? (
+              <EmptyState
+                title="No members yet"
+                description="Member history will appear here once your agency has members or applications."
+              />
+            ) : (
+              <div className="space-y-8">
+                {historyMembers.map((member) => (
+                  <AgencyMemberHistoryGroup
+                    key={member.userId}
+                    agencyId={agencyId}
+                    member={member}
+                    enabled={activeTab === "history"}
+                  />
+                ))}
+              </div>
+            )}
           </CardBody>
         </Card>
       ) : null}

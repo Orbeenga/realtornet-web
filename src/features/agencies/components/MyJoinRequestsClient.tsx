@@ -834,6 +834,29 @@ export function MyJoinRequestsClient() {
                         </Link>
                         <Badge variant="warning">suspended</Badge>
                       </div>
+                      {(() => {
+                        // U-035-parity (lead decision, batch DEF-U-SUSPENDED-ACCORDION-001):
+                        // suspended is a multi-event lifecycle like left/revoked; render via
+                        // the shared scoped filter (SSOT) + canonical rich accordion.
+                        const suspendedEvents = getMembershipHistoryByAction(
+                          historyQuery.data ?? [],
+                          { agency_id: membership.agency_id, agency_name: membership.agency_name },
+                          "suspended",
+                        );
+                        if (suspendedEvents.length === 0) return null;
+                        return (
+                          <MembershipTimeline
+                            tier="rich"
+                            history={suspendedEvents}
+                            emptyTitle="No events"
+                            emptyDescription=""
+                            entity="agency"
+                            defaultUserDisplayName={membership.agency_name}
+                            labelStage="join_request"
+                            showHeader={false}
+                          />
+                        );
+                      })()}
                       {membership.status_decided_at ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Suspended {formatDate(membership.status_decided_at)}
@@ -908,13 +931,14 @@ export function MyJoinRequestsClient() {
                         if (leftEvents.length === 0) return null;
                         return (
                           <MembershipTimeline
-                            tier="simple"
+                            tier="rich"
                             history={leftEvents}
                             emptyTitle="No events"
                             emptyDescription=""
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             labelStage="join_request"
+                            showHeader={false}
                           />
                         );
                       })()}
@@ -1021,7 +1045,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            alwaysExpanded
                           />
                         ) : null}
                         {/* UI-008: button stays clickable while a review is pending;
@@ -1148,6 +1171,17 @@ export function MyJoinRequestsClient() {
                   );
                 })()
               )}
+              {historyQuery.hasMore ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={historyQuery.loadMore}
+                  disabled={historyQuery.isFetchingNextPage}
+                >
+                  {historyQuery.isFetchingNextPage ? "Loading..." : "Load more events"}
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -1251,7 +1285,7 @@ export function MyJoinRequestsClient() {
                           if (requestHistory.length === 0) return null;
                           return (
                              <MembershipTimeline
-                               tier="simple"
+                               tier="rich"
                                history={requestHistory}
                                emptyTitle="No events"
                                emptyDescription=""

@@ -52,6 +52,12 @@ interface MembershipTimelineProps {
       canonical). All other consumers omit this — canonical rendering
       everywhere else. */
   pendingReviewHighlight?: boolean;
+  /** Optional controlled reveal state (rich tier). When provided, the parent
+      owns expanded/collapsed and internal state is bypassed — enabling parents
+      to gate fetch-more controls behind the reveal (disclosure sequencing:
+      never expose "fetch more" while the bounded reveal is still collapsed). */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 /* Shared timeline row zebra-banding lives HERE ONLY (canonical MembershipHistoryList
@@ -63,7 +69,7 @@ export function timelineRowBandClass(index: number): string {
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
-function resolveTimelineLabel(
+export function resolveTimelineLabel(
   entry: MembershipTimelineEntry,
   labelStage: "invitation" | "join_request" = "invitation",
 ): string {
@@ -79,7 +85,7 @@ function resolveTimelineLabel(
 }
 
 // Keyed off the same action/source_type shapes resolveTimelineLabel consumes (U-019).
-function timelineActionBadgeVariant(entry: MembershipTimelineEntry) {
+export function timelineActionBadgeVariant(entry: MembershipTimelineEntry) {
   const action = entry.action;
   if (!action) return "outline" as const;
   if (action === "joined" || action === "reinstated" || action === "approved") return "success" as const;
@@ -246,8 +252,11 @@ export function MembershipTimeline({
   avatarUrl,
   qualifiers,
   pendingReviewHighlight,
+  expanded: expandedProp,
+  onExpandedChange,
 }: MembershipTimelineProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = expandedProp ?? internalExpanded;
 
   if (isLoading) {
     if (tier === "rich") {
@@ -469,7 +478,9 @@ export function MembershipTimeline({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() =>
+            onExpandedChange ? onExpandedChange(!isExpanded) : setInternalExpanded(!isExpanded)
+          }
         >
           {isExpanded ? "Hide" : `View ${sortedHistory.length - 2} more events`}
         </Button>

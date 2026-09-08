@@ -721,6 +721,10 @@ export interface paths {
         /**
          * Read My Membership History
          * @description Return the authenticated user's unified membership timeline across all agencies.
+         *
+         *     Cursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the
+         *     previous response to fetch the next page. Returns all pages' worth of history
+         *     when the client walks the cursor.
          */
         get: operations["read_my_membership_history_api_v1_users_me_membership_history__get"];
         put?: never;
@@ -973,6 +977,9 @@ export interface paths {
         /**
          * Read Agency Member History
          * @description Return this agency's full membership history with a specific user.
+         *
+         *     Cursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the
+         *     previous response to fetch the next page.
          */
         get: operations["read_agency_member_history_api_v1_agencies__agency_id__member_history__user_id___get"];
         put?: never;
@@ -994,6 +1001,8 @@ export interface paths {
          * Read Agency Membership History
          * @description Return this agency's full membership history across all users (agency_owner/admin only).
          *     If user_id is provided, returns only that member's history.
+         *     Cursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the
+         *     previous response to fetch the next page.
          */
         get: operations["read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get"];
         put?: never;
@@ -6323,6 +6332,18 @@ export interface components {
             user_display_name?: string | null;
         };
         /**
+         * MembershipTimelinePage
+         * @description Cursor-paginated page of a unified membership timeline.
+         *
+         *     `next_cursor` is null when the page is the last one (no more entries).
+         */
+        MembershipTimelinePage: {
+            /** Items */
+            items: components["schemas"]["MembershipTimelineEntry"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
          * ModerationStatus
          * @description Schema enum - values match moderation_status_enum exactly.
          *
@@ -8479,10 +8500,10 @@ export interface operations {
     read_my_membership_history_api_v1_users_me_membership_history__get: {
         parameters: {
             query?: {
-                /** @description Records to skip */
-                skip?: number;
                 /** @description Page size (max 100) */
                 limit?: number;
+                /** @description Opaque keyset pagination cursor */
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -8496,7 +8517,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MembershipTimelineEntry"][];
+                    "application/json": components["schemas"]["MembershipTimelinePage"];
                 };
             };
             /** @description Validation Error */
@@ -8968,10 +8989,10 @@ export interface operations {
     read_agency_member_history_api_v1_agencies__agency_id__member_history__user_id___get: {
         parameters: {
             query?: {
-                /** @description Records to skip */
-                skip?: number;
                 /** @description Page size (max 100) */
                 limit?: number;
+                /** @description Opaque keyset pagination cursor */
+                cursor?: string | null;
             };
             header?: never;
             path: {
@@ -8988,7 +9009,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MembershipTimelineEntry"][];
+                    "application/json": components["schemas"]["MembershipTimelinePage"];
                 };
             };
             /** @description Validation Error */
@@ -9005,11 +9026,11 @@ export interface operations {
     read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get: {
         parameters: {
             query?: {
-                user_id?: number | null;
-                /** @description Records to skip */
-                skip?: number;
                 /** @description Page size (max 100) */
                 limit?: number;
+                /** @description Opaque keyset pagination cursor */
+                cursor?: string | null;
+                user_id?: number | null;
             };
             header?: never;
             path: {
@@ -9025,7 +9046,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MembershipTimelineEntry"][];
+                    "application/json": components["schemas"]["MembershipTimelinePage"];
                 };
             };
             /** @description Validation Error */

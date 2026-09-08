@@ -29,6 +29,7 @@ export type AgencyReviewRequestResponse = components["schemas"]["AgencyReviewReq
 export type AgentMembershipRestrictionStatus = components["schemas"]["AgentMembershipRestrictionStatus"];
 export type AgencyMembershipHistory = components["schemas"]["MembershipTimelineEntry"];
 export type MembershipTimelineEntry = components["schemas"]["MembershipTimelineEntry"];
+export type MembershipTimelinePage = components["schemas"]["MembershipTimelinePage"];
 export type AgencyReviewRequestAcceptRequest = components["schemas"]["AgencyReviewRequestAcceptRequest"];
 export type AgencyReviewRequestDeclineRequest = components["schemas"]["AgencyReviewRequestDeclineRequest"];
 export type AgencyOwnershipTransferRequest = components["schemas"]["AgencyOwnershipTransferRequest"];
