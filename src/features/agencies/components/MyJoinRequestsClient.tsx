@@ -915,6 +915,7 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             labelStage="join_request"
+                            showHeader={false}
                           />
                         );
                       })()}
