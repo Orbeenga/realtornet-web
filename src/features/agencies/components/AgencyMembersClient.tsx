@@ -680,11 +680,13 @@ export function AgencyMembersClient() {
         avatarUrl: a.profile_image_url,
         lastSeen: a.last_login ? fmtTimeAgo(a.last_login) : "Never logged in",
         qualifiers: [
-          a.specialization ?? "Real estate agent",
+          // Profile context only. Role/status already render in TimelineHeader's
+          // identity slots; decision metadata (status_reason / status_decided_at)
+          // is intentionally NOT repeated here — the history events carry it, and
+          // an acceptance/restore carries a message, not a "Decision reason".
+          ...(a.specialization ? [a.specialization] : []),
           ...(a.years_experience != null ? [`${a.years_experience} years experience`] : []),
           ...(a.license_number ? [`License ${a.license_number}`] : []),
-          ...(a.status_reason ? [`Decision reason: ${a.status_reason}`] : []),
-          ...(a.status_decided_at ? [`Last decision ${formatOptionalDate(a.status_decided_at)}`] : []),
           `${a.listing_count} active listing${a.listing_count !== 1 ? "s" : ""}.`,
         ],
       });
