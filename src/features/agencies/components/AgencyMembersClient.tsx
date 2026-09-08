@@ -390,6 +390,21 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && leftAgents.length > 0,
   );
 
+  // U-035-parity (lead decision, batch DEF-U-SUSPENDED-ACCORDION-001): the
+  // Suspended tab is a multi-event append-only lifecycle (suspend -> reinstate ->
+  // suspend), same shape as Left/Revoked, so it joins the cumulative-card model
+  // via the exact Left/Revoked SSOT pattern (per-member feed + scoped filter).
+  const suspendedAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "suspended") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
+  const suspendedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    suspendedAgents.map((a) => a.user_id),
+    Boolean(agencyId) && suspendedAgents.length > 0,
+  );
+
   // U-022d/U-026 parity: per-member history for the Expired join-request tab
   const expiredRequests = joinRequestsQuery.data?.filter(hasExpiredHistory) ?? [];
   const expiredHistoryQueries = useAgencyMembershipHistories(
@@ -1728,9 +1743,9 @@ export function AgencyMembersClient() {
             {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "suspended").length === 0 ? (
               <EmptyState title="No suspended agents." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "suspended").length > 0 ? (
+            {!agentsQuery.isLoading && suspendedAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "suspended").map((agent) => (
+                {suspendedAgents.map((agent, index) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -1763,13 +1778,29 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
-                    <Input
-                      label="Decision reason" placeholder="Required before membership decisions or review responses"
-                      value={membershipReasons[agent.membership_id] ?? ""}
-                      onChange={(event) =>
-                        setMembershipReasons((current) => ({ ...current, [agent.membership_id]: event.target.value }))
-                      }
-                    />
+                    {(() => {
+                      // U-035-parity: this member's suspension lifecycle renders
+                      // via the shared scoped filter (SSOT) + canonical rich tier —
+                      // Shows 2 / expand accordion, same as Left/Revoked.
+                      const suspendedEvents = getMembershipHistoryByAction(
+                        suspendedHistoryQueries[index]?.data ?? [],
+                        { user_id: agent.user_id, agency_id: agent.agency_id },
+                        "suspended",
+                      );
+                      if (suspendedEvents.length === 0) return null;
+                      return (
+                        <MembershipTimeline
+                          tier="rich"
+                          history={suspendedEvents}
+                          showHeader={false}
+                          entity="person"
+                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                        />
+                      );
+                    })()}
+                    {/* Decision reason captured in the confirmation dialog only —
+                        inline input removed (duplicated the dialog's field). */}
                   </div>
                 ))}
               </div>
