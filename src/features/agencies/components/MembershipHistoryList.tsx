@@ -420,6 +420,18 @@ export function MembershipTimeline({
 
         return (
           <Fragment key={entryId}>
+            {/* New-review notice + emphasis marker. Placed ABOVE the pending
+                request row it introduces (operator request): it leads the entry
+                as a pointer to Review Requests. Gating + computation unchanged
+                (isPendingReviewRow); only the render position moved. */}
+            {pendingNotice ? (
+              <div className="mb-2 space-y-1">
+                <Badge variant="default">New</Badge>
+                <p className={ambientTextToneClass[pendingNotice.tone]}>
+                  {pendingNotice.text}
+                </p>
+              </div>
+            ) : null}
             <div
               // Shared zebra banding (grey/white alternating), no borders — same
               // pairing as the simple tier, defined here only (canonical component).
@@ -460,16 +472,6 @@ export function MembershipTimeline({
                 (its own reason/review_message fields render above). Nothing is
                 merged into the request row. */}
             </div>
-            {/* Sibling notice (ASCII rebuild per LESSONS.md 2026-08-30: em-dash byte roundtrip through the editor tool is the documented corruption class; kept ASCII-only. */}
-            {pendingNotice ? (
-              <div className="mt-2 space-y-1">
-                {/* SEPARATE small New attention marker (gated via pendingReviewHighlight), placed just above the ambient notice it introduces - never a badge masquerading as the label, never competing with the canonical Review requested badge in the top row. */}
-                <Badge variant="default">New</Badge>
-                <p className={ambientTextToneClass[pendingNotice.tone]}>
-                  {pendingNotice.text}
-                </p>
-              </div>
-            ) : null}
           </Fragment>
         );
       })}
