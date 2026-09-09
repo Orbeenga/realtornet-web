@@ -874,7 +874,7 @@ export function AgencyMembersClient() {
                           if (requestHistory.length === 0) return null;
                           return (
                             <MembershipTimeline
-                              tier="rich"
+                              tier="simple"
                               history={requestHistory}
                               emptyTitle="No events"
                               emptyDescription=""
