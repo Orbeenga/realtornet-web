@@ -724,7 +724,9 @@ export interface paths {
          *
          *     Cursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the
          *     previous response to fetch the next page. Returns all pages' worth of history
-         *     when the client walks the cursor.
+         *     when the client walks the cursor. When `agency_id` is provided, returns only
+         *     that agency's entries (same contract as the `user_id` param on
+         *     /agencies/{id}/membership-history/ — no truncation).
          */
         get: operations["read_my_membership_history_api_v1_users_me_membership_history__get"];
         put?: never;
@@ -8504,6 +8506,8 @@ export interface operations {
                 limit?: number;
                 /** @description Opaque keyset pagination cursor */
                 cursor?: string | null;
+                /** @description Optional per-agency filter (DEF-U-SEEKER-PER-AGENCY-PAGINATION-001) */
+                agency_id?: number | null;
             };
             header?: never;
             path?: never;
