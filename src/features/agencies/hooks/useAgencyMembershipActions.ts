@@ -212,13 +212,22 @@ export function useDeclineAgencyReviewRequest(agencyId?: string | number | null)
   return useAgencyReviewRequestDecision(agencyId, "decline");
 }
 
-export function useMembershipHistory(enabled = true) {
+export function useMembershipHistory(enabled = true, agencyId?: number | null) {
+  /* Per-entity scoping (U-037): when agencyId is provided, the seeker feed is
+     scoped to that single agency via ?agency_id= (mirror of the agency-side
+     user_id parameter on /agencies/{id}/membership-history/). Each agency group
+     on the seeker History tab runs its own cursor feed — the same per-entity
+     pagination pattern as the agency Membership history tab's per-member feeds. */
   return useMembershipHistoryFeed(
     (cursor) => {
       const base = "/api/v1/users/me/membership-history/";
-      return cursor ? `${base}?cursor=${encodeURIComponent(cursor)}` : base;
+      const params = new URLSearchParams();
+      if (agencyId != null) params.set("agency_id", String(agencyId));
+      if (cursor) params.set("cursor", cursor);
+      const qs = params.toString();
+      return qs ? `${base}?${qs}` : base;
     },
-    ["membershipHistory", "me"],
+    ["membershipHistory", "me", agencyId],
     enabled,
   );
 }

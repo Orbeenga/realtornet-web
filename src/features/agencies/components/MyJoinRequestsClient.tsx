@@ -131,6 +131,65 @@ function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
     .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
 }
 
+/* Seekers/Agency-history per-agency group (Rule 20/22 mirror of the agency
+   side's AgencyMemberHistoryGroup): one cursor-paginated feed PER AGENCY
+   (agency_id) via the canonical useMembershipHistory feed — never a per-tab
+   aggregate. The agency group block is always visible; the 2-row cap + "View
+   more" reveal, zebra banding, and the persona/header all come from the
+   canonical MembershipTimeline rich tier. This makes the seeker History tab
+   symmetric with the agency Membership history tab (grouped by agency_id here,
+   user_id there), with per-entity disclosure-gated pagination (U-036/U-037). */
+function SeekerAgencyHistoryGroup({
+  agency,
+  enabled,
+  defaultUserDisplayName,
+  role,
+}: {
+  agency: { agency_id: number; agency_name: string; status?: string };
+  enabled: boolean;
+  defaultUserDisplayName?: string;
+  role?: string;
+}) {
+  const feed = useMembershipHistory(enabled && Boolean(agency.agency_id), agency.agency_id);
+  const [expanded, setExpanded] = useState(false);
+  /* Disclosure sequencing (U-036): the FETCH control ("Load more events") only
+     renders once the bounded reveal is expanded. Collapsed state exposes only
+     the count-based "View N more events" reveal. Never both at once. */
+  return (
+    <div key={agency.agency_id} className="space-y-3">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        {agency.agency_name}
+      </h3>
+      <MembershipTimeline
+        tier="rich"
+        entity="person"
+        history={feed.data}
+        isLoading={feed.isLoading}
+        isError={feed.isError}
+        onRetry={() => {
+          feed.refetch();
+        }}
+        defaultUserDisplayName={defaultUserDisplayName}
+        role={role}
+        status={agency.status}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+      />
+      {expanded && feed.hasMore ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={feed.loadMore}
+          disabled={feed.isFetchingNextPage}
+        >
+          {feed.isFetchingNextPage ? "Loading..." : "Load more events"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
@@ -1126,62 +1185,33 @@ export function MyJoinRequestsClient() {
               )}
             </div>
           ) : membershipSubTab === "history" ? (
+            /* Per-agency membership-history view (U-037 per-entity scoping):
+               one cursor-paginated feed PER agency, mirroring the agency
+               History tab's per-member groups. Each agency the user belongs to
+               (across all statuses) renders its own block with a disclosure-
+               gated "Load more" (U-036). The legacy merged historyQuery remains
+               for the Approved/Revoked/Suspended/Left card consumers below. */
             <div className="space-y-4">
-              {historyQuery.isLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-              ) : historyQuery.isError ? (
-                <p className="text-sm text-red-500">Could not load membership history.</p>
-              ) : !historyQuery.data || historyQuery.data.length === 0 ? (
+              {memberships.length === 0 ? (
                 <EmptyState
                   title="No membership history"
                   description="Agency membership events will appear here when they exist."
                 />
               ) : (
-                (() => {
-                  const grouped = historyQuery.data.reduce((acc, entry) => {
-                    const agencyName = entry.agency_name ?? "Unknown Agency";
-                    if (!acc[agencyName]) {
-                      acc[agencyName] = [];
-                    }
-                    acc[agencyName].push(entry);
-                    return acc;
-                  }, {} as Record<string, typeof historyQuery.data>);
-                  const sortedAgencies = Object.keys(grouped).sort();
-                  return (
-                    <div className="space-y-6">
-                      {sortedAgencies.map((agencyName) => {
-                        const membershipStatus = memberships.find((m) => m.agency_name === agencyName)?.status;
-                        return (
-                        <div key={agencyName} className="space-y-3">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {agencyName}
-                          </h3>
-                          <MembershipTimeline
-                            tier="rich"
-                            history={grouped[agencyName]}
-                            entity="person"
-                            defaultUserDisplayName={defaultUserDisplayName}
-                            role={role}
-                            status={membershipStatus}
-                          />
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()
+                memberships.map((membership) => (
+                  <SeekerAgencyHistoryGroup
+                    key={membership.agency_id}
+                    agency={{
+                      agency_id: membership.agency_id,
+                      agency_name: membership.agency_name,
+                      status: membership.status,
+                    }}
+                    enabled={canViewAgencyMemberships}
+                    defaultUserDisplayName={defaultUserDisplayName}
+                    role={role}
+                  />
+                ))
               )}
-              {historyQuery.hasMore ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={historyQuery.loadMore}
-                  disabled={historyQuery.isFetchingNextPage}
-                >
-                  {historyQuery.isFetchingNextPage ? "Loading..." : "Load more events"}
-                </Button>
-              ) : null}
             </div>
           ) : null}
         </section>
@@ -1277,6 +1307,14 @@ export function MyJoinRequestsClient() {
             ) : (
               requests.filter(r => r.status === "approved").map((request) => {
                 const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
+                /* U-021/U-023d parity: the Approved-tab badge stays bound to the
+                   application status (request.status) below, but the live
+                   membership STANDING (this membership's status, e.g. revoked/
+                   suspended) is surfaced as the header qualifier — mirroring the
+                   agency Approved card's liveStatus (AgencyMembersClient). */
+                const liveStatus =
+                  memberships.find((m) => m.agency_id === request.agency_id)?.status ??
+                  request.status;
                 return (
                     <Card key={request.join_request_id}>
                       <CardBody className="space-y-4">
@@ -1292,6 +1330,7 @@ export function MyJoinRequestsClient() {
                                entity="agency"
                                defaultUserDisplayName={request.agency_name}
                                verified={request.is_verified}
+                               status={liveStatus}
                                applicationStatus={request.status}
                                labelStage="join_request"
                              />
