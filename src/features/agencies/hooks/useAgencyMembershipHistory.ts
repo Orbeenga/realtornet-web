@@ -87,6 +87,31 @@ export function useAgencyMembershipHistory(
 }
 
 /**
+ * Cursor-paginated invitation-events feed (DEF-U-INVITATION-EVENTS-FEED-001).
+ * Wraps the canonical useMembershipHistoryFeed over
+ * /agency-invitations/{id}/events/ — same MembershipTimelinePage keyset
+ * contract, same (timestamp, source_type, id) cursor. One feed per invitation;
+ * the Withdrawn-tab cards render the canonical MembershipTimeline rich tier
+ * from this feed (accordion + per-invitation "Load more" once expanded).
+ */
+export function useInvitationEvents(
+  invitationId?: number | null,
+  enabled = true,
+): MembershipHistoryFeed {
+  return useMembershipHistoryFeed(
+    (cursor) => {
+      const base = `/api/v1/agency-invitations/${invitationId}/events/`;
+      const params = new URLSearchParams();
+      if (cursor) params.set("cursor", cursor);
+      const qs = params.toString();
+      return qs ? `${base}?${qs}` : base;
+    },
+    ["invitationEvents", invitationId],
+    enabled && Boolean(invitationId),
+  );
+}
+
+/**
  * Batch per-user membership histories for an agency. Keeps the per-user fetch
  * (no cross-user fan-out) while exposing a single data-fetch pattern so callers
  * do not hand-roll `useQueries` + `apiClient`. Result order matches `userIds`.

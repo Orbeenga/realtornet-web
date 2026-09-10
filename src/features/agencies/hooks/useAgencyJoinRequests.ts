@@ -346,12 +346,19 @@ export function useReapplyAgencyJoinRequest() {
   return useMutation({
     mutationFn: ({
       agencyId,
+      message,
     }: {
       agencyId: number;
+      message?: string | null;
     }) =>
       apiClient<AgencyJoinRequestResponse>(
         `/api/v1/agencies/${agencyId}/join-requests/reapply/`,
-        { method: "POST" },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            reapplication_message: message || null,
+          }),
+        },
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });

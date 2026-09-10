@@ -1470,6 +1470,10 @@ export interface paths {
          *     original cancelled row stays untouched (append-only). The new row
          *     surfaces on the agency's Review Requests tab where the agency owner
          *     can Approve it.
+         *
+         *     U-032 Option (a) (DEF-U-REAPPLY-MESSAGE-001): the reapplication carries
+         *     only an optional short message. cover_note/portfolio_details are not
+         *     accepted here and stay canonical on the original application.
          */
         post: operations["reapply_agency_join_request_api_v1_agencies__agency_id__join_requests_reapply__post"];
         delete?: never;
@@ -5090,6 +5094,18 @@ export interface components {
             /** Portfolio Details */
             portfolio_details?: string | null;
         };
+        /**
+         * AgencyJoinRequestReapplyCreate
+         * @description Reapplication body (U-032 Option (a), DEF-U-REAPPLY-MESSAGE-001).
+         *
+         *     Reapplications carry only a short, optional message. cover_note and
+         *     portfolio_details stay canonical on the original application per U-032's
+         *     one-source-of-truth reasoning — they are deliberately not accepted here.
+         */
+        AgencyJoinRequestReapplyCreate: {
+            /** Reapplication Message */
+            reapplication_message?: string | null;
+        };
         /** AgencyJoinRequestRejectRequest */
         AgencyJoinRequestRejectRequest: {
             /** Reason */
@@ -5133,6 +5149,8 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
+            /** Reapplication Message */
+            reapplication_message?: string | null;
             /** Seeker Email */
             seeker_email?: string | null;
             /** Seeker Name */
@@ -9880,7 +9898,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestReapplyCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

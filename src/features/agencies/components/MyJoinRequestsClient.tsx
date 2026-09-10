@@ -19,6 +19,7 @@ import {
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
   useCreateAgencyMembershipReviewRequest,
+  useInvitationEvents,
   useMembershipHistory,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
@@ -190,6 +191,49 @@ function SeekerAgencyHistoryGroup({
   );
 }
 
+/* Per-invitation events feed for the Withdrawn tab (DEF-U-INVITATION-EVENTS-FEED-001).
+   One cursor-paginated feed per invitation, rendering the canonical MembershipTimeline
+   rich tier with disclosure sequencing (U-036): the "Load more events" fetch control
+   only renders once the bounded reveal is expanded. Symmetric with SeekerAgencyHistoryGroup
+   (per-invitation here, per-agency there). */
+function WithdrawnInvitationEvents({
+  invitationId,
+  enabled,
+}: {
+  invitationId: number;
+  enabled: boolean;
+}) {
+  const feed = useInvitationEvents(invitationId, enabled);
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <>
+      <MembershipTimeline
+        tier="rich"
+        entity="person"
+        history={feed.data}
+        isLoading={feed.isLoading}
+        isError={feed.isError}
+        onRetry={() => {
+          feed.refetch();
+        }}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+      />
+      {expanded && feed.hasMore ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={feed.loadMore}
+          disabled={feed.isFetchingNextPage}
+        >
+          {feed.isFetchingNextPage ? "Loading..." : "Load more events"}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
@@ -326,14 +370,24 @@ export function MyJoinRequestsClient() {
      reapply pattern). Variants: client-side cooldown-gate first (fast/local,
      notify.error), then fire; server 403/409 detail surfaced as the defensive
      second layer. Button stays clickable — never hard-disable. */
+  const [reapplyDialogAgencyId, setReapplyDialogAgencyId] = useState<number | null>(null);
+  const [reapplyMessage, setReapplyMessage] = useState("");
+
   const handleReapply = async (agencyId: number) => {
     if (applyAgainDates.has(agencyId)) {
       notify.error("Limit exceeded. Apply again after the cooldown period.");
       return;
     }
+    const message = reapplyMessage.trim();
+    if (!message) {
+      notify.error("Please provide a message before reapplying.");
+      return;
+    }
     try {
-      await reapplyJoinRequest.mutateAsync({ agencyId });
+      await reapplyJoinRequest.mutateAsync({ agencyId, message });
       notify.success("Application submitted — it will appear in the agency's Review Requests queue.");
+      setReapplyDialogAgencyId(null);
+      setReapplyMessage("");
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not reapply");
@@ -752,6 +806,10 @@ export function MyJoinRequestsClient() {
                             Withdrawn {formatDate(invitation.withdrawn_at)}
                           </p>
                         ) : null}
+                        <WithdrawnInvitationEvents
+                          invitationId={invitation.invitation_id}
+                          enabled={invitationSubTab === "withdrawn"}
+                        />
                         {invitation.reactivated_at ? (
                           <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                             Invitation reactivated — pending your response.
@@ -1592,8 +1650,7 @@ export function MyJoinRequestsClient() {
                     <div className="space-y-2 pt-2">
                       <Button
                         type="button" size="sm"
-                        loading={reapplyJoinRequest.isPending && reapplyJoinRequest.variables?.agencyId === group.agencyId}
-                        onClick={() => void handleReapply(group.agencyId)}
+                        onClick={() => { setReapplyDialogAgencyId(group.agencyId); setReapplyMessage(""); }}
                       >
                         Apply Again
                       </Button>
@@ -1643,6 +1700,36 @@ export function MyJoinRequestsClient() {
               onClick={() => cancelConfirmId !== null && void handleCancelJoinRequest(cancelConfirmId)}
             >
               Cancel request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reapplyDialogAgencyId !== null} onOpenChange={(open) => { if (!open) { setReapplyDialogAgencyId(null); setReapplyMessage(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply again</DialogTitle>
+            <DialogDescription>
+              Include a message for the agency owner with your reapplication.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            rows={3}
+            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            placeholder="Reapplication message (required)"
+            value={reapplyMessage}
+            onChange={(event) => setReapplyMessage(event.target.value)}
+          />
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => { setReapplyDialogAgencyId(null); setReapplyMessage(""); }}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              loading={reapplyJoinRequest.isPending && reapplyJoinRequest.variables?.agencyId === reapplyDialogAgencyId}
+              onClick={() => reapplyDialogAgencyId !== null && void handleReapply(reapplyDialogAgencyId)}
+            >
+              Submit application
             </Button>
           </DialogFooter>
         </DialogContent>
