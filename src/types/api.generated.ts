@@ -1470,6 +1470,10 @@ export interface paths {
          *     original cancelled row stays untouched (append-only). The new row
          *     surfaces on the agency's Review Requests tab where the agency owner
          *     can Approve it.
+         *
+         *     U-032 Option (a) (DEF-U-REAPPLY-MESSAGE-001): the reapplication carries
+         *     only an optional short message. cover_note/portfolio_details are not
+         *     accepted here and stay canonical on the original application.
          */
         post: operations["reapply_agency_join_request_api_v1_agencies__agency_id__join_requests_reapply__post"];
         delete?: never;
@@ -1670,6 +1674,35 @@ export interface paths {
          *     event. Notifies the invitee.
          */
         patch: operations["reactivate_agency_invitation_api_v1_agency_invitations__invitation_id__reactivate__patch"];
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/events/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Invitation Events
+         * @description Event feed for one invitation lifecycle (DEF-U-INVITATION-EVENTS-FEED-001).
+         *
+         *     Reads agent_membership_audit WHERE invitation_id = {id} — the Phase U SSOT
+         *     (U.1 added the nullable invitation_id FK so invitation events flow through
+         *     the same append-only audit table instead of a second timeline source) —
+         *     through the shared timeline-builder family with the same
+         *     (timestamp, source_type, id) keyset cursor as every other timeline
+         *     endpoint. Visible to the invitee of record and to the invitation agency's
+         *     owner (admin included via _is_agency_owner_for) — same visibility pattern
+         *     as the rest of this cluster.
+         */
+        get: operations["read_invitation_events_api_v1_agency_invitations__invitation_id__events__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/agency-memberships/mine/": {
@@ -5061,6 +5094,18 @@ export interface components {
             /** Portfolio Details */
             portfolio_details?: string | null;
         };
+        /**
+         * AgencyJoinRequestReapplyCreate
+         * @description Reapplication body (U-032 Option (a), DEF-U-REAPPLY-MESSAGE-001).
+         *
+         *     Reapplications carry only a short, optional message. cover_note and
+         *     portfolio_details stay canonical on the original application per U-032's
+         *     one-source-of-truth reasoning — they are deliberately not accepted here.
+         */
+        AgencyJoinRequestReapplyCreate: {
+            /** Reapplication Message */
+            reapplication_message?: string | null;
+        };
         /** AgencyJoinRequestRejectRequest */
         AgencyJoinRequestRejectRequest: {
             /** Reason */
@@ -5104,6 +5149,8 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
+            /** Reapplication Message */
+            reapplication_message?: string | null;
             /** Seeker Email */
             seeker_email?: string | null;
             /** Seeker Name */
@@ -6320,10 +6367,14 @@ export interface components {
             prior_role?: string | null;
             /** Post Role */
             post_role?: string | null;
+            /** Invitation Id */
+            invitation_id?: number | null;
             /** Cover Note */
             cover_note?: string | null;
             /** Portfolio Details */
             portfolio_details?: string | null;
+            /** Reapplication Message */
+            reapplication_message?: string | null;
             /** Review Message */
             review_message?: string | null;
             /** Review Response */
@@ -6393,6 +6444,8 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
+            /** Reapplication Message */
+            reapplication_message?: string | null;
             /**
              * Submitted At
              * Format: date-time
@@ -9849,7 +9902,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestReapplyCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10148,6 +10205,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgencyInvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_invitation_events_api_v1_agency_invitations__invitation_id__events__get: {
+        parameters: {
+            query?: {
+                /** @description Page size (max 100) */
+                limit?: number;
+                /** @description Opaque keyset pagination cursor */
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipTimelinePage"];
                 };
             };
             /** @description Validation Error */
