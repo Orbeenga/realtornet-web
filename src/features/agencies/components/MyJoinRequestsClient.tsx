@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
@@ -38,6 +38,7 @@ import {
   resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
+  resolveReapplyPendingSeekerAmbient,
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
@@ -144,12 +145,10 @@ function SeekerAgencyHistoryGroup({
   agency,
   enabled,
   defaultUserDisplayName,
-  role,
 }: {
-  agency: { agency_id: number; agency_name: string; status?: string };
+  agency: { agency_id: number; agency_name: string; status?: string; is_verified?: boolean };
   enabled: boolean;
   defaultUserDisplayName?: string;
-  role?: string;
 }) {
   const feed = useMembershipHistory(enabled && Boolean(agency.agency_id), agency.agency_id);
   const [expanded, setExpanded] = useState(false);
@@ -158,21 +157,20 @@ function SeekerAgencyHistoryGroup({
      the count-based "View N more events" reveal. Never both at once. */
   return (
     <div key={agency.agency_id} className="space-y-3">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-        {agency.agency_name}
-      </h3>
+      {/* Entity-scoped header (U-019 agency contract): the group is per AGENCY,
+          so the canonical TimelineHeader renders the agency identity
+          (name | verified | event-count) — never the seeker's person header. */}
       <MembershipTimeline
         tier="rich"
-        entity="person"
+        entity="agency"
+        verified={agency.is_verified}
         history={feed.data}
         isLoading={feed.isLoading}
         isError={feed.isError}
         onRetry={() => {
           feed.refetch();
         }}
-        defaultUserDisplayName={defaultUserDisplayName}
-        role={role}
-        status={agency.status}
+        defaultUserDisplayName={agency.agency_name}
         expanded={expanded}
         onExpandedChange={setExpanded}
       />
@@ -892,9 +890,9 @@ export function MyJoinRequestsClient() {
               { value: "left" as const, label: `Left (${leftMemberships.length})` },
               { value: "revoked" as const, label: `Revoked (${revokedMemberships.length})` },
               { value: "blocked" as const, label: `Blocked (${blockedMemberships.length})` },
-              { value: "history" as const, label: `History (${historyQuery.data?.length ?? 0})` },
+              { value: "history" as const, label: `History (${memberships.length})` },
             ].filter(t => {
-              if (t.value === "history") return (historyQuery.data?.length ?? 0) > 0 || membershipSubTab === "history";
+              if (t.value === "history") return memberships.length > 0 || membershipSubTab === "history";
               return true;
             }).map(({ value, label }) => (
               <Button key={value} type="button" variant={membershipSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setMembershipSubTab(value)}>
@@ -1263,10 +1261,10 @@ export function MyJoinRequestsClient() {
                       agency_id: membership.agency_id,
                       agency_name: membership.agency_name,
                       status: membership.status,
+                      is_verified: membership.is_verified,
                     }}
                     enabled={canViewAgencyMemberships}
                     defaultUserDisplayName={defaultUserDisplayName}
-                    role={role}
                   />
                 ))
               )}
@@ -1287,7 +1285,7 @@ export function MyJoinRequestsClient() {
             { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved").length})` },
             { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
             { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
-            { value: "cancelled" as const, label: `Cancelled (${requests.filter(r => r.status === "cancelled").length})` },
+            { value: "cancelled" as const, label: `Cancelled (${cancelledRequestGroups.length})` },
           ].map(({ value, label }) => (
             <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "approved" | "rejected" | "expired" | "cancelled")}>
               {label}
@@ -1590,21 +1588,28 @@ export function MyJoinRequestsClient() {
                 return (
                 <Card key={group.agencyId}>
                   <CardBody className="space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <Link
-                        href={`/agencies/${group.agencyId}`}
-                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                      >
-                        {group.agencyName}
-                      </Link>
-                      <Badge variant="danger">cancelled</Badge>
-                    </div>
+                    {/* Agency entity header via the shared TimelineHeader SSOT
+                        (name + verified + event count). The cancelled application
+                        badge renders canonically via applicationStatus. */}
+                    <TimelineHeader
+                      entity="agency"
+                      name={group.agencyName}
+                      verified={group.requests[0]?.is_verified}
+                      eventCount={group.requests.length}
+                      applicationStatus="cancelled"
+                    />
                     <div className="space-y-2">
                       {(() => {
                         const sortedRequests = [...group.requests].sort(
                           (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
                         );
-                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number }> = [];
+                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number; isPendingReapply?: boolean }> = [];
+                        // The pending reapply (if any) is the group's single pending row carrying a
+                        // reapplication_message — its "Application submitted" event anchors the
+                        // ambient notice BELOW the canonical row (U-035 family; discharges on resolve).
+                        const pendingReapplyReq = sortedRequests.find(
+                          (r) => r.status === "pending" && r.reapplication_message != null,
+                        );
                         for (let idx = 0; idx < sortedRequests.length; idx++) {
                           const req = sortedRequests[idx];
                           const eventNum = idx + 1;
@@ -1612,8 +1617,9 @@ export function MyJoinRequestsClient() {
                                 key: `submitted-${req.join_request_id}`,
                                 type: "Application submitted",
                                 date: req.submitted_at,
-                                message: req.cover_note ? `Message: ${req.cover_note}` : null,
+                                message: req.reapplication_message ? `Message: ${req.reapplication_message}` : (req.cover_note ? `Message: ${req.cover_note}` : null),
                                 eventNum,
+                                isPendingReapply: pendingReapplyReq != null && req.join_request_id === pendingReapplyReq.join_request_id,
                               });
                               const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, true);
                               reactivationTrace.forEach((event) => {
@@ -1634,23 +1640,53 @@ export function MyJoinRequestsClient() {
                                 });
                               }
                         }
-                        return events.map((event, eventIndex) => (
-                          <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
-                            <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                              {event.type} — {formatDate(event.date)}
-                            </p>
-                            {event.message ? (
-                              <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
-                            ) : null}
-                            <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
-                          </div>
-                        ));
+                        return events.map((event, eventIndex) => {
+                          // Rule 24: same shared banding as every other timeline surface.
+                          const row = (
+                            <div className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
+                              <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
+                                {event.type} — {formatDate(event.date)}
+                              </p>
+                              {event.message ? (
+                                <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
+                              ) : null}
+                              <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
+                            </div>
+                          );
+                          // Ambient notice BELOW the pending reapply's canonical row (U-035 family).
+                          // Discharges when the request resolves (isPendingReapply no longer set).
+                          const reapplyAmbient = event.isPendingReapply
+                            ? resolveReapplyPendingSeekerAmbient({ agencyName: group.agencyName })
+                            : null;
+                          return (
+                            <Fragment key={event.key}>
+                              {row}
+                              {reapplyAmbient ? (
+                                <div className="mt-2">
+                                  <p className={ambientTextToneClass[reapplyAmbient.tone]}>{reapplyAmbient.text}</p>
+                                </div>
+                              ) : null}
+                            </Fragment>
+                          );
+                        });
                       })()}
                     </div>
                     <div className="space-y-2 pt-2">
                       <Button
                         type="button" size="sm"
-                        onClick={() => { setReapplyDialogAgencyId(group.agencyId); setReapplyMessage(""); }}
+                        onClick={() => {
+                          /* Gate 1 (U-038 pending-check): duplicate-in-flight guard,
+                             fires pre-dialog before opening the reapply dialog.
+                             Distinct from UI-008's cooldown gate (rate limit). */
+                          const hasPendingReapply = group.requests.some(
+                            (r) => r.status === "pending" && r.reapplication_message != null,
+                          );
+                          if (hasPendingReapply) {
+                            notify.info(`You already have a pending reapplication for ${group.agencyName}.`);
+                            return;
+                          }
+                          setReapplyDialogAgencyId(group.agencyId); setReapplyMessage("");
+                        }}
                       >
                         Apply Again
                       </Button>

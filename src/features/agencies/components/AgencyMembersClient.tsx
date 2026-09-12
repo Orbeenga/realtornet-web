@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -57,6 +57,7 @@ import {
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
+  resolveReapplyPendingNotice,
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
@@ -378,6 +379,18 @@ export function AgencyMembersClient() {
     revokedAgents.map((a) => a.user_id),
     Boolean(agencyId) && revokedAgents.length > 0,
   );
+  // U-028 (parity with the render-time historical-fact predicate): the Revoked
+  // tab counter derives from the SAME rendered set as the body — any agent whose
+  // history contains a revoked audit event, regardless of current
+  // membership_status (a reinstated member keeps their revoked history visible).
+  // NOT the current-status count, which silently undercounts reinstated members.
+  const revokedRenderedAgents = revokedAgents
+    .map((agent, index) => ({ agent, index }))
+    .filter(({ agent, index }) =>
+      (revokedHistoryQueries[index]?.data ?? []).some(
+        (h) => h.source_type === "audit_event" && h.action === "revoked" && h.user_id === agent.user_id,
+      ),
+    );
   // U-028: Left tab joins the same cumulative-card model, scoped to 'left' events.
   const leftAgents = [
     ...new Map(
@@ -703,6 +716,13 @@ export function AgencyMembersClient() {
     }
     return [...byId.values()].sort((x, y) => x.displayName.localeCompare(y.displayName));
   })();
+  // Lookup for the Cancelled-card rich person headers (same SSOT identity the
+  // History member blocks use) — reuse, never re-derive per-card.
+  const historyMemberById = new Map(historyMembers.map((m) => [m.userId, m]));
+  // Cancelled sub-tab entity groups (grouped by user_id). Single source used by
+  // both the tab counter (entity count) and the body render — count matches the
+  // rendered set, not the raw cancelled-row count.
+  const cancelledCycleGroups = groupAgencyCancelledCycles(joinRequests);
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const invitations = invitationsQuery.data ?? [];
@@ -714,7 +734,7 @@ export function AgencyMembersClient() {
     invitations: invitations.length,
     suspended: agents.filter(a => a.membership_status === "suspended").length,
     leftCancelled: agents.filter(a => a.membership_status === "left").length,
-    revoked: agents.filter(a => a.membership_status === "revoked").length,
+    revoked: revokedRenderedAgents.length,
     blocked: agents.filter(a => a.membership_status === "blocked").length,
     /* History tab counter = count of UNIQUE members/applicants surfaced in it
        (same derived set the tab renders). Not a hardcoded value. */
@@ -772,7 +792,7 @@ export function AgencyMembersClient() {
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
                 { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
                 { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
-                { value: "cancelled" as const, label: `Cancelled (${joinRequests.filter(r => r.status === "cancelled").length})` },
+                { value: "cancelled" as const, label: `Cancelled (${cancelledCycleGroups.length})` },
               ].map(({ value, label }) => (
                 <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
                   {label}
@@ -1075,7 +1095,8 @@ export function AgencyMembersClient() {
                 ) : null}
                 {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "cancelled").length > 0 ? (
                   <div className="space-y-4">
-                    {groupAgencyCancelledCycles(joinRequests).map((group) => {
+                    {cancelledCycleGroups.map((group) => {
+                      const member = historyMemberById.get(group.userId);
                       const recentCancelled = group.requests.filter((req) => {
                         if (!req.decided_at) return false;
                         return new Date(req.decided_at).getTime() >= Date.now() - 30 * 86_400_000;
@@ -1093,33 +1114,45 @@ export function AgencyMembersClient() {
                         : null;
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {group.seekerName}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {group.seekerEmail ?? "Email unavailable"}
-                            </p>
-                          </div>
-                          <Badge variant="danger">cancelled</Badge>
-                        </div>
+                        {/* Rich person header via the shared TimelineHeader SSOT
+                            (same identity the History member blocks use). The
+                            cancelled application badge is the canonical
+                            applicationStatus (top-right), not a hand-rolled Badge. */}
+                        <TimelineHeader
+                          entity="person"
+                          name={member?.displayName ?? group.seekerName}
+                          email={member?.email ?? group.seekerEmail ?? undefined}
+                          avatarUrl={member?.avatarUrl}
+                          role={member?.role}
+                          status={member?.status}
+                          lastSeen={member?.lastSeen}
+                          qualifiers={member?.qualifiers}
+                          applicationStatus="cancelled"
+                        />
                         <div className="mt-3 space-y-2">
                           {(() => {
                             const sortedRequests = [...group.requests].sort(
                               (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
                             );
-                            const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number }> = [];
-                            for (let idx = 0; idx < sortedRequests.length; idx++) {
-                              const req = sortedRequests[idx];
-                              const eventNum = idx + 1;
-                              events.push({
-                                key: `submitted-${req.join_request_id}`,
-                                type: "Application submitted",
-                                date: req.created_at,
-                                message: req.cover_note ? `Message: ${req.cover_note}` : null,
-                                eventNum,
-                              });
+                            // The pending reapply (if any) is the group's single pending row that
+                             // carries a reapplication_message — distinct from a fresh pending
+                             // application. Its "Application submitted" event is the anchor row for
+                             // the ephemeral "New" marker + ambient notice (U-035 family).
+                             const pendingReapplyReq = sortedRequests.find(
+                               (r) => r.status === "pending" && r.reapplication_message != null,
+                             );
+                             const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number; isPendingReapply?: boolean }> = [];
+                             for (let idx = 0; idx < sortedRequests.length; idx++) {
+                               const req = sortedRequests[idx];
+                               const eventNum = idx + 1;
+                               events.push({
+                                 key: `submitted-${req.join_request_id}`,
+                                 type: "Application submitted",
+                                 date: req.created_at,
+                                 message: req.reapplication_message ? `Message: ${req.reapplication_message}` : (req.cover_note ? `Message: ${req.cover_note}` : null),
+                                 eventNum,
+                                 isPendingReapply: pendingReapplyReq != null && req.join_request_id === pendingReapplyReq.join_request_id,
+                               });
                               const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, false);
                               reactivationTrace.forEach((event) => {
                                 events.push({
@@ -1139,18 +1172,37 @@ export function AgencyMembersClient() {
                                 });
                               }
                             }
-                            return events.map((event, eventIndex) => (
+                            return events.map((event, eventIndex) => {
                               // Rule 24: same shared banding as every other timeline surface.
-                              <div key={event.key} className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
-                                <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                                  {event.type} — {formatDate(event.date)}
-                                </p>
-                                {event.message ? (
-                                  <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
-                                ) : null}
-                                <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
-                              </div>
-                            ));
+                              const row = (
+                                <div className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
+                                  <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
+                                    {event.type} — {formatDate(event.date)}
+                                  </p>
+                                  {event.message ? (
+                                    <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
+                                  ) : null}
+                                  <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
+                                </div>
+                              );
+                              // Ephemeral "New" marker + ambient notice ABOVE the pending reapply's
+                              // submission row (U-035 family). Discharges when the request resolves
+                              // (pendingReapplyReq becomes undefined -> isPendingReapply never set).
+                              const reapplyNotice = event.isPendingReapply
+                                ? resolveReapplyPendingNotice({ seekerName: group.seekerName })
+                                : null;
+                              return (
+                                <Fragment key={event.key}>
+                                  {reapplyNotice ? (
+                                    <div className="mb-2 space-y-1">
+                                      <Badge variant="default">New</Badge>
+                                      <p className={ambientTextToneClass[reapplyNotice.tone]}>{reapplyNotice.text}</p>
+                                    </div>
+                                  ) : null}
+                                  {row}
+                                </Fragment>
+                              );
+                            });
                           })()}
                         </div>
                         {cooldownDate ? (
@@ -1908,22 +1960,14 @@ export function AgencyMembersClient() {
               />
             ) : null}
             {(() => {
-              if (revokedAgents.length === 0) {
+              if (revokedRenderedAgents.length === 0) {
                 return <EmptyState title="No revoked memberships." description="" />;
               }
               return (
                 <div className="divide-y divide-border">
-                   {revokedAgents.map((agent, index) => {
-                    // DEF-U-AGENCY-HISTORY-TAB-001: render-time historical-fact
-                    // check — only render agents whose history contains at least
-                    // one revoked audit event. The card list includes all agents;
-                    // this filter keeps the Revoked tab scoped to ever-revoked
-                    // members regardless of current membership_status.
-                    const agentHistData = revokedHistoryQueries[index]?.data ?? [];
-                    const hasEverBeenRevoked = agentHistData.some(
-                      (h) => h.source_type === "audit_event" && h.action === "revoked" && h.user_id === agent.user_id,
-                    );
-                    if (!hasEverBeenRevoked) return null;
+                   {revokedRenderedAgents.map(({ agent, index }) => {
+                    // Historical-fact predicate is hoisted (U-028): revokedRenderedAgents
+                    // already holds only ever-revoked members, so the row renders directly.
                     return (
                     <div key={agent.membership_id} className="space-y-4 py-4">
             {(() => {

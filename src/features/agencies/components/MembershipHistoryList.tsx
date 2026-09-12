@@ -459,6 +459,12 @@ export function MembershipTimeline({
             {entry.cover_note ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.cover_note}</p>
             ) : null}
+            {/* U-032 reapply artifact: the reapplication message renders verbatim
+                on its own cycle's submit row (canonical surface — both History
+                tabs consume this component). Optional field; null = no message. */}
+            {entry.reapplication_message ? (
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reapplication_message}</p>
+            ) : null}
             {entry.portfolio_details ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.portfolio_details}</p>
             ) : null}

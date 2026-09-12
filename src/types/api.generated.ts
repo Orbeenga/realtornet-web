@@ -6373,6 +6373,8 @@ export interface components {
             cover_note?: string | null;
             /** Portfolio Details */
             portfolio_details?: string | null;
+            /** Reapplication Message */
+            reapplication_message?: string | null;
             /** Review Message */
             review_message?: string | null;
             /** Review Response */
@@ -6442,6 +6444,8 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
+            /** Reapplication Message */
+            reapplication_message?: string | null;
             /**
              * Submitted At
              * Format: date-time

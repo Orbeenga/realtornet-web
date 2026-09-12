@@ -321,6 +321,32 @@ export function resolveRevokedReviewNotice(params: {
 /* Agency-side cancelled-tab cooldown ambient (canonical source). Ambient
    state, NOT a timeline event: renders as a plain ambient paragraph (caution
    tone) below the banded event rows — never inside the banding. */
+/* Reapply-pending NOTICE — canonical ambient family. Two surfaces, one source:
+   - Agency Cancelled tab: "New" marker + "{seeker} has reapplied their cancelled
+     application. Respond to it in Review Requests." rendered ABOVE the pending
+     reapply's "Application submitted" row (mirrors the Revoked-tab review notice).
+   - Seeker Cancelled tab: "Your reapplication to {agency} is pending response."
+     rendered BELOW the pending reapply's "Application submitted" row.
+   Both discharge when the pending request resolves (no pending row → no notice).
+   Text derives here only — components render, never hardcode. */
+export function resolveReapplyPendingNotice(params: {
+  seekerName?: string | null;
+}): { text: string; tone: AmbientTextTone } {
+  return {
+    text: `${params.seekerName ?? "This seeker"} has reapplied their cancelled application. Respond to it in Review Requests.`,
+    tone: "caution",
+  };
+}
+
+export function resolveReapplyPendingSeekerAmbient(params: {
+  agencyName?: string | null;
+}): { text: string; tone: AmbientTextTone } {
+  return {
+    text: `Your reapplication to ${params.agencyName ?? "this agency"} is pending a response.`,
+    tone: "caution",
+  };
+}
+
 export function resolveCooldownAmbient(params: {
   applicantName?: string | null;
   cooldownDate: string | Date;
