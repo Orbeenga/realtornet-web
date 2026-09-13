@@ -1,4 +1,5 @@
 import bundleAnalyzer from "@next/bundle-analyzer";
+import path from "path";
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
@@ -9,6 +10,11 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    // DEF-WS-TURBOPACK-LOCKFILES-001: pin the workspace root so Turbopack
+    // doesn't infer it from stray lockfiles (e.g. .kilo/).
+    root: path.resolve(__dirname),
+  },
   trailingSlash: false,
   compress: false,
   typescript: {

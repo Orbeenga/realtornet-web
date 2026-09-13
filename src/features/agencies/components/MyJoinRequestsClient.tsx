@@ -881,6 +881,12 @@ export function MyJoinRequestsClient() {
         <section className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Agency memberships
+            {/* DEF-U-DEMOTED-SEEKER-DISC-001: persistent indicator for seekers
+                who formerly held agent membership (prior agent_membership_audit
+                records). Preflight Rule 21 / U-015 disclosure. */}
+            {role === "seeker" && historyQuery.data && historyQuery.data.length > 0 ? (
+              <Badge variant="outline">Former Agent</Badge>
+            ) : null}
           </h2>
 
           <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
@@ -1315,7 +1321,13 @@ export function MyJoinRequestsClient() {
                       >
                         {request.agency_name}
                       </Link>
-                      <Badge variant="warning">pending</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="warning">pending</Badge>
+                        {/* DEF-U-REAPPLY-BADGE-001: surface reapplication lineage on pending cards */}
+                        {request.reapplied_from_request_id != null ? (
+                          <Badge variant="outline">reapplied</Badge>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Submitted {formatDate(request.submitted_at)}

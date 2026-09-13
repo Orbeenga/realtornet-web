@@ -307,7 +307,7 @@ export function useAcceptJoinRequestReactivation() {
   });
 }
 
-export function useRejectJoinRequestReactivation() {
+export function useRejectJoinRequestReactivation(agencyId?: string | number | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -321,6 +321,13 @@ export function useRejectJoinRequestReactivation() {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+      /* DEF-U-AGENCY-REJECT-CTA-001: agency-side caches must refresh after a
+         reactivation rejection so the Expired/queue surfaces re-render. */
+      if (agencyId != null) {
+        await queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId, "all"] });
+        await queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", agencyId] });
+        await queryClient.invalidateQueries({ queryKey: ["agencyMembershipHistories", agencyId] });
+      }
     },
   });
 }
