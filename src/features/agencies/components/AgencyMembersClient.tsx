@@ -22,6 +22,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
@@ -93,6 +94,16 @@ type PendingMembershipDecision = {
   action: MembershipDecisionAction;
   membershipId: number;
   agentName: string;
+};
+
+type PendingReviewDecision = {
+  action: "accept" | "decline";
+  requestId: number;
+  /* Mirrors AgencyReviewRequestResponse.source_type (nullable/optional); the
+     accept/decline handler re-validates it (U-033 discriminator) and fails
+     loudly on a missing value rather than guessing a source table. */
+  sourceType?: string | null;
+  requesterName: string;
 };
 
 interface AgencyReviewRequestGroup {
@@ -339,6 +350,12 @@ export function AgencyMembersClient() {
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
+  /* Review-queue decisions use the same click-to-confirm dialog pattern as the
+     membership-decision dialog (SSOT pattern, 2ef202c): reason entry lives in
+     the popover, never inline-preset on the row. */
+  const [pendingReviewDecision, setPendingReviewDecision] =
+    useState<PendingReviewDecision | null>(null);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const {
     register,
     handleSubmit,
@@ -440,7 +457,7 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
-  const rejectReactivation = useRejectJoinRequestReactivation();
+  const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -498,6 +515,7 @@ export function AgencyMembersClient() {
       await inviteAgent.mutateAsync({ email: values.email.trim() });
       notify.success("Invite saved and email delivery queued.");
       reset();
+      setInviteDialogOpen(false);
     } catch (error) {
       const message =
         error instanceof ApiError && typeof error.detail === "string"
@@ -751,6 +769,24 @@ export function AgencyMembersClient() {
       (pendingMembershipDecision.action === "unblock" && unblockMembership.isPending)
     : false;
 
+  /* Review-queue confirm dialog: reason entry lives in the popover only
+     (SSOT pattern, 2ef202c) - required for decline, optional for accept, so a
+     decline is blocked until a reason is entered and an accept never is. */
+  const pendingReviewDecisionReason = pendingReviewDecision
+    ? membershipReasons[pendingReviewDecision.requestId]?.trim()
+    : "";
+  const isPendingReviewSubmitting = pendingReviewDecision
+    ? (pendingReviewDecision.action === "accept" ? acceptReview.isPending : declineReview.isPending)
+    : false;
+  const canSubmitReviewDecision =
+    pendingReviewDecision != null &&
+    (pendingReviewDecision.action === "accept" || Boolean(pendingReviewDecisionReason));
+  const handleConfirmReviewDecision = async () => {
+    if (!pendingReviewDecision) return;
+    const { action, requestId, sourceType } = pendingReviewDecision;
+    await handleReviewDecision(action, requestId, sourceType);
+    setPendingReviewDecision(null);
+  };
   return (
     <div className="space-y-6">
       <div>
@@ -1305,14 +1341,28 @@ export function AgencyMembersClient() {
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <Button type="button" size="sm"
                             loading={acceptReview.isPending && acceptReview.variables?.requestId === primaryRequest.id}
-                            onClick={() => void handleReviewDecision("accept", primaryRequest.id, primaryRequest.source_type)}
+                            onClick={() =>
+                              setPendingReviewDecision({
+                                action: "accept",
+                                requestId: primaryRequest.id,
+                                sourceType: primaryRequest.source_type,
+                                requesterName: group.requesterName,
+                              })
+                            }
                           >
                             Accept
                           </Button>
                           {primaryRequest.actor_id !== user?.user_id ? (
                             <Button type="button" size="sm" variant="secondary"
                               loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
-                              onClick={() => void handleReviewDecision("decline", primaryRequest.id, primaryRequest.source_type)}
+                              onClick={() =>
+                                setPendingReviewDecision({
+                                  action: "decline",
+                                  requestId: primaryRequest.id,
+                                  sourceType: primaryRequest.source_type,
+                                  requesterName: group.requesterName,
+                                })
+                              }
                             >
                               Decline
                             </Button>
@@ -1362,14 +1412,6 @@ export function AgencyMembersClient() {
                         </div>
                       </div>
                     ) : null}
-                    {primaryRequest.status === "pending" ? (
-                      <Input className="mt-4" label="Decision reason" placeholder="Required for decline, optional for accept"
-                        value={membershipReasons[primaryRequest.id] ?? ""}
-                        onChange={(event) =>
-                          setMembershipReasons((current) => ({ ...current, [primaryRequest.id]: event.target.value }))
-                        }
-                      />
-                            ) : null}
                           </div>
                    );
                  })}
@@ -1597,12 +1639,35 @@ export function AgencyMembersClient() {
                 Create an invite for an agent by email.
               </p>
             </div>
-            <form className="space-y-4" onSubmit={(event) => void handleSubmit(handleInvite)(event)}>
-              <Input label="Agent email" type="email" placeholder="agent@example.com" error={errors.email?.message} {...register("email")} />
-              {errors.root?.message ? <p className="text-sm text-red-600" role="alert">{errors.root.message}</p> : null}
-              <Button type="submit" loading={inviteAgent.isPending}>Send invite</Button>
-            </form>
-            <div className="space-y-3">
+            {/* Invite creation is a click-to-open dialog (same canonical popover
+                pattern as the membership/review decision dialogs, 2ef202c): the
+                email entry lives in the dialog, never inline-preset on the tab. */}
+            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+              <DialogTrigger
+                render={<Button type="button">Send invite</Button>}
+              />
+              <DialogContent finalFocus={false}>
+                <DialogHeader>
+                  <DialogTitle>Invite agent</DialogTitle>
+                  <DialogDescription>
+                    Create an invite for an agent by email. The invitee receives an email with a link to join your agency.
+                  </DialogDescription>
+                </DialogHeader>
+                <form
+                  id="invite-agent-form"
+                  className="space-y-4"
+                  onSubmit={(event) => void handleSubmit(handleInvite)(event)}
+                >
+                  <Input label="Agent email" type="email" placeholder="agent@example.com" error={errors.email?.message} {...register("email")} />
+                  {errors.root?.message ? <p className="text-sm text-red-600" role="alert">{errors.root.message}</p> : null}
+                </form>
+                <DialogFooter>
+                  <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
+                  <Button type="submit" form="invite-agent-form" loading={inviteAgent.isPending}>Send invite</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+        <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Sent invitations</h3>
               {invitationsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
               {invitationsQuery.isError ? (
@@ -2140,6 +2205,51 @@ export function AgencyMembersClient() {
               onClick={() => void handleConfirmMembershipDecision()}
             >
               {pendingMembershipDecision ? getMembershipDecisionLabel(pendingMembershipDecision.action) : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review-queue decisions: same click-to-confirm dialog pattern as the
+          membership-decision dialog (SSOT pattern, 2ef202c) - reason entry
+          lives in the popover, never inline-preset on the queue row. */}
+      <Dialog
+        open={Boolean(pendingReviewDecision)}
+        onOpenChange={(open) => { if (!open) setPendingReviewDecision(null); }}
+      >
+        <DialogContent finalFocus={false}>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingReviewDecision?.action === "accept" ? "Accept review request" : "Decline review request"}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingReviewDecision
+                ? `Confirm this action for ${pendingReviewDecision.requesterName}. A reason is required for decline and will be visible in membership history.`
+                : "Confirm this review decision."}
+            </DialogDescription>
+          </DialogHeader>
+          {pendingReviewDecision ? (
+            <Input
+              label="Reason" placeholder="Required for decline, optional for accept"
+              value={membershipReasons[pendingReviewDecision.requestId] ?? ""}
+              onChange={(event) =>
+                setMembershipReasons((current) => ({
+                  ...current,
+                  [pendingReviewDecision.requestId]: event.target.value,
+                }))
+              }
+            />
+          ) : null}
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
+            <Button
+              type="button"
+              variant={pendingReviewDecision?.action === "decline" ? "destructive" : "primary"}
+              loading={isPendingReviewSubmitting}
+              disabled={!canSubmitReviewDecision}
+              onClick={() => void handleConfirmReviewDecision()}
+            >
+              {pendingReviewDecision?.action === "accept" ? "Accept" : "Decline"}
             </Button>
           </DialogFooter>
         </DialogContent>
