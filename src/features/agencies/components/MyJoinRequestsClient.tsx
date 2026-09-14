@@ -81,24 +81,15 @@ interface MyJoinRequestCycleGroup {
   cancelledRequests: MyAgencyJoinRequestResponse[];
 }
 
-function addDays(value: string, days: number) {
-  const date = new Date(value);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function getApplyAgainDate(requests: MyAgencyJoinRequestResponse[]) {
-  const cutoff = Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000;
-  const recentCancelled = requests.filter((request) => {
-    if (request.status !== "cancelled" || !request.decided_at) return false;
-    return new Date(request.decided_at).getTime() >= cutoff;
-  });
-  if (recentCancelled.length < COOLDOWN_LIMIT) return null;
-  const sorted = [...recentCancelled].sort(
-    (first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime(),
-  );
-  return addDays(sorted[COOLDOWN_LIMIT - 1].decided_at!, COOLDOWN_WINDOW_DAYS);
-}
+/* DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a): the reapply unlock date is
+   SERVER-COMPUTED — `cooldown_unlock_at` (ISO datetime | null) is returned on
+   every /join-requests/mine/ row, per (user, agency) pair, computed unpaginated
+   as max(decided_at among >=3 in-window cancellations) + 30d. That is the exact
+   date the reapply 403 enforces (backend test:
+   test_my_join_requests_cooldown_unlock_at_matches_server_gate). The former
+   local 3rd-oldest-cancellation + 30d derivation is DELETED — the frontend no
+   longer re-derives gate math (single source of truth: the backend gate).
+   null = gate not tripped, reapply allowed. */
 
 function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
   const groups = new Map<number, MyJoinRequestCycleGroup>();
@@ -144,11 +135,9 @@ function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
 function SeekerAgencyHistoryGroup({
   agency,
   enabled,
-  defaultUserDisplayName,
 }: {
   agency: { agency_id: number; agency_name: string; status?: string; is_verified?: boolean };
   enabled: boolean;
-  defaultUserDisplayName?: string;
 }) {
   const feed = useMembershipHistory(enabled && Boolean(agency.agency_id), agency.agency_id);
   const [expanded, setExpanded] = useState(false);
@@ -241,7 +230,6 @@ export function MyJoinRequestsClient() {
   const token = getStoredToken();
   const role = normalizeAppRole(getStoredJwtRole());
   const { user } = useAuth();
-  const defaultUserDisplayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined;
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
@@ -474,8 +462,9 @@ export function MyJoinRequestsClient() {
   ];
   const applyAgainDates = new Map<number, Date>();
   for (const group of cancelledRequestGroups) {
-    const applyAgainDate = getApplyAgainDate(group.requests);
-    if (applyAgainDate) applyAgainDates.set(group.agencyId, applyAgainDate);
+    // Server-computed unlock date (see DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a) above).
+    const unlockAt = group.requests[0]?.cooldown_unlock_at;
+    if (unlockAt) applyAgainDates.set(group.agencyId, new Date(unlockAt));
   }
   const cancelConfirmRequest = cancelConfirmId === null
     ? null
@@ -1270,7 +1259,6 @@ export function MyJoinRequestsClient() {
                       is_verified: membership.is_verified,
                     }}
                     enabled={canViewAgencyMemberships}
-                    defaultUserDisplayName={defaultUserDisplayName}
                   />
                 ))
               )}
@@ -1596,7 +1584,10 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               cancelledRequestGroups.map((group) => {
-                const applyAgainDate = getApplyAgainDate(group.requests);
+                // Server-computed unlock date per (user, agency) pair — null = no cooldown.
+                const applyAgainDate = group.requests[0]?.cooldown_unlock_at
+                  ? new Date(group.requests[0].cooldown_unlock_at)
+                  : null;
                 return (
                 <Card key={group.agencyId}>
                   <CardBody className="space-y-4">
