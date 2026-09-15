@@ -179,6 +179,61 @@ export function getApprovedRequestCycleHistory(
   return result;
 }
 
+/* Canonical request-lifecycle timeline emitter (Rule 20, decision (a) for the
+   request/invitation sub-tabs). Unlike resolveExpiredNarrativeTimeline (which
+   returns viewer-perspective {text, at} narration), this returns
+   MembershipTimelineEntry[] with REAL `action`/`source_type`/identity fields so
+   the rows render through the canonical MembershipTimeline (accordion + shared
+   badge map + U-028 scoped filters), not a hand-rolled sentence loop. Extends
+   getApprovedRequestCycleHistory: that stays for the Approved-tab lifecycle;
+   this adds `rejected` so the Rejected tab's decision row is canonical too. */
+export function resolveRequestLifecycleTimeline(
+  history: MembershipTimelineEntry[],
+  request: RequestLifecycleMatch,
+  viewer: { viewerUserId: number | null; viewerIsApplicant: boolean },
+): MembershipTimelineEntry[] {
+  const submittedAt = request.submitted_at ?? request.created_at;
+  const base = getApprovedRequestCycleHistory(history, request);
+
+  const rows: MembershipTimelineEntry[] = [...base];
+
+  // Submitted row (join_request source) — already appended by the base function.
+  // Rejected decision: surface as a canonical audit_event so the badge map and
+  // the Rejected tab agree (the base allowlist omits "rejected").
+  if (request.decided_at && request.status === "rejected") {
+    const already = rows.some(
+      (entry) => entry.action === "rejected" && entry.timestamp === request.decided_at,
+    );
+    if (!already) {
+      const actorRole = viewer.viewerIsApplicant ? "agency" : "seeker";
+      rows.push({
+        source_type: "audit_event",
+        author_role: actorRole,
+        action: "rejected",
+        timestamp: request.decided_at,
+        agency_id: request.agency_id ?? undefined,
+        agency_name: request.agency_name ?? undefined,
+        user_id: request.user_id ?? undefined,
+      });
+    }
+  }
+
+  // Ensure a submitted anchor always exists, mirroring the base function.
+  if (!rows.some((entry) => entry.source_type === "join_request" && entry.timestamp === submittedAt)) {
+    rows.push({
+      source_type: "join_request",
+      author_role: "seeker",
+      timestamp: submittedAt || new Date().toISOString(),
+      agency_id: request.agency_id ?? undefined,
+      agency_name: request.agency_name ?? undefined,
+      user_id: request.user_id ?? undefined,
+    });
+  }
+
+  // Stable chronological order, same as the narrative resolver.
+  return rows.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
 /* Shared Expired-tab narration lives HERE ONLY (canonical membershipHistory module).
    U-022d + expired-tab incident fix (2026-08-29): the Expired tab narrates its
    ENTIRE lifecycle as ONE chronological stream — submitted, expired, reactivation
