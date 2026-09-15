@@ -935,25 +935,20 @@ export function MyJoinRequestsClient() {
                 suspendedMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="warning">suspended</Badge>
-                      </div>
                       {(() => {
                         // U-035-parity (lead decision, batch DEF-U-SUSPENDED-ACCORDION-001):
                         // suspended is a multi-event lifecycle like left/revoked; render via
                         // the shared scoped filter (SSOT) + canonical rich accordion.
+                        // Lead decision (b): structured exactly like the Revoked tab —
+                        // identity renders ONCE via the canonical TimelineHeader; the
+                        // bespoke Link name/badge/date/reason chrome is removed (rows
+                        // carry their own dates and reasons). Renders unconditionally
+                        // so the agency name is always present.
                         const suspendedEvents = getMembershipHistoryByAction(
                           historyQuery.data ?? [],
                           { agency_id: membership.agency_id, agency_name: membership.agency_name },
                           "suspended",
                         );
-                        if (suspendedEvents.length === 0) return null;
                         return (
                           <MembershipTimeline
                             tier="rich"
@@ -962,21 +957,11 @@ export function MyJoinRequestsClient() {
                             emptyDescription=""
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
                             labelStage="join_request"
-                            showHeader={false}
                           />
                         );
                       })()}
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Suspended {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
                       {membership.pending_review_request_id ? (
                         <p className="text-sm text-amber-700 dark:text-amber-300">
                           Review requested
@@ -1038,7 +1023,12 @@ export function MyJoinRequestsClient() {
                           { agency_id: membership.agency_id, agency_name: membership.agency_name },
                           "left",
                         );
-                        if (leftEvents.length === 0) return null;
+                        /* Lead decision (a), U-028 family: identity renders ONCE
+                           via the canonical TimelineHeader (agency contract) —
+                           the bespoke Link name is removed (U-018: no parallel
+                           identity render paths). Timeline renders unconditionally
+                           so the agency name is always present, even with no
+                           scoped events; rows carry their own dates/reasons. */
                         return (
                           <MembershipTimeline
                             tier="rich"
@@ -1047,30 +1037,11 @@ export function MyJoinRequestsClient() {
                             emptyDescription=""
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
                             labelStage="join_request"
-                            showHeader={false}
                           />
                         );
                       })()}
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="warning">left</Badge>
-                      </div>
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Left {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
                       {membership.pending_review_request_id ? (
                         <p className="text-sm text-amber-700 dark:text-amber-300">
                           Reinstatement requested
@@ -1208,25 +1179,32 @@ export function MyJoinRequestsClient() {
                 blockedMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="danger">blocked</Badge>
-                      </div>
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Blocked {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
+                      {/* Lead decision (b), U-028 family: blocked joins the
+                          Revoked-tab structure — scoped event timeline via the
+                          shared SSOT filter (getMembershipHistoryByAction),
+                          identity rendered ONCE through the canonical
+                          TimelineHeader, accordion reveal included. Rows carry
+                          their own dates/reasons; the terminal-path support
+                          notice is retained below. */}
+                      {(() => {
+                        const blockedEvents = getMembershipHistoryByAction(
+                          historyQuery.data ?? [],
+                          { agency_id: membership.agency_id, agency_name: membership.agency_name },
+                          "blocked",
+                        );
+                        return (
+                          <MembershipTimeline
+                            tier="rich"
+                            history={blockedEvents}
+                            emptyTitle="No events"
+                            emptyDescription=""
+                            entity="agency"
+                            defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
+                            labelStage="join_request"
+                          />
+                        );
+                      })()}
                       <p className="rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-700 dark:bg-red-950/40 dark:text-red-300">
                         This agency has restricted your access. Contact platform support if you believe this is in error.
                       </p>

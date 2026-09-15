@@ -435,6 +435,20 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && suspendedAgents.length > 0,
   );
 
+  // U-028 family (lead decision): the Blocked tab is an append-only lifecycle
+  // (block -> unblock -> re-block), same shape as Suspended/Left/Revoked, so it
+  // joins the cumulative-card model via the same per-member feed + scoped filter.
+  const blockedAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "blocked") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
+  const blockedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    blockedAgents.map((a) => a.user_id),
+    Boolean(agencyId) && blockedAgents.length > 0,
+  );
+
   // U-022d/U-026 parity: per-member history for the Expired join-request tab
   const expiredRequests = joinRequestsQuery.data?.filter(hasExpiredHistory) ?? [];
   const expiredHistoryQueries = useAgencyMembershipHistories(
@@ -2084,12 +2098,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "blocked").length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && blockedAgents.length === 0 ? (
               <EmptyState title="No blocked users." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "blocked").length > 0 ? (
+            {!agentsQuery.isLoading && blockedAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "blocked").map((agent) => (
+                {blockedAgents.map((agent, index) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -2121,6 +2135,28 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
+                    {(() => {
+                      // U-028 family: this member's block lifecycle renders via the
+                      // shared scoped filter (SSOT) + canonical rich accordion —
+                      // same as Suspended/Left/Revoked. showHeader={false}: identity
+                      // already renders once via the TimelineHeader above (U-018).
+                      const blockedEvents = getMembershipHistoryByAction(
+                        blockedHistoryQueries[index]?.data ?? [],
+                        { user_id: agent.user_id, agency_id: agent.agency_id },
+                        "blocked",
+                      );
+                      if (blockedEvents.length === 0) return null;
+                      return (
+                        <MembershipTimeline
+                          tier="rich"
+                          history={blockedEvents}
+                          showHeader={false}
+                          entity="person"
+                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                        />
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
