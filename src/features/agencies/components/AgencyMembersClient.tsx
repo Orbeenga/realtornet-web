@@ -1191,10 +1191,10 @@ export function AgencyMembersClient() {
                              const pendingReapplyReq = sortedRequests.find(
                                (r) => r.status === "pending" && r.reapplication_message != null,
                              );
-                             const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number; isPendingReapply?: boolean }> = [];
+                             const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number | null; isPendingReapply?: boolean }> = [];
                              for (let idx = 0; idx < sortedRequests.length; idx++) {
                                const req = sortedRequests[idx];
-                               const eventNum = idx + 1;
+                               const eventNum = req.cycle_number ?? null; // DEF-U-CYCLE-NUMBER-DERIVATION-001: backend-computed per (user, agency), never idx+1
                                events.push({
                                  key: `submitted-${req.join_request_id}`,
                                  type: "Application submitted",

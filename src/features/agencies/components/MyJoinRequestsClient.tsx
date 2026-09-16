@@ -1584,7 +1584,7 @@ export function MyJoinRequestsClient() {
                         const sortedRequests = [...group.requests].sort(
                           (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
                         );
-                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number; isPendingReapply?: boolean }> = [];
+                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number | null; isPendingReapply?: boolean }> = [];
                         // The pending reapply (if any) is the group's single pending row carrying a
                         // reapplication_message — its "Application submitted" event anchors the
                         // ambient notice BELOW the canonical row (U-035 family; discharges on resolve).
@@ -1593,7 +1593,7 @@ export function MyJoinRequestsClient() {
                         );
                         for (let idx = 0; idx < sortedRequests.length; idx++) {
                           const req = sortedRequests[idx];
-                          const eventNum = idx + 1;
+                          const eventNum = req.cycle_number ?? null; // DEF-U-CYCLE-NUMBER-DERIVATION-001: backend-computed per (user, agency), never idx+1
                               events.push({
                                 key: `submitted-${req.join_request_id}`,
                                 type: "Application submitted",
