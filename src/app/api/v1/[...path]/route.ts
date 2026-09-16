@@ -57,10 +57,14 @@ async function proxyRequest(
   });
 
   let finalResponse = response;
-  if (response.status === 307 || response.status === 308) {
+    if (response.status === 307 || response.status === 308) {
     const location = response.headers.get("location");
     if (location) {
-      const redirectUrl = location.replace(/^http:\/\//, "https://");
+      // Resolve relative redirects against the backend origin, and PRESERVE the
+      // backend's scheme. Rewriting http->https unconditionally is a no-op in
+      // https deployments (production/staging), but on a local http backend
+      // it forces TLS against 127.0.0.1:8000 and throws in proxyRequest.
+      const redirectUrl = new URL(location, backendOrigin).toString();
       finalResponse = await fetch(redirectUrl, {
         method: request.method,
         headers: requestHeaders,
