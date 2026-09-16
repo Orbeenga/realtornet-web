@@ -185,6 +185,26 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
   return labels[action];
 }
 
+/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 1): make the merged queue's
+   row kind legible. The U-033 discriminator already drives accept/decline
+   routing; this surfaces it as a label. Tier 2 (origin precision:
+   reapplied vs reactivated, revoked vs suspended appeal) requires backend
+   payload shaping and stays out of scope — see the DEF. */
+function reviewQueueSourceLabel(
+  sourceType: AgencyReviewRequestResponse["source_type"],
+): string | null {
+  switch (sourceType) {
+    case "review_request":
+      return "Returning applicant review";
+    case "join_request":
+      return "Reapplication";
+    case "membership_review_request":
+      return "Membership reinstatement appeal";
+    default:
+      return null;
+  }
+}
+
 function groupAgencyReviewRequests(
   reviewRequests: AgencyReviewRequestResponse[],
 ): AgencyReviewRequestGroup[] {
@@ -1336,6 +1356,11 @@ export function AgencyMembersClient() {
                           <Badge variant={primaryRequest.status === "accepted" ? "success" : primaryRequest.status === "declined" ? "danger" : "warning"}>
                             {primaryRequest.status}
                           </Badge>
+                          {reviewQueueSourceLabel(primaryRequest.source_type) ? (
+                            <Badge variant="outline">
+                              {reviewQueueSourceLabel(primaryRequest.source_type)}
+                            </Badge>
+                          ) : null}
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           {group.requesterEmail ?? "Email unavailable"}
