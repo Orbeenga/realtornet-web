@@ -1631,7 +1631,7 @@ export function MyJoinRequestsClient() {
                               {event.message ? (
                                 <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
                               ) : null}
-                              <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
+                              <p className="mt-0.5 text-xs text-gray-400">{event.eventNum != null ? `Cycle: ${event.eventNum}` : event.type === "Application cancelled" ? "No reapply" : event.isPendingReapply ? "Reapplied — awaiting response" : "Not part of a cycle"}</p>
                             </div>
                           );
                           // Ambient notice BELOW the pending reapply's canonical row (U-035 family).
