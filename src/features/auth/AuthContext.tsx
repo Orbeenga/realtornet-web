@@ -56,25 +56,54 @@ function getStoredToken() {
   return getStoredAccessToken();
 }
 
+// Client-side deadline for the auth bootstrap request. Deliberately longer than
+// the proxy's 20s upstream deadline so that a stalled backend surfaces as the
+// proxy's clean 504 rather than racing an independent client abort. Still far
+// short of the ~300s undici default this replaces: a six-minute spinner is not
+// acceptable UX even when the request eventually succeeds.
+const AUTH_ME_TIMEOUT_MS = 45_000;
+
+// De-duplicates concurrent /auth/me requests. This function has three call
+// sites (bootstrap, signIn, stale-role-version recovery) and previously had no
+// in-flight guard, so overlapping triggers each opened their own request and
+// each held a socket open for the full upstream timeout. Sharing one promise
+// collapses that to a single request.
+let inFlightCurrentUser: Promise<UserProfile> | null = null;
+
 async function fetchCurrentUser(token: string) {
-  let res: Response;
+  if (inFlightCurrentUser) {
+    return inFlightCurrentUser;
+  }
+
+  const request = (async () => {
+    let res: Response;
+
+    try {
+      res = await fetch(buildApiUrl("/api/v1/auth/me"), {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        signal: AbortSignal.timeout(AUTH_ME_TIMEOUT_MS),
+      });
+    } catch {
+      throw new AuthBootstrapError();
+    }
+
+    if (!res.ok) {
+      throw new AuthBootstrapError(res.status);
+    }
+
+    return (await res.json()) as UserProfile;
+  })();
+
+  inFlightCurrentUser = request;
 
   try {
-    res = await fetch(buildApiUrl("/api/v1/auth/me"), {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-    });
-  } catch {
-    throw new AuthBootstrapError();
+    return await request;
+  } finally {
+    inFlightCurrentUser = null;
   }
-
-  if (!res.ok) {
-    throw new AuthBootstrapError(res.status);
-  }
-
-  return (await res.json()) as UserProfile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -85,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const bootstrap = async () => {
       const storedToken = getStoredToken();
 
@@ -95,9 +126,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const me = await fetchCurrentUser(storedToken);
+
+        if (cancelled) {
+          return;
+        }
+
         setToken(storedToken);
         setUser(me);
       } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
         if (error instanceof AuthBootstrapError && error.status === 401) {
           const storedRefreshToken = getStoredRefreshToken();
 
@@ -122,11 +162,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
