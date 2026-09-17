@@ -17,6 +17,47 @@ if (!resolvedOrigin) {
 const backendOrigin = (resolvedOrigin ?? "http://localhost:8000")
   .replace(/\/$/, "");
 
+// Upper bound on how long the proxy will wait for upstream response headers.
+// Without this, a stalled backend holds the socket open until Node's undici
+// default headersTimeout (300s) fires, which accumulates sockets in the dev
+// server and can trigger a memory-pressure restart. Keep this well below the
+// client-side timeout in AuthContext so the client observes this clean 504
+// rather than racing its own deadline against it.
+const UPSTREAM_TIMEOUT_MS = 20_000;
+
+// Distinguishes "the backend never answered in time" from "the backend answered
+// with an error". Downstream debugging needs to tell these apart without
+// re-deriving it from headers (see INCIDENT_LOG.md 2026-09-16 / this session's
+// six-minute /auth/me hangs).
+const UPSTREAM_TIMEOUT_CODE = "upstream_timeout";
+
+function isAbortError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  );
+}
+
+function upstreamTimeoutResponse(method: string, url: URL) {
+  return Response.json(
+    {
+      detail:
+        "Upstream API did not respond before the proxy deadline.",
+      code: UPSTREAM_TIMEOUT_CODE,
+      timeout_ms: UPSTREAM_TIMEOUT_MS,
+    },
+    {
+      status: 504,
+      statusText: "Gateway Timeout",
+      headers: {
+        "X-Proxy-Error": UPSTREAM_TIMEOUT_CODE,
+        "X-Upstream-Method": method,
+        "X-Upstream-Path": url.pathname,
+      },
+    },
+  );
+}
+
 function buildBackendUrl(request: NextRequest, path: string[]) {
   const url = new URL(`/api/v1/${path.join("/")}`, backendOrigin);
   url.search = request.nextUrl.search;
@@ -49,28 +90,49 @@ async function proxyRequest(
 
   const requestHeaders = buildHeaders(request);
 
-  const response = await fetch(backendUrl, {
-    method: request.method,
-    headers: requestHeaders,
-    body: requestBody,
-    redirect: "manual",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(backendUrl, {
+      method: request.method,
+      headers: requestHeaders,
+      body: requestBody,
+      redirect: "manual",
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      return upstreamTimeoutResponse(request.method, backendUrl);
+    }
+
+    throw error;
+  }
 
   let finalResponse = response;
-    if (response.status === 307 || response.status === 308) {
+  if (response.status === 307 || response.status === 308) {
     const location = response.headers.get("location");
     if (location) {
       // Resolve relative redirects against the backend origin, and PRESERVE the
       // backend's scheme. Rewriting http->https unconditionally is a no-op in
       // https deployments (production/staging), but on a local http backend
       // it forces TLS against 127.0.0.1:8000 and throws in proxyRequest.
-      const redirectUrl = new URL(location, backendOrigin).toString();
-      finalResponse = await fetch(redirectUrl, {
-        method: request.method,
-        headers: requestHeaders,
-        body: requestBody,
-        redirect: "manual",
-      });
+      const redirectUrl = new URL(location, backendOrigin);
+
+      try {
+        finalResponse = await fetch(redirectUrl, {
+          method: request.method,
+          headers: requestHeaders,
+          body: requestBody,
+          redirect: "manual",
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        });
+      } catch (error) {
+        if (isAbortError(error)) {
+          return upstreamTimeoutResponse(request.method, redirectUrl);
+        }
+
+        throw error;
+      }
     }
   }
 
