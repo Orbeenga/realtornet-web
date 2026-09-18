@@ -136,11 +136,12 @@ async function proxyRequest(
   // Railway may canonicalize FastAPI's slash-terminated routes with 301;
   // FastAPI itself uses 307/308. Resolve each server-side so the browser never
   // receives a redirect whose Location header is intentionally stripped below.
-  if (
+  const upstreamRedirected =
     response.status === 301 ||
     response.status === 307 ||
-    response.status === 308
-  ) {
+    response.status === 308;
+
+  if (upstreamRedirected) {
     const location = response.headers.get("location");
     if (location) {
       // Resolve relative redirects against the backend origin (an absolute
@@ -184,6 +185,38 @@ async function proxyRequest(
   responseHeaders.delete("content-encoding");
   responseHeaders.delete("transfer-encoding");
   responseHeaders.delete("location");
+
+  // NEVER let a redirect we resolved be banked by the browser. This is not a
+  // performance tweak - it is the fix for a poisoning bug that made four
+  // consecutive correct server-side fixes unobservable (observed 2026-09-18).
+  //
+  // The mechanism: Railway's edge emits its own http->https `301` with NO
+  // `Cache-Control` header, which makes it heuristically cacheable, and Chrome
+  // then stores a `301` effectively indefinitely. That response reached the
+  // browser through this proxy with its `Location` deliberately stripped (the
+  // P0 / U-003 lock above), so what got banked is a redirect with no
+  // destination - permanently unactionable, and replayed from disk without a
+  // single byte reaching this handler. The dev-server log proved it: the browser
+  // kept answering `/api/v1/join-requests/mine` from a `301 (from disk cache)`
+  // whose `date` header was ~7 hours older than the commit that fixed the code,
+  // while every other page-data call logged normally.
+  //
+  // Consequence of NOT setting this: the response value depends on the upstream
+  // redirect, so any stored copy is stale by definition the moment the upstream
+  // contract changes - and a stale copy here is worse than no copy, because it
+  // survives restarts and redeploys. `no-store` is stronger than
+  // `no-cache`/`must-revalidate` on purpose: `no-store` forbids writing it to
+  // disk at all, so the poisoned entry cannot be created in the first place.
+  //
+  // Covers both shapes: a redirect we followed (upstreamRedirected), and one we
+  // could not resolve - no `Location` at all, or a 3xx that came back from the
+  // followed request itself (e.g. a 302/303, which this block does not chase).
+  if (
+    upstreamRedirected ||
+    (finalResponse.status >= 300 && finalResponse.status < 400)
+  ) {
+    responseHeaders.set("Cache-Control", "no-store");
+  }
 
   return new Response(finalResponse.body, {
     status: finalResponse.status,
