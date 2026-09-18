@@ -65,7 +65,7 @@ export function useAdminUsersCounts() {
   return useQuery({
     queryKey: ["adminUsersCounts"],
     queryFn: () =>
-      apiClient<AdminUsersCounts>("/api/v1/admin/users/counts"),
+      apiClient<AdminUsersCounts>("/api/v1/admin/users/counts/"),
     staleTime: 30_000,
   });
 }
@@ -210,7 +210,7 @@ export function useAdminUserMemberships(userId: number | null) {
     queryKey: ["adminUserMemberships", userId],
     queryFn: () =>
       apiClient<UserMembershipResponse[]>(
-        `/api/v1/admin/users/${userId}/memberships`,
+        `/api/v1/admin/users/${userId}/memberships/`,
       ),
     staleTime: 30_000,
     enabled: typeof userId === "number",

@@ -59,7 +59,23 @@ function upstreamTimeoutResponse(method: string, url: URL) {
 }
 
 function buildBackendUrl(request: NextRequest, path: string[]) {
-  const url = new URL(`/api/v1/${path.join("/")}`, backendOrigin);
+  // The upstream path must mirror the slash convention FastAPI declares:
+  // collection routes are declared *with* a trailing slash, and FastAPI
+  // (`redirect_slashes=True`) 307-redirects the slashless form. `path` is the
+  // catch-all segment array, which never carries a trailing empty segment, so
+  // the trailing slash (when present) is read from the request URL instead.
+  //
+  // Caveat, verified 2026-09-18: with `trailingSlash: false`, Next.js emits its
+  // own 308 from `/api/v1/foo/` to `/api/v1/foo` *before* this handler runs, so
+  // in practice the incoming pathname is normally already slashless here and
+  // the FastAPI redirect is resolved server-side below. This construction is
+  // still correct and becomes load-bearing the moment trailing-slash
+  // normalization is skipped for this route (see next.config.ts).
+  const trailingSlash = request.nextUrl.pathname.endsWith("/") ? "/" : "";
+  const url = new URL(
+    `/api/v1/${path.join("/")}${trailingSlash}`,
+    backendOrigin,
+  );
   url.search = request.nextUrl.search;
   return url;
 }
@@ -109,14 +125,34 @@ async function proxyRequest(
   }
 
   let finalResponse = response;
-  if (response.status === 307 || response.status === 308) {
+  // Railway may canonicalize FastAPI's slash-terminated routes with 301;
+  // FastAPI itself uses 307/308. Resolve each server-side so the browser never
+  // receives a redirect whose Location header is intentionally stripped below.
+  if (
+    response.status === 301 ||
+    response.status === 307 ||
+    response.status === 308
+  ) {
     const location = response.headers.get("location");
     if (location) {
-      // Resolve relative redirects against the backend origin, and PRESERVE the
-      // backend's scheme. Rewriting http->https unconditionally is a no-op in
-      // https deployments (production/staging), but on a local http backend
-      // it forces TLS against 127.0.0.1:8000 and throws in proxyRequest.
+      // Resolve relative redirects against the backend origin (an absolute
+      // location ignores the base, per the URL spec)...
       const redirectUrl = new URL(location, backendOrigin);
+
+      // ...then normalize the scheme when the backend is served over https.
+      // FastAPI builds `Location` from the *internal* request scheme, which is
+      // plain `http://` because TLS terminates at Railway's edge. Following
+      // that literal URL trips the edge's own http->https 301 - a second
+      // redirect this block does not resolve - so the refetch below is aimed at
+      // the https origin directly. A local http backend keeps its scheme, since
+      // `backendOrigin` is http there; that is the case a79cad0 was protecting,
+      // and it stays protected because this normalization is conditional.
+      if (
+        backendOrigin.startsWith("https://") &&
+        redirectUrl.protocol === "http:"
+      ) {
+        redirectUrl.protocol = "https:";
+      }
 
       try {
         finalResponse = await fetch(redirectUrl, {

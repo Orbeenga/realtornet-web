@@ -27,7 +27,7 @@ export function useMyPropertyReviews() {
   return useQuery({
     queryKey: ["myPropertyReviews"],
     queryFn: () =>
-      apiClient<PropertyReviewResponse[]>("/api/v1/reviews/by-user/property"),
+      apiClient<PropertyReviewResponse[]>("/api/v1/reviews/by-user/property/"),
     staleTime: 30_000,
   });
 }
@@ -36,7 +36,7 @@ export function useMyAgentReviews() {
   return useQuery({
     queryKey: ["myAgentReviews"],
     queryFn: () =>
-      apiClient<AgentReviewResponse[]>("/api/v1/reviews/by-user/agent"),
+      apiClient<AgentReviewResponse[]>("/api/v1/reviews/by-user/agent/"),
     staleTime: 30_000,
   });
 }
@@ -224,7 +224,7 @@ export function useMyAgencyReviews() {
   return useQuery({
     queryKey: ["myAgencyReviews"],
     queryFn: () =>
-      apiClient<AgencyReviewResponse[]>("/api/v1/reviews/by-user/agency"),
+      apiClient<AgencyReviewResponse[]>("/api/v1/reviews/by-user/agency/"),
     staleTime: 30_000,
   });
 }

@@ -62,7 +62,7 @@ async function fetchInquiryCollection(
   agencyId?: number,
 ) {
   if (source === "sent") {
-    return apiClient<Inquiry[]>("/api/v1/inquiries");
+    return apiClient<Inquiry[]>("/api/v1/inquiries/");
   }
 
   if (source === "received") {
@@ -75,7 +75,7 @@ async function fetchInquiryCollection(
     }
 
     return apiClient<InquiryExtended[]>(
-      `/api/v1/agencies/${agencyId}/inquiries?page_size=100`,
+      `/api/v1/agencies/${agencyId}/inquiries/?page_size=100`,
     );
   }
 
