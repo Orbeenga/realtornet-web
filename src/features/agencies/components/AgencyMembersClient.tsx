@@ -366,7 +366,7 @@ export function AgencyMembersClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
-  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "withdrawn">("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "withdrawn">("pending");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "cancelled" | "expired">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
@@ -1234,6 +1234,7 @@ export function AgencyMembersClient() {
                           status={member?.status}
                           lastSeen={member?.lastSeen}
                           qualifiers={member?.qualifiers}
+                          verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
                         />
                         <div className="mt-3 space-y-2">
