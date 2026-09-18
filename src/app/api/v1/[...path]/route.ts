@@ -67,10 +67,18 @@ function buildBackendUrl(request: NextRequest, path: string[]) {
   //
   // Caveat, verified 2026-09-18: with `trailingSlash: false`, Next.js emits its
   // own 308 from `/api/v1/foo/` to `/api/v1/foo` *before* this handler runs, so
-  // in practice the incoming pathname is normally already slashless here and
-  // the FastAPI redirect is resolved server-side below. This construction is
-  // still correct and becomes load-bearing the moment trailing-slash
-  // normalization is skipped for this route (see next.config.ts).
+  // in practice the incoming pathname is already slashless here and this
+  // helper's trailing slash is almost always "".
+  //
+  // WHAT THIS DOES NOT FIX (do not mistake "correct" for "load-bearing"):
+  // preserving the *client's* slash upstream. The client's slash never reaches
+  // this handler, so matching a hook call to the OpenAPI declaration (the
+  // convention locked in PREFLIGHT.md Rule 25) does not by itself stop FastAPI
+  // from issuing its 307 - the redirect follow below still has to resolve it,
+  // and it currently always does. The load-bearing fix for that chain is the
+  // scheme-normalized refetch; this construction is latent correctness that
+  // only becomes active if trailing-slash normalization is skipped for this
+  // route (the `skipTrailingSlashRedirect` + scoped proxy.ts option).
   const trailingSlash = request.nextUrl.pathname.endsWith("/") ? "/" : "";
   const url = new URL(
     `/api/v1/${path.join("/")}${trailingSlash}`,
