@@ -42,7 +42,6 @@ import {
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
-import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
 import type { MyAgencyJoinRequestResponse } from "@/types";
@@ -227,9 +226,19 @@ export function MyJoinRequestsClient() {
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
-  const token = getStoredToken();
-  const role = normalizeAppRole(getStoredJwtRole());
-  const { user } = useAuth();
+  /* Gate inputs come from the reactive auth context, never from imperative
+     localStorage reads taken at render scope (FE-002). A one-shot
+     `getStoredToken()` / `getStoredJwtRole()` pair evaluated here describes the
+     *pre-bootstrap* auth state, so on the 401 -> refresh -> 200 path it could
+     only ever be repaired by an incidental re-render from somewhere else in
+     the tree. Subscribing to AuthContext makes the gate track the token and
+     role that /auth/me actually resolved, and removes the server/client render
+     divergence (the server has no localStorage, so it always evaluated the gate
+     as false and rendered the signed-out surface).
+     NOTE — this does NOT widen access: `admin` is still deliberately excluded,
+     so an admin account still sees the "not available" state below. */
+  const { user, token, loading: authLoading } = useAuth();
+  const role = normalizeAppRole(user?.user_role);
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
@@ -402,6 +411,10 @@ export function MyJoinRequestsClient() {
       notify.error(typeof detail === "string" ? detail : "Could not reject reactivation");
     }
   };
+
+  if (authLoading) {
+    return <LoadingState />;
+  }
 
   if (!token) {
     return (

@@ -13,6 +13,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  LoadingState,
 } from "@/components";
 import {
   Dialog,
@@ -714,13 +715,49 @@ export function AgencyMembersClient() {
     }
   };
 
-  if (gate.isChecking || !gate.isAllowed || !agencyId) {
+  /* Three distinct states were previously collapsed into one branch. Because
+     `gate.isChecking` is true during SSR and first paint, every viewer - of any
+     role - was shown the definitive "No agency profile found" empty state for
+     the resolving window, and a viewer holding no agency role at all was told
+     their "agency owner account is active". Each state now renders its own
+     truth, and each is distinguishable from the others: still resolving,
+     not permitted, and genuinely no agency linked. A page that fails closed
+     silently is indistinguishable from a hang - the viewer gets no error, no
+     retry, and no page-data request at all. */
+  if (gate.isChecking) {
+    return <LoadingState />;
+  }
+
+  if (!gate.isAllowed) {
     return (
       <div className="space-y-6">
         <div><p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Membership management</p></div>
         <Card>
           <CardBody>
-            <EmptyState title="No agency profile found" description="Your agency owner account is active, but no agency could be resolved." />
+            <EmptyState
+              title="Membership management is not available"
+              description="Use an agent, agency owner, or admin account to manage agency membership."
+            />
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!agencyId) {
+    return (
+      <div className="space-y-6">
+        <div><p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Membership management</p></div>
+        <Card>
+          <CardBody>
+            <EmptyState
+              title="No agency profile found"
+              description={
+                gate.isAgencyOwner
+                  ? "Your agency owner account is active, but no agency could be resolved."
+                  : "No agency is linked to this account, so there is no membership roster to manage."
+              }
+            />
           </CardBody>
         </Card>
       </div>
