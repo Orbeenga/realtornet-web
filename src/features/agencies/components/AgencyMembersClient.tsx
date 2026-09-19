@@ -1204,20 +1204,13 @@ export function AgencyMembersClient() {
                   <div className="space-y-4">
                     {cancelledCycleGroups.map((group) => {
                       const member = historyMemberById.get(group.userId);
-                      const recentCancelled = group.requests.filter((req) => {
-                        if (!req.decided_at) return false;
-                        return new Date(req.decided_at).getTime() >= Date.now() - 30 * 86_400_000;
-                      });
-                      const cooldownActive = recentCancelled.length >= 3;
-                      const cooldownDate = cooldownActive
-                        ? (() => {
-                            const sorted = [...recentCancelled].sort(
-                              (first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime(),
-                            );
-                            const d = new Date(sorted[2].decided_at!);
-                            d.setDate(d.getDate() + 30);
-                            return d;
-                          })()
+                      // DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a): read the server-authoritative
+                      // cooldown_unlock_at (computed unpaginated per (user, agency) on the backend)
+                      // instead of re-deriving from this page's truncated request list. The
+                      // server date is the single source of truth for when the 3-strike/30-day
+                      // gate expires — matches the date the reapply 403 enforces.
+                      const cooldownDate = group.requests[0]?.cooldown_unlock_at
+                        ? new Date(group.requests[0]!.cooldown_unlock_at)
                         : null;
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
