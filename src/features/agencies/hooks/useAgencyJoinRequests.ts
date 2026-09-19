@@ -67,6 +67,12 @@ export function useApproveAgencyJoinRequest(agencyId?: string | number | null) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["agencyAgents", agencyId] }),
         queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] }),
+        /* DEF-U-MY-JOB-REQUESTS-401-STALE-MEMBERSHIP-002: approving a join
+           request creates an AgencyMembership on the backend. Without
+           invalidating myAgencyMemberships, the My Agencies page shows
+           stale (empty) data for up to 30s (the staleTime), causing auth-gate
+           401s when routing to the new membership page. */
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
       ]);
     },
   });
