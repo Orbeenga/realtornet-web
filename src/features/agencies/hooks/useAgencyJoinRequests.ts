@@ -296,22 +296,32 @@ export function useAcceptJoinRequestReactivation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (requestId: number) =>
+    mutationFn: ({ requestId }: { requestId: number; agencyId?: number | null }) =>
       apiClient<AgencyJoinRequestResponse>(
         `/api/v1/join-requests/${requestId}/accept-reactivation/`,
         { method: "PATCH" },
       ),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
+      /* DEF-U-REACTIVATION-404-NULL-GUARD-001(b): accepting a reactivation
+         transitions the request from expired→pending, which must be reflected
+         on the agency's Pending join-requests list and Review Requests queue.
+         Without this invalidation, the agency owner continues seeing a stale
+         Expired state and cannot act on the now-pending request. */
+      if (variables.agencyId != null) {
+        await queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", variables.agencyId, "all"] });
+        await queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", variables.agencyId] });
+        await queryClient.invalidateQueries({ queryKey: ["agencyMembershipHistories", variables.agencyId] });
+      }
     },
   });
 }
 
-export function useRejectJoinRequestReactivation(agencyId?: string | number | null) {
+export function useRejectJoinRequestReactivation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ requestId, reason }: { requestId: number; reason?: string }) =>
+    mutationFn: ({ requestId, reason }: { requestId: number; reason?: string; agencyId?: number | null }) =>
       apiClient<AgencyJoinRequestResponse>(
         `/api/v1/join-requests/${requestId}/reject-reactivation/`,
         {
@@ -319,14 +329,15 @@ export function useRejectJoinRequestReactivation(agencyId?: string | number | nu
           body: JSON.stringify({ reason: reason || "Reactivation rejected by applicant" }),
         },
       ),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });
-      /* DEF-U-AGENCY-REJECT-CTA-001: agency-side caches must refresh after a
-         reactivation rejection so the Expired/queue surfaces re-render. */
-      if (agencyId != null) {
-        await queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId, "all"] });
-        await queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", agencyId] });
-        await queryClient.invalidateQueries({ queryKey: ["agencyMembershipHistories", agencyId] });
+      /* DEF-U-REACTIVATION-404-NULL-GUARD-001(b): rejecting a reactivation
+         transitions the request from expired→rejected, which must be reflected
+         on the agency's Expired and Review Requests surfaces. */
+      if (variables.agencyId != null) {
+        await queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", variables.agencyId, "all"] });
+        await queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", variables.agencyId] });
+        await queryClient.invalidateQueries({ queryKey: ["agencyMembershipHistories", variables.agencyId] });
       }
     },
   });

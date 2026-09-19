@@ -351,9 +351,9 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleAcceptReactivation = async (requestId: number) => {
+  const handleAcceptReactivation = async (requestId: number, agencyId?: number) => {
     try {
-      await acceptReactivation.mutateAsync(requestId);
+      await acceptReactivation.mutateAsync({ requestId, agencyId });
       notify.success("Reactivation accepted — request is pending again.");
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
@@ -402,9 +402,9 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleRejectReactivation = async (requestId: number) => {
+  const handleRejectReactivation = async (requestId: number, agencyId?: number) => {
     try {
-      await rejectReactivation.mutateAsync({ requestId });
+      await rejectReactivation.mutateAsync({ requestId, agencyId });
       notify.success("Reactivation request rejected.");
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
@@ -1497,15 +1497,15 @@ export function MyJoinRequestsClient() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Button
                               type="button" size="sm"
-                              loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                              onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                              loading={acceptReactivation.isPending && acceptReactivation.variables?.requestId === request.join_request_id}
+                              onClick={() => void handleAcceptReactivation(request.join_request_id, request.agency_id)}
                             >
                               Accept Reactivation
                             </Button>
                             <Button
                               type="button" size="sm" variant="ghost"
                               loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === request.join_request_id}
-                              onClick={() => void handleRejectReactivation(request.join_request_id)}
+                              onClick={() => void handleRejectReactivation(request.join_request_id, request.agency_id)}
                             >
                               Reject
                             </Button>
