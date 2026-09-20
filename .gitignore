@@ -69,3 +69,6 @@ docs/
 .secrets.baseline*
 FRONTEND_CLAUDE.md
 FRONTEND_DEFERRED.md
+
+# local scratch dir: backups + one-off scripts (matches backend repo convention)
+.local-backups/
