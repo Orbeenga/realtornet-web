@@ -492,7 +492,7 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
-  const rejectReactivation = useRejectJoinRequestReactivation();
+  const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -529,7 +529,7 @@ export function AgencyMembersClient() {
       return;
     }
     try {
-      await rejectReactivation.mutateAsync({ requestId, reason, agencyId });
+      await rejectReactivation.mutateAsync({ requestId, reason });
       notify.success("Reactivation request rejected. The applicant can see the decision in My Agencies.");
       setRejectReasons((current) => {
         const next = { ...current };
