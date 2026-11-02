@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { stripCredentialParams } from "../src/features/auth/safeRedirect";
+import { getSafeNextPath, stripCredentialParams } from "../src/features/auth/safeRedirect";
 
 test("strip: removes password and email while preserving next", () => {
   const params = new URLSearchParams(
@@ -48,4 +48,28 @@ test("strip: no password param means no strip", () => {
 test("strip: empty query means no strip", () => {
   const result = stripCredentialParams(new URLSearchParams(""));
   expect(result).toEqual({ stripped: false, target: "" });
+});
+test("next: accepts a plain same-origin path", () => {
+  expect(getSafeNextPath("/properties")).toBe("/properties");
+});
+
+test("next: rejects protocol-relative URLs", () => {
+  expect(getSafeNextPath("//evil.com")).toBeNull();
+});
+
+test("next: rejects backslashes", () => {
+  expect(getSafeNextPath("/\\evil.com")).toBeNull();
+});
+
+test("next: rejects absolute URLs with a scheme", () => {
+  expect(getSafeNextPath("https://evil.com")).toBeNull();
+});
+
+test("next: rejects encoded-slash bypasses", () => {
+  expect(getSafeNextPath("/%2F/evil.com")).toBeNull();
+});
+
+test("next: rejects empty and null", () => {
+  expect(getSafeNextPath("")).toBeNull();
+  expect(getSafeNextPath(null)).toBeNull();
 });

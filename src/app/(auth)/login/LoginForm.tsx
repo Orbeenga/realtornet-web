@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getPostLoginPath } from "@/features/auth/navigation";
-import { stripCredentialParams } from "@/features/auth/safeRedirect";
+import { getSafeNextPath, stripCredentialParams } from "@/features/auth/safeRedirect";
 import { loginSchema, type LoginFormValues } from "@/features/auth/schemas";
 
 export default function LoginForm() {
@@ -15,7 +15,7 @@ export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
-  const safeNextPath = nextPath?.startsWith("/") ? nextPath : null;
+  const safeNextPath = getSafeNextPath(nextPath);
   const [serverError, setServerError] = useState<string | null>(null);
   const [credentialStripped] = useState(() => searchParams.has("password"));
   const guardRunRef = useRef(false);
