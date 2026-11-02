@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getPostLoginPath } from "@/features/auth/navigation";
+import { stripCredentialParams } from "@/features/auth/safeRedirect";
 import { loginSchema, type LoginFormValues } from "@/features/auth/schemas";
 
 export default function LoginForm() {
@@ -16,6 +17,19 @@ export default function LoginForm() {
   const nextPath = searchParams.get("next");
   const safeNextPath = nextPath?.startsWith("/") ? nextPath : null;
   const [serverError, setServerError] = useState<string | null>(null);
+  const [credentialStripped] = useState(() => searchParams.has("password"));
+  const guardRunRef = useRef(false);
+
+  useEffect(() => {
+    if (guardRunRef.current) {
+      return;
+    }
+    guardRunRef.current = true;
+    const { stripped, target } = stripCredentialParams(searchParams);
+    if (stripped) {
+      router.replace(target, { scroll: false });
+    }
+  }, [router, searchParams]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -65,6 +79,12 @@ export default function LoginForm() {
         {searchParams.get("registered") === "true" ? (
           <p className="mb-5 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
             Account created. Sign in to continue.
+          </p>
+        ) : null}
+        {credentialStripped ? (
+          <p className="mb-5 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
+            Credentials were removed from the address bar. Type your email and
+            password into the form below.
           </p>
         ) : null}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
