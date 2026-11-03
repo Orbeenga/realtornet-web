@@ -15,6 +15,7 @@ import {
   clearStoredAuthTokens,
   getStoredAccessToken,
   getStoredRefreshToken,
+  invalidatePendingTokenPersists,
   persistAuthTokens,
   refreshAccessToken,
   setStaleRoleVersionHandler,
@@ -198,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
     }
 
+    invalidatePendingTokenPersists();
     persistAuthTokens(payload.access_token, payload.refresh_token);
     setToken(payload.access_token);
 
@@ -250,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async (options: SignOutOptions = {}) => {
     const { redirectToLogin = true } = options;
 
+    invalidatePendingTokenPersists();
     clearStoredAuthTokens();
     queryClient.clear();
     setToken(null);
