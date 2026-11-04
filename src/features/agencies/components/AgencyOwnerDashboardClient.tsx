@@ -37,6 +37,10 @@ import {
 import { useAuth } from "@/features/auth/AuthContext";
 import { useAgentRoleGate } from "@/hooks/useAgentRoleGate";
 import { notify } from "@/lib/toast";
+import {
+  AiAssistDebugPanel,
+  SuggestReasonButton,
+} from "@/features/ai-assist";
 import { ApiError } from "@/lib/api/client";
 import {
   useAgencies,
@@ -718,6 +722,11 @@ export function AgencyOwnerDashboardClient() {
             value={rejectReason}
             onChange={(event) => setRejectReason(event.target.value)}
           />
+          <SuggestReasonButton
+            listingId={rejectDialog?.propertyId ?? null}
+            actionType="agency_reject"
+            onDraft={setRejectReason}
+          />
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
             <Button
@@ -732,6 +741,8 @@ export function AgencyOwnerDashboardClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AiAssistDebugPanel />
 
       <Sheet open={isEditingAgencyProfile} onOpenChange={setIsEditingAgencyProfile}>
         <SheetContent side="right" className="sm:max-w-lg">

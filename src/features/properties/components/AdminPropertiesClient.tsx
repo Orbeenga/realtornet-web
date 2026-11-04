@@ -32,6 +32,10 @@ import {
   moderationStatusLabel,
 } from "@/features/properties/lib/moderation";
 import { notify } from "@/lib/toast";
+import {
+  AiAssistDebugPanel,
+  SuggestReasonButton,
+} from "@/features/ai-assist";
 import type { ListingEventResponse, ModerationStatus, Property } from "@/types";
 
 type ModerationTab = ModerationStatus | "all";
@@ -311,6 +315,13 @@ function PropertyModerationCard({
             }
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
+          />
+        ) : null}
+        {!isHistorical && (isAdminReview || isLive) ? (
+          <SuggestReasonButton
+            listingId={property.property_id}
+            actionType={isAdminReview ? "admin_reject" : "revoke"}
+            onDraft={onReasonChange}
           />
         ) : null}
 
@@ -593,6 +604,7 @@ export function AdminPropertiesClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AiAssistDebugPanel />
     </div>
   );
 }

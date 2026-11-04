@@ -41,6 +41,10 @@ import {
   useInstructAgent,
 } from "@/features/properties/hooks";
 import { notify } from "@/lib/toast";
+import {
+  AiAssistDebugPanel,
+  SuggestReasonButton,
+} from "@/features/ai-assist";
 import { resolveListingDisplayName } from "@/lib/listing-display";
 import {
   MODERATION_STATUS,
@@ -749,6 +753,11 @@ export function AgentListingsManagerClient() {
             {!rejectReason.trim() ? (
               <p className="text-xs text-red-500">Reason is required</p>
             ) : null}
+            <SuggestReasonButton
+              listingId={rejectPropertyId}
+              actionType="agency_reject"
+              onDraft={setRejectReason}
+            />
           </div>
           <DialogFooter>
             <Button
@@ -769,6 +778,8 @@ export function AgentListingsManagerClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AiAssistDebugPanel />
 
       <Dialog open={instructDialogOpen} onOpenChange={setInstructDialogOpen}>
         <DialogContent finalFocus={false}>

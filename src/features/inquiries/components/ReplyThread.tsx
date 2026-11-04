@@ -3,6 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { Button, Skeleton } from "@/components";
 import { useEditReply, useReplies, useReplyToInquiry } from "@/features/inquiries/hooks";
+import {
+  AiAssistDebugPanel,
+  SuggestReplyButton,
+} from "@/features/ai-assist";
 import type { InquiryReplyResponse } from "@/types";
 
 function formatDate(value: string) {
@@ -302,7 +306,8 @@ export function ReplyThread({
           rows={3}
           className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 placeholder-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200 dark:placeholder-gray-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400"
         />
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <SuggestReplyButton inquiryId={inquiryId} onDraft={setReplyBody} />
           <Button
             type="button"
             variant="primary"
@@ -315,6 +320,7 @@ export function ReplyThread({
           </Button>
         </div>
       </div>
+      <AiAssistDebugPanel />
     </div>
   );
 }
