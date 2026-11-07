@@ -15,7 +15,7 @@ export function useSavedSearches() {
 
   return useQuery({
     queryKey: SAVED_SEARCHES_QUERY_KEY,
-    queryFn: () => apiClient<SavedSearch[]>("/api/v1/saved-searches"),
+    queryFn: () => apiClient<SavedSearch[]>("/api/v1/saved-searches/"),
     staleTime: 60_000,
     enabled: typeof profile?.user_id === "number",
   });

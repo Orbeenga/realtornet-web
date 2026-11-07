@@ -42,7 +42,6 @@ import {
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
-import { getStoredJwtRole, getStoredToken } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
 import type { MyAgencyJoinRequestResponse } from "@/types";
@@ -81,24 +80,15 @@ interface MyJoinRequestCycleGroup {
   cancelledRequests: MyAgencyJoinRequestResponse[];
 }
 
-function addDays(value: string, days: number) {
-  const date = new Date(value);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function getApplyAgainDate(requests: MyAgencyJoinRequestResponse[]) {
-  const cutoff = Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000;
-  const recentCancelled = requests.filter((request) => {
-    if (request.status !== "cancelled" || !request.decided_at) return false;
-    return new Date(request.decided_at).getTime() >= cutoff;
-  });
-  if (recentCancelled.length < COOLDOWN_LIMIT) return null;
-  const sorted = [...recentCancelled].sort(
-    (first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime(),
-  );
-  return addDays(sorted[COOLDOWN_LIMIT - 1].decided_at!, COOLDOWN_WINDOW_DAYS);
-}
+/* DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a): the reapply unlock date is
+   SERVER-COMPUTED — `cooldown_unlock_at` (ISO datetime | null) is returned on
+   every /join-requests/mine/ row, per (user, agency) pair, computed unpaginated
+   as max(decided_at among >=3 in-window cancellations) + 30d. That is the exact
+   date the reapply 403 enforces (backend test:
+   test_my_join_requests_cooldown_unlock_at_matches_server_gate). The former
+   local 3rd-oldest-cancellation + 30d derivation is DELETED — the frontend no
+   longer re-derives gate math (single source of truth: the backend gate).
+   null = gate not tripped, reapply allowed. */
 
 function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
   const groups = new Map<number, MyJoinRequestCycleGroup>();
@@ -144,11 +134,9 @@ function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
 function SeekerAgencyHistoryGroup({
   agency,
   enabled,
-  defaultUserDisplayName,
 }: {
   agency: { agency_id: number; agency_name: string; status?: string; is_verified?: boolean };
   enabled: boolean;
-  defaultUserDisplayName?: string;
 }) {
   const feed = useMembershipHistory(enabled && Boolean(agency.agency_id), agency.agency_id);
   const [expanded, setExpanded] = useState(false);
@@ -236,12 +224,21 @@ export function MyJoinRequestsClient() {
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "expired" | "cancelled">("pending");
-  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn">("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "withdrawn">("pending");
   const [activeTab, setActiveTab] = useState<MyAgenciesTab>("memberships");
-  const token = getStoredToken();
-  const role = normalizeAppRole(getStoredJwtRole());
-  const { user } = useAuth();
-  const defaultUserDisplayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined;
+  /* Gate inputs come from the reactive auth context, never from imperative
+     localStorage reads taken at render scope (FE-002). A one-shot
+     `getStoredToken()` / `getStoredJwtRole()` pair evaluated here describes the
+     *pre-bootstrap* auth state, so on the 401 -> refresh -> 200 path it could
+     only ever be repaired by an incidental re-render from somewhere else in
+     the tree. Subscribing to AuthContext makes the gate track the token and
+     role that /auth/me actually resolved, and removes the server/client render
+     divergence (the server has no localStorage, so it always evaluated the gate
+     as false and rendered the signed-out surface).
+     NOTE — this does NOT widen access: `admin` is still deliberately excluded,
+     so an admin account still sees the "not available" state below. */
+  const { user, token, loading: authLoading } = useAuth();
+  const role = normalizeAppRole(user?.user_role);
   const canViewAgencyRequests =
     Boolean(token) && (role === "seeker" || role === "agent" || role === "agency_owner");
   const canViewAgencyInvitations = Boolean(token) && (role === "seeker" || role === "agent");
@@ -415,6 +412,10 @@ export function MyJoinRequestsClient() {
     }
   };
 
+  if (authLoading) {
+    return <LoadingState />;
+  }
+
   if (!token) {
     return (
       <Card>
@@ -474,8 +475,9 @@ export function MyJoinRequestsClient() {
   ];
   const applyAgainDates = new Map<number, Date>();
   for (const group of cancelledRequestGroups) {
-    const applyAgainDate = getApplyAgainDate(group.requests);
-    if (applyAgainDate) applyAgainDates.set(group.agencyId, applyAgainDate);
+    // Server-computed unlock date (see DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a) above).
+    const unlockAt = group.requests[0]?.cooldown_unlock_at;
+    if (unlockAt) applyAgainDates.set(group.agencyId, new Date(unlockAt));
   }
   const cancelConfirmRequest = cancelConfirmId === null
     ? null
@@ -566,9 +568,8 @@ export function MyJoinRequestsClient() {
               { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
               { value: "expired" as const, label: `Expired (${invitations.filter(hasExpiredHistory).length})` },
               { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(hasWithdrawnHistory).length})` },
-              { value: "revoked" as const, label: `Revoked (${invitations.filter(i => i.status === "revoked").length})` },
             ].map(({ value, label }) => (
-              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value as "pending" | "accepted" | "rejected" | "expired" | "revoked" | "withdrawn")}>
+              <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
                 {label}
               </Button>
             ))}
@@ -838,41 +839,10 @@ export function MyJoinRequestsClient() {
               )}
             </div>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "revoked").length === 0 ? (
-                <div className="md:col-span-2 xl:col-span-3">
-                  <EmptyState title="No revoked invitations" description="Revoked invitations will appear here." />
-                </div>
-              ) : (
-                invitations.filter(i => i.status === "revoked").map((invitation) => (
-                  <Card key={invitation.invitation_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
-                        <Badge variant="danger">revoked</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invitation from {invitation.agency_name} was revoked.
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sent {formatDate(invitation.created_at)}
-                      </p>
-                      <Link
-                        href={`/agencies/${invitation.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
-                    </CardBody>
-                  </Card>
-                ))
-              )}
-            </div>
+            <EmptyState
+              title="No invitations"
+              description="Invitations in other states will appear in their respective tabs."
+            />
           )}
         </section>
       ) : null}
@@ -946,25 +916,20 @@ export function MyJoinRequestsClient() {
                 suspendedMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="warning">suspended</Badge>
-                      </div>
                       {(() => {
                         // U-035-parity (lead decision, batch DEF-U-SUSPENDED-ACCORDION-001):
                         // suspended is a multi-event lifecycle like left/revoked; render via
                         // the shared scoped filter (SSOT) + canonical rich accordion.
+                        // Lead decision (b): structured exactly like the Revoked tab —
+                        // identity renders ONCE via the canonical TimelineHeader; the
+                        // bespoke Link name/badge/date/reason chrome is removed (rows
+                        // carry their own dates and reasons). Renders unconditionally
+                        // so the agency name is always present.
                         const suspendedEvents = getMembershipHistoryByAction(
                           historyQuery.data ?? [],
                           { agency_id: membership.agency_id, agency_name: membership.agency_name },
                           "suspended",
                         );
-                        if (suspendedEvents.length === 0) return null;
                         return (
                           <MembershipTimeline
                             tier="rich"
@@ -973,21 +938,11 @@ export function MyJoinRequestsClient() {
                             emptyDescription=""
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
                             labelStage="join_request"
-                            showHeader={false}
                           />
                         );
                       })()}
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Suspended {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
                       {membership.pending_review_request_id ? (
                         <p className="text-sm text-amber-700 dark:text-amber-300">
                           Review requested
@@ -1049,7 +1004,12 @@ export function MyJoinRequestsClient() {
                           { agency_id: membership.agency_id, agency_name: membership.agency_name },
                           "left",
                         );
-                        if (leftEvents.length === 0) return null;
+                        /* Lead decision (a), U-028 family: identity renders ONCE
+                           via the canonical TimelineHeader (agency contract) —
+                           the bespoke Link name is removed (U-018: no parallel
+                           identity render paths). Timeline renders unconditionally
+                           so the agency name is always present, even with no
+                           scoped events; rows carry their own dates/reasons. */
                         return (
                           <MembershipTimeline
                             tier="rich"
@@ -1058,30 +1018,11 @@ export function MyJoinRequestsClient() {
                             emptyDescription=""
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
                             labelStage="join_request"
-                            showHeader={false}
                           />
                         );
                       })()}
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="warning">left</Badge>
-                      </div>
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Left {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
                       {membership.pending_review_request_id ? (
                         <p className="text-sm text-amber-700 dark:text-amber-300">
                           Reinstatement requested
@@ -1219,25 +1160,32 @@ export function MyJoinRequestsClient() {
                 blockedMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant="danger">blocked</Badge>
-                      </div>
-                      {membership.status_decided_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Blocked {formatDate(membership.status_decided_at)}
-                        </p>
-                      ) : null}
-                      {membership.status_reason ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm leading-6 text-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                          {membership.status_reason}
-                        </div>
-                      ) : null}
+                      {/* Lead decision (b), U-028 family: blocked joins the
+                          Revoked-tab structure — scoped event timeline via the
+                          shared SSOT filter (getMembershipHistoryByAction),
+                          identity rendered ONCE through the canonical
+                          TimelineHeader, accordion reveal included. Rows carry
+                          their own dates/reasons; the terminal-path support
+                          notice is retained below. */}
+                      {(() => {
+                        const blockedEvents = getMembershipHistoryByAction(
+                          historyQuery.data ?? [],
+                          { agency_id: membership.agency_id, agency_name: membership.agency_name },
+                          "blocked",
+                        );
+                        return (
+                          <MembershipTimeline
+                            tier="rich"
+                            history={blockedEvents}
+                            emptyTitle="No events"
+                            emptyDescription=""
+                            entity="agency"
+                            defaultUserDisplayName={membership.agency_name}
+                            verified={membership.is_verified}
+                            labelStage="join_request"
+                          />
+                        );
+                      })()}
                       <p className="rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-700 dark:bg-red-950/40 dark:text-red-300">
                         This agency has restricted your access. Contact platform support if you believe this is in error.
                       </p>
@@ -1270,7 +1218,6 @@ export function MyJoinRequestsClient() {
                       is_verified: membership.is_verified,
                     }}
                     enabled={canViewAgencyMemberships}
-                    defaultUserDisplayName={defaultUserDisplayName}
                   />
                 ))
               )}
@@ -1596,7 +1543,10 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               cancelledRequestGroups.map((group) => {
-                const applyAgainDate = getApplyAgainDate(group.requests);
+                // Server-computed unlock date per (user, agency) pair — null = no cooldown.
+                const applyAgainDate = group.requests[0]?.cooldown_unlock_at
+                  ? new Date(group.requests[0].cooldown_unlock_at)
+                  : null;
                 return (
                 <Card key={group.agencyId}>
                   <CardBody className="space-y-4">
@@ -1615,7 +1565,7 @@ export function MyJoinRequestsClient() {
                         const sortedRequests = [...group.requests].sort(
                           (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
                         );
-                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number; isPendingReapply?: boolean }> = [];
+                        const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number | null; isPendingReapply?: boolean }> = [];
                         // The pending reapply (if any) is the group's single pending row carrying a
                         // reapplication_message — its "Application submitted" event anchors the
                         // ambient notice BELOW the canonical row (U-035 family; discharges on resolve).
@@ -1624,7 +1574,7 @@ export function MyJoinRequestsClient() {
                         );
                         for (let idx = 0; idx < sortedRequests.length; idx++) {
                           const req = sortedRequests[idx];
-                          const eventNum = idx + 1;
+                          const eventNum = req.cycle_number ?? null; // DEF-U-CYCLE-NUMBER-DERIVATION-001: backend-computed per (user, agency), never idx+1
                               events.push({
                                 key: `submitted-${req.join_request_id}`,
                                 type: "Application submitted",
@@ -1662,7 +1612,7 @@ export function MyJoinRequestsClient() {
                               {event.message ? (
                                 <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
                               ) : null}
-                              <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
+                              <p className="mt-0.5 text-xs text-gray-400">{event.eventNum != null ? `Cycle: ${event.eventNum}` : event.type === "Application cancelled" ? "No reapply" : event.isPendingReapply ? "Reapplied — awaiting response" : "Not part of a cycle"}</p>
                             </div>
                           );
                           // Ambient notice BELOW the pending reapply's canonical row (U-035 family).

@@ -13,6 +13,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  LoadingState,
 } from "@/components";
 import {
   Dialog,
@@ -185,6 +186,26 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
   return labels[action];
 }
 
+/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 1): make the merged queue's
+   row kind legible. The U-033 discriminator already drives accept/decline
+   routing; this surfaces it as a label. Tier 2 (origin precision:
+   reapplied vs reactivated, revoked vs suspended appeal) requires backend
+   payload shaping and stays out of scope — see the DEF. */
+function reviewQueueSourceLabel(
+  sourceType: AgencyReviewRequestResponse["source_type"],
+): string | null {
+  switch (sourceType) {
+    case "review_request":
+      return "Returning applicant review";
+    case "join_request":
+      return "Reapplication";
+    case "membership_review_request":
+      return "Membership reinstatement appeal";
+    default:
+      return null;
+  }
+}
+
 function groupAgencyReviewRequests(
   reviewRequests: AgencyReviewRequestResponse[],
 ): AgencyReviewRequestGroup[] {
@@ -345,7 +366,7 @@ export function AgencyMembersClient() {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
-  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "declined" | "rejected" | "expired" | "withdrawn">("pending");
+  const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "withdrawn">("pending");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "cancelled" | "expired">("pending");
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
@@ -433,6 +454,20 @@ export function AgencyMembersClient() {
     agencyId,
     suspendedAgents.map((a) => a.user_id),
     Boolean(agencyId) && suspendedAgents.length > 0,
+  );
+
+  // U-028 family (lead decision): the Blocked tab is an append-only lifecycle
+  // (block -> unblock -> re-block), same shape as Suspended/Left/Revoked, so it
+  // joins the cumulative-card model via the same per-member feed + scoped filter.
+  const blockedAgents = [
+    ...new Map(
+      (agentsQuery.data?.filter((a) => a.membership_status === "blocked") ?? []).map((a) => [a.user_id, a]),
+    ).values(),
+  ];
+  const blockedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    blockedAgents.map((a) => a.user_id),
+    Boolean(agencyId) && blockedAgents.length > 0,
   );
 
   // U-022d/U-026 parity: per-member history for the Expired join-request tab
@@ -680,13 +715,49 @@ export function AgencyMembersClient() {
     }
   };
 
-  if (gate.isChecking || !gate.isAllowed || !agencyId) {
+  /* Three distinct states were previously collapsed into one branch. Because
+     `gate.isChecking` is true during SSR and first paint, every viewer - of any
+     role - was shown the definitive "No agency profile found" empty state for
+     the resolving window, and a viewer holding no agency role at all was told
+     their "agency owner account is active". Each state now renders its own
+     truth, and each is distinguishable from the others: still resolving,
+     not permitted, and genuinely no agency linked. A page that fails closed
+     silently is indistinguishable from a hang - the viewer gets no error, no
+     retry, and no page-data request at all. */
+  if (gate.isChecking) {
+    return <LoadingState />;
+  }
+
+  if (!gate.isAllowed) {
     return (
       <div className="space-y-6">
         <div><p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Membership management</p></div>
         <Card>
           <CardBody>
-            <EmptyState title="No agency profile found" description="Your agency owner account is active, but no agency could be resolved." />
+            <EmptyState
+              title="Membership management is not available"
+              description="Use an agent, agency owner, or admin account to manage agency membership."
+            />
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!agencyId) {
+    return (
+      <div className="space-y-6">
+        <div><p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Membership management</p></div>
+        <Card>
+          <CardBody>
+            <EmptyState
+              title="No agency profile found"
+              description={
+                gate.isAgencyOwner
+                  ? "Your agency owner account is active, but no agency could be resolved."
+                  : "No agency is linked to this account, so there is no membership roster to manage."
+              }
+            />
           </CardBody>
         </Card>
       </div>
@@ -1133,20 +1204,13 @@ export function AgencyMembersClient() {
                   <div className="space-y-4">
                     {cancelledCycleGroups.map((group) => {
                       const member = historyMemberById.get(group.userId);
-                      const recentCancelled = group.requests.filter((req) => {
-                        if (!req.decided_at) return false;
-                        return new Date(req.decided_at).getTime() >= Date.now() - 30 * 86_400_000;
-                      });
-                      const cooldownActive = recentCancelled.length >= 3;
-                      const cooldownDate = cooldownActive
-                        ? (() => {
-                            const sorted = [...recentCancelled].sort(
-                              (first, second) => new Date(first.decided_at!).getTime() - new Date(second.decided_at!).getTime(),
-                            );
-                            const d = new Date(sorted[2].decided_at!);
-                            d.setDate(d.getDate() + 30);
-                            return d;
-                          })()
+                      // DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a): read the server-authoritative
+                      // cooldown_unlock_at (computed unpaginated per (user, agency) on the backend)
+                      // instead of re-deriving from this page's truncated request list. The
+                      // server date is the single source of truth for when the 3-strike/30-day
+                      // gate expires — matches the date the reapply 403 enforces.
+                      const cooldownDate = group.requests[0]?.cooldown_unlock_at
+                        ? new Date(group.requests[0]!.cooldown_unlock_at)
                         : null;
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
@@ -1163,6 +1227,7 @@ export function AgencyMembersClient() {
                           status={member?.status}
                           lastSeen={member?.lastSeen}
                           qualifiers={member?.qualifiers}
+                          verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
                         />
                         <div className="mt-3 space-y-2">
@@ -1177,10 +1242,10 @@ export function AgencyMembersClient() {
                              const pendingReapplyReq = sortedRequests.find(
                                (r) => r.status === "pending" && r.reapplication_message != null,
                              );
-                             const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number; isPendingReapply?: boolean }> = [];
+                             const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number | null; isPendingReapply?: boolean }> = [];
                              for (let idx = 0; idx < sortedRequests.length; idx++) {
                                const req = sortedRequests[idx];
-                               const eventNum = idx + 1;
+                               const eventNum = req.cycle_number ?? null; // DEF-U-CYCLE-NUMBER-DERIVATION-001: backend-computed per (user, agency), never idx+1
                                events.push({
                                  key: `submitted-${req.join_request_id}`,
                                  type: "Application submitted",
@@ -1218,7 +1283,7 @@ export function AgencyMembersClient() {
                                   {event.message ? (
                                     <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
                                   ) : null}
-                                  <p className="mt-0.5 text-xs text-gray-400">Cycle: {event.eventNum || "—"}</p>
+                                  <p className="mt-0.5 text-xs text-gray-400">{event.eventNum != null ? `Cycle: ${event.eventNum}` : event.type === "Application cancelled" ? "No reapply" : event.isPendingReapply ? "Reapplied — awaiting response" : "Not part of a cycle"}</p>
                                 </div>
                               );
                               // Ephemeral "New" marker + ambient notice ABOVE the pending reapply's
@@ -1322,6 +1387,11 @@ export function AgencyMembersClient() {
                           <Badge variant={primaryRequest.status === "accepted" ? "success" : primaryRequest.status === "declined" ? "danger" : "warning"}>
                             {primaryRequest.status}
                           </Badge>
+                          {reviewQueueSourceLabel(primaryRequest.source_type) ? (
+                            <Badge variant="outline">
+                              {reviewQueueSourceLabel(primaryRequest.source_type)}
+                            </Badge>
+                          ) : null}
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           {group.requesterEmail ?? "Email unavailable"}
@@ -2084,12 +2154,12 @@ export function AgencyMembersClient() {
                 onRetry={() => { void agentsQuery.refetch(); }}
               />
             ) : null}
-            {!agentsQuery.isLoading && !agentsQuery.isError && agents.filter(a => a.membership_status === "blocked").length === 0 ? (
+            {!agentsQuery.isLoading && !agentsQuery.isError && blockedAgents.length === 0 ? (
               <EmptyState title="No blocked users." description="" />
             ) : null}
-            {!agentsQuery.isLoading && agents.filter(a => a.membership_status === "blocked").length > 0 ? (
+            {!agentsQuery.isLoading && blockedAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {agents.filter(a => a.membership_status === "blocked").map((agent) => (
+                {blockedAgents.map((agent, index) => (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -2121,6 +2191,28 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
+                    {(() => {
+                      // U-028 family: this member's block lifecycle renders via the
+                      // shared scoped filter (SSOT) + canonical rich accordion —
+                      // same as Suspended/Left/Revoked. showHeader={false}: identity
+                      // already renders once via the TimelineHeader above (U-018).
+                      const blockedEvents = getMembershipHistoryByAction(
+                        blockedHistoryQueries[index]?.data ?? [],
+                        { user_id: agent.user_id, agency_id: agent.agency_id },
+                        "blocked",
+                      );
+                      if (blockedEvents.length === 0) return null;
+                      return (
+                        <MembershipTimeline
+                          tier="rich"
+                          history={blockedEvents}
+                          showHeader={false}
+                          entity="person"
+                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                          role={agent.user_role}
+                        />
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

@@ -38,7 +38,7 @@ export function useAgencyJoinRequests(
     queryKey: ["agencyJoinRequests", agencyId, "all"],
     queryFn: () =>
       apiClient<AgencyJoinRequestResponse[]>(
-        `/api/v1/agencies/${agencyId}/join-requests?status=all&limit=100`,
+        `/api/v1/agencies/${agencyId}/join-requests/?status=all&limit=100`,
       ),
     staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),
@@ -180,7 +180,7 @@ export function useAgencyInvitations(
     queryKey: ["agencyInvitations", agencyId],
     queryFn: () =>
       apiClient<AgencyInvitationResponse[]>(
-        `/api/v1/agencies/${agencyId}/invitations?limit=100`,
+        `/api/v1/agencies/${agencyId}/invitations/?limit=100`,
       ),
     staleTime: 60_000,
     enabled: enabled && Boolean(agencyId),

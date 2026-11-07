@@ -23,6 +23,16 @@ let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 let staleRoleVersionHandler: (() => Promise<string | null>) | null = null;
 let refreshPromise: Promise<string> | null = null;
 
+// Generation counter for token persistence. Bumped on every login and every
+// logout; a refresh that resolves from a previous generation discards its
+// result instead of persisting, so a late refresh cannot resurrect a cleared
+// session (logout-refresh race) or overwrite a newer login's tokens.
+let tokenPersistGeneration = 0;
+
+export function invalidatePendingTokenPersists() {
+  tokenPersistGeneration += 1;
+}
+
 interface ApiClientOptions extends RequestInit {
   authMode?: "include" | "omit";
 }
@@ -118,6 +128,7 @@ export async function refreshAccessToken(): Promise<string> {
     throw new AuthError("Missing refresh token");
   }
 
+  const generation = tokenPersistGeneration;
   const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
     method: "POST",
     headers: {
@@ -129,8 +140,15 @@ export async function refreshAccessToken(): Promise<string> {
   const payload = await res.json().catch(() => null);
 
   if (!res.ok || !payload?.access_token) {
-    clearStoredAuthTokens();
+    if (generation === tokenPersistGeneration) {
+      clearStoredAuthTokens();
+    }
+
     throw new AuthError("Refresh failed");
+  }
+
+  if (generation !== tokenPersistGeneration) {
+    throw new AuthError("Session changed during refresh");
   }
 
   persistAuthTokens(payload.access_token, payload.refresh_token ?? refreshToken);

@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/api/client";
 import type { MembershipTimelineEntry, MembershipTimelinePage } from "@/types";
 
 function membershipHistoryUrl(agencyId?: number | null, userId?: number | null, cursor?: string): string {
-  const base = `/api/v1/agencies/${agencyId}/membership-history`;
+  const base = `/api/v1/agencies/${agencyId}/membership-history/`;
   const params = new URLSearchParams();
   if (userId != null) params.set("user_id", String(userId));
   if (cursor) params.set("cursor", cursor);

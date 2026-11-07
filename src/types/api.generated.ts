@@ -5149,6 +5149,13 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
+            /**
+             * Cooldown Unlock At
+             * @default null
+             */
+            cooldown_unlock_at: string | null;
+            /** Cycle Number */
+            cycle_number?: number | null;
             /** Reapplication Message */
             reapplication_message?: string | null;
             /** Seeker Email */
@@ -6444,6 +6451,10 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
+            /** Cooldown Unlock At */
+            cooldown_unlock_at?: string | null;
+            /** Cycle Number */
+            cycle_number?: number | null;
             /** Reapplication Message */
             reapplication_message?: string | null;
             /**

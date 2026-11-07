@@ -148,7 +148,7 @@ export function useAgencyReviewRequests(
     queryKey: ["agencyReviewRequests", agencyId],
     queryFn: () =>
       apiClient<AgencyReviewRequestResponse[]>(
-        `/api/v1/agencies/${agencyId}/review-requests`,
+        `/api/v1/agencies/${agencyId}/review-requests/`,
       ),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId),
@@ -241,7 +241,7 @@ export function useAgencyMemberHistory(
     queryKey: ["agencyMemberHistory", agencyId, userId],
     queryFn: () =>
       apiClient<MembershipTimelinePage | MembershipTimelineEntry[]>(
-        `/api/v1/agencies/${agencyId}/member-history/${userId}`,
+        `/api/v1/agencies/${agencyId}/member-history/${userId}/`,
       ).then(normalizeMembershipHistoryPage).then((page) => page.items),
     staleTime: 30_000,
     enabled: enabled && Boolean(agencyId) && Boolean(userId),

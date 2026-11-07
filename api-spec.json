@@ -1,4 +1,4 @@
-﻿{
+{
   "openapi": "3.1.0",
   "info": {
     "title": "RealtorNet",
@@ -1806,7 +1806,7 @@
           "users"
         ],
         "summary": "Read My Membership History",
-        "description": "Return the authenticated user's unified membership timeline across all agencies.",
+        "description": "Return the authenticated user's unified membership timeline across all agencies.\n\nCursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the\nprevious response to fetch the next page. Returns all pages' worth of history\nwhen the client walks the cursor. When `agency_id` is provided, returns only\nthat agency's entries (same contract as the `user_id` param on\n/agencies/{id}/membership-history/ \u2014 no truncation).",
         "operationId": "read_my_membership_history_api_v1_users_me_membership_history__get",
         "security": [
           {
@@ -1814,19 +1814,6 @@
           }
         ],
         "parameters": [
-          {
-            "name": "skip",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Records to skip",
-              "default": 0,
-              "title": "Skip"
-            },
-            "description": "Records to skip"
-          },
           {
             "name": "limit",
             "in": "query",
@@ -1840,6 +1827,42 @@
               "title": "Limit"
             },
             "description": "Page size (max 100)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset pagination cursor",
+              "title": "Cursor"
+            },
+            "description": "Opaque keyset pagination cursor"
+          },
+          {
+            "name": "agency_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional per-agency filter (DEF-U-SEEKER-PER-AGENCY-PAGINATION-001)",
+              "title": "Agency Id"
+            },
+            "description": "Optional per-agency filter (DEF-U-SEEKER-PER-AGENCY-PAGINATION-001)"
           }
         ],
         "responses": {
@@ -1848,11 +1871,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MembershipTimelineEntry"
-                  },
-                  "title": "Response Read My Membership History Api V1 Users Me Membership History  Get"
+                  "$ref": "#/components/schemas/MembershipTimelinePage"
                 }
               }
             }
@@ -1868,6 +1887,78 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Read User Me",
+        "description": "Return the authenticated user's own profile.",
+        "operationId": "read_user_me_api_v1_users_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Update User Me",
+        "description": "Update own user profile.\n\nAudit: Tracks updater via updated_by (Supabase UUID)",
+        "operationId": "update_user_me_api_v1_users_me_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     },
     "/api/v1/users/{user_id}": {
@@ -2018,53 +2109,6 @@
             }
           }
         }
-      }
-    },
-    "/api/v1/users/me": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Update User Me",
-        "description": "Update own user profile.\n\nAudit: Tracks updater via updated_by (Supabase UUID)",
-        "operationId": "update_user_me_api_v1_users_me_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
       }
     },
     "/api/v1/users/{user_id}/upload-profile-image": {
@@ -2576,7 +2620,7 @@
           "agencies"
         ],
         "summary": "Read Agency Member History",
-        "description": "Return this agency's full membership history with a specific user.",
+        "description": "Return this agency's full membership history with a specific user.\n\nCursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the\nprevious response to fetch the next page.",
         "operationId": "read_agency_member_history_api_v1_agencies__agency_id__member_history__user_id___get",
         "security": [
           {
@@ -2603,19 +2647,6 @@
             }
           },
           {
-            "name": "skip",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Records to skip",
-              "default": 0,
-              "title": "Skip"
-            },
-            "description": "Records to skip"
-          },
-          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2628,6 +2659,24 @@
               "title": "Limit"
             },
             "description": "Page size (max 100)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset pagination cursor",
+              "title": "Cursor"
+            },
+            "description": "Opaque keyset pagination cursor"
           }
         ],
         "responses": {
@@ -2636,11 +2685,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MembershipTimelineEntry"
-                  },
-                  "title": "Response Read Agency Member History Api V1 Agencies  Agency Id  Member History  User Id   Get"
+                  "$ref": "#/components/schemas/MembershipTimelinePage"
                 }
               }
             }
@@ -2664,7 +2709,7 @@
           "agencies"
         ],
         "summary": "Read Agency Membership History",
-        "description": "Return this agency's full membership history across all users (agency_owner/admin only).",
+        "description": "Return this agency's full membership history across all users (agency_owner/admin only).\nIf user_id is provided, returns only that member's history.\nCursor-paginated on (timestamp, source_type, id); pass `next_cursor` from the\nprevious response to fetch the next page.",
         "operationId": "read_agency_membership_history_api_v1_agencies__agency_id__membership_history__get",
         "security": [
           {
@@ -2682,19 +2727,6 @@
             }
           },
           {
-            "name": "skip",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Records to skip",
-              "default": 0,
-              "title": "Skip"
-            },
-            "description": "Records to skip"
-          },
-          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2707,6 +2739,40 @@
               "title": "Limit"
             },
             "description": "Page size (max 100)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset pagination cursor",
+              "title": "Cursor"
+            },
+            "description": "Opaque keyset pagination cursor"
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
           }
         ],
         "responses": {
@@ -2715,11 +2781,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MembershipTimelineEntry"
-                  },
-                  "title": "Response Read Agency Membership History Api V1 Agencies  Agency Id  Membership History  Get"
+                  "$ref": "#/components/schemas/MembershipTimelinePage"
                 }
               }
             }
@@ -3478,7 +3540,7 @@
           "agencies"
         ],
         "summary": "List Agency Review Requests",
-        "description": "List pending agency-level review requests with prior membership history.",
+        "description": "List pending agency-level review requests with prior membership history.\n\nAlso includes pending join requests from returning applicants who\nreapplied after a previous cancelled request (Phase U.4 reapply), and\npending membership-scoped review requests (revoked/inactive members\nappealing via the membership-scoped endpoint) \u00e2\u20ac\u201d one queue, one\nactionable surface.",
         "operationId": "list_agency_review_requests_api_v1_agencies__agency_id__review_requests__get",
         "security": [
           {
@@ -3525,10 +3587,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AgencyReviewRequestResponse"
-                  },
                   "title": "Response List Agency Review Requests Api V1 Agencies  Agency Id  Review Requests  Get"
                 }
               }
@@ -4157,6 +4215,128 @@
         }
       }
     },
+    "/api/v1/agencies/{agency_id}/join-requests/{request_id}/request-reactivation/": {
+      "patch": {
+        "tags": [
+          "agencies"
+        ],
+        "summary": "Request Join Request Reactivation",
+        "description": "Agency owner requests reactivation of an expired join request.\n\nWrites `reactivation_requested_at/by`. Notifies the applicant.",
+        "operationId": "request_join_request_reactivation_api_v1_agencies__agency_id__join_requests__request_id__request_reactivation__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyJoinRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agencies/{agency_id}/join-requests/reapply/": {
+      "post": {
+        "tags": [
+          "agencies"
+        ],
+        "summary": "Reapply Agency Join Request",
+        "description": "Applicant re-applies after their own cancelled join request.\n\nCreates a new `agency_join_requests` row with status `pending`. The\noriginal cancelled row stays untouched (append-only). The new row\nsurfaces on the agency's Review Requests tab where the agency owner\ncan Approve it.\n\nU-032 Option (a) (DEF-U-REAPPLY-MESSAGE-001): the reapplication carries\nonly an optional short message. cover_note/portfolio_details are not\naccepted here and stay canonical on the original application.",
+        "operationId": "reapply_agency_join_request_api_v1_agencies__agency_id__join_requests_reapply__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Agency Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgencyJoinRequestReapplyCreate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request In"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyJoinRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agencies/{agency_id}/invitations/": {
       "get": {
         "tags": [
@@ -4229,6 +4409,63 @@
                     "$ref": "#/components/schemas/AgencyInvitationResponse"
                   },
                   "title": "Response Read Agency Invitations Api V1 Agencies  Agency Id  Invitations  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agencies/{agency_id}/invitations/{invitation_id}/withdraw/": {
+      "patch": {
+        "tags": [
+          "agencies"
+        ],
+        "summary": "Withdraw Agency Invitation",
+        "description": "Withdraw a pending agency invitation.",
+        "operationId": "withdraw_agency_invitation_api_v1_agencies__agency_id__invitations__invitation_id__withdraw__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyInvitationResponse"
                 }
               }
             }
@@ -4484,6 +4721,182 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgencyInvitationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agency-invitations/{invitation_id}/request-reactivation/": {
+      "post": {
+        "tags": [
+          "agency-invitations"
+        ],
+        "summary": "Request Invitation Reactivation",
+        "description": "Invitee requests reactivation of an expired or withdrawn invitation.\n\nOn an expired invitation: writes `reactivation_requested_at/by`.\nOn a withdrawn invitation: writes `interest_expressed_at`.\nNotifies the agency owner in both cases.",
+        "operationId": "request_invitation_reactivation_api_v1_agency_invitations__invitation_id__request_reactivation__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyInvitationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agency-invitations/{invitation_id}/reactivate/": {
+      "patch": {
+        "tags": [
+          "agency-invitations"
+        ],
+        "summary": "Reactivate Agency Invitation",
+        "description": "Agency owner reactivates an invitation that has been requested for reactivation.\n\nTransitions the invitation back to `pending` with a fresh 30-day\n`expires_at`. Preserves all prior timestamps. Writes a `reactivated` audit\nevent. Notifies the invitee.",
+        "operationId": "reactivate_agency_invitation_api_v1_agency_invitations__invitation_id__reactivate__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyInvitationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agency-invitations/{invitation_id}/events/": {
+      "get": {
+        "tags": [
+          "agency-invitations"
+        ],
+        "summary": "Read Invitation Events",
+        "description": "Event feed for one invitation lifecycle (DEF-U-INVITATION-EVENTS-FEED-001).\n\nReads agent_membership_audit WHERE invitation_id = {id} \u2014 the Phase U SSOT\n(U.1 added the nullable invitation_id FK so invitation events flow through\nthe same append-only audit table instead of a second timeline source) \u2014\nthrough the shared timeline-builder family with the same\n(timestamp, source_type, id) keyset cursor as every other timeline\nendpoint. Visible to the invitee of record and to the invitation agency's\nowner (admin included via _is_agency_owner_for) \u2014 same visibility pattern\nas the rest of this cluster.",
+        "operationId": "read_invitation_events_api_v1_agency_invitations__invitation_id__events__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invitation Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (max 100)",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Page size (max 100)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset pagination cursor",
+              "title": "Cursor"
+            },
+            "description": "Opaque keyset pagination cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipTimelinePage"
                 }
               }
             }
@@ -9812,9 +10225,50 @@
         "tags": [
           "join-requests"
         ],
+        "summary": "Cancel My Join Request Deprecated",
+        "description": "Deprecated \u2014 use PATCH /{request_id}/cancel/ instead.\n\nThis DELETE endpoint has been replaced by PATCH /{request_id}/cancel/\nwhich requires a reason for cancellation. See G3 migration.",
+        "operationId": "cancel_my_join_request_deprecated_api_v1_join_requests__request_id___delete",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{request_id}/cancel/": {
+      "patch": {
+        "tags": [
+          "join-requests"
+        ],
         "summary": "Cancel My Join Request",
-        "description": "Cancel a pending join request owned by the authenticated user.",
-        "operationId": "cancel_my_join_request_api_v1_join_requests__request_id___delete",
+        "description": "Cancel a pending join request owned by the authenticated user.\n\nRequires a reason. Writes a `cancelled` audit event and notifies the\nagency owner.",
+        "operationId": "cancel_my_join_request_api_v1_join_requests__request_id__cancel__patch",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -9831,9 +10285,26 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgencyDecisionRequest"
+              }
+            }
+          }
+        },
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyJoinRequestResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -9901,6 +10372,160 @@
                     "$ref": "#/components/schemas/MyAgencyJoinRequestResponse"
                   },
                   "title": "Response Read My Join Requests Api V1 Join Requests Mine  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{request_id}/accept-reactivation/": {
+      "patch": {
+        "tags": [
+          "join-requests"
+        ],
+        "summary": "Accept Join Request Reactivation",
+        "description": "Applicant accepts reactivation of their expired join request.\n\nTransitions back to `pending` with a fresh `expires_at`. Writes\n`reactivation_accepted_at` and an audit row. Notifies agency owner.",
+        "operationId": "accept_join_request_reactivation_api_v1_join_requests__request_id__accept_reactivation__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyJoinRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{request_id}/request-reactivation/": {
+      "patch": {
+        "tags": [
+          "join-requests"
+        ],
+        "summary": "Request Join Request Reactivation As Applicant",
+        "description": "Applicant requests reactivation of their own expired join request.\n\nPath 2 (seeker-initiated) reactivation flow. Writes\n`reactivation_requested_at/by`. Notifies agency owner.",
+        "operationId": "request_join_request_reactivation_as_applicant_api_v1_join_requests__request_id__request_reactivation__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyJoinRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{request_id}/reject-reactivation/": {
+      "patch": {
+        "tags": [
+          "join-requests"
+        ],
+        "summary": "Reject Join Request Reactivation",
+        "description": "Reject a reactivation request for an expired join request.\n\nThe rejecting party is the one who did NOT initiate the reactivation:\n- If the applicant initiated: agency_owner can reject\n- If the agency_owner initiated: applicant can reject\nRequires a reason. Transitions to the existing `rejected` status.",
+        "operationId": "reject_join_request_reactivation_api_v1_join_requests__request_id__reject_reactivation__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgencyJoinRequestRejectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyJoinRequestResponse"
                 }
               }
             }
@@ -12958,6 +13583,49 @@
         ]
       }
     },
+    "/internal/jobs/expire-pending-items/": {
+      "post": {
+        "summary": "Trigger Expire Pending Items",
+        "operationId": "trigger_expire_pending_items_internal_jobs_expire_pending_items__post",
+        "parameters": [
+          {
+            "name": "X-Internal-Jobs-Secret",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Internal-Jobs-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Trigger Expire Pending Items Internal Jobs Expire Pending Items  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Health Check",
@@ -13374,6 +14042,14 @@
           "membership_status": {
             "$ref": "#/components/schemas/AgencyAgentMembershipStatus"
           },
+          "user_role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified",
+            "default": false
+          },
           "status_reason": {
             "anyOf": [
               {
@@ -13578,6 +14254,7 @@
           "agency_id",
           "membership_id",
           "membership_status",
+          "user_role",
           "display_name",
           "email",
           "created_at",
@@ -13840,6 +14517,20 @@
         "title": "AgencyCreate",
         "description": "Schema for creating a new agency"
       },
+      "AgencyDecisionRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "AgencyDecisionRequest"
+      },
       "AgencyInvitationResponse": {
         "properties": {
           "invitation_id": {
@@ -13923,6 +14614,76 @@
               }
             ],
             "title": "Revoked At"
+          },
+          "withdrawn_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn At"
+          },
+          "withdrawn_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn By"
+          },
+          "reactivation_requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested At"
+          },
+          "reactivation_requested_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested By"
+          },
+          "interest_expressed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interest Expressed At"
+          },
+          "reactivated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivated At"
           }
         },
         "type": "object",
@@ -13945,7 +14706,8 @@
           "accepted",
           "rejected",
           "expired",
-          "revoked"
+          "revoked",
+          "withdrawn"
         ],
         "title": "AgencyInvitationStatus"
       },
@@ -14130,6 +14892,24 @@
         "type": "object",
         "title": "AgencyJoinRequestCreate"
       },
+      "AgencyJoinRequestReapplyCreate": {
+        "properties": {
+          "reapplication_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reapplication Message"
+          }
+        },
+        "type": "object",
+        "title": "AgencyJoinRequestReapplyCreate",
+        "description": "Reapplication body (U-032 Option (a), DEF-U-REAPPLY-MESSAGE-001).\n\nReapplications carry only a short, optional message. cover_note and\nportfolio_details stay canonical on the original application per U-032's\none-source-of-truth reasoning \u2014 they are deliberately not accepted here."
+      },
       "AgencyJoinRequestRejectRequest": {
         "properties": {
           "reason": {
@@ -14157,6 +14937,11 @@
           "user_id": {
             "type": "integer",
             "title": "User Id"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified",
+            "default": false
           },
           "status": {
             "$ref": "#/components/schemas/AgencyJoinRequestStatus"
@@ -14194,6 +14979,17 @@
             ],
             "title": "Rejection Reason"
           },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
+          },
           "decided_at": {
             "anyOf": [
               {
@@ -14216,6 +15012,87 @@
               }
             ],
             "title": "Decided By"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "originally_expired_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Originally Expired At"
+          },
+          "reactivation_requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested At"
+          },
+          "reactivation_requested_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested By"
+          },
+          "reactivation_accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Accepted At"
+          },
+          "reapplied_from_request_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reapplied From Request Id"
+          },
+          "reapplication_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reapplication Message"
           },
           "seeker_email": {
             "anyOf": [
@@ -14268,7 +15145,8 @@
           "pending",
           "approved",
           "rejected",
-          "cancelled"
+          "cancelled",
+          "expired"
         ],
         "title": "AgencyJoinRequestStatus"
       },
@@ -14691,6 +15569,15 @@
       },
       "AgencyReviewRequestAcceptRequest": {
         "properties": {
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "review_request",
+              "membership_review_request",
+              "join_request"
+            ],
+            "title": "Source Type"
+          },
           "reason": {
             "anyOf": [
               {
@@ -14704,8 +15591,11 @@
           }
         },
         "type": "object",
+        "required": [
+          "source_type"
+        ],
         "title": "AgencyReviewRequestAcceptRequest",
-        "description": "Accept a review request \u2014 reason is optional."
+        "description": "Accept a review request \u00e2\u20ac\u201d reason is optional."
       },
       "AgencyReviewRequestCreate": {
         "properties": {
@@ -14726,6 +15616,15 @@
       },
       "AgencyReviewRequestDeclineRequest": {
         "properties": {
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "review_request",
+              "membership_review_request",
+              "join_request"
+            ],
+            "title": "Source Type"
+          },
           "reason": {
             "type": "string",
             "minLength": 1,
@@ -14734,16 +15633,28 @@
         },
         "type": "object",
         "required": [
+          "source_type",
           "reason"
         ],
         "title": "AgencyReviewRequestDeclineRequest",
-        "description": "Decline a review request \u2014 reason is required for audit trail."
+        "description": "Decline a review request \u00e2\u20ac\u201d reason is required for audit trail."
       },
       "AgencyReviewRequestResponse": {
         "properties": {
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
           },
           "user_id": {
             "type": "integer",
@@ -14754,7 +15665,15 @@
             "title": "Agency Id"
           },
           "status": {
-            "$ref": "#/components/schemas/AgencyReviewRequestStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgencyReviewRequestStatus"
+              },
+              {
+                "$ref": "#/components/schemas/AgencyJoinRequestStatus"
+              }
+            ],
+            "title": "Status"
           },
           "message": {
             "anyOf": [
@@ -14788,6 +15707,17 @@
               }
             ],
             "title": "Actor Id"
+          },
+          "reactivation_requested_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested By"
           },
           "requester_email": {
             "anyOf": [
@@ -17539,6 +18469,17 @@
             ],
             "title": "Post Role"
           },
+          "invitation_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invitation Id"
+          },
           "cover_note": {
             "anyOf": [
               {
@@ -17560,6 +18501,17 @@
               }
             ],
             "title": "Portfolio Details"
+          },
+          "reapplication_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reapplication Message"
           },
           "review_message": {
             "anyOf": [
@@ -17615,6 +18567,34 @@
         "title": "MembershipTimelineEntry",
         "description": "Single entry in a unified membership timeline.\n\nMerges audit events, join requests, and review requests into one\nchronological sequence per (user_id, agency_id) relationship."
       },
+      "MembershipTimelinePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipTimelineEntry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "MembershipTimelinePage",
+        "description": "Cursor-paginated page of a unified membership timeline.\n\n`next_cursor` is null when the page is the last one (no more entries)."
+      },
       "ModerationStatus": {
         "type": "string",
         "enum": [
@@ -17647,8 +18627,23 @@
             "type": "string",
             "title": "Agency Name"
           },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified",
+            "default": false
+          },
           "status": {
             "$ref": "#/components/schemas/AgencyJoinRequestStatus"
+          },
+          "membership_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgencyAgentMembershipStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "cover_note": {
             "anyOf": [
@@ -17683,6 +18678,17 @@
             ],
             "title": "Rejection Reason"
           },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
+          },
           "decided_at": {
             "anyOf": [
               {
@@ -17705,6 +18711,99 @@
               }
             ],
             "title": "Decided By"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "originally_expired_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Originally Expired At"
+          },
+          "reactivation_requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested At"
+          },
+          "reactivation_requested_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Requested By"
+          },
+          "reactivation_accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactivation Accepted At"
+          },
+          "reapplied_from_request_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reapplied From Request Id"
+          },
+          "cooldown_unlock_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Unlock At"
+          },
+          "reapplication_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reapplication Message"
           },
           "submitted_at": {
             "type": "string",
@@ -17735,6 +18834,11 @@
           "agency_name": {
             "type": "string",
             "title": "Agency Name"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified",
+            "default": false
           },
           "status": {
             "$ref": "#/components/schemas/AgencyAgentMembershipStatus"
