@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useLocationCities,
   useLocationNeighborhoods,
@@ -8,6 +8,7 @@ import {
   useLocationsByHierarchy,
   useLocationStates,
 } from "@/features/locations/hooks";
+import { findUniqueStateCityMatch } from "@/features/locations/lib/cascadeMatch";
 import type { Location } from "@/types";
 
 export interface LocationCascadeValue {
@@ -118,6 +119,58 @@ export function LocationCascadeSelector({
       locationName: nextLocationId ? undefined : next.locationName,
     });
   };
+
+  const uniqueStateCityMatch = useMemo(
+    () =>
+      value.state && value.city
+        ? findUniqueStateCityMatch(matchingLocationsQuery.data, value.state, value.city)
+        : null,
+    [matchingLocationsQuery.data, value.city, value.state],
+  );
+
+  // DEF-U-LOC-HIERARCHY-001 fix 1: when the selected state+city pair matches
+  // exactly one catalogue row, attach it without requiring the neighbourhood
+  // click. Zero or multiple matches: do not guess; the form keeps fix 2's
+  // guidance message until the user disambiguates.
+  useEffect(() => {
+    if (!value.state || !value.city) {
+      return;
+    }
+
+    if (value.locationId || value.locationName) {
+      return;
+    }
+
+    if (value.neighborhood) {
+      return;
+    }
+
+    if (matchingLocationsQuery.data === undefined || matchingLocationsQuery.isError) {
+      return;
+    }
+
+    if (!uniqueStateCityMatch) {
+      return;
+    }
+
+    onChange({
+      state: value.state,
+      city: value.city,
+      neighborhood: uniqueStateCityMatch.neighborhood ?? "",
+      locationId: uniqueStateCityMatch.location_id,
+      locationName: undefined,
+    });
+  }, [
+    matchingLocationsQuery.data,
+    matchingLocationsQuery.isError,
+    onChange,
+    uniqueStateCityMatch,
+    value.city,
+    value.locationId,
+    value.locationName,
+    value.neighborhood,
+    value.state,
+  ]);
 
   const updateState = (state: string) => {
     setSearchTerm("");
