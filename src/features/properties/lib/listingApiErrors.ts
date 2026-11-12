@@ -45,12 +45,18 @@ export function partitionFieldErrors(
   return { known, unknown };
 }
 
+export function stripPydanticValuePrefix(message: string): string {
+  return message.replace(/^Value error,\s*/, "");
+}
+
 export function buildUnknownFieldSummary(unknown: Array<[string, string[]]>): string | null {
   if (unknown.length === 0) {
     return null;
   }
 
-  const parts = unknown.map(([field, messages]) => `${field}: ${messages[0] ?? "invalid value"}`);
+  const parts = unknown.map(
+    ([field, messages]) => `${field}: ${stripPydanticValuePrefix(messages[0] ?? "invalid value")}`,
+  );
 
   return `Server rejected additional fields: ${parts.join("; ")}`;
 }
