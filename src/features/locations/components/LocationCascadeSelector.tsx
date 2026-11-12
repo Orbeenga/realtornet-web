@@ -220,10 +220,14 @@ export function LocationCascadeSelector({
   const selectSearchResult = (location: Location) => {
     const nextLabel = locationLabel(location);
     setSearchTerm(nextLabel);
-    // DEF-U-LOC-HIERARCHY-001 fix 3: a picked Nominatim row may carry a state
-    // the cached states list has never seen; refresh it so the State select
-    // does not render blank.
+    // DEF-U-CASCADE-PICK-SCOPE-001: a picked Nominatim row may carry a state,
+    // city, or neighbourhood the cached catalogue lists have never seen;
+    // refresh the picked pair's keys so no cascade select renders blank.
     void queryClient.invalidateQueries({ queryKey: ["locations", "states"] });
+    void queryClient.invalidateQueries({ queryKey: ["locations", "cities", location.state] });
+    void queryClient.invalidateQueries({
+      queryKey: ["locations", "neighborhoods", location.state, location.city],
+    });
     onChange({
       state: location.state,
       city: location.city,
