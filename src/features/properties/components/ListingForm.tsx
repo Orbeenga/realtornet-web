@@ -6,14 +6,23 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@/lib/api/client";
 import {
+  buildUnknownFieldSummary,
+  LISTING_FORM_FIELD_KEYS,
+  partitionFieldErrors,
+  stripPydanticValuePrefix,
+} from "@/features/properties/lib/listingApiErrors";
+import { resolveLocationErrorMessage } from "@/features/properties/lib/listingLocationError";
+import {
   LocationCascadeSelector,
   type LocationCascadeValue,
 } from "@/features/locations/components/LocationCascadeSelector";
 import {
+  getYearBuiltMax,
   LISTING_STATUSES,
   LISTING_STATUS_LABELS,
   LISTING_TYPES,
   LISTING_TYPE_LABELS,
+  YEAR_BUILT_MIN,
 } from "@/features/properties/lib/propertyOptions";
 import {
   Button,
@@ -31,13 +40,26 @@ const optionalNonNegativeInt = z.preprocess(
   z.coerce.number().int().min(0, "Value cannot be negative").nullable(),
 );
 
-const listingFormSchema = z
+const YEAR_BUILT_MAX = getYearBuiltMax();
+const YEAR_BUILT_RANGE_MESSAGE = `Year built must be between ${YEAR_BUILT_MIN} and ${YEAR_BUILT_MAX}`;
+
+const yearBuiltField = z.preprocess(
+  (value) => (value === "" || value == null ? null : value),
+  z.coerce
+    .number()
+    .int()
+    .min(YEAR_BUILT_MIN, YEAR_BUILT_RANGE_MESSAGE)
+    .max(YEAR_BUILT_MAX, YEAR_BUILT_RANGE_MESSAGE)
+    .nullable(),
+);
+
+export const listingFormSchema = z
   .object({
     title: z.string().min(1, "Title is required"),
     description: z.string().min(1, "Description is required"),
     price: z.coerce.number().positive("Price must be greater than zero"),
     bedrooms: z.coerce.number().int().min(0, "Bedrooms cannot be negative"),
-    bathrooms: z.coerce.number().min(0, "Bathrooms cannot be negative"),
+    bathrooms: z.coerce.number().int("Bathrooms must be a whole number").min(0, "Bathrooms cannot be negative"),
     property_size: z.coerce
       .number()
       .positive("Property size must be greater than zero"),
@@ -46,7 +68,7 @@ const listingFormSchema = z
     property_type_id: z.coerce.number().int().positive("Select a property type"),
     location_id: z.coerce.number().int().min(0).nullable(),
     location_name: z.string().trim().optional(),
-    year_built: optionalNonNegativeInt,
+    year_built: yearBuiltField,
     parking_spaces: optionalNonNegativeInt,
     has_garden: z.boolean(),
     has_security: z.boolean(),
@@ -123,7 +145,7 @@ export function ListingForm({
     reset,
     setError,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, touchedFields, submitCount },
   } = useForm<ListingFormInput, unknown, ListingFormValues>({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
@@ -168,26 +190,47 @@ export function ListingForm({
     setLocationOverride(value);
     setValue("location_id", value.locationId ?? 0, {
       shouldDirty: true,
+      shouldTouch: true,
       shouldValidate: true,
     });
     setValue("location_name", value.locationName ?? "", {
       shouldDirty: true,
+      shouldTouch: true,
       shouldValidate: true,
     });
   };
+
+  const locationError = resolveLocationErrorMessage(
+    errors.location_id?.message ?? errors.location_name?.message,
+    {
+      interacted: Boolean(touchedFields.location_id ?? touchedFields.location_name) || submitCount > 0,
+      needsNeighborhoodCommit: Boolean(
+        locationValue.state && locationValue.city && !locationValue.locationId,
+      ),
+    },
+  );
 
   const submitHandler = async (values: ListingFormValues) => {
     try {
       await onSubmit(values);
     } catch (error) {
       if (error instanceof ApiError) {
-        Object.entries(error.fieldErrors ?? {}).forEach(([field, messages]) => {
-          setError(field as keyof ListingFormValues, {
-            message: messages[0],
-          });
-        });
+        const { known, unknown } = partitionFieldErrors(
+          error.fieldErrors ?? {},
+          LISTING_FORM_FIELD_KEYS,
+        );
 
-        if (!error.fieldErrors || Object.keys(error.fieldErrors).length === 0) {
+        for (const [field, messages] of known) {
+          setError(field as keyof ListingFormValues, {
+            message: stripPydanticValuePrefix(messages[0]),
+          });
+        }
+
+        const unknownSummary = buildUnknownFieldSummary(unknown);
+
+        if (unknownSummary) {
+          setError("root", { message: unknownSummary });
+        } else if (known.length === 0) {
           setError("root", {
             message:
               typeof error.detail === "string"
@@ -409,7 +452,7 @@ export function ListingForm({
                 required
                 compact
                 allowFreeText
-                error={errors.location_id?.message ?? errors.location_name?.message}
+                error={locationError}
               />
             </div>
           </div>
