@@ -5,6 +5,11 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@/lib/api/client";
+import {
+  buildUnknownFieldSummary,
+  LISTING_FORM_FIELD_KEYS,
+  partitionFieldErrors,
+} from "@/features/properties/lib/listingApiErrors";
 import { resolveLocationErrorMessage } from "@/features/properties/lib/listingLocationError";
 import {
   LocationCascadeSelector,
@@ -194,13 +199,22 @@ export function ListingForm({
       await onSubmit(values);
     } catch (error) {
       if (error instanceof ApiError) {
-        Object.entries(error.fieldErrors ?? {}).forEach(([field, messages]) => {
+        const { known, unknown } = partitionFieldErrors(
+          error.fieldErrors ?? {},
+          LISTING_FORM_FIELD_KEYS,
+        );
+
+        for (const [field, messages] of known) {
           setError(field as keyof ListingFormValues, {
             message: messages[0],
           });
-        });
+        }
 
-        if (!error.fieldErrors || Object.keys(error.fieldErrors).length === 0) {
+        const unknownSummary = buildUnknownFieldSummary(unknown);
+
+        if (unknownSummary) {
+          setError("root", { message: unknownSummary });
+        } else if (known.length === 0) {
           setError("root", {
             message:
               typeof error.detail === "string"
