@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@/lib/api/client";
+import { resolveLocationErrorMessage } from "@/features/properties/lib/listingLocationError";
 import {
   LocationCascadeSelector,
   type LocationCascadeValue,
@@ -123,7 +124,7 @@ export function ListingForm({
     reset,
     setError,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, touchedFields, submitCount },
   } = useForm<ListingFormInput, unknown, ListingFormValues>({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
@@ -168,13 +169,25 @@ export function ListingForm({
     setLocationOverride(value);
     setValue("location_id", value.locationId ?? 0, {
       shouldDirty: true,
+      shouldTouch: true,
       shouldValidate: true,
     });
     setValue("location_name", value.locationName ?? "", {
       shouldDirty: true,
+      shouldTouch: true,
       shouldValidate: true,
     });
   };
+
+  const locationError = resolveLocationErrorMessage(
+    errors.location_id?.message ?? errors.location_name?.message,
+    {
+      interacted: Boolean(touchedFields.location_id ?? touchedFields.location_name) || submitCount > 0,
+      needsNeighborhoodCommit: Boolean(
+        locationValue.state && locationValue.city && !locationValue.locationId,
+      ),
+    },
+  );
 
   const submitHandler = async (values: ListingFormValues) => {
     try {
@@ -409,7 +422,7 @@ export function ListingForm({
                 required
                 compact
                 allowFreeText
-                error={errors.location_id?.message ?? errors.location_name?.message}
+                error={locationError}
               />
             </div>
           </div>
