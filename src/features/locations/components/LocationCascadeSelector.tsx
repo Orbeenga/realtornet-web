@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useLocationCities,
   useLocationNeighborhoods,
@@ -87,6 +88,7 @@ export function LocationCascadeSelector({
 }: LocationCascadeSelectorProps) {
   const initialSearchTerm = value.locationName || "";
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const queryClient = useQueryClient();
   const statesQuery = useLocationStates();
   const citiesQuery = useLocationCities(value.state);
   const neighborhoodsQuery = useLocationNeighborhoods(value.state, value.city);
@@ -218,6 +220,10 @@ export function LocationCascadeSelector({
   const selectSearchResult = (location: Location) => {
     const nextLabel = locationLabel(location);
     setSearchTerm(nextLabel);
+    // DEF-U-LOC-HIERARCHY-001 fix 3: a picked Nominatim row may carry a state
+    // the cached states list has never seen; refresh it so the State select
+    // does not render blank.
+    void queryClient.invalidateQueries({ queryKey: ["locations", "states"] });
     onChange({
       state: location.state,
       city: location.city,
