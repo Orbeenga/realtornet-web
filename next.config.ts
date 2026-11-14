@@ -26,6 +26,26 @@ const nextConfig: NextConfig = {
     scrollRestoration: true,
   },
   async headers() {
+    // DEF-U-LOCALHTTP-CSP-UPGRADE-001: explicit local-verification escape
+    // hatch. A local `next start` serves plain http, where
+    // `upgrade-insecure-requests` rewrites every same-origin /api/* call to
+    // https and breaks all client-side verification. Setting
+    // LOCAL_HTTP_VERIFY=true for a local build omits the security headers
+    // for that build only. The match is exact and Vercel builds are
+    // excluded, so anything else — unset, any other value, or any Vercel
+    // environment — keeps the strict production set. Never set this in
+    // Vercel project settings. NOTE: headers are baked at BUILD time, so
+    // the flag must be set for `pnpm build`, not just `next start`.
+    if (
+      process.env.LOCAL_HTTP_VERIFY === "true" &&
+      process.env.VERCEL !== "1"
+    ) {
+      console.warn(
+        "[local-verify] LOCAL_HTTP_VERIFY=true: omitting security headers for local http verification",
+      );
+      return [];
+    }
+
     if (process.env.NODE_ENV !== "production") {
       return [];
     }
