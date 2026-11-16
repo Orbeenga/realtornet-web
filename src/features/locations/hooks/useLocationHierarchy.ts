@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api/client";
-import type { Location } from "@/types";
+import type { Location, LocationSearchResult } from "@/types";
 
 interface LocationFilters {
   state?: string | null;
@@ -128,7 +128,7 @@ export function useLocationSearch(term: string) {
   return useQuery({
     queryKey: ["locations", "search", debouncedTerm],
     queryFn: () =>
-      apiClient<Location[]>(`/api/v1/locations/search?${params.toString()}`, {
+      apiClient<LocationSearchResult[]>(`/api/v1/locations/search?${params.toString()}`, {
         authMode: "omit",
       }),
     enabled: debouncedTerm.length >= 2,
