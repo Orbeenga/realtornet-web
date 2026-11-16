@@ -107,6 +107,9 @@ export function PropertiesExplorer({
     location_id: searchParams.get("location_id")
       ? Number(searchParams.get("location_id"))
       : undefined,
+    state: searchParams.get("state") ?? undefined,
+    city: searchParams.get("city") ?? undefined,
+    neighborhood: searchParams.get("neighborhood") ?? undefined,
     property_type_id: (() => {
       const all = searchParams.getAll("property_type_id");
       if (all.length > 0) {

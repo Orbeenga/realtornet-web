@@ -70,6 +70,9 @@ function buildInitialPropertyFilters(searchParams: SearchParams): PropertyFilter
     bedrooms: readNumberSearchValue(searchParams, "bedrooms"),
     bathrooms: readNumberSearchValue(searchParams, "bathrooms"),
     location_id: readNumberSearchValue(searchParams, "location_id"),
+    state: readSearchValue(searchParams, "state") ?? undefined,
+    city: readSearchValue(searchParams, "city") ?? undefined,
+    neighborhood: readSearchValue(searchParams, "neighborhood") ?? undefined,
     property_type_id:
       readNumberList(searchParams, "property_type_id") ??
       readNumberSearchValue(searchParams, "property_type_id"),
