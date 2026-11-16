@@ -88,7 +88,7 @@ function buildBackendUrl(request: NextRequest, path: string[]) {
   return url;
 }
 
-function buildHeaders(request: NextRequest) {
+export function buildHeaders(request: NextRequest) {
   const headers = new Headers();
 
   request.headers.forEach((value, key) => {
@@ -97,6 +97,17 @@ function buildHeaders(request: NextRequest) {
 
   headers.delete("host");
   headers.delete("content-length");
+
+  // DEF-U-PROXY-EXPECT-HEADER-001: undici rejects proxied requests carrying
+  // hop-by-hop or unsupported headers - notably `Expect: 100-continue`,
+  // which .NET HttpClient and curl send on POSTs with a body (thrown as
+  // NotSupportedError at the undici fetch below, surfacing as a proxy 500).
+  // Strip them like host and content-length above; browsers never send them.
+  headers.delete("expect");
+  headers.delete("connection");
+  headers.delete("keep-alive");
+  headers.delete("transfer-encoding");
+  headers.delete("upgrade");
 
   return headers;
 }
