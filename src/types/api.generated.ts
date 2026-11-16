@@ -11209,6 +11209,9 @@ export interface operations {
             query?: {
                 search?: string | null;
                 location_id?: number | null;
+                state?: string | null;
+                city?: string | null;
+                neighborhood?: string | null;
                 min_price?: number | null;
                 max_price?: number | null;
                 bedrooms?: number | null;
