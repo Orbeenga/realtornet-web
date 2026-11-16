@@ -9,26 +9,13 @@ import { Input } from "@/components/ui/input";
 import { FilterBar, type FilterBarHandle } from "@/components/search/FilterBar";
 import { useLocationSearch } from "@/features/locations/hooks";
 import { useHomeSearch } from "./HomeSearchContext";
-import type { Location } from "@/types";
-
-function optionLabel(value: string) {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(" ");
-}
-
-function locationLabel(location: Location) {
-  return [location.neighborhood, location.city, location.state]
-    .filter(Boolean)
-    .map((value) => optionLabel(String(value)))
-    .join(", ");
-}
+import { buildDiscoveryLocationParams, isSelectedSuggestion } from "../lib/discoveryParams";
+import { suggestionKey } from "@/features/locations/lib/locationSuggestion";
+import type { LocationSearchResult } from "@/types";
 
 export function HomeHeroSearch() {
   const router = useRouter();
-  const { searchQuery: locationQuery, setSearchQuery: setLocationQuery, selectedLocationId, setSelectedLocationId } = useHomeSearch();
+  const { searchQuery: locationQuery, setSearchQuery: setLocationQuery, selectedLocation, setSelectedLocation } = useHomeSearch();
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const searchQuery = useLocationSearch(debouncedQuery);
 
@@ -44,7 +31,7 @@ export function HomeHeroSearch() {
   }, [locationQuery]);
 
   useEffect(() => {
-    if (suggestions.length > 0 && !selectedLocationId && searchInputRef.current) {
+    if (suggestions.length > 0 && !selectedLocation && searchInputRef.current) {
       const rect = searchInputRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + 4,
@@ -52,19 +39,20 @@ export function HomeHeroSearch() {
         width: rect.width,
       });
     }
-  }, [suggestions, selectedLocationId, locationQuery]);
+  }, [suggestions, selectedLocation, locationQuery]);
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const params = new URLSearchParams();
 
-    // Location params
-    if (locationQuery.trim()) {
-      params.set("search", locationQuery.trim());
-    }
-    if (typeof selectedLocationId === "number") {
-      params.set("location_id", String(selectedLocationId));
-      params.delete("search");
+    // Location params: a picked suggestion navigates the state/city triple
+    // (precise filter wins, keyword dropped); free text navigates ?search=.
+    const locationParams = buildDiscoveryLocationParams({
+      queryText: locationQuery,
+      selection: selectedLocation,
+    });
+    for (const [key, value] of locationParams.entries()) {
+      params.append(key, value);
     }
 
     // Filter params from FilterBar
@@ -88,9 +76,13 @@ export function HomeHeroSearch() {
     router.push(query ? `/properties/?${query}` : "/properties/");
   };
 
-  const selectLocation = (location: Location) => {
-    setLocationQuery(locationLabel(location));
-    setSelectedLocationId(location.location_id);
+  const selectLocation = (location: LocationSearchResult) => {
+    setLocationQuery(location.display_name);
+    setSelectedLocation({
+      state: location.state,
+      city: location.city,
+      neighborhood: location.neighborhood ?? null,
+    });
   };
 
   const searchInput = (
@@ -105,13 +97,13 @@ export function HomeHeroSearch() {
         value={locationQuery}
         onChange={(event) => {
           setLocationQuery(event.target.value);
-          setSelectedLocationId(undefined);
+          setSelectedLocation(null);
         }}
         placeholder="Search by title, keyword, or area"
         autoComplete="off"
         className="h-14 w-full rounded-xl border border-gray-200 bg-white pr-4 pl-12 text-base text-gray-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
       />
-      {suggestions.length > 0 && !selectedLocationId && typeof window !== "undefined" ? (
+      {suggestions.length > 0 && !selectedLocation && typeof window !== "undefined" ? (
         createPortal(
           <ul
             className="fixed z-50 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
@@ -123,15 +115,15 @@ export function HomeHeroSearch() {
             }}
           >
             {suggestions.map((location) => (
-              <li key={location.location_id}>
+              <li key={suggestionKey(location)}>
                 <button
                   type="button"
                   role="option"
-                  aria-selected={selectedLocationId === location.location_id}
+                  aria-selected={isSelectedSuggestion(selectedLocation, location)}
                   className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
                   onClick={() => selectLocation(location)}
                 >
-                  {locationLabel(location)}
+                  {location.display_name}
                 </button>
               </li>
             ))}
@@ -160,7 +152,7 @@ export function HomeHeroSearch() {
         ref={filterBarRef}
         variant="hero"
         searchQuery={locationQuery}
-        selectedLocationId={selectedLocationId}
+        selectedLocation={selectedLocation}
       />
     </div>
   );

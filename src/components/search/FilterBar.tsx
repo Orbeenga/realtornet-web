@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogClose } from "@/components/ui/dialog";
-import type { ListingStatus, ListingType } from "@/types";
+import type { ListingStatus, ListingType, LocationSelection } from "@/types";
 import {
   LISTING_STATUSES,
   LISTING_STATUS_LABELS,
@@ -65,9 +65,9 @@ interface FilterBarProps {
    */
   searchQuery?: string;
   /**
-   * Currently selected location ID from the hero search (hero variant only)
+   * Currently selected location triple from the hero search (hero variant only)
    */
-  selectedLocationId?: number;
+  selectedLocation?: LocationSelection | null;
 }
 
 
@@ -81,7 +81,7 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
   actions,
   showLocationSelector = false,
   searchQuery,
-  selectedLocationId,
+  selectedLocation,
 }, ref) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -797,10 +797,21 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
           onClick={() => {
             const params = new URLSearchParams(searchParams.toString());
 
-            // Include search query and location ID from hero props
+            // Include search query and hero-picked location triple from hero props.
+            // A pick replaces any stale location state: the triple is set (or
+            // cleared when absent) and both the keyword and any stale
+            // location_id are dropped so the backend never sees a contradicting
+            // ID (location_id takes precedence server-side when both are sent).
             if (searchQuery) params.set("search", searchQuery);
-            if (selectedLocationId) {
-              params.set("location_id", String(selectedLocationId));
+            if (selectedLocation) {
+              params.set("state", selectedLocation.state);
+              params.set("city", selectedLocation.city);
+              if (selectedLocation.neighborhood) {
+                params.set("neighborhood", selectedLocation.neighborhood);
+              } else {
+                params.delete("neighborhood");
+              }
+              params.delete("location_id");
               params.delete("search");
             } else {
               params.delete("location_id");

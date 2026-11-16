@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useLocationCities,
   useLocationNeighborhoods,
@@ -10,7 +9,8 @@ import {
   useLocationStates,
 } from "@/features/locations/hooks";
 import { findUniqueStateCityMatch } from "@/features/locations/lib/cascadeMatch";
-import type { Location } from "@/types";
+import { suggestionKey } from "@/features/locations/lib/locationSuggestion";
+import type { Location, LocationSearchResult } from "@/types";
 
 export interface LocationCascadeValue {
   state: string;
@@ -58,13 +58,6 @@ function getLocationIdForSelection(
   return match?.location_id;
 }
 
-function locationLabel(location: Location) {
-  return [location.neighborhood, location.city, location.state]
-    .filter(Boolean)
-    .map((value) => optionLabel(String(value)))
-    .join(", ");
-}
-
 function FieldLabel({ htmlFor, label }: { htmlFor: string; label: string }) {
   return (
     <label
@@ -88,7 +81,6 @@ export function LocationCascadeSelector({
 }: LocationCascadeSelectorProps) {
   const initialSearchTerm = value.locationName || "";
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
-  const queryClient = useQueryClient();
   const statesQuery = useLocationStates();
   const citiesQuery = useLocationCities(value.state);
   const neighborhoodsQuery = useLocationNeighborhoods(value.state, value.city);
@@ -217,23 +209,18 @@ export function LocationCascadeSelector({
     });
   };
 
-  const selectSearchResult = (location: Location) => {
-    const nextLabel = locationLabel(location);
+  const selectSearchResult = (location: LocationSearchResult) => {
+    // Transient suggestions persist nothing: a pick flows through as
+    // free-text location_name with no location_id and no catalogue
+    // invalidation. The backend resolves and stores at write time.
+    const nextLabel = location.display_name;
     setSearchTerm(nextLabel);
-    // DEF-U-CASCADE-PICK-SCOPE-001: a picked Nominatim row may carry a state,
-    // city, or neighbourhood the cached catalogue lists have never seen;
-    // refresh the picked pair's keys so no cascade select renders blank.
-    void queryClient.invalidateQueries({ queryKey: ["locations", "states"] });
-    void queryClient.invalidateQueries({ queryKey: ["locations", "cities", location.state] });
-    void queryClient.invalidateQueries({
-      queryKey: ["locations", "neighborhoods", location.state, location.city],
-    });
     onChange({
       state: location.state,
       city: location.city,
       neighborhood: location.neighborhood ?? "",
-      locationId: location.location_id,
-      locationName: undefined,
+      locationId: undefined,
+      locationName: nextLabel,
     });
   };
 
@@ -370,12 +357,12 @@ export function LocationCascadeSelector({
 
             {(searchQuery.data ?? []).map((location) => (
               <button
-                key={location.location_id}
+                key={suggestionKey(location)}
                 type="button"
                 onClick={() => selectSearchResult(location)}
                 className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
               >
-                {locationLabel(location)}
+                {location.display_name}
               </button>
             ))}
           </div>

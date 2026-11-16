@@ -4,7 +4,7 @@ import { useHomeSearch } from "./HomeSearchContext";
 import { FilterBar } from "@/components/search/FilterBar";
 
 export function HomeFilterSection() {
-  const { searchQuery, selectedLocationId } = useHomeSearch();
+  const { searchQuery, selectedLocation } = useHomeSearch();
 
   return (
     <section className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
@@ -12,7 +12,7 @@ export function HomeFilterSection() {
         <FilterBar
           variant="hero"
           searchQuery={searchQuery}
-          selectedLocationId={selectedLocationId}
+          selectedLocation={selectedLocation}
         />
       </div>
     </section>

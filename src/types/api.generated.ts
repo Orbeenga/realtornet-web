@@ -2150,8 +2150,10 @@ export interface paths {
          * @description Resolve free-text locations through the backend.
          *
          *     The browser never calls Nominatim directly. This endpoint performs the
-         *     server-side lookup, stores canonical rows through get_or_create(), and
-         *     returns reusable location records for autocomplete consumers.
+         *     server-side lookup and returns transient suggestions: nothing is
+         *     persisted and suggestions carry no location_id. The picked suggestion
+         *     round-trips as free-text location_name on property create/update, where
+         *     the backend resolves and stores the canonical row at write time.
          */
         get: operations["search_locations_api_v1_locations_search_get"];
         put?: never;
@@ -6324,6 +6326,28 @@ export interface components {
             updated_by?: string | null;
             /** Deleted By */
             deleted_by?: string | null;
+        };
+        /**
+         * LocationSearchResult
+         * @description Transient Nominatim suggestion returned by GET /locations/search.
+         *
+         *     Never persisted and carries no location_id: the frontend sends the picked
+         *     suggestion back as free-text location_name on property create/update, and
+         *     the backend resolves and stores the canonical row at write time.
+         */
+        LocationSearchResult: {
+            /** State */
+            state: string;
+            /** City */
+            city: string;
+            /** Neighborhood */
+            neighborhood?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Display Name */
+            display_name: string;
         };
         /**
          * LocationUpdate
@@ -11029,7 +11053,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LocationResponse"][];
+                    "application/json": components["schemas"]["LocationSearchResult"][];
                 };
             };
             /** @description Validation Error */
@@ -11185,6 +11209,9 @@ export interface operations {
             query?: {
                 search?: string | null;
                 location_id?: number | null;
+                state?: string | null;
+                city?: string | null;
+                neighborhood?: string | null;
                 min_price?: number | null;
                 max_price?: number | null;
                 bedrooms?: number | null;
