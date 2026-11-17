@@ -42,9 +42,7 @@ import {
   useDeclineAgencyReviewRequest,
   useInviteAgencyAgent,
   useReactivateInvitation,
-  useReconsiderJoinRequest,
   useRejectAgencyJoinRequest,
-  useRejectJoinRequestReactivation,
   useRequestJoinRequestReactivation,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
@@ -500,18 +498,6 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
-  const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
-  const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
-
-  const handleReconsiderJoinRequest = async (requestId: number) => {
-    try {
-      await reconsiderJoinRequest.mutateAsync(requestId);
-      notify.success("Join request sent back to pending. The applicant can see the decision in My Agencies.");
-    } catch {
-      notify.error("Could not reconsider join request");
-    }
-  };
-
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
       await approveJoinRequest.mutateAsync(requestId);
@@ -540,28 +526,7 @@ export function AgencyMembersClient() {
     }
   };
 
-  const handleRejectJoinRequestReactivation = async (requestId: number) => {
-    const reason = rejectReasons[requestId]?.trim();
-    if (!reason) {
-      notify.error("Enter a reason before rejecting this reactivation request.");
-      return;
-    }
-    try {
-      await rejectReactivation.mutateAsync({ requestId, reason });
-      notify.success("Reactivation request rejected. The applicant can see the decision in My Agencies.");
-      setRejectReasons((current) => {
-        const next = { ...current };
-        delete next[requestId];
-        return next;
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiError && typeof error.detail === "string"
-          ? error.detail
-          : "Could not reject reactivation request.";
-      notify.error(message);
-    }
-  };
+
 
   const handleInvite = async (values: InviteFormValues) => {
     try {
@@ -1067,12 +1032,6 @@ export function AgencyMembersClient() {
                         group.requests,
                         { kind: "rejected" },
                       );
-                      const rejectedRows = group.requests
-                        .filter((r) => r.status === "rejected")
-                        .sort(
-                          (a, b) => new Date(b.decided_at ?? b.created_at).getTime() - new Date(a.decided_at ?? a.created_at).getTime(),
-                        );
-                      const latestRejected = rejectedRows[0];
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         <TimelineHeader
@@ -1103,22 +1062,6 @@ export function AgencyMembersClient() {
                           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                             {resolveTerminalReactivationRejectionMessage()}
                           </p>
-                        ) : null}
-                        {!cumulative.terminal && latestRejected ? (
-                          <div className="mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              loading={
-                                reconsiderJoinRequest.isPending &&
-                                reconsiderJoinRequest.variables === latestRejected.join_request_id
-                              }
-                              onClick={() => void handleReconsiderJoinRequest(latestRejected.join_request_id)}
-                            >
-                              Reconsider
-                            </Button>
-                          </div>
                         ) : null}
                       </div>
                       );
@@ -1179,40 +1122,9 @@ export function AgencyMembersClient() {
                               Request is pending a response from {request.seeker_name ?? "the applicant"}.
                             </p>
                           ) : reactivationStage === "seeker_requested" ? (
-                            <div className="space-y-3">
-                              <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                                Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
-                              </p>
-                              <div className="space-y-2">
-                                <Input
-                                  label="Rejection reason"
-                                  placeholder="Required to reject reactivation"
-                                  value={rejectReasons[request.join_request_id] ?? ""}
-                                  onChange={(event) =>
-                                    setRejectReasons((current) => ({
-                                      ...current,
-                                      [request.join_request_id]: event.target.value,
-                                    }))
-                                  }
-                                />
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="secondary"
-                                    loading={
-                                      rejectReactivation.isPending &&
-                                      rejectReactivation.variables?.requestId === request.join_request_id
-                                    }
-                                    onClick={() =>
-                                      void handleRejectJoinRequestReactivation(request.join_request_id)
-                                    }
-                                  >
-                                    Reject Reactivation
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
+                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                              Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
+                            </p>
                           ) : reactivationStage === "initial" ? (
                             <div className="space-y-2">
                               <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
@@ -1934,19 +1846,6 @@ export function AgencyMembersClient() {
                           ]}
                         />
                       </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button type="button" size="sm"
-                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                          onClick={() =>
-                            setPendingMembershipDecision({
-                              action: "restore", membershipId: agent.membership_id,
-                              agentName: agent.display_name || agent.company_name || "this agent",
-                            })
-                          }
-                        >
-                          Reinstate
-                        </Button>
-                      </div>
                     </div>
                     {(() => {
                       // U-035-parity: this member's suspension lifecycle renders
@@ -2018,19 +1917,6 @@ export function AgencyMembersClient() {
                             `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
                           ]}
                         />
-                      </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button type="button" size="sm"
-                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                          onClick={() =>
-                            setPendingMembershipDecision({
-                              action: "restore", membershipId: agent.membership_id,
-                              agentName: agent.display_name || agent.company_name || "this agent",
-                            })
-                          }
-                        >
-                          Reinstate
-                        </Button>
                       </div>
                     </div>
                     {/* U-028: cumulative card — this member's 'left' events render
