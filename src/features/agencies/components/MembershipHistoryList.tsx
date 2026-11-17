@@ -26,7 +26,6 @@ interface MembershipTimelineProps {
   emptyTitle?: string;
   emptyDescription?: string;
   defaultUserDisplayName?: string;
-  alwaysExpanded?: boolean;
   showHeader?: boolean;
   /** Header contract discriminator (U-019): person = name|role|status|event_count|last_seen, agency = name|verified|event_count */
   entity?: "person" | "agency";
@@ -62,11 +61,7 @@ interface MembershipTimelineProps {
       never expose "fetch more" while the bounded reveal is still collapsed). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  /** Rich-tier sort order. Default "desc" preserves the canonical
-      newest-first History ordering; cumulative narrative cards (Cancelled,
-      Rejected) pass "asc" to keep the story reading order they migrated
-      from. Additive — existing consumers are unchanged. */
-  sortDirection?: "asc" | "desc";
+
   /** OPT-IN, cumulative Cancelled cards ONLY: renders the ephemeral "New"
       marker + reapply-pending ambient adjacent to the pending reapply's
       submission row (entries annotated `isPendingReapply` by the cumulative
@@ -88,8 +83,12 @@ export function timelineRowBandClass(index: number): string {
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
+/* Canonical shared label map (U-017): the sole authority for timeline event
+   labels across both tiers. Extended: join_request rows carrying
+   reapplied_from_request_id render "Reapplied" instead of "Submitted"
+   (U-017 amendment owed in backend DECISIONS.md). */
 export function resolveTimelineLabel(
-  entry: MembershipTimelineEntry,
+  entry: MembershipTimelineEntry & { reapplied_from_request_id?: number | null },
   labelStage: "invitation" | "join_request" = "invitation",
 ): string {
   if (entry.action) {
@@ -98,7 +97,9 @@ export function resolveTimelineLabel(
     if (entry.action === "review_requested") return "Review requested";
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
-  if (entry.source_type === "join_request") return "Submitted";
+  if (entry.source_type === "join_request") {
+    return entry.reapplied_from_request_id != null ? "Reapplied" : "Submitted";
+  }
   if (entry.source_type === "review_request") return "Review requested";
   return "Event";
 }
@@ -258,7 +259,6 @@ export function MembershipTimeline({
   emptyTitle = tier === "rich" ? "No membership history" : "No events",
   emptyDescription = tier === "rich" ? "Agency membership events will appear here when they exist." : "Events will appear here when they exist.",
   defaultUserDisplayName,
-  alwaysExpanded = false,
   showHeader = true,
   entity = "person",
   role,
@@ -273,7 +273,6 @@ export function MembershipTimeline({
   pendingReviewHighlight,
   expanded: expandedProp,
   onExpandedChange,
-  sortDirection = "desc",
   pendingReapplyNotice,
 }: MembershipTimelineProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
@@ -355,12 +354,14 @@ export function MembershipTimeline({
   const sortedHistory = [...history].sort((first, second) => {
     const diff =
       new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime();
-    return sortDirection === "asc" ? diff : -diff;
+    // Canonical newest-first order (lead answer 2): the shared tier always
+    // sorts descending. No per-consumer direction.
+    return -diff;
   });
 
-  const showAllEntries = alwaysExpanded || isExpanded;
+  const showAllEntries = isExpanded;
   const visibleEntries = showAllEntries ? sortedHistory : sortedHistory.slice(0, 2);
-  const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
+  const hasMoreEntries = sortedHistory.length > 2;
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
   const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0], labelStage) : "");

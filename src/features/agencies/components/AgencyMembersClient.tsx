@@ -1091,10 +1091,8 @@ export function AgencyMembersClient() {
                           <MembershipTimeline
                             tier="rich"
                             history={cumulative.entries}
-                            alwaysExpanded
                             showHeader={false}
                             labelStage="join_request"
-                            sortDirection="asc"
                             emptyTitle="No rejected requests"
                             emptyDescription="Rejected join requests will appear here."
                           />
@@ -1280,10 +1278,8 @@ export function AgencyMembersClient() {
                           <MembershipTimeline
                             tier="rich"
                             history={cumulative.entries}
-                            alwaysExpanded
                             showHeader={false}
                             labelStage="join_request"
-                            sortDirection="asc"
                             pendingReapplyNotice={{
                               viewerIsApplicant: false,
                               name: group.seekerName,
