@@ -22,6 +22,7 @@ import {
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
   useCreateAgencyMembershipReviewRequest,
+  useCreateAgencyReviewRequest,
   useInvitationEvents,
   useMembershipHistory,
   useMyAgencyInvitations,
@@ -38,6 +39,7 @@ import {
   hasExpiredHistory,
   hasWithdrawnHistory,
   hasPendingReactivation,
+  validateDoubleGateMessage,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
@@ -374,6 +376,37 @@ export function MyJoinRequestsClient() {
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
+    }
+  };
+
+  const createReconsiderationRequest = useCreateAgencyReviewRequest();
+  // F4 reconsideration message-box (Rejected tab): per-agency draft + submitted flag.
+  const [reconsiderMessages, setReconsiderMessages] = useState<Record<number, string>>({});
+  const [reconsiderSubmitted, setReconsiderSubmitted] = useState<Record<number, boolean>>({});
+
+  // U-034b appeal path: a message-box "Request Reconsideration" landing in
+  // the agency's Review Requests queue via the EXISTING review-requests POST
+  // (Q1b origin linkage {message, join_request_id}; Q1d: no new endpoint).
+  // Gate-2 message validation reuses the shared double-gate copy; the 409
+  // duplicate-pending / 400 / 404 guards stay server-side (the seeker cannot
+  // see the queue, so there is no client Gate-1 here).
+  const handleRequestReconsideration = async (agencyId: number, joinRequestId: number) => {
+    const messageError = validateDoubleGateMessage(reconsiderMessages[agencyId] ?? "");
+    if (messageError) {
+      notify.error(messageError);
+      return;
+    }
+    try {
+      await createReconsiderationRequest.mutateAsync({
+        agencyId,
+        payload: { message: (reconsiderMessages[agencyId] ?? "").trim(), join_request_id: joinRequestId },
+      });
+      notify.success("Reconsideration requested — it will appear in the agency's Review Requests queue.");
+      setReconsiderSubmitted((current) => ({ ...current, [agencyId]: true }));
+      setReconsiderMessages((current) => ({ ...current, [agencyId]: "" }));
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not request reconsideration");
     }
   };
 
@@ -1396,13 +1429,37 @@ export function MyJoinRequestsClient() {
                       </p>
                     ) : null}
                     {!cumulative.terminal ? (
-                      <div className="pt-2">
+                      <div className="space-y-3 pt-2">
                         <Link
                           href={`/agencies/${agencyId}/join`}
                           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                         >
                           Apply Again
                         </Link>
+                        {reconsiderSubmitted[agencyId] ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Reconsideration requested — pending a response from {latestRequest.agency_name}.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            <textarea
+                              rows={3}
+                              className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                              placeholder="Message for the agency owner (required)"
+                              value={reconsiderMessages[agencyId] ?? ""}
+                              onChange={(event) =>
+                                setReconsiderMessages((current) => ({ ...current, [agencyId]: event.target.value }))
+                              }
+                            />
+                            <Button
+                              type="button" size="sm"
+                              loading={createReconsiderationRequest.isPending && createReconsiderationRequest.variables?.agencyId === agencyId}
+                              onClick={() => void handleRequestReconsideration(agencyId, latestRequest.join_request_id)}
+                            >
+                              Request Reconsideration
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : null}
                   </CardBody>
