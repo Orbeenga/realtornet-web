@@ -1603,25 +1603,6 @@ export function AgencyMembersClient() {
             {/* Invite creation is a click-to-open dialog (same canonical popover
                 pattern as the membership/review decision dialogs, 2ef202c): the
                 email entry lives in the dialog, never inline-preset on the tab. */}
-            {/* U-038 double-gate nudge dialog (shared canonical component). */}
-            <ConfirmDestructiveDialog
-              open={nudgeDialogRequestId !== null}
-              onClose={() => setNudgeDialogRequestId(null)}
-              title="Reactivate application"
-              description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application. Include a note — they'll see it with your request.`}
-              messageLabel="Message"
-              messagePlaceholder="Note for the applicant (required)"
-              confirmLabel="Send request"
-              checkPending={() => {
-                const groupRequests = expiredCycleGroups.find((group) =>
-                  group.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
-                )?.requests ?? [];
-                return hasPendingReactivation(groupRequests, user?.user_id ?? null, false);
-              }}
-              pendingNoun="review request"
-              isPending={requestJoinRequestReactivation.isPending}
-              onConfirm={(message) => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId, message); }}
-            />
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger
                 render={<Button type="button">Send invite</Button>}
@@ -2230,6 +2211,27 @@ export function AgencyMembersClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* U-038 double-gate nudge dialog (shared canonical component). Root-level:
+          it must stay mounted regardless of which tab panel is active. */}
+      <ConfirmDestructiveDialog
+        open={nudgeDialogRequestId !== null}
+        onClose={() => setNudgeDialogRequestId(null)}
+        title="Reactivate application"
+        description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application. Include a note — they'll see it with your request.`}
+        messageLabel="Message"
+        messagePlaceholder="Note for the applicant (required)"
+        confirmLabel="Send request"
+        checkPending={() => {
+          const groupRequests = expiredCycleGroups.find((group) =>
+            group.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+          )?.requests ?? [];
+          return hasPendingReactivation(groupRequests, user?.user_id ?? null, false);
+        }}
+        pendingNoun="review request"
+        isPending={requestJoinRequestReactivation.isPending}
+        onConfirm={(message) => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId, message); }}
+      />
     </div>
   );
 }
