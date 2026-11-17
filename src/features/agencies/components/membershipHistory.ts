@@ -436,6 +436,9 @@ export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
       "Cycle: N" on both rows of a numbered pair; null/undefined renders no
       label (never "Not part of a cycle" / "No reapply"). */
   cycle_number?: number | null;
+  /** Carried for the shared label map: submitted anchors of reapply rows
+      render "Reapplied" instead of "Submitted" (U-017 extension). */
+  reapplied_from_request_id?: number | null;
 };
 
 /* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Entries
@@ -515,6 +518,7 @@ export function resolveCumulativeRequestLifecycleTimeline(
       portfolio_details: request.portfolio_details ?? null,
       reapplication_message: request.reapplication_message ?? null,
       cycle_number: request.cycle_number ?? null,
+      reapplied_from_request_id: request.reapplied_from_request_id ?? null,
       isPendingReapply:
         entity.kind === "cancelled" &&
         request.status === "pending" &&

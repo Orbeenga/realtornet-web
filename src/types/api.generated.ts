@@ -1448,7 +1448,8 @@ export interface paths {
          * Request Join Request Reactivation
          * @description Agency owner requests reactivation of an expired join request.
          *
-         *     Writes `reactivation_requested_at/by`. Notifies the applicant.
+         *     Writes `reactivation_requested_at/by` plus the optional U-038 Gate 2
+         *     message. Notifies the applicant.
          */
         patch: operations["request_join_request_reactivation_api_v1_agencies__agency_id__join_requests__request_id__request_reactivation__patch"];
         trace?: never;
@@ -3569,7 +3570,8 @@ export interface paths {
          * @description Applicant requests reactivation of their own expired join request.
          *
          *     Path 2 (seeker-initiated) reactivation flow. Writes
-         *     `reactivation_requested_at/by`. Notifies agency owner.
+         *     `reactivation_requested_at/by` plus the optional U-038 Gate 2 message.
+         *     Notifies agency owner.
          */
         patch: operations["request_join_request_reactivation_as_applicant_api_v1_join_requests__request_id__request_reactivation__patch"];
         trace?: never;
@@ -5097,6 +5099,18 @@ export interface components {
             portfolio_details?: string | null;
         };
         /**
+         * AgencyJoinRequestReactivationCreate
+         * @description Reactivation-nudge body (U-038 Gate 2).
+         *
+         *     Optional server-side for backward compatibility (current callers send no
+         *     body); the shared dialog enforces a non-blank message client-side. Blank
+         *     normalizes to None, mirroring the reapplication-message validator.
+         */
+        AgencyJoinRequestReactivationCreate: {
+            /** Message */
+            message?: string | null;
+        };
+        /**
          * AgencyJoinRequestReapplyCreate
          * @description Reapplication body (U-032 Option (a), DEF-U-REAPPLY-MESSAGE-001).
          *
@@ -5149,13 +5163,12 @@ export interface components {
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reactivation Message */
+            reactivation_message?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
-            /**
-             * Cooldown Unlock At
-             * @default null
-             */
-            cooldown_unlock_at: string | null;
+            /** Cooldown Unlock At */
+            cooldown_unlock_at?: string | null;
             /** Cycle Number */
             cycle_number?: number | null;
             /** Reapplication Message */
@@ -5336,6 +5349,8 @@ export interface components {
         AgencyReviewRequestCreate: {
             /** Message */
             message?: string | null;
+            /** Join Request Id */
+            join_request_id?: number | null;
         };
         /**
          * AgencyReviewRequestDeclineRequest
@@ -5370,6 +5385,14 @@ export interface components {
             actor_id?: number | null;
             /** Reactivation Requested By */
             reactivation_requested_by?: number | null;
+            /** Join Request Id */
+            join_request_id?: number | null;
+            /** Origin Status */
+            origin_status?: string | null;
+            /** Origin Reason */
+            origin_reason?: string | null;
+            /** Origin Decided At */
+            origin_decided_at?: string | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
@@ -6473,6 +6496,8 @@ export interface components {
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reactivation Message */
+            reactivation_message?: string | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
             /** Cooldown Unlock At */
@@ -9906,7 +9931,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestReactivationCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13417,7 +13446,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestReactivationCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
