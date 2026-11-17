@@ -54,6 +54,7 @@ import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDial
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
+  findLatestReconsiderationReview,
   hasPendingReactivation,
   ambientTextToneClass,
   resolveCooldownAmbient,
@@ -1006,6 +1007,14 @@ export function AgencyMembersClient() {
                         group.requests,
                         { kind: "rejected" },
                       );
+                      // §2.3: the agency Rejected tab is record-only — a
+                      // reconsideration appeal surfaces here as an ambient
+                      // record (requester's message + timestamp), never as an
+                      // action. Decisions happen in Review Requests.
+                      const reconsideration = findLatestReconsiderationReview(
+                        reviewRequests,
+                        group.requests.map((request) => request.join_request_id),
+                      );
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         <TimelineHeader
@@ -1030,6 +1039,12 @@ export function AgencyMembersClient() {
                             emptyDescription="Rejected join requests will appear here."
                           />
                         </div>
+                        {reconsideration ? (
+                          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            Reconsideration requested {formatDate(reconsideration.created_at)}
+                            {reconsideration.message ? `: "${reconsideration.message}"` : "."}
+                          </p>
+                        ) : null}
                         {cumulative.hasReturningAppealRejection ? (
                           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                             {resolveTerminalReactivationRejectionMessage()}
