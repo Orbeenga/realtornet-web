@@ -42,6 +42,7 @@ import {
   useDeclineAgencyReviewRequest,
   useInviteAgencyAgent,
   useReactivateInvitation,
+  useReconsiderJoinRequest,
   useRejectAgencyJoinRequest,
   useRejectJoinRequestReactivation,
   useRequestJoinRequestReactivation,
@@ -59,7 +60,6 @@ import {
   resolveInvitationAmbientMessage,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
-  resolveReapplyPendingNotice,
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
@@ -67,6 +67,7 @@ import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
+  resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
 import {
@@ -249,21 +250,28 @@ function groupAgencyReviewRequests(
     .sort((first, second) => first.requesterName.localeCompare(second.requesterName));
 }
 
-interface AgencyCancelledCycleGroup {
+interface AgencyRequestCycleGroup {
   userId: number;
   seekerName: string;
   seekerEmail?: string | null;
   requests: AgencyJoinRequestResponse[];
 }
 
-function groupAgencyCancelledCycles(requests: AgencyJoinRequestResponse[]) {
-  const userIdsWithCancels = new Set(
-    requests.filter((r) => r.status === "cancelled").map((r) => r.user_id),
+/* Shared agency request-cycle grouping lives HERE ONLY (canonical
+   AgencyMembersClient module). Groups are anchored by users carrying the
+   given status; the cumulative emitter filters each group's rows to its own
+   lineage downstream. Consumers: Cancelled + Rejected sub-tabs. */
+function groupAgencyRequestCycles(
+  requests: AgencyJoinRequestResponse[],
+  anchorStatus: "cancelled" | "rejected",
+) {
+  const userIdsWithAnchor = new Set(
+    requests.filter((r) => r.status === anchorStatus).map((r) => r.user_id),
   );
-  const groups = new Map<number, AgencyCancelledCycleGroup>();
+  const groups = new Map<number, AgencyRequestCycleGroup>();
 
   for (const request of requests) {
-    if (!userIdsWithCancels.has(request.user_id)) continue;
+    if (!userIdsWithAnchor.has(request.user_id)) continue;
     const current = groups.get(request.user_id);
     if (current) {
       current.requests.push(request);
@@ -493,6 +501,16 @@ export function AgencyMembersClient() {
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
   const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
+  const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
+
+  const handleReconsiderJoinRequest = async (requestId: number) => {
+    try {
+      await reconsiderJoinRequest.mutateAsync(requestId);
+      notify.success("Join request sent back to pending. The applicant can see the decision in My Agencies.");
+    } catch {
+      notify.error("Could not reconsider join request");
+    }
+  };
 
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
@@ -811,7 +829,10 @@ export function AgencyMembersClient() {
   // Cancelled sub-tab entity groups (grouped by user_id). Single source used by
   // both the tab counter (entity count) and the body render — count matches the
   // rendered set, not the raw cancelled-row count.
-  const cancelledCycleGroups = groupAgencyCancelledCycles(joinRequests);
+  const cancelledCycleGroups = groupAgencyRequestCycles(joinRequests, "cancelled");
+  // Rejected sub-tab entity groups (grouped by user_id) — one cumulative card
+  // per applicant, mirroring the Cancelled tab (U-028/U-009).
+  const rejectedCycleGroups = groupAgencyRequestCycles(joinRequests, "rejected");
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const invitations = invitationsQuery.data ?? [];
@@ -897,7 +918,7 @@ export function AgencyMembersClient() {
               {[
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length})` },
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
-                { value: "rejected" as const, label: `Rejected (${joinRequests.filter(r => r.status === "rejected").length})` },
+                { value: "rejected" as const, label: `Rejected (${rejectedCycleGroups.length})` },
                 { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
                 { value: "cancelled" as const, label: `Cancelled (${cancelledCycleGroups.length})` },
               ].map(({ value, label }) => (
@@ -1032,55 +1053,73 @@ export function AgencyMembersClient() {
               </>
             ) : requestSubTab === "rejected" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "rejected").length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && rejectedCycleGroups.length === 0 ? (
                   <EmptyState title="No rejected requests" description="Rejected join requests will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "rejected").length > 0 ? (
+                {!joinRequestsQuery.isLoading && rejectedCycleGroups.length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "rejected").map((request) => {
-                      const badge = resolveStatusBadge(request.status);
-                      const reactivationEvents = resolveJoinRequestReactivationTrace(
-                        request,
-                        user?.user_id ?? null,
-                        false,
+                    {rejectedCycleGroups.map((group) => {
+                      const member = historyMemberById.get(group.userId);
+                      // U-034b: one cumulative card per applicant; terminal groups
+                      // (returning-appeal rejection, or a second rejection) render
+                      // no-op with no reconsider CTA.
+                      const cumulative = resolveCumulativeRequestLifecycleTimeline(
+                        group.requests,
+                        { kind: "rejected" },
                       );
+                      const rejectedRows = group.requests
+                        .filter((r) => r.status === "rejected")
+                        .sort(
+                          (a, b) => new Date(b.decided_at ?? b.created_at).getTime() - new Date(a.decided_at ?? a.created_at).getTime(),
+                        );
+                      const latestRejected = rejectedRows[0];
                       return (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {request.seeker_name ?? "Seeker"}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {request.seeker_email ?? "Email unavailable"} - Submitted {formatDate(request.created_at)}
-                            </p>
-                            {request.decided_at ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Rejected {formatDate(request.decided_at)}
-                              </p>
-                            ) : null}
-                            {request.rejection_reason ? (
-                              <div className="mt-2 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                                {request.rejection_reason}
-                              </div>
-                            ) : null}
-                            {reactivationEvents.length > 0 ? (
-                              <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
-                                {reactivationEvents.map((event) => (
-                                  <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-600 dark:text-gray-300">
-                                    {event.text} — {formatDate(event.at!)}
-                                  </p>
-                                ))}
-                              </div>
-                            ) : null}
-                            {request.reactivation_requested_at && reactivationEvents.length === 0 ? (
-                              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                {resolveTerminalReactivationRejectionMessage()}
-                              </p>
-                            ) : null}
-                          </div>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                      <div key={group.userId} className="rounded-lg border border-border p-4">
+                        <TimelineHeader
+                          entity="person"
+                          name={member?.displayName ?? group.seekerName}
+                          email={member?.email ?? group.seekerEmail ?? undefined}
+                          avatarUrl={member?.avatarUrl}
+                          role={member?.role}
+                          status={member?.status}
+                          lastSeen={member?.lastSeen}
+                          qualifiers={member?.qualifiers}
+                          verified={group.requests[0]?.is_verified}
+                          applicationStatus="rejected"
+                        />
+                        <div className="mt-3 space-y-2">
+                          <MembershipTimeline
+                            tier="rich"
+                            history={cumulative.entries}
+                            alwaysExpanded
+                            showHeader={false}
+                            labelStage="join_request"
+                            sortDirection="asc"
+                            emptyTitle="No rejected requests"
+                            emptyDescription="Rejected join requests will appear here."
+                          />
                         </div>
+                        {cumulative.hasReturningAppealRejection ? (
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            {resolveTerminalReactivationRejectionMessage()}
+                          </p>
+                        ) : null}
+                        {!cumulative.terminal && latestRejected ? (
+                          <div className="mt-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              loading={
+                                reconsiderJoinRequest.isPending &&
+                                reconsiderJoinRequest.variables === latestRejected.join_request_id
+                              }
+                              onClick={() => void handleReconsiderJoinRequest(latestRejected.join_request_id)}
+                            >
+                              Reconsider
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                       );
                     })}
@@ -1212,6 +1251,13 @@ export function AgencyMembersClient() {
                       const cooldownDate = group.requests[0]?.cooldown_unlock_at
                         ? new Date(group.requests[0]!.cooldown_unlock_at)
                         : null;
+                      // Cumulative card content comes from the shared emitter:
+                      // lineage-filtered, chronologically ordered, canonical
+                      // entries — never a hand-rolled loop.
+                      const cumulative = resolveCumulativeRequestLifecycleTimeline(
+                        group.requests,
+                        { kind: "cancelled" },
+                      );
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         {/* Rich person header via the shared TimelineHeader SSOT
@@ -1231,80 +1277,21 @@ export function AgencyMembersClient() {
                           applicationStatus="cancelled"
                         />
                         <div className="mt-3 space-y-2">
-                          {(() => {
-                            const sortedRequests = [...group.requests].sort(
-                              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-                            );
-                            // The pending reapply (if any) is the group's single pending row that
-                             // carries a reapplication_message — distinct from a fresh pending
-                             // application. Its "Application submitted" event is the anchor row for
-                             // the ephemeral "New" marker + ambient notice (U-035 family).
-                             const pendingReapplyReq = sortedRequests.find(
-                               (r) => r.status === "pending" && r.reapplication_message != null,
-                             );
-                             const events: Array<{ key: string; type: string; date: string; message?: string | null; eventNum: number | null; isPendingReapply?: boolean }> = [];
-                             for (let idx = 0; idx < sortedRequests.length; idx++) {
-                               const req = sortedRequests[idx];
-                               const eventNum = req.cycle_number ?? null; // DEF-U-CYCLE-NUMBER-DERIVATION-001: backend-computed per (user, agency), never idx+1
-                               events.push({
-                                 key: `submitted-${req.join_request_id}`,
-                                 type: "Application submitted",
-                                 date: req.created_at,
-                                 message: req.reapplication_message ? `Message: ${req.reapplication_message}` : (req.cover_note ? `Message: ${req.cover_note}` : null),
-                                 eventNum,
-                                 isPendingReapply: pendingReapplyReq != null && req.join_request_id === pendingReapplyReq.join_request_id,
-                               });
-                              const reactivationTrace = resolveJoinRequestReactivationTrace(req, user?.user_id ?? null, false);
-                              reactivationTrace.forEach((event) => {
-                                events.push({
-                                  key: `${event.text}-${req.join_request_id}`,
-                                  type: event.text,
-                                  date: event.at ?? req.created_at,
-                                  eventNum,
-                                });
-                              });
-                              if (req.status === "cancelled") {
-                                events.push({
-                                  key: `cancelled-${req.join_request_id}`,
-                                  type: "Application cancelled",
-                                  date: req.decided_at ?? req.created_at,
-                                  message: req.cancel_reason ? `Reason: ${req.cancel_reason}` : null,
-                                  eventNum,
-                                });
-                              }
-                            }
-                            return events.map((event, eventIndex) => {
-                              // Rule 24: same shared banding as every other timeline surface.
-                              const row = (
-                                <div className={`px-3 py-2 text-sm leading-6 ${timelineRowBandClass(eventIndex)}`}>
-                                  <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                                    {event.type} — {formatDate(event.date)}
-                                  </p>
-                                  {event.message ? (
-                                    <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{event.message}</p>
-                                  ) : null}
-                                  <p className="mt-0.5 text-xs text-gray-400">{event.eventNum != null ? `Cycle: ${event.eventNum}` : event.type === "Application cancelled" ? "No reapply" : event.isPendingReapply ? "Reapplied — awaiting response" : "Not part of a cycle"}</p>
-                                </div>
-                              );
-                              // Ephemeral "New" marker + ambient notice ABOVE the pending reapply's
-                              // submission row (U-035 family). Discharges when the request resolves
-                              // (pendingReapplyReq becomes undefined -> isPendingReapply never set).
-                              const reapplyNotice = event.isPendingReapply
-                                ? resolveReapplyPendingNotice({ seekerName: group.seekerName })
-                                : null;
-                              return (
-                                <Fragment key={event.key}>
-                                  {reapplyNotice ? (
-                                    <div className="mb-2 space-y-1">
-                                      <Badge variant="default">New</Badge>
-                                      <p className={ambientTextToneClass[reapplyNotice.tone]}>{reapplyNotice.text}</p>
-                                    </div>
-                                  ) : null}
-                                  {row}
-                                </Fragment>
-                              );
-                            });
-                          })()}
+                          <MembershipTimeline
+                            tier="rich"
+                            history={cumulative.entries}
+                            alwaysExpanded
+                            showHeader={false}
+                            labelStage="join_request"
+                            sortDirection="asc"
+                            pendingReapplyNotice={{
+                              viewerIsApplicant: false,
+                              name: group.seekerName,
+                              position: "above",
+                            }}
+                            emptyTitle="No cancelled requests"
+                            emptyDescription="Cancelled join requests will appear here."
+                          />
                         </div>
                         {cooldownDate ? (
                           (() => {

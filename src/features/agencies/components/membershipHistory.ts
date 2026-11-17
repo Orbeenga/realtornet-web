@@ -374,6 +374,188 @@ export function getMembershipHistoryByAction(
    (U-035; Rule 20 SSOT).
    ========================================================================== */
 
+/* Cumulative request-lifecycle emitter (Rule 20 SSOT for multi-cycle cards).
+   One card spans N requests, so the per-request resolveRequestLifecycleTimeline
+   cannot serve these tabs (calling it per row would emit N separate timelines
+   and destroy the cumulative card). Produces ONE MembershipTimelineEntry[] per
+   group with canonical action/source_type/identity fields, rendered through the
+   canonical MembershipTimeline rich tier. Consumers: seeker + agency Cancelled
+   cards, seeker + agency Rejected cards.
+   Card composition (locked): the card holds ONLY its own lineage, in one
+   global chronological (ascending) order — Cancelled = submitted/cancelled/
+   reapplied rows; approved, reactivation and unrelated pending rows are
+   filtered here, never leaked in. Per-row "No reapply"/"Not part of a cycle"
+   microcopy is gone with the hand-rolled loops; per-entry Cycle rides the
+   preserved cycle_number slot, and group-level CTAs/ambients stay in the
+   card shell.
+   U-034b terminal discriminator (fresh vs returning-appeal rejections):
+   a returning-appeal rejection (reactivation_requested_at set — the U-013
+   discriminator) is terminal immediately; otherwise terminal only after a
+   second rejection. Cancelled groups are never terminal (Apply Again is gated
+   by the cooldown ambient, not terminality). Invitation-scoped OUT. */
+export interface CumulativeRequestMatch {
+  join_request_id: number;
+  status?: string | null;
+  submitted_at?: string | null;
+  created_at?: string | null;
+  decided_at?: string | null;
+  cancel_reason?: string | null;
+  rejection_reason?: string | null;
+  cover_note?: string | null;
+  portfolio_details?: string | null;
+  reapplication_message?: string | null;
+  reapplied_from_request_id?: number | null;
+  reactivation_requested_at?: string | null;
+  agency_id?: number | null;
+  agency_name?: string | null;
+  user_id?: number | null;
+  seeker_name?: string | null;
+  cycle_number?: number | null;
+}
+
+export interface CumulativeRequestLifecycle {
+  entries: CumulativeRequestLifecycleEntry[];
+  /** U-034b group terminality (rejected groups only; always false for
+      cancelled). Terminal groups render no-op: no Apply Again, no
+      reconsider CTA. */
+  terminal: boolean;
+  /** True when any rejected row carries the U-013 returning-appeal
+      discriminator (reactivation_requested_at). Cards render the terminal
+      reactivation message for such groups. */
+  hasReturningAppealRejection: boolean;
+}
+
+/** A timeline entry annotated by the cumulative emitter with its pending-
+    reapply state. Used ONLY for the ephemeral "New" marker + ambient notice
+    affordance on the pending reapply's submission row (U-035 family) — never
+    merges or mutates row content. Not part of the wire contract. Follows the
+    MembershipTimelineEntryWithResolution precedent below. */
+export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
+  isPendingReapply?: boolean;
+  /** Preserved per-entry cycle attribution (backend cycle_number). Renders
+      "Cycle: N" on both rows of a numbered pair; null/undefined renders no
+      label (never "Not part of a cycle" / "No reapply"). */
+  cycle_number?: number | null;
+};
+
+/* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Entries
+   carrying a backend id key on it; synthesized entries without one fall
+   back to source+action+timestamp so same-timestamp rows (e.g. a
+   null-decided_at cancel sharing its submitted anchor's timestamp) never
+   collide as React keys. */
+export function timelineEntryKey(entry: {
+  id?: number | null;
+  source_type: string;
+  action?: string | null;
+  timestamp: string;
+}): string {
+  if (entry.id != null) {
+    return String(entry.id);
+  }
+
+  return `${entry.source_type}:${entry.action ?? "row"}:${entry.timestamp}`;
+}
+
+export function resolveCumulativeRequestLifecycleTimeline(
+  requests: CumulativeRequestMatch[],
+  entity: { kind: "cancelled" | "rejected" },
+): CumulativeRequestLifecycle {
+  const submittedTimeOf = (request: CumulativeRequestMatch) =>
+    request.submitted_at ?? request.created_at ?? new Date().toISOString();
+
+  const sorted = [...requests].sort((first, second) => {
+    const timeDiff =
+      new Date(submittedTimeOf(first)).getTime() - new Date(submittedTimeOf(second)).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return first.join_request_id - second.join_request_id;
+  });
+
+  // Lineage filter: only rows belonging to this card's lifecycle. Everything
+  // else (approved rows, reactivation rows, unrelated pendings) has its own
+  // tab and must not leak in.
+  const lineage =
+    entity.kind === "cancelled"
+      ? sorted.filter(
+          (request) =>
+            request.status === "cancelled" ||
+            (request.status === "pending" && request.reapplication_message != null),
+        )
+      : sorted.filter((request) => request.status === "rejected");
+
+  // U-034b terminal discriminator. Returning-appeal rejections (U-013:
+  // reactivation_requested_at set) are terminal immediately; fresh requests
+  // stay actionable until a second rejection lands.
+  const rejectedRows =
+    entity.kind === "rejected"
+      ? lineage
+      : [];
+  const hasReturningAppealRejection = rejectedRows.some(
+    (request) => request.reactivation_requested_at != null,
+  );
+  const terminal =
+    entity.kind === "rejected" &&
+    (hasReturningAppealRejection || rejectedRows.length >= 2);
+
+  const entries: CumulativeRequestLifecycleEntry[] = [];
+  for (const request of lineage) {
+    const submittedAt = submittedTimeOf(request);
+    const identity = {
+      agency_id: request.agency_id ?? undefined,
+      agency_name: request.agency_name ?? undefined,
+      user_id: request.user_id ?? undefined,
+    };
+    // Submitted anchor. Per-cycle messages ride the canonical verbatim slots
+    // (rendered by the rich tier); values are raw, never prefixed — canonical
+    // parity with every other timeline surface.
+    entries.push({
+      source_type: "join_request",
+      author_role: "seeker",
+      timestamp: submittedAt,
+      cover_note: request.cover_note ?? null,
+      portfolio_details: request.portfolio_details ?? null,
+      reapplication_message: request.reapplication_message ?? null,
+      cycle_number: request.cycle_number ?? null,
+      isPendingReapply:
+        entity.kind === "cancelled" &&
+        request.status === "pending" &&
+        request.reapplication_message != null,
+      ...identity,
+    });
+    // Decision row. Rejected rows record the reason inline (U-026 downstream
+    // extension: everything downstream of the first canonical rejection,
+    // including decision reason/message, stays visible in the card).
+    if (entity.kind === "cancelled" && request.status === "cancelled") {
+      entries.push({
+        source_type: "audit_event",
+        author_role: "seeker",
+        action: "cancelled",
+        timestamp: request.decided_at ?? submittedAt,
+        reason: request.cancel_reason ?? null,
+        cycle_number: request.cycle_number ?? null,
+        ...identity,
+      });
+    }
+    if (entity.kind === "rejected" && request.status === "rejected") {
+      entries.push({
+        source_type: "audit_event",
+        author_role: "agency",
+        action: "rejected",
+        timestamp: request.decided_at ?? submittedAt,
+        reason: request.rejection_reason ?? null,
+        cycle_number: request.cycle_number ?? null,
+        ...identity,
+      });
+    }
+  }
+
+  // One global chronological order, ascending (narrative reading order,
+  // matching the migrated hand-rolled loops).
+  entries.sort(
+    (first, second) => new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime(),
+  );
+  return { entries, terminal, hasReturningAppealRejection };
+}
+
 export type MembershipReviewResolutionAction = "reinstated" | "review_declined";
 
 /** A timeline entry annotated by the Revoked-tab filter with its matched
