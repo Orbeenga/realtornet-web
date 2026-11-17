@@ -281,13 +281,19 @@ export function useRequestJoinRequestReactivation(agencyId?: string | number | n
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (requestId: number) =>
+    mutationFn: ({ requestId, message }: { requestId: number; message?: string | null }) =>
       apiClient<AgencyJoinRequestResponse>(
         `/api/v1/agencies/${agencyId}/join-requests/${requestId}/request-reactivation/`,
-        { method: "PATCH" },
+        {
+          method: "PATCH",
+          body: JSON.stringify({ message: message?.trim() || null }),
+        },
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["agencyJoinRequests", agencyId, "all"] });
+      // The new request lands in Review Requests — refresh the queue too,
+      // mirroring the reject hook below.
+      await queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests", agencyId] });
     },
   });
 }
@@ -336,10 +342,13 @@ export function useRequestJoinRequestReactivationAsApplicant() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (requestId: number) =>
+    mutationFn: ({ requestId, message }: { requestId: number; message?: string | null }) =>
       apiClient<MyAgencyJoinRequestResponse>(
         `/api/v1/join-requests/${requestId}/request-reactivation/`,
-        { method: "PATCH" },
+        {
+          method: "PATCH",
+          body: JSON.stringify({ message: message?.trim() || null }),
+        },
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] });

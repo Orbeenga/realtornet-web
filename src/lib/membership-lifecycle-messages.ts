@@ -362,3 +362,38 @@ export function resolveCooldownAmbient(params: {
     tone: "caution",
   };
 }
+
+/* Canonical double-gate copy + validation lives HERE ONLY
+   (DoubleGatePendingNoun, doubleGatePendingToast, validateDoubleGateMessage).
+   Consumed by the shared ConfirmDestructiveDialog (U-038 /
+   DEF-U-DOUBLE-GATE-SSOT-001). Gate 1 (pending-check) toasts the exact copy
+   below and never opens; Gate 2 (message validation) blocks submit
+   client-side on blank. The server remains authoritative for both. */
+export type DoubleGatePendingNoun = "reapplication" | "review request" | "appeal";
+
+export function doubleGatePendingToast(noun: DoubleGatePendingNoun): string {
+  return `You already have a pending ${noun} for this agency.`;
+}
+
+export function validateDoubleGateMessage(message: string): string | null {
+  return message.trim() ? null : "Enter a message before continuing.";
+}
+
+/**
+ * Gate-1 predicate for the shared double-gate dialog (U-038 /
+ * DEF-U-DOUBLE-GATE-SSOT-001): is any request in this Expired group already
+ * mid-reactivation? Live stages (agency/seeker requested, agency accepted)
+ * block a fresh nudge; initial (nothing requested) and terminal
+ * (approved/rejected — resolved) do not. The server remains authoritative;
+ * this is the fast local first layer (UI-008 pattern).
+ */
+export function hasPendingReactivation(
+  requests: JoinRequestIdentity[],
+  viewerUserId: number | null,
+  viewerIsApplicant: boolean,
+): boolean {
+  return requests.some((request) => {
+    const stage = resolveJoinRequestReactivationStage(request, viewerUserId, viewerIsApplicant);
+    return stage === "agency_requested" || stage === "seeker_requested" || stage === "agency_accepted";
+  });
+}
