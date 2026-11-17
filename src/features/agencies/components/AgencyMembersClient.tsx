@@ -50,9 +50,11 @@ import {
   useUnblockAgencyMembership,
   useWithdrawAgencyInvitation,
 } from "@/features/agencies/hooks";
+import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
+  hasPendingReactivation,
   ambientTextToneClass,
   resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
@@ -65,6 +67,7 @@ import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
+  groupAgencyRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
@@ -75,7 +78,6 @@ import {
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
-  AgencyJoinRequestResponse,
   AgencyReviewRequestResponse,
 } from "@/types";
 import {
@@ -248,51 +250,7 @@ function groupAgencyReviewRequests(
     .sort((first, second) => first.requesterName.localeCompare(second.requesterName));
 }
 
-interface AgencyRequestCycleGroup {
-  userId: number;
-  seekerName: string;
-  seekerEmail?: string | null;
-  requests: AgencyJoinRequestResponse[];
-}
 
-/* Shared agency request-cycle grouping lives HERE ONLY (canonical
-   AgencyMembersClient module). Groups are anchored by users carrying the
-   given status; the cumulative emitter filters each group's rows to its own
-   lineage downstream. Consumers: Cancelled + Rejected sub-tabs. */
-function groupAgencyRequestCycles(
-  requests: AgencyJoinRequestResponse[],
-  anchorStatus: "cancelled" | "rejected",
-) {
-  const userIdsWithAnchor = new Set(
-    requests.filter((r) => r.status === anchorStatus).map((r) => r.user_id),
-  );
-  const groups = new Map<number, AgencyRequestCycleGroup>();
-
-  for (const request of requests) {
-    if (!userIdsWithAnchor.has(request.user_id)) continue;
-    const current = groups.get(request.user_id);
-    if (current) {
-      current.requests.push(request);
-      continue;
-    }
-
-    groups.set(request.user_id, {
-      userId: request.user_id,
-      seekerName: request.seeker_name ?? "Seeker",
-      seekerEmail: request.seeker_email,
-      requests: [request],
-    });
-  }
-
-  return [...groups.values()]
-    .map((group) => ({
-      ...group,
-      requests: [...group.requests].sort(
-        (first, second) => new Date(first.created_at).getTime() - new Date(second.created_at).getTime(),
-      ),
-    }))
-    .sort((first, second) => first.seekerName.localeCompare(second.seekerName));
-}
 
 interface AgencyHistoryMember {
   userId: number;
@@ -383,6 +341,9 @@ export function AgencyMembersClient() {
   const [pendingReviewDecision, setPendingReviewDecision] =
     useState<PendingReviewDecision | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
+  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
+  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
   const {
     register,
     handleSubmit,
@@ -482,6 +443,11 @@ export function AgencyMembersClient() {
     agencyId,
     expiredRequests.map((r) => r.user_id),
     Boolean(agencyId) && expiredRequests.length > 0,
+  );
+  // Keyed by request id so each grouped Expired section resolves its own
+  // narrative timeline (replaces the pre-grouping positional index).
+  const expiredHistoryByRequestId = new Map(
+    expiredRequests.map((request, index) => [request.join_request_id, expiredHistoryQueries[index]?.data ?? []] as const),
   );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -611,10 +577,15 @@ export function AgencyMembersClient() {
     }
   };
 
-  const handleRequestJoinRequestReactivation = async (requestId: number) => {
+  // U-038 double-gate confirm: Gate 1 (pending-check + exact toast) and Gate 2
+  // (message validation) are enforced inside the shared dialog; the message
+  // arrives trimmed and non-blank. "review request" noun: every live
+  // reactivation round-trip lands in, or heads to, the Review Requests queue.
+  const handleRequestJoinRequestReactivation = async (requestId: number, message: string) => {
     try {
-      await requestJoinRequestReactivation.mutateAsync(requestId);
+      await requestJoinRequestReactivation.mutateAsync({ requestId, message });
       notify.success("Reactivation requested — applicant will be notified.");
+      setNudgeDialogRequestId(null);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not request reactivation.");
@@ -798,6 +769,9 @@ export function AgencyMembersClient() {
   // Rejected sub-tab entity groups (grouped by user_id) — one cumulative card
   // per applicant, mirroring the Cancelled tab (U-028/U-009).
   const rejectedCycleGroups = groupAgencyRequestCycles(joinRequests, "rejected");
+  // Expired sub-tab entity groups (grouped by user_id) — one cumulative card
+  // per applicant, mirroring the Cancelled tab (answer 4: grouping global).
+  const expiredCycleGroups = groupAgencyRequestCycles(joinRequests, "expired-history");
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const invitations = invitationsQuery.data ?? [];
@@ -884,7 +858,7 @@ export function AgencyMembersClient() {
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length})` },
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
                 { value: "rejected" as const, label: `Rejected (${rejectedCycleGroups.length})` },
-                { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
+                { value: "expired" as const, label: `Expired (${expiredCycleGroups.length})` },
                 { value: "cancelled" as const, label: `Cancelled (${cancelledCycleGroups.length})` },
               ].map(({ value, label }) => (
                 <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
@@ -1069,36 +1043,42 @@ export function AgencyMembersClient() {
               </>
             ) : requestSubTab === "expired" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(hasExpiredHistory).length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && expiredCycleGroups.length === 0 ? (
                   <EmptyState title="No expired requests" description="Requests that ever passed through the expired state will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(hasExpiredHistory).length > 0 ? (
+                {!joinRequestsQuery.isLoading && expiredCycleGroups.length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(hasExpiredHistory).map((request, expiredIndex) => {
-                      const agent = agents.find((a) => a.user_id === request.user_id);
-                      const liveStatus = agent?.membership_status ?? request.status;
-                      const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                      // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
-                      // chronological stream via resolveExpiredNarrativeTimeline
-                      // (single sorted array, single banded loop - no second list).
-                      const narrativeEvents = resolveExpiredNarrativeTimeline(
-                        expiredHistoryQueries[expiredIndex]?.data ?? [],
-                        request,
-                        { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
-                      );
+                    {expiredCycleGroups.map((group) => {
+                      const member = historyMemberById.get(group.userId);
                       return (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                          <TimelineHeader
-                            entity="person"
-                            name={request.seeker_name ?? "Seeker"}
-                            role={agent?.user_role}
-                            status={liveStatus}
-                            applicationStatus={request.status}
-                            email={request.seeker_email ?? undefined}
-                            lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
-                            eventCount={narrativeEvents.length}
-                          />
-                        <div className="mt-2 space-y-2">
+                      <div key={group.userId} className="rounded-lg border border-border p-4">
+                        {/* Rich person header via the shared TimelineHeader SSOT
+                            (same identity the History member blocks use). The
+                            expired application badge is the canonical
+                            applicationStatus (top-right), not a hand-rolled Badge. */}
+                        <TimelineHeader
+                          entity="person"
+                          name={member?.displayName ?? group.seekerName}
+                          email={member?.email ?? group.seekerEmail ?? undefined}
+                          avatarUrl={member?.avatarUrl}
+                          role={member?.role}
+                          status={member?.status}
+                          lastSeen={member?.lastSeen}
+                          qualifiers={member?.qualifiers}
+                          applicationStatus="expired"
+                        />
+                        {group.requests.map((request, requestIndex) => {
+                          // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                          // chronological stream via resolveExpiredNarrativeTimeline
+                          // (single sorted array, single banded loop - no second list).
+                          const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
+                          const narrativeEvents = resolveExpiredNarrativeTimeline(
+                            expiredHistoryByRequestId.get(request.join_request_id) ?? [],
+                            request,
+                            { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                          );
+                          return (
+                          <div key={request.join_request_id} className={requestIndex === 0 ? "mt-2 space-y-2" : "mt-4 space-y-2 border-t border-border pt-4"}>
                           {narrativeEvents.length > 0 ? (
                             <div className="space-y-1">
                               {narrativeEvents.map((event, index) => (
@@ -1130,14 +1110,15 @@ export function AgencyMembersClient() {
                               </p>
                               <Button
                                 type="button" size="sm"
-                                loading={requestJoinRequestReactivation.isPending && requestJoinRequestReactivation.variables === request.join_request_id}
-                                onClick={() => void handleRequestJoinRequestReactivation(request.join_request_id)}
+                                onClick={() => setNudgeDialogRequestId(request.join_request_id)}
                               >
                                 Reactivate Application
                               </Button>
                             </div>
                           ) : null}
                         </div>
+                        );
+                      })}
                       </div>
                     );
                     })}
@@ -1607,6 +1588,25 @@ export function AgencyMembersClient() {
             {/* Invite creation is a click-to-open dialog (same canonical popover
                 pattern as the membership/review decision dialogs, 2ef202c): the
                 email entry lives in the dialog, never inline-preset on the tab. */}
+            {/* U-038 double-gate nudge dialog (shared canonical component). */}
+            <ConfirmDestructiveDialog
+              open={nudgeDialogRequestId !== null}
+              onClose={() => setNudgeDialogRequestId(null)}
+              title="Reactivate application"
+              description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application. Include a note — they'll see it with your request.`}
+              messageLabel="Message"
+              messagePlaceholder="Note for the applicant (required)"
+              confirmLabel="Send request"
+              checkPending={() => {
+                const groupRequests = expiredCycleGroups.find((group) =>
+                  group.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+                )?.requests ?? [];
+                return hasPendingReactivation(groupRequests, user?.user_id ?? null, false);
+              }}
+              pendingNoun="review request"
+              isPending={requestJoinRequestReactivation.isPending}
+              onConfirm={(message) => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId, message); }}
+            />
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger
                 render={<Button type="button">Send invite</Button>}

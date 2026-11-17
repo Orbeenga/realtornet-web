@@ -1,5 +1,9 @@
 import { hasExpiredHistory } from "@/lib/membership-lifecycle-messages";
-import type { MembershipTimelineEntry } from "@/types";
+import type {
+  AgencyJoinRequestResponse,
+  MembershipTimelineEntry,
+  MyAgencyJoinRequestResponse,
+} from "@/types";
 
 export function formatMembershipDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -457,6 +461,122 @@ export function timelineEntryKey(entry: {
   }
 
   return `${entry.source_type}:${entry.action ?? "row"}:${entry.timestamp}`;
+}
+
+/* Shared agency request-cycle grouping lives HERE ONLY (canonical
+   membershipHistory module). Groups are anchored by users carrying the
+   given anchor; member rows follow the anchor kind: cancelled/rejected
+   keep all rows (the cumulative emitter filters each group's rows to its
+   own lineage downstream); expired-history keeps expired-history rows
+   only (Expired narrative blocks are per-row self-contained).
+   Consumers: Cancelled + Rejected + Expired sub-tabs. */
+export interface AgencyRequestCycleGroup {
+  userId: number;
+  seekerName: string;
+  seekerEmail?: string | null;
+  requests: AgencyJoinRequestResponse[];
+}
+
+export type AgencyRequestCycleAnchor = "cancelled" | "rejected" | "expired-history";
+
+export function groupAgencyRequestCycles(
+  requests: AgencyJoinRequestResponse[],
+  anchor: AgencyRequestCycleAnchor,
+) {
+  const isAnchorRow =
+    anchor === "expired-history"
+      ? (request: AgencyJoinRequestResponse) => hasExpiredHistory(request)
+      : (request: AgencyJoinRequestResponse) => request.status === anchor;
+  const userIdsWithAnchor = new Set(
+    requests.filter(isAnchorRow).map((request) => request.user_id),
+  );
+  const groups = new Map<number, AgencyRequestCycleGroup>();
+
+  for (const request of requests) {
+    if (!userIdsWithAnchor.has(request.user_id)) continue;
+    if (anchor === "expired-history" && !hasExpiredHistory(request)) continue;
+    const current = groups.get(request.user_id);
+    if (current) {
+      current.requests.push(request);
+      continue;
+    }
+
+    groups.set(request.user_id, {
+      userId: request.user_id,
+      seekerName: request.seeker_name ?? "Seeker",
+      seekerEmail: request.seeker_email,
+      requests: [request],
+    });
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      requests: [...group.requests].sort(
+        (first, second) => new Date(first.created_at).getTime() - new Date(second.created_at).getTime(),
+      ),
+    }))
+    .sort((first, second) => first.seekerName.localeCompare(second.seekerName));
+}
+
+/* Shared seeker request-cycle grouping lives HERE ONLY (canonical
+   membershipHistory module). One group per agency; cancelledRequests and
+   expiredRequests subsets ride along; the anchor selects which subset
+   admits the group. Consumers: Cancelled + Expired sub-tabs. */
+export interface MyJoinRequestCycleGroup {
+  agencyId: number;
+  agencyName: string;
+  requests: MyAgencyJoinRequestResponse[];
+  cancelledRequests: MyAgencyJoinRequestResponse[];
+  expiredRequests: MyAgencyJoinRequestResponse[];
+}
+
+export type MyJoinRequestCycleAnchor = "cancelled" | "expired-history";
+
+export function groupMyJoinRequestCycles(
+  requests: MyAgencyJoinRequestResponse[],
+  anchor: MyJoinRequestCycleAnchor = "cancelled",
+) {
+  const groups = new Map<number, MyJoinRequestCycleGroup>();
+
+  for (const request of requests) {
+    // Expired-history anchor admits ONLY rows that ever passed through expired
+    // (mirrors the agency grouper) — pending/approved rows in the same agency
+    // must not leak Expired sections into the card.
+    if (anchor === "expired-history" && !hasExpiredHistory(request)) continue;
+    const current = groups.get(request.agency_id);
+    if (current) {
+      current.requests.push(request);
+      if (request.status === "cancelled") current.cancelledRequests.push(request);
+      if (hasExpiredHistory(request)) current.expiredRequests.push(request);
+      continue;
+    }
+
+    groups.set(request.agency_id, {
+      agencyId: request.agency_id,
+      agencyName: request.agency_name,
+      requests: [request],
+      cancelledRequests: request.status === "cancelled" ? [request] : [],
+      expiredRequests: hasExpiredHistory(request) ? [request] : [],
+    });
+  }
+
+  const subsetKey = anchor === "expired-history" ? "expiredRequests" : "cancelledRequests";
+  const bySubmittedAt = (
+    first: MyAgencyJoinRequestResponse,
+    second: MyAgencyJoinRequestResponse,
+  ) =>
+    new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime();
+
+  return [...groups.values()]
+    .filter((group) => group[subsetKey].length > 0)
+    .map((group) => ({
+      ...group,
+      requests: [...group.requests].sort(bySubmittedAt),
+      cancelledRequests: [...group.cancelledRequests].sort(bySubmittedAt),
+      expiredRequests: [...group.expiredRequests].sort(bySubmittedAt),
+    }))
+    .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
 }
 
 export function resolveCumulativeRequestLifecycleTimeline(

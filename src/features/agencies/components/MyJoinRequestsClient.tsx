@@ -8,10 +8,12 @@ import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
+import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
   getRevokedMembershipHistory,
+  groupMyJoinRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
@@ -35,6 +37,7 @@ import {
   ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
+  hasPendingReactivation,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
@@ -73,12 +76,7 @@ type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 const COOLDOWN_WINDOW_DAYS = 30;
 const COOLDOWN_LIMIT = 3;
 
-interface MyJoinRequestCycleGroup {
-  agencyId: number;
-  agencyName: string;
-  requests: MyAgencyJoinRequestResponse[];
-  cancelledRequests: MyAgencyJoinRequestResponse[];
-}
+
 
 /* DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a): the reapply unlock date is
    SERVER-COMPUTED — `cooldown_unlock_at` (ISO datetime | null) is returned on
@@ -90,38 +88,7 @@ interface MyJoinRequestCycleGroup {
    longer re-derives gate math (single source of truth: the backend gate).
    null = gate not tripped, reapply allowed. */
 
-function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
-  const groups = new Map<number, MyJoinRequestCycleGroup>();
 
-  for (const request of requests) {
-    const current = groups.get(request.agency_id);
-    if (current) {
-      current.requests.push(request);
-      if (request.status === "cancelled") current.cancelledRequests.push(request);
-      continue;
-    }
-
-    groups.set(request.agency_id, {
-      agencyId: request.agency_id,
-      agencyName: request.agency_name,
-      requests: [request],
-      cancelledRequests: request.status === "cancelled" ? [request] : [],
-    });
-  }
-
-  return [...groups.values()]
-    .filter((group) => group.cancelledRequests.length > 0)
-    .map((group) => ({
-      ...group,
-      requests: [...group.requests].sort(
-        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
-      ),
-      cancelledRequests: [...group.cancelledRequests].sort(
-        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
-      ),
-    }))
-    .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
-}
 
 /* Seekers/Agency-history per-agency group (Rule 20/22 mirror of the agency
    side's AgencyMemberHistoryGroup): one cursor-paginated feed PER AGENCY
@@ -367,6 +334,9 @@ export function MyJoinRequestsClient() {
      second layer. Button stays clickable — never hard-disable. */
   const [reapplyDialogAgencyId, setReapplyDialogAgencyId] = useState<number | null>(null);
   const [reapplyMessage, setReapplyMessage] = useState("");
+  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
+  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
+  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
 
   const handleReapply = async (agencyId: number) => {
     if (applyAgainDates.has(agencyId)) {
@@ -392,10 +362,15 @@ export function MyJoinRequestsClient() {
   const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
   const rejectReactivation = useRejectJoinRequestReactivation();
 
-  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
+  // U-038 double-gate confirm: Gate 1 (pending-check + exact toast) and Gate 2
+  // (message validation) are enforced inside the shared dialog; the message
+  // arrives trimmed and non-blank. "review request" noun: every live
+  // reactivation round-trip lands in, or heads to, the Review Requests queue.
+  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number, message: string) => {
     try {
-      await requestJoinRequestReactivationAsApplicant.mutateAsync(requestId);
+      await requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId, message });
       notify.success("Reactivation requested — awaiting agency response.");
+      setNudgeDialogRequestId(null);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
@@ -461,6 +436,9 @@ export function MyJoinRequestsClient() {
 
   const requests = requestsQuery.data ?? [];
   const cancelledRequestGroups = groupMyJoinRequestCycles(requests);
+  // Expired sub-tab entity groups (grouped by agency_id) — one cumulative card
+  // per agency, mirroring the Cancelled tab (answer 4: grouping global).
+  const expiredRequestGroups = groupMyJoinRequestCycles(requests, "expired-history");
   // U-028 / U-009: rejected requests grouped per (user, agency) pair — one
   // cumulative card per agency, every rejected cycle inside it.
   const groupedRejectedRequests = [
@@ -1237,7 +1215,7 @@ export function MyJoinRequestsClient() {
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
             { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved").length})` },
             { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-            { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
+            { value: "expired" as const, label: `Expired (${expiredRequestGroups.length})` },
             { value: "cancelled" as const, label: `Cancelled (${cancelledRequestGroups.length})` },
           ].map(({ value, label }) => (
             <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "approved" | "rejected" | "expired" | "cancelled")}>
@@ -1435,34 +1413,40 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "expired" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(hasExpiredHistory).length === 0 ? (
+            {expiredRequestGroups.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No expired requests" description="Requests that ever passed through the expired state will appear here." />
               </div>
             ) : (
-              requests.filter(hasExpiredHistory).map((request) => {
-                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
-                // chronological stream. resolveExpiredNarrativeTimeline merges all
-                // events (submitted, expired, reactivation, approval, downstream
-                // revoked/reinstated) into a single sorted array with real
-                // timestamps — never two separately-rendered lists, which is what
-                // previously produced out-of-order rows and broken banding.
-                const narrativeEvents = resolveExpiredNarrativeTimeline(
-                  historyQuery.data ?? [],
-                  request,
-                  { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                );
+              expiredRequestGroups.map((group) => {
+                const latestRequest = group.requests[0];
                 return (
-                  <Card key={request.join_request_id}>
+                  <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
+                      {/* Agency header via the shared TimelineHeader SSOT. The
+                          expired application badge is the canonical
+                          applicationStatus, not a hand-rolled Badge. */}
                       <TimelineHeader
                         entity="agency"
-                        name={request.agency_name}
-                        verified={request.is_verified}
-                        applicationStatus={request.status}
-                         eventCount={narrativeEvents.length}
+                        name={group.agencyName}
+                        verified={latestRequest?.is_verified}
+                        applicationStatus="expired"
                       />
+                      {group.requests.map((request, requestIndex) => {
+                        // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                        // chronological stream. resolveExpiredNarrativeTimeline merges all
+                        // events (submitted, expired, reactivation, approval, downstream
+                        // revoked/reinstated) into a single sorted array with real
+                        // timestamps — never two separately-rendered lists, which is what
+                        // previously produced out-of-order rows and broken banding.
+                        const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
+                        const narrativeEvents = resolveExpiredNarrativeTimeline(
+                          historyQuery.data ?? [],
+                          request,
+                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                        );
+                        return (
+                          <div key={request.join_request_id} className={requestIndex === 0 ? "space-y-4" : "space-y-4 border-t border-border pt-4"}>
                       {request.cover_note ? (
                         <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
                           <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
@@ -1518,13 +1502,15 @@ export function MyJoinRequestsClient() {
                           </p>
                           <Button
                             type="button" size="sm"
-                            loading={requestJoinRequestReactivationAsApplicant.isPending && requestJoinRequestReactivationAsApplicant.variables === request.join_request_id}
-                            onClick={() => void handleRequestJoinRequestReactivationAsApplicant(request.join_request_id)}
+                            onClick={() => setNudgeDialogRequestId(request.join_request_id)}
                           >
                             Request Reactivation
                           </Button>
                         </div>
                       ) : null}
+                          </div>
+                        );
+                      })}
                     </CardBody>
                   </Card>
                 );
@@ -1617,6 +1603,25 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
+      {/* U-038 double-gate nudge dialog (shared canonical component). */}
+      <ConfirmDestructiveDialog
+        open={nudgeDialogRequestId !== null}
+        onClose={() => setNudgeDialogRequestId(null)}
+        title="Request reactivation"
+        description={`Ask ${requests.find((r) => r.join_request_id === nudgeDialogRequestId)?.agency_name ?? "the agency"} to reactivate your expired application. Include a note — they'll see it with your request.`}
+        messageLabel="Message"
+        messagePlaceholder="Note for the agency (required)"
+        confirmLabel="Send request"
+        checkPending={() => {
+          const groupRequests = expiredRequestGroups.find((group) =>
+            group.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+          )?.requests ?? [];
+          return hasPendingReactivation(groupRequests, user?.user_id ?? null, true);
+        }}
+        pendingNoun="review request"
+        isPending={requestJoinRequestReactivationAsApplicant.isPending}
+        onConfirm={(message) => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivationAsApplicant(nudgeDialogRequestId, message); }}
+      />
       <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
         <DialogContent>
           <DialogHeader>
