@@ -4,11 +4,14 @@ import { Fragment, useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
 import {
   ambientTextToneClass,
+  resolveReapplyPendingNotice,
+  resolveReapplyPendingSeekerAmbient,
   resolveRevokedReviewNotice,
   resolveStatusBadge,
 } from "@/lib/membership-lifecycle-messages";
 import {
   formatMembershipDate,
+  type CumulativeRequestLifecycleEntry,
   type MembershipTimelineEntryWithResolution,
 } from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
@@ -58,6 +61,21 @@ interface MembershipTimelineProps {
       never expose "fetch more" while the bounded reveal is still collapsed). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  /** Rich-tier sort order. Default "desc" preserves the canonical
+      newest-first History ordering; cumulative narrative cards (Cancelled,
+      Rejected) pass "asc" to keep the story reading order they migrated
+      from. Additive — existing consumers are unchanged. */
+  sortDirection?: "asc" | "desc";
+  /** OPT-IN, cumulative Cancelled cards ONLY: renders the ephemeral "New"
+      marker + reapply-pending ambient adjacent to the pending reapply's
+      submission row (entries annotated `isPendingReapply` by the cumulative
+      emitter, U-035 family). Agency renders above the row, seeker below —
+      matching the migrated hand-rolled loops. All other consumers omit this. */
+  pendingReapplyNotice?: {
+    viewerIsApplicant: boolean;
+    name?: string | null;
+    position: "above" | "below";
+  };
 }
 
 /* Shared timeline row zebra-banding lives HERE ONLY (canonical MembershipHistoryList
@@ -254,6 +272,8 @@ export function MembershipTimeline({
   pendingReviewHighlight,
   expanded: expandedProp,
   onExpandedChange,
+  sortDirection = "desc",
+  pendingReapplyNotice,
 }: MembershipTimelineProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expandedProp ?? internalExpanded;
@@ -327,13 +347,15 @@ export function MembershipTimeline({
     );
   }
 
-  // Single uniform chronological sort by each row's OWN timestamp, descending
-  // (newest first) — U-035: request and resolution are independent entries
-  // with genuine timestamps; no resolvedAt substitution, identical to History.
-  const sortedHistory = [...history].sort(
-    (first, second) =>
-      new Date(second.timestamp).getTime() - new Date(first.timestamp).getTime(),
-  );
+  // Single uniform chronological sort by each row's OWN timestamp — U-035:
+  // request and resolution are independent entries with genuine timestamps;
+  // no resolvedAt substitution, identical to History. Direction defaults to
+  // descending (newest first); cumulative narrative cards pass "asc".
+  const sortedHistory = [...history].sort((first, second) => {
+    const diff =
+      new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime();
+    return sortDirection === "asc" ? diff : -diff;
+  });
 
   const showAllEntries = alwaysExpanded || isExpanded;
   const visibleEntries = showAllEntries ? sortedHistory : sortedHistory.slice(0, 2);
@@ -417,6 +439,25 @@ export function MembershipTimeline({
           isPendingReviewRow
             ? resolveRevokedReviewNotice({ seekerName: entry.user_display_name })
             : null;
+        // Ephemeral reapply-pending notice (U-035 family, cumulative Cancelled
+        // cards only): discharges when the pending reapply resolves (the
+        // emitter stops annotating the row). Text derives in the canonical
+        // ambient family; this component only positions it.
+        const reapplyNotice =
+          pendingReapplyNotice != null &&
+          (entry as CumulativeRequestLifecycleEntry).isPendingReapply === true
+            ? pendingReapplyNotice.viewerIsApplicant
+              ? resolveReapplyPendingSeekerAmbient({ agencyName: pendingReapplyNotice.name })
+              : resolveReapplyPendingNotice({ seekerName: pendingReapplyNotice.name })
+            : null;
+        const reapplyNoticeBlock = reapplyNotice ? (
+          <div className="mb-2 space-y-1">
+            <Badge variant="default">New</Badge>
+            <p className={ambientTextToneClass[reapplyNotice.tone]}>
+              {reapplyNotice.text}
+            </p>
+          </div>
+        ) : null;
 
         return (
           <Fragment key={entryId}>
@@ -432,6 +473,9 @@ export function MembershipTimeline({
                 </p>
               </div>
             ) : null}
+            {reapplyNoticeBlock != null && pendingReapplyNotice?.position === "above"
+              ? reapplyNoticeBlock
+              : null}
             <div
               // Shared zebra banding (grey/white alternating), no borders — same
               // pairing as the simple tier, defined here only (canonical component).
@@ -478,6 +522,9 @@ export function MembershipTimeline({
                 (its own reason/review_message fields render above). Nothing is
                 merged into the request row. */}
             </div>
+            {reapplyNoticeBlock != null && pendingReapplyNotice?.position === "below"
+              ? reapplyNoticeBlock
+              : null}
           </Fragment>
         );
       })}
