@@ -6,6 +6,7 @@
  */
 import {
   resolveCumulativeRequestLifecycleTimeline,
+  timelineEntryKey,
   type CumulativeRequestMatch,
 } from "../membershipHistory";
 
@@ -119,6 +120,29 @@ assert(
 // 7. Empty group: no entries, non-terminal.
 const empty = resolveCumulativeRequestLifecycleTimeline([], { kind: "rejected" });
 assert(empty.entries.length === 0 && empty.terminal === false, "empty group yields no entries and non-terminal");
+
+// 8. Per-entry cycle attribution is preserved (both rows of a numbered pair
+//    carry N; unnumbered rows carry null and render no label).
+const numbered = resolveCumulativeRequestLifecycleTimeline(
+  [
+    request({ join_request_id: 40, status: "cancelled", decided_at: "2026-09-02T10:00:00Z", cycle_number: 2 }),
+    request({ join_request_id: 41, status: "cancelled", submitted_at: "2026-09-10T10:00:00Z", created_at: "2026-09-10T10:00:00Z", decided_at: "2026-09-11T10:00:00Z" }),
+  ],
+  { kind: "cancelled" },
+);
+const numberedRows = numbered.entries.filter((e) => e.cycle_number === 2);
+assert(numberedRows.length === 2, "both rows of a numbered pair carry its cycle number");
+assert(
+  numbered.entries.filter((e) => e.cycle_number == null).length === 2,
+  "unpaired rows carry null cycle (no label renders)",
+);
+
+// 9. Timeline keys stay unique without backend ids (null-decided_at cancel
+//    shares its submitted anchor's timestamp and must not collide).
+assert(timelineEntryKey({ id: 7, source_type: "audit_event", timestamp: "2026-09-02T10:00:00Z" }) === "7", "id-carrying entries key on the id");
+const anchorKey = timelineEntryKey({ source_type: "join_request", timestamp: "2026-09-10T10:00:00Z" });
+const decisionKey = timelineEntryKey({ source_type: "audit_event", action: "cancelled", timestamp: "2026-09-10T10:00:00Z" });
+assert(anchorKey !== decisionKey, "same-timestamp anchor/decision rows get distinct keys");
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

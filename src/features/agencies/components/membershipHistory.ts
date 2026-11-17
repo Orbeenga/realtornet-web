@@ -384,8 +384,10 @@ export function getMembershipHistoryByAction(
    Card composition (locked): the card holds ONLY its own lineage, in one
    global chronological (ascending) order — Cancelled = submitted/cancelled/
    reapplied rows; approved, reactivation and unrelated pending rows are
-   filtered here, never leaked in. Per-row Cycle/No-reapply microcopy is gone
-   with the hand-rolled loops; group-level CTAs/ambients stay in the card shell.
+   filtered here, never leaked in. Per-row "No reapply"/"Not part of a cycle"
+   microcopy is gone with the hand-rolled loops; per-entry Cycle rides the
+   preserved cycle_number slot, and group-level CTAs/ambients stay in the
+   card shell.
    U-034b terminal discriminator (fresh vs returning-appeal rejections):
    a returning-appeal rejection (reactivation_requested_at set — the U-013
    discriminator) is terminal immediately; otherwise terminal only after a
@@ -408,6 +410,7 @@ export interface CumulativeRequestMatch {
   agency_name?: string | null;
   user_id?: number | null;
   seeker_name?: string | null;
+  cycle_number?: number | null;
 }
 
 export interface CumulativeRequestLifecycle {
@@ -429,7 +432,29 @@ export interface CumulativeRequestLifecycle {
     MembershipTimelineEntryWithResolution precedent below. */
 export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
   isPendingReapply?: boolean;
+  /** Preserved per-entry cycle attribution (backend cycle_number). Renders
+      "Cycle: N" on both rows of a numbered pair; null/undefined renders no
+      label (never "Not part of a cycle" / "No reapply"). */
+  cycle_number?: number | null;
 };
+
+/* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Entries
+   carrying a backend id key on it; synthesized entries without one fall
+   back to source+action+timestamp so same-timestamp rows (e.g. a
+   null-decided_at cancel sharing its submitted anchor's timestamp) never
+   collide as React keys. */
+export function timelineEntryKey(entry: {
+  id?: number | null;
+  source_type: string;
+  action?: string | null;
+  timestamp: string;
+}): string {
+  if (entry.id != null) {
+    return String(entry.id);
+  }
+
+  return `${entry.source_type}:${entry.action ?? "row"}:${entry.timestamp}`;
+}
 
 export function resolveCumulativeRequestLifecycleTimeline(
   requests: CumulativeRequestMatch[],
@@ -489,6 +514,7 @@ export function resolveCumulativeRequestLifecycleTimeline(
       cover_note: request.cover_note ?? null,
       portfolio_details: request.portfolio_details ?? null,
       reapplication_message: request.reapplication_message ?? null,
+      cycle_number: request.cycle_number ?? null,
       isPendingReapply:
         entity.kind === "cancelled" &&
         request.status === "pending" &&
@@ -505,6 +531,7 @@ export function resolveCumulativeRequestLifecycleTimeline(
         action: "cancelled",
         timestamp: request.decided_at ?? submittedAt,
         reason: request.cancel_reason ?? null,
+        cycle_number: request.cycle_number ?? null,
         ...identity,
       });
     }
@@ -515,6 +542,7 @@ export function resolveCumulativeRequestLifecycleTimeline(
         action: "rejected",
         timestamp: request.decided_at ?? submittedAt,
         reason: request.rejection_reason ?? null,
+        cycle_number: request.cycle_number ?? null,
         ...identity,
       });
     }

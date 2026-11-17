@@ -11,6 +11,7 @@ import {
 } from "@/lib/membership-lifecycle-messages";
 import {
   formatMembershipDate,
+  timelineEntryKey,
   type CumulativeRequestLifecycleEntry,
   type MembershipTimelineEntryWithResolution,
 } from "./membershipHistory";
@@ -383,7 +384,7 @@ export function MembershipTimeline({
         />
       ) : null}
       {visibleEntries.map((entry, index) => {
-        const entryId = String(entry.id ?? entry.timestamp);
+        const entryId = timelineEntryKey(entry);
         const label = resolveTimelineLabel(entry, labelStage);
         /* Pending-review NOTICE — OPT-IN (pendingReviewHighlight, consumed
            only by the agency Revoked tab). Per the locked design spec: the
@@ -517,6 +518,11 @@ export function MembershipTimeline({
             ) : null}
             {entry.review_response ? (
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.review_response}</p>
+            ) : null}
+            {(entry as CumulativeRequestLifecycleEntry).cycle_number != null ? (
+              <p className="mt-0.5 text-xs text-gray-400">
+                Cycle: {(entry as CumulativeRequestLifecycleEntry).cycle_number}
+              </p>
             ) : null}
             {/* U-035: resolution messages belong to the resolution's OWN row
                 (its own reason/review_message fields render above). Nothing is
