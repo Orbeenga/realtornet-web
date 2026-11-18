@@ -520,18 +520,20 @@ export function groupAgencyRequestCycles(
 }
 
 /* Shared seeker request-cycle grouping lives HERE ONLY (canonical
-   membershipHistory module). One group per agency; cancelledRequests and
-   expiredRequests subsets ride along; the anchor selects which subset
-   admits the group. Consumers: Cancelled + Expired sub-tabs. */
+   membershipHistory module). One group per agency; cancelledRequests,
+   expiredRequests and rejectedRequests subsets ride along; the anchor
+   selects which subset admits the group. Consumers: Cancelled + Expired +
+   Rejected sub-tabs. */
 export interface MyJoinRequestCycleGroup {
   agencyId: number;
   agencyName: string;
   requests: MyAgencyJoinRequestResponse[];
   cancelledRequests: MyAgencyJoinRequestResponse[];
   expiredRequests: MyAgencyJoinRequestResponse[];
+  rejectedRequests: MyAgencyJoinRequestResponse[];
 }
 
-export type MyJoinRequestCycleAnchor = "cancelled" | "expired-history";
+export type MyJoinRequestCycleAnchor = "cancelled" | "expired-history" | "rejected";
 
 export function groupMyJoinRequestCycles(
   requests: MyAgencyJoinRequestResponse[],
@@ -544,11 +546,15 @@ export function groupMyJoinRequestCycles(
     // (mirrors the agency grouper) — pending/approved rows in the same agency
     // must not leak Expired sections into the card.
     if (anchor === "expired-history" && !hasExpiredHistory(request)) continue;
+    // Rejected anchor admits ONLY rejected rows (card content and the
+    // latest-rejection payload for reconsideration stay exact).
+    if (anchor === "rejected" && request.status !== "rejected") continue;
     const current = groups.get(request.agency_id);
     if (current) {
       current.requests.push(request);
       if (request.status === "cancelled") current.cancelledRequests.push(request);
       if (hasExpiredHistory(request)) current.expiredRequests.push(request);
+      if (request.status === "rejected") current.rejectedRequests.push(request);
       continue;
     }
 
@@ -558,10 +564,12 @@ export function groupMyJoinRequestCycles(
       requests: [request],
       cancelledRequests: request.status === "cancelled" ? [request] : [],
       expiredRequests: hasExpiredHistory(request) ? [request] : [],
+      rejectedRequests: request.status === "rejected" ? [request] : [],
     });
   }
 
-  const subsetKey = anchor === "expired-history" ? "expiredRequests" : "cancelledRequests";
+  const subsetKey =
+    anchor === "expired-history" ? "expiredRequests" : anchor === "rejected" ? "rejectedRequests" : "cancelledRequests";
   const bySubmittedAt = (
     first: MyAgencyJoinRequestResponse,
     second: MyAgencyJoinRequestResponse,
@@ -575,6 +583,7 @@ export function groupMyJoinRequestCycles(
       requests: [...group.requests].sort(bySubmittedAt),
       cancelledRequests: [...group.cancelledRequests].sort(bySubmittedAt),
       expiredRequests: [...group.expiredRequests].sort(bySubmittedAt),
+      rejectedRequests: [...group.rejectedRequests].sort(bySubmittedAt),
     }))
     .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
 }
