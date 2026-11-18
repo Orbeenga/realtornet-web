@@ -1,12 +1,14 @@
 /**
- * F3 Expired-grouping + double-gate checks: expired-history groupers (agency +
- * seeker), Gate-1 pending predicate, Gate-2 message validator, exact toast copy.
+ * F3 Expired-grouping + U-050 double-gate checks: expired-history groupers
+ * (agency + seeker), ordered Gate-1 checks 1→2→3 with exact toast copy,
+ * Gate-2 message validator.
  *
  * Run: pnpm exec tsx src/features/agencies/components/__tests__/expired-grouping-double-gate.check.ts
  */
 import {
-  doubleGatePendingToast,
-  hasPendingReactivation,
+  doubleGateOrderedToast,
+  resolveNudgePendingSides,
+  runNudgeGateChecks,
   validateDoubleGateMessage,
 } from "@/lib/membership-lifecycle-messages";
 import type { AgencyJoinRequestResponse, MyAgencyJoinRequestResponse } from "@/types";
@@ -152,18 +154,18 @@ assert(
   "seeker cancelled anchor still groups by live status",
 );
 
-// 7. Gate-1 exact toast copy (U-038): never paraphrased.
+// 7. U-050 Gate-1 exact toast template: never paraphrased (no trailing period).
 assert(
-  doubleGatePendingToast("review request") === "You already have a pending review request for this agency.",
-  "Gate-1 toast copy is exact for the reactivation noun",
+  doubleGateOrderedToast("reactivation", "Beta") === "A reactivation is already pending with Beta",
+  "Gate-1 toast copy is exact for reactivation",
 );
 assert(
-  doubleGatePendingToast("reapplication") === "You already have a pending reapplication for this agency.",
+  doubleGateOrderedToast("reapplication", "Beta") === "A reapplication is already pending with Beta",
   "Gate-1 toast copy is exact for reapplication",
 );
 assert(
-  doubleGatePendingToast("appeal") === "You already have a pending appeal for this agency.",
-  "Gate-1 toast copy is exact for appeal",
+  doubleGateOrderedToast("reconsideration", "Beta") === "A reconsideration is already pending with Beta",
+  "Gate-1 toast copy is exact for reconsideration",
 );
 
 // 8. Gate-2 message validation: blank blocked, non-blank passes.
@@ -177,64 +179,148 @@ assert(
 );
 assert(validateDoubleGateMessage("Hello") === null, "Gate-2 passes a non-blank message");
 
-// 9. Gate-1 predicate: live reactivation stages block, initial/terminal/empty do not.
+// 9. U-050 checks 1-2, reactivation, seeker view: agency-nudged (must accept)
+//    is this-side; seeker-nudged (agency must decide) is other-side.
 const applicantId = 7;
 const ownerId = 99;
+const agencyInitiated = {
+  status: "expired", user_id: applicantId,
+  reactivation_requested_at: "2026-09-05T10:00:00Z", reactivation_requested_by: ownerId,
+};
+const seekerInitiated = {
+  status: "expired", user_id: applicantId,
+  reactivation_requested_at: "2026-09-05T10:00:00Z", reactivation_requested_by: applicantId,
+};
 assert(
-  hasPendingReactivation(
-    [{ status: "expired", user_id: applicantId }],
-    ownerId,
-    false,
-  ) === false,
+  JSON.stringify(resolveNudgePendingSides("reactivation", [agencyInitiated], applicantId, true)) ===
+    JSON.stringify({ otherSide: false, thisSide: true }),
+  "seeker view: agency nudge awaiting my accept is this-side",
+);
+assert(
+  runNudgeGateChecks({
+    action: "reactivation", requests: [agencyInitiated],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === "A reactivation is already pending with you",
+  "seeker view: this-side toast addresses the viewer as you",
+);
+assert(
+  runNudgeGateChecks({
+    action: "reactivation", requests: [seekerInitiated],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === "A reactivation is already pending with Beta",
+  "seeker view: other-side toast names the agency",
+);
+
+// 10. U-050 checks 1-2, reactivation, agency view: mirrored sides.
+assert(
+  runNudgeGateChecks({
+    action: "reactivation", requests: [agencyInitiated],
+    viewerUserId: ownerId, viewerIsApplicant: false,
+    counterpartyName: "Seeker Alpha", includeCooldownCheck: false,
+  }) === "A reactivation is already pending with Seeker Alpha",
+  "agency view: applicant-must-accept is other-side",
+);
+assert(
+  runNudgeGateChecks({
+    action: "reactivation", requests: [seekerInitiated],
+    viewerUserId: ownerId, viewerIsApplicant: false,
+    counterpartyName: "Seeker Alpha", includeCooldownCheck: false,
+  }) === "A reactivation is already pending with you",
+  "agency view: must-decide-in-queue is this-side",
+);
+
+// 11. U-050 order: check 1 (other side) wins when both sides pend; initial,
+//     terminal, and empty groups are clear.
+const bothSides = [agencyInitiated, seekerInitiated];
+assert(
+  runNudgeGateChecks({
+    action: "reactivation", requests: bothSides,
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === "A reactivation is already pending with Beta",
+  "check order: other-side toast wins when both sides pend",
+);
+assert(
+  runNudgeGateChecks({
+    action: "reactivation", requests: [{ status: "expired", user_id: applicantId }],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === null,
   "Gate-1 passes when nothing was requested (initial)",
 );
 assert(
-  hasPendingReactivation(
-    [{ status: "expired", user_id: applicantId, reactivation_requested_at: "2026-09-05T10:00:00Z", reactivation_requested_by: ownerId }],
-    ownerId,
-    false,
-  ) === true,
-  "Gate-1 blocks an agency-initiated pending nudge (agency view)",
-);
-assert(
-  hasPendingReactivation(
-    [{ status: "expired", user_id: applicantId, reactivation_requested_at: "2026-09-05T10:00:00Z", reactivation_requested_by: applicantId }],
-    applicantId,
-    true,
-  ) === true,
-  "Gate-1 blocks a seeker-initiated pending nudge (seeker view)",
-);
-assert(
-  hasPendingReactivation(
-    [{
-      status: "pending", user_id: applicantId, reactivation_requested_at: "2026-09-05T10:00:00Z",
-      reactivation_requested_by: ownerId, reactivation_accepted_at: "2026-09-06T10:00:00Z",
-    }],
-    applicantId,
-    true,
-  ) === true,
-  "Gate-1 blocks an accepted-but-unresolved round-trip",
-);
-assert(
-  hasPendingReactivation(
-    [{ status: "approved", user_id: applicantId, reactivation_requested_at: "2026-09-05T10:00:00Z" }],
-    ownerId,
-    false,
-  ) === false,
+  runNudgeGateChecks({
+    action: "reactivation",
+    requests: [{ status: "approved", user_id: applicantId, reactivation_requested_at: "2026-09-05T10:00:00Z" }],
+    viewerUserId: ownerId, viewerIsApplicant: false,
+    counterpartyName: "Seeker Alpha", includeCooldownCheck: false,
+  }) === null,
   "Gate-1 passes a terminal (approved) row — resolved, not pending",
 );
 assert(
-  hasPendingReactivation(
-    [
-      { status: "expired", user_id: applicantId },
-      { status: "expired", user_id: applicantId, reactivation_requested_at: "2026-09-05T10:00:00Z", reactivation_requested_by: ownerId },
-    ],
-    ownerId,
-    false,
-  ) === true,
-  "Gate-1 blocks when ANY group row is mid-reactivation",
+  runNudgeGateChecks({
+    action: "reactivation", requests: [],
+    viewerUserId: ownerId, viewerIsApplicant: false,
+    counterpartyName: "Seeker Alpha", includeCooldownCheck: false,
+  }) === null,
+  "Gate-1 passes an empty group",
 );
-assert(hasPendingReactivation([], ownerId, false) === false, "Gate-1 passes an empty group");
+
+// 12. U-050 reconsideration: pending_appeal blocks other-side; none is clear.
+assert(
+  runNudgeGateChecks({
+    action: "reconsideration",
+    requests: [{ status: "rejected", pending_appeal: { review_request_id: 5, created_at: "2026-09-06T10:00:00Z" } }],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === "A reconsideration is already pending with Beta",
+  "reconsideration: pending appeal blocks other-side",
+);
+assert(
+  runNudgeGateChecks({
+    action: "reconsideration",
+    requests: [{ status: "rejected", pending_appeal: null }],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === null,
+  "reconsideration: no pending appeal is clear",
+);
+
+// 13. U-050 reapplication + check 3: pending reapply blocks other-side;
+//     cooldown toasts with the unlock date; pending beats cooldown.
+assert(
+  runNudgeGateChecks({
+    action: "reapplication",
+    requests: [{ status: "pending", reapplication_message: "again" }],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: true,
+  }) === "A reapplication is already pending with Beta",
+  "reapply: pending reapplication blocks other-side",
+);
+const cooldownToast = runNudgeGateChecks({
+  action: "reapplication",
+  requests: [{ status: "cancelled", cooldown_unlock_at: "2026-12-08T00:00:00Z" }],
+  viewerUserId: applicantId, viewerIsApplicant: true,
+  counterpartyName: "Beta", includeCooldownCheck: true,
+});
+assert(
+  cooldownToast !== null &&
+    cooldownToast.startsWith("Limit exceeded. Apply again after ") &&
+    cooldownToast.endsWith(".") &&
+    cooldownToast.includes("2026"),
+  `check 3: cooldown toast carries the unlock date, got ${JSON.stringify(cooldownToast)}`,
+);
+assert(
+  runNudgeGateChecks({
+    action: "reapplication",
+    requests: [{ status: "cancelled", cooldown_unlock_at: "2026-12-08T00:00:00Z" }],
+    viewerUserId: applicantId, viewerIsApplicant: true,
+    counterpartyName: "Beta", includeCooldownCheck: false,
+  }) === null,
+  "check 3: skipped when the caller opts out",
+);
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

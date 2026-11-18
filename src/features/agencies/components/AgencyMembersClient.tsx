@@ -55,7 +55,7 @@ import {
   hasExpiredHistory,
   hasWithdrawnHistory,
   findLatestReconsiderationReview,
-  hasPendingReactivation,
+  runNudgeGateChecks,
   ambientTextToneClass,
   resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
@@ -578,13 +578,12 @@ export function AgencyMembersClient() {
     }
   };
 
-  // U-038 double-gate confirm: Gate 1 (pending-check + exact toast) and Gate 2
-  // (message validation) are enforced inside the shared dialog; the message
-  // arrives trimmed and non-blank. "review request" noun: every live
-  // reactivation round-trip lands in, or heads to, the Review Requests queue.
-  const handleRequestJoinRequestReactivation = async (requestId: number, message: string) => {
+  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
+  // enforced inside the shared dialog. Expired reactivation takes NO message
+  // (time-driven) — the dialog only confirms.
+  const handleRequestJoinRequestReactivation = async (requestId: number) => {
     try {
-      await requestJoinRequestReactivation.mutateAsync({ requestId, message });
+      await requestJoinRequestReactivation.mutateAsync({ requestId });
       notify.success("Reactivation requested — applicant will be notified.");
       setNudgeDialogRequestId(null);
     } catch (error) {
@@ -1182,6 +1181,19 @@ export function AgencyMembersClient() {
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
                         />
+                        {cooldownDate ? (
+                          (() => {
+                            const cooldown = resolveCooldownAmbient({
+                              applicantName: group.seekerName,
+                              cooldownDate,
+                            });
+                            return (
+                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
+                                {cooldown.text}
+                              </p>
+                            );
+                          })()
+                        ) : null}
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
                             tier="rich"
@@ -1197,19 +1209,6 @@ export function AgencyMembersClient() {
                             emptyDescription="Cancelled join requests will appear here."
                           />
                         </div>
-                        {cooldownDate ? (
-                          (() => {
-                            const cooldown = resolveCooldownAmbient({
-                              applicantName: group.seekerName,
-                              cooldownDate,
-                            });
-                            return (
-                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
-                                {cooldown.text}
-                              </p>
-                            );
-                          })()
-                        ) : null}
                       </div>
                       );
                     })}
@@ -2212,25 +2211,32 @@ export function AgencyMembersClient() {
         </DialogContent>
       </Dialog>
 
-      {/* U-038 double-gate nudge dialog (shared canonical component). Root-level:
+      {/* U-050 confirm-only nudge dialog (shared canonical component). Root-level:
           it must stay mounted regardless of which tab panel is active. */}
       <ConfirmDestructiveDialog
         open={nudgeDialogRequestId !== null}
         onClose={() => setNudgeDialogRequestId(null)}
         title="Reactivate application"
-        description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application. Include a note — they'll see it with your request.`}
-        messageLabel="Message"
-        messagePlaceholder="Note for the applicant (required)"
+        description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application.`}
+        variant="confirm-only"
         confirmLabel="Send request"
         checkPending={() => {
-          const groupRequests = expiredCycleGroups.find((group) =>
-            group.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
-          )?.requests ?? [];
-          return hasPendingReactivation(groupRequests, user?.user_id ?? null, false);
+          const group = expiredCycleGroups.find((g) =>
+            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+          );
+          return runNudgeGateChecks({
+            action: "reactivation",
+            requests: group?.requests ?? [],
+            viewerUserId: user?.user_id ?? null,
+            viewerIsApplicant: false,
+            counterpartyName: group
+              ? (historyMemberById.get(group.userId)?.displayName ?? group.seekerName)
+              : "the applicant",
+            includeCooldownCheck: false,
+          });
         }}
-        pendingNoun="review request"
         isPending={requestJoinRequestReactivation.isPending}
-        onConfirm={(message) => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId, message); }}
+        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId); }}
       />
     </div>
   );
