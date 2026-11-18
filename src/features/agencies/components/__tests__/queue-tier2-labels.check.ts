@@ -7,6 +7,7 @@
  */
 import type { AgencyReviewRequestResponse } from "@/types";
 import {
+  groupAgencyReviewRequests,
   isQueueActionableRequest,
   reviewQueueSourceLabel,
 } from "../AgencyMembersClient";
@@ -103,6 +104,20 @@ assert(
 assert(
   isQueueActionableRequest(queueRow({ id: 14, source_type: "review_request", status: "pending" })) === true,
   "pending review rows stay actionable",
+);
+
+// 5. Grouper admits B2 rows to cards; resolved rows stay excluded (Rule 21
+//    staleness defense at the grouping layer, not just the card layer).
+const grouped = groupAgencyReviewRequests([
+  queueRow({ id: 20, user_id: 7, source_type: "join_request", status: "expired", reactivation_requested_by: 7 }),
+  queueRow({ id: 21, user_id: 7, source_type: "join_request", status: "accepted" }),
+  queueRow({ id: 22, user_id: 8, source_type: "join_request", status: "pending" }),
+]);
+assert(grouped.length === 2, `grouper keeps B2 groups, got ${grouped.length} groups`);
+assert(
+  grouped.find((g) => g.userId === 7)?.requests.length === 1 &&
+    grouped.find((g) => g.userId === 7)?.requests[0]?.id === 20,
+  "B2 expired rows group; resolved rows excluded",
 );
 
 if (failures > 0) {

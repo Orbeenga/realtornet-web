@@ -224,21 +224,20 @@ export function isQueueActionableRequest(row: AgencyReviewRequestResponse): bool
   );
 }
 
-function groupAgencyReviewRequests(
+export function groupAgencyReviewRequests(
   reviewRequests: AgencyReviewRequestResponse[],
 ): AgencyReviewRequestGroup[] {
   const groups = new Map<number, AgencyReviewRequestGroup>();
 
   /* Rule 21 action-queue discipline (Fix 2, belt-and-suspenders): this tab
-     renders ONLY unresolved rows. Filtering here — not just in the cache
+     renders ONLY actionable rows. Filtering here — not just in the cache
      mutation — guarantees a stale resolved entry (30s staleTime or any
-     race) can never surface as an actionable card. The server already
-     excludes non-pending rows; this defends against cache staleness. */
-  const pendingRequests = reviewRequests.filter(
-    (request) => request.status === "pending",
-  );
+     race) can never surface as an actionable card. Actionable means pending
+     rows plus B2 expired-plus-requested rows (same predicate the cards use);
+     resolved rows stay excluded as the staleness defense. */
+  const actionableRequests = reviewRequests.filter(isQueueActionableRequest);
 
-  for (const request of pendingRequests) {
+  for (const request of actionableRequests) {
     const current = groups.get(request.user_id);
     if (current) {
       current.requests.push(request);
