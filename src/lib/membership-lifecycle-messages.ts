@@ -480,21 +480,4 @@ export function validateDoubleGateMessage(message: string): string | null {
   return message.trim() ? null : "Enter a message before continuing.";
 }
 
-/* Canonical reconsideration-appeal matcher lives HERE ONLY (shared helper
-   for workbook §2.3: the agency Rejected tab surfaces the applicant's appeal
-   as an ambient record). Latest queue row of source "review_request" whose
-   origin linkage (Q1b join_request_id) points at this card — any status,
-   since a resolved appeal stays part of the Tier 2b record. Generic over the
-   row so callers keep their full response type with no new imports. */
-export function findLatestReconsiderationReview<
-  T extends { id: number; source_type?: string | null; join_request_id?: number | null },
->(reviews: T[], joinRequestIds: ReadonlySet<number> | number[]): T | undefined {
-  const ids = Array.isArray(joinRequestIds) ? new Set(joinRequestIds) : joinRequestIds;
-  let latest: T | undefined;
-  for (const review of reviews) {
-    if (review.source_type !== "review_request") continue;
-    if (review.join_request_id == null || !ids.has(review.join_request_id)) continue;
-    if (latest === undefined || review.id > latest.id) latest = review;
-  }
-  return latest;
-}
+

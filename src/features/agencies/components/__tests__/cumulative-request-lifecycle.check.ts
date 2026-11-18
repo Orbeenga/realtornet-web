@@ -170,51 +170,16 @@ assert(
   "fresh anchor carries no lineage marker",
 );
 
-// 11. Pending reconsideration appeal: its own canonical event row on rejected
-// cards (timestamp-only, both viewers identical), annotated for the agency
-// New marker; absent without pending_appeal; never on cancelled cards.
-const appealed = resolveCumulativeRequestLifecycleTimeline(
-  [
-    request({
-      join_request_id: 60,
-      status: "rejected",
-      decided_at: "2026-09-02T10:00:00Z",
-      pending_appeal: { review_request_id: 5, created_at: "2026-09-06T10:00:00Z" },
-    }),
-  ],
-  { kind: "rejected" },
-);
-const appealEntry = appealed.entries.find((e) => e.action === "reconsideration_requested");
-assert(appealEntry !== undefined, "live appeal emits its own canonical event row");
-assert(appealEntry?.timestamp === "2026-09-06T10:00:00Z", "appeal row carries the appeal timestamp");
-assert(appealEntry?.source_type === "join_request", "appeal row is request lineage, not audit");
-assert(appealEntry?.isPendingReconsideration === true, "appeal row annotated for the New marker");
-assert(
-  (appealEntry as { reason?: unknown }).reason == null,
-  "appeal row carries no message (uniform both sides)",
-);
-const unappealed = resolveCumulativeRequestLifecycleTimeline(
-  [request({ join_request_id: 61, status: "rejected", decided_at: "2026-09-02T10:00:00Z" })],
+// 11. Rejected cards never synthesize appeal rows: reconsideration appeals
+// surface as real history rows via getRejectedAppealHistory (Revoked
+// mechanism), never from emitter input. The emitter stays silent here.
+const rejectedNoSynthesize = resolveCumulativeRequestLifecycleTimeline(
+  [request({ join_request_id: 60, status: "rejected", decided_at: "2026-09-02T10:00:00Z" })],
   { kind: "rejected" },
 );
 assert(
-  unappealed.entries.every((e) => e.action !== "reconsideration_requested"),
-  "no appeal row without pending_appeal",
-);
-const cancelledKind = resolveCumulativeRequestLifecycleTimeline(
-  [
-    request({
-      join_request_id: 62,
-      status: "cancelled",
-      decided_at: "2026-09-02T10:00:00Z",
-      pending_appeal: { review_request_id: 6, created_at: "2026-09-06T10:00:00Z" },
-    }),
-  ],
-  { kind: "cancelled" },
-);
-assert(
-  cancelledKind.entries.every((e) => e.action !== "reconsideration_requested"),
-  "appeal rows never emit on cancelled cards",
+  rejectedNoSynthesize.entries.every((e) => e.action !== "reconsideration_requested"),
+  "emitter never synthesizes appeal rows",
 );
 
 if (failures > 0) {
