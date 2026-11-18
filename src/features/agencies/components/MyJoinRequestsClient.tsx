@@ -12,6 +12,7 @@ import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDial
 import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
+  getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupMyJoinRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
@@ -1391,6 +1392,13 @@ export function MyJoinRequestsClient() {
                 // from the row's pending_appeal, never ephemeral submit state,
                 // so it survives reload and discharges on resolution.
                 const hasLiveAppeal = groupRequests.some((request) => request.pending_appeal != null);
+                // Rejected-tab appeal rows: real history rows (message +
+                // timestamp inline, Revoked mechanism), filtered per agency.
+                const appealRows = getRejectedAppealHistory(
+                  historyQuery.data ?? [],
+                  { agency_id: group.agencyId },
+                  hasLiveAppeal,
+                );
                 return (
                 <Card key={agencyId}>
                   <CardBody className="space-y-4">
@@ -1405,7 +1413,7 @@ export function MyJoinRequestsClient() {
                     />
                     <MembershipTimeline
                       tier="rich"
-                      history={cumulative.entries}
+                      history={[...cumulative.entries, ...appealRows]}
                       showHeader={false}
                       labelStage="join_request"
                       emptyTitle="No rejected requests"

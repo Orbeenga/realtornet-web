@@ -410,7 +410,6 @@ export interface CumulativeRequestMatch {
   reapplication_message?: string | null;
   reapplied_from_request_id?: number | null;
   reactivation_requested_at?: string | null;
-  pending_appeal?: { review_request_id: number; created_at: string } | null;
   agency_id?: number | null;
   agency_name?: string | null;
   user_id?: number | null;
@@ -685,20 +684,6 @@ export function resolveCumulativeRequestLifecycleTimeline(
         ...identity,
       });
     }
-    // Pending reconsideration appeal: its own canonical event row on both
-    // sides (label resolves via the shared map: "Reconsideration requested").
-    // Timestamp-only — the requester's message rides the agency ambient
-    // (queue row), never this entry, so both viewers render identically.
-    if (entity.kind === "rejected" && request.pending_appeal != null) {
-      entries.push({
-        source_type: "join_request",
-        author_role: "seeker",
-        action: "reconsideration_requested",
-        timestamp: request.pending_appeal.created_at,
-        isPendingReconsideration: true,
-        ...identity,
-      });
-    }
   }
 
   // One global chronological order, ascending (narrative reading order,
@@ -734,11 +719,14 @@ export function getRevokedMembershipHistory(
   };
 
   // The appeal is a SINGLE row. Filter for membership-scoped review_request
-  // rows, then annotate each with its matched resolution action (the latest
+  // rows (no review_message — the generic reconsideration table always sets
+  // it), then annotate each with its matched resolution action (the latest
   // reinstated/review_declined audit for the same agency+user that happened
   // AFTER this appeal). Do NOT append those audit events as separate rows.
+  // Join-linked reconsideration appeals belong to Rejected cards
+  // (getRejectedAppealHistory), never here.
   const reviewRows: MembershipTimelineEntryWithResolution[] = history
-    .filter((entry) => entry.source_type === "review_request" && entityMatch(entry))
+    .filter((entry) => entry.source_type === "review_request" && entry.review_message == null && entityMatch(entry))
     .map((entry) => {
       const entityTime = (x: MembershipTimelineEntry) => new Date(x.timestamp).getTime();
 
@@ -783,4 +771,35 @@ export function getRevokedMembershipHistory(
   return [...revoked, ...reviewRows, ...resolutionRows].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
+}
+
+/* Canonical rejected-appeal filter lives HERE ONLY (shared helper mirroring
+   getRevokedMembershipHistory). Returns the reconsideration-appeal history
+   rows for one Rejected card: source review_request rows carrying a
+   review_message (generic reconsideration table — membership appeals never
+   set that field), matched by user+agency. The label resolves through the
+   shared U-017 map via the annotated action ("Reconsideration requested").
+   pending_appeal stays OUT of this filter: it is only the gate and the
+   ambient discharge signal, supplied by the caller as markLive.
+   Edge: API-direct null-message appeals are indistinguishable from
+   membership rows at this layer and stay out — exact join linkage on
+   history entries would close it (backend micro-task). */
+export function getRejectedAppealHistory(
+  history: MembershipTimelineEntry[],
+  match: { agency_id?: number | null; user_id?: number | null },
+  markLive: boolean,
+): CumulativeRequestLifecycleEntry[] {
+  return history
+    .filter(
+      (entry) =>
+        entry.source_type === "review_request" &&
+        entry.review_message != null &&
+        (match.user_id == null || entry.user_id == null || entry.user_id === match.user_id) &&
+        (match.agency_id == null || entry.agency_id == null || entry.agency_id === match.agency_id),
+    )
+    .map((entry) => ({
+      ...entry,
+      action: "reconsideration_requested",
+      isPendingReconsideration: markLive || undefined,
+    }));
 }

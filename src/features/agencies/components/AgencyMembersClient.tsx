@@ -54,7 +54,6 @@ import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDial
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
-  findLatestReconsiderationReview,
   runNudgeGateChecks,
   ambientTextToneClass,
   resolveCooldownAmbient,
@@ -67,6 +66,7 @@ import {
 import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
+  getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupAgencyRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
@@ -464,6 +464,27 @@ export function AgencyMembersClient() {
   // narrative timeline (replaces the pre-grouping positional index).
   const expiredHistoryByRequestId = new Map(
     expiredRequests.map((request, index) => [request.join_request_id, expiredHistoryQueries[index]?.data ?? []] as const),
+  );
+  // Rejected-tab appeal rows (Revoked mechanism): per-member history for
+  // rejected applicants, mirroring every sibling tab. User set matches the
+  // rejected anchor exactly (users with >=1 rejected row); keyed by user id
+  // so each grouped card resolves its own appeal rows. Shares React Query
+  // cache keys with the History tab feeds — no duplicate infra, same known
+  // per-member fan-out cost (DEF-U-MEMBER-HISTORY-PERF-001).
+  const rejectedHistoryUserIds = [
+    ...new Set(
+      (joinRequestsQuery.data ?? [])
+        .filter((request) => request.status === "rejected")
+        .map((request) => request.user_id),
+    ),
+  ];
+  const rejectedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    rejectedHistoryUserIds,
+    Boolean(agencyId) && rejectedHistoryUserIds.length > 0,
+  );
+  const rejectedHistoryByUserId = new Map(
+    rejectedHistoryUserIds.map((userId, index) => [userId, rejectedHistoryQueries[index]?.data ?? []] as const),
   );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -1021,13 +1042,17 @@ export function AgencyMembersClient() {
                         group.requests,
                         { kind: "rejected" },
                       );
-                      // §2.3: the agency Rejected tab is record-only — a
-                      // reconsideration appeal surfaces here as an ambient
-                      // record (requester's message + timestamp), never as an
-                      // action. Decisions happen in Review Requests.
-                      const reconsideration = findLatestReconsiderationReview(
-                        reviewRequests,
-                        group.requests.map((request) => request.join_request_id),
+                      // Rejected-tab appeal rows: real history rows (message +
+                      // timestamp inline, Revoked mechanism), filtered per
+                      // group. Liveness annotates from the group's live
+                      // pending_appeal — never synthesized, never merged.
+                      const groupHasLiveAppeal = group.requests.some(
+                        (request) => request.pending_appeal != null,
+                      );
+                      const appealRows = getRejectedAppealHistory(
+                        rejectedHistoryByUserId.get(group.userId) ?? [],
+                        { user_id: group.userId },
+                        groupHasLiveAppeal,
                       );
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
@@ -1046,7 +1071,7 @@ export function AgencyMembersClient() {
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
                             tier="rich"
-                            history={cumulative.entries}
+                            history={[...cumulative.entries, ...appealRows]}
                             showHeader={false}
                             labelStage="join_request"
                             pendingReconsiderationNotice={{
@@ -1056,12 +1081,6 @@ export function AgencyMembersClient() {
                             emptyDescription="Rejected join requests will appear here."
                           />
                         </div>
-                        {reconsideration ? (
-                          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            Reconsideration requested {formatDate(reconsideration.created_at)}
-                            {reconsideration.message ? `: "${reconsideration.message}"` : "."}
-                          </p>
-                        ) : null}
                         {cumulative.hasReturningAppealRejection ? (
                           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                             {resolveTerminalReactivationRejectionMessage()}
