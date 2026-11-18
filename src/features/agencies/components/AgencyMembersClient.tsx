@@ -188,25 +188,32 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
   return labels[action];
 }
 
-/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 2, origin precision): the tier-1
-   source split, refined by origin linkage where the payload carries it.
-   review_request rows resolve via Q1b origin_status; join_request rows that
-   arrived expired are B2 reactivation appeals. Splits WITHIN join_request
-   (reapplied origin) and membership rows (prior status) still need backend
-   payload shaping (reapplied_from_request_id, prior status — see the DEF)
-   and keep tier-1 labels. */
+/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 2, origin precision — vocabulary
+   locked by lead sign-off 2026-11-19): one-word labels, Review Requests tab
+   ONLY. review_request rows resolve by Q1b origin; join_request rows by the
+   split rule (reactivation_requested_by set wins over reapplied_from);
+   membership rows by served prior status (blocked has no return path, so no
+   badge). Two-word forms live everywhere else; never import this map outside
+   the queue. Unlinked review rows and unknown prior states fall back to the
+   generic word of their family — legacy data only, since conforming rows
+   always link. */
 export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string | null {
   if (row.source_type === "review_request") {
-    if (row.origin_status === "rejected") return "Reconsideration requested";
-    if (row.origin_status === "expired") return "Reactivation requested";
-    return "Returning applicant review";
+    if (row.origin_status === "rejected") return "Reconsideration";
+    if (row.origin_status === "expired") return "Reactivation";
+    return "Review";
   }
   if (row.source_type === "join_request") {
-    if (row.status === "expired") return "Reactivation requested";
+    if (row.reactivation_requested_by != null) return "Reactivation";
+    if (row.reapplied_from_request_id != null) return "Reapplication";
     return "Reapplication";
   }
   if (row.source_type === "membership_review_request") {
-    return "Membership reinstatement appeal";
+    if (row.prior_membership_status === "revoked") return "Review";
+    if (row.prior_membership_status === "suspended") return "Reinstatement";
+    if (row.prior_membership_status === "left") return "Return";
+    if (row.prior_membership_status === "blocked") return null;
+    return "Reinstatement";
   }
   return null;
 }
@@ -1309,9 +1316,6 @@ export function AgencyMembersClient() {
                           <p className="font-semibold text-gray-900 dark:text-white">
                             {group.requesterName}
                           </p>
-                          <Badge variant={primaryRequest.status === "accepted" ? "success" : primaryRequest.status === "declined" ? "danger" : "warning"}>
-                            {primaryRequest.status}
-                          </Badge>
                           {reviewQueueSourceLabel(primaryRequest) ? (
                             <Badge variant="outline">
                               {reviewQueueSourceLabel(primaryRequest)}
@@ -1323,7 +1327,7 @@ export function AgencyMembersClient() {
                         </p>
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {isQueueActionableRequest(primaryRequest) ? "Review request" : primaryRequest.status === "accepted" ? "Review accepted" : "Review declined"} — {formatDate(primaryRequest.created_at)}
+                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} — {formatDate(primaryRequest.created_at)}
                           </p>
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
@@ -1379,28 +1383,54 @@ export function AgencyMembersClient() {
                               <div className="flex flex-wrap items-center justify-between gap-2 font-medium">
                                 <span className="text-gray-900 dark:text-white">
                                   {isQueueActionableRequest(req)
-                                    ? "Review request"
+                                    ? "Requested"
                                     : req.status === "accepted"
-                                      ? "Review accepted"
-                                      : "Review declined"}{" "}
+                                      ? "Accepted"
+                                      : "Declined"}{" "}
                                   — {formatDate(req.created_at)}
                                 </span>
-                                <Badge
-                                  variant={
-                                    req.status === "accepted"
-                                      ? "success"
-                                      : req.status === "declined"
-                                        ? "danger"
-                                        : "warning"
-                                  }
-                                >
-                                  {req.status}
-                                </Badge>
+                                {reviewQueueSourceLabel(req) ? (
+                                  <Badge variant="outline">
+                                    {reviewQueueSourceLabel(req)}
+                                  </Badge>
+                                ) : null}
                               </div>
                               {req.message ? (
                                 <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                                   {req.message}
                                 </p>
+                              ) : null}
+                              {isQueueActionableRequest(req) ? (
+                                <div className="mt-2 flex shrink-0 flex-wrap gap-2">
+                                  <Button type="button" size="sm"
+                                    loading={acceptReview.isPending && acceptReview.variables?.requestId === req.id}
+                                    onClick={() =>
+                                      setPendingReviewDecision({
+                                        action: "accept",
+                                        requestId: req.id,
+                                        sourceType: req.source_type,
+                                        requesterName: group.requesterName,
+                                      })
+                                    }
+                                  >
+                                    Accept
+                                  </Button>
+                                  {req.actor_id !== user?.user_id ? (
+                                    <Button type="button" size="sm" variant="secondary"
+                                      loading={declineReview.isPending && declineReview.variables?.requestId === req.id}
+                                      onClick={() =>
+                                        setPendingReviewDecision({
+                                          action: "decline",
+                                          requestId: req.id,
+                                          sourceType: req.source_type,
+                                          requesterName: group.requesterName,
+                                        })
+                                      }
+                                    >
+                                      Decline
+                                    </Button>
+                                  ) : null}
+                                </div>
                               ) : null}
                             </div>
                           ))}

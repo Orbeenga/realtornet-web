@@ -35,46 +35,76 @@ function queueRow(
   } as AgencyReviewRequestResponse;
 }
 
-// 1. Tier-2 review_request origins.
+// 1. One-word review_request origins (lead sign-off 2026-11-19).
 assert(
   reviewQueueSourceLabel(
     queueRow({ id: 1, source_type: "review_request", join_request_id: 9, origin_status: "rejected" }),
-  ) === "Reconsideration requested",
-  "rejected-origin appeal labels Reconsideration requested",
+  ) === "Reconsideration",
+  "rejected-origin appeal labels Reconsideration",
 );
 assert(
   reviewQueueSourceLabel(
     queueRow({ id: 2, source_type: "review_request", join_request_id: 9, origin_status: "expired" }),
-  ) === "Reactivation requested",
-  "expired-origin appeal labels Reactivation requested",
+  ) === "Reactivation",
+  "expired-origin appeal labels Reactivation",
 );
 assert(
-  reviewQueueSourceLabel(queueRow({ id: 3, source_type: "review_request" })) ===
-    "Returning applicant review",
-  "unlinked review rows keep the tier-1 label",
+  reviewQueueSourceLabel(queueRow({ id: 3, source_type: "review_request" })) === "Review",
+  "unlinked review rows fall back to Review",
 );
 
-// 2. Tier-2 join_request origins.
+// 2. Join split rule: reactivation_requested_by wins over reapplied_from.
 assert(
-  reviewQueueSourceLabel(queueRow({ id: 4, source_type: "join_request", status: "pending" })) ===
-    "Reapplication",
-  "pending join rows keep Reapplication",
+  reviewQueueSourceLabel(
+    queueRow({ id: 4, source_type: "join_request", status: "pending", reactivation_requested_by: 3, reapplied_from_request_id: 68 }),
+  ) === "Reactivation",
+  "requested_by set means Reactivation even with a reapply parent",
 );
 assert(
   reviewQueueSourceLabel(
-    queueRow({ id: 5, source_type: "join_request", status: "expired", reactivation_requested_by: 99 }),
-  ) === "Reactivation requested",
-  "B2 expired rows label Reactivation requested",
+    queueRow({ id: 5, source_type: "join_request", status: "expired", reactivation_requested_by: 7 }),
+  ) === "Reactivation",
+  "B2 expired rows label Reactivation",
+);
+assert(
+  reviewQueueSourceLabel(
+    queueRow({ id: 6, source_type: "join_request", status: "pending", reapplied_from_request_id: 68 }),
+  ) === "Reapplication",
+  "reapply-only rows label Reapplication",
 );
 
-// 3. Untouched kinds.
+// 3. Membership split by served prior status; blocked has no badge.
 assert(
-  reviewQueueSourceLabel(queueRow({ id: 6, source_type: "membership_review_request" })) ===
-    "Membership reinstatement appeal",
-  "membership rows keep the tier-1 label",
+  reviewQueueSourceLabel(
+    queueRow({ id: 7, source_type: "membership_review_request", prior_membership_status: "revoked" }),
+  ) === "Review",
+  "revoked-origin appeal labels Review",
 );
 assert(
-  reviewQueueSourceLabel(queueRow({ id: 7, source_type: null })) === null,
+  reviewQueueSourceLabel(
+    queueRow({ id: 8, source_type: "membership_review_request", prior_membership_status: "suspended" }),
+  ) === "Reinstatement",
+  "suspended-origin appeal labels Reinstatement",
+);
+assert(
+  reviewQueueSourceLabel(
+    queueRow({ id: 9, source_type: "membership_review_request", prior_membership_status: "left" }),
+  ) === "Return",
+  "voluntary-leave appeal labels Return",
+);
+assert(
+  reviewQueueSourceLabel(
+    queueRow({ id: 10, source_type: "membership_review_request", prior_membership_status: "blocked" }),
+  ) === null,
+  "blocked origin yields no badge (no return path)",
+);
+assert(
+  reviewQueueSourceLabel(queueRow({ id: 11, source_type: "membership_review_request" })) ===
+    "Reinstatement",
+  "unknown prior status falls back to Reinstatement",
+);
+assert(
+  reviewQueueSourceLabel(queueRow({ id: 12, source_type: null })) === null,
   "unknown source yields no badge",
 );
 
