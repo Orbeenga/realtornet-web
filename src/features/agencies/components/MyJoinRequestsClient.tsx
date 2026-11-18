@@ -1606,6 +1606,15 @@ export function MyJoinRequestsClient() {
                       eventCount={group.requests.length}
                       applicationStatus="cancelled"
                     />
+                    {(() => {
+                      const ambient = resolveCancelledApplicationAmbient({
+                        agencyName: group.agencyName,
+                        applyAgainDate,
+                      });
+                      return (
+                        <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
+                      );
+                    })()}
                     <div className="space-y-2">
                       <MembershipTimeline
                         tier="rich"
@@ -1640,15 +1649,6 @@ export function MyJoinRequestsClient() {
                       >
                         Apply Again
                       </Button>
-                      {(() => {
-                        const ambient = resolveCancelledApplicationAmbient({
-                          agencyName: group.agencyName,
-                          applyAgainDate,
-                        });
-                        return (
-                          <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
-                        );
-                      })()}
                     </div>
                   </CardBody>
                 </Card>

@@ -1182,6 +1182,19 @@ export function AgencyMembersClient() {
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
                         />
+                        {cooldownDate ? (
+                          (() => {
+                            const cooldown = resolveCooldownAmbient({
+                              applicantName: group.seekerName,
+                              cooldownDate,
+                            });
+                            return (
+                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
+                                {cooldown.text}
+                              </p>
+                            );
+                          })()
+                        ) : null}
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
                             tier="rich"
@@ -1197,19 +1210,6 @@ export function AgencyMembersClient() {
                             emptyDescription="Cancelled join requests will appear here."
                           />
                         </div>
-                        {cooldownDate ? (
-                          (() => {
-                            const cooldown = resolveCooldownAmbient({
-                              applicantName: group.seekerName,
-                              cooldownDate,
-                            });
-                            return (
-                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
-                                {cooldown.text}
-                              </p>
-                            );
-                          })()
-                        ) : null}
                       </div>
                       );
                     })}
