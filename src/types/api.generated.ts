@@ -1230,8 +1230,10 @@ export interface paths {
          * @description List pending agency-level review requests with prior membership history.
          *
          *     Also includes pending join requests from returning applicants who
-         *     reapplied after a previous cancelled request (Phase U.4 reapply), and
-         *     pending membership-scoped review requests (revoked/inactive members
+         *     reapplied after a previous cancelled request (Phase U.4 reapply),
+         *     expired rows with applicant-requested reactivation (U-012 Path 2 --
+         *     the request is the applicant's consent, so agency decision is final),
+         *     and pending membership-scoped review requests (revoked/inactive members
          *     appealing via the membership-scoped endpoint) â€” one queue, one
          *     actionable surface.
          */
@@ -1448,8 +1450,10 @@ export interface paths {
          * Request Join Request Reactivation
          * @description Agency owner requests reactivation of an expired join request.
          *
-         *     Writes `reactivation_requested_at/by` plus the optional U-038 Gate 2
-         *     message. Notifies the applicant.
+         *     Writes `reactivation_requested_at/by`. Notifies the applicant. U-050: no
+         *     message on reactivation (confirm-only dialog); the optional body is
+         *     accepted for compatibility and stored when provided, but conforming
+         *     clients send none.
          */
         patch: operations["request_join_request_reactivation_api_v1_agencies__agency_id__join_requests__request_id__request_reactivation__patch"];
         trace?: never;
@@ -3570,8 +3574,9 @@ export interface paths {
          * @description Applicant requests reactivation of their own expired join request.
          *
          *     Path 2 (seeker-initiated) reactivation flow. Writes
-         *     `reactivation_requested_at/by` plus the optional U-038 Gate 2 message.
-         *     Notifies agency owner.
+         *     `reactivation_requested_at/by`. Notifies agency owner. U-050: no message
+         *     on reactivation (confirm-only dialog); the optional body is accepted for
+         *     compatibility and stored when provided, but conforming clients send none.
          */
         patch: operations["request_join_request_reactivation_as_applicant_api_v1_join_requests__request_id__request_reactivation__patch"];
         trace?: never;
@@ -5394,6 +5399,10 @@ export interface components {
             origin_reason?: string | null;
             /** Origin Decided At */
             origin_decided_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
+            /** Prior Membership Status */
+            prior_membership_status?: string | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
