@@ -1327,7 +1327,7 @@ export function AgencyMembersClient() {
                         </p>
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} — {formatDate(primaryRequest.created_at)}
+                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} {formatDate(primaryRequest.created_at)}
                           </p>
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
@@ -1387,7 +1387,7 @@ export function AgencyMembersClient() {
                                     : req.status === "accepted"
                                       ? "Accepted"
                                       : "Declined"}{" "}
-                                  — {formatDate(req.created_at)}
+                                  {formatDate(req.created_at)}
                                 </span>
                                 {reviewQueueSourceLabel(req) ? (
                                   <Badge variant="outline">
