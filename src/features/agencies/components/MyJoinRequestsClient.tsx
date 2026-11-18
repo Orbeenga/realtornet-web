@@ -379,9 +379,9 @@ export function MyJoinRequestsClient() {
   const createReconsiderationRequest = useCreateAgencyReviewRequest();
   // U-049/U-050 reconsideration flow (Rejected tab): exactly one button per
   // fresh card → Gate 1 → message dialog → POST. No pre-rendered box, no
-  // Apply Again. The submitted flag drives the verbatim post-submit ambient.
+  // Apply Again. The verbatim post-submit ambient derives from the live
+  // pending_appeal row field (single source of truth, survives reload).
   const [reconsiderDialog, setReconsiderDialog] = useState<{ agencyId: number; joinRequestId: number } | null>(null);
-  const [reconsiderSubmitted, setReconsiderSubmitted] = useState<Record<number, boolean>>({});
 
   // Gate 1 (pending_appeal check + exact toast) and Gate 2 (message
   // validation) are enforced inside the shared dialog; the message arrives
@@ -394,7 +394,6 @@ export function MyJoinRequestsClient() {
         payload: { message, join_request_id: joinRequestId },
       });
       notify.success("Reconsideration requested — it will appear in the agency's Review Requests queue.");
-      setReconsiderSubmitted((current) => ({ ...current, [agencyId]: true }));
       setReconsiderDialog(null);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
@@ -1388,6 +1387,10 @@ export function MyJoinRequestsClient() {
                 const latestRequest = [...groupRequests].sort(
                   (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
                 )[groupRequests.length - 1];
+                // Live appeal state (A2 persistence fix): the ambient derives
+                // from the row's pending_appeal, never ephemeral submit state,
+                // so it survives reload and discharges on resolution.
+                const hasLiveAppeal = groupRequests.some((request) => request.pending_appeal != null);
                 return (
                 <Card key={agencyId}>
                   <CardBody className="space-y-4">
@@ -1415,9 +1418,9 @@ export function MyJoinRequestsClient() {
                     ) : null}
                     {!cumulative.terminal ? (
                       <div className="space-y-3 pt-2">
-                        {reconsiderSubmitted[agencyId] ? (
+                        {hasLiveAppeal ? (
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Your reconsideration request is pending a decision from {latestRequest.agency_name}. Find it in Pending.
+                            Your reconsideration request is pending a decision from {latestRequest.agency_name}. It&apos;s with {latestRequest.agency_name} for a decision.
                           </p>
                         ) : (
                           <Button

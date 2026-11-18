@@ -410,6 +410,7 @@ export interface CumulativeRequestMatch {
   reapplication_message?: string | null;
   reapplied_from_request_id?: number | null;
   reactivation_requested_at?: string | null;
+  pending_appeal?: { review_request_id: number; created_at: string } | null;
   agency_id?: number | null;
   agency_name?: string | null;
   user_id?: number | null;
@@ -436,6 +437,11 @@ export interface CumulativeRequestLifecycle {
     MembershipTimelineEntryWithResolution precedent below. */
 export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
   isPendingReapply?: boolean;
+  /** Set on a reconsideration-appeal event row while its appeal is live
+      (pending_appeal present). Drives the agency-only ephemeral "New"
+      marker + ambient notice (Revoked-mechanism reuse, U-035 family) —
+      never merges or mutates row content. Not part of the wire contract. */
+  isPendingReconsideration?: boolean;
   /** Preserved per-entry cycle attribution (backend cycle_number). Renders
       "Cycle: N" on both rows of a numbered pair; null/undefined renders no
       label (never "Not part of a cycle" / "No reapply"). */
@@ -676,6 +682,20 @@ export function resolveCumulativeRequestLifecycleTimeline(
         timestamp: request.decided_at ?? submittedAt,
         reason: request.rejection_reason ?? null,
         cycle_number: request.cycle_number ?? null,
+        ...identity,
+      });
+    }
+    // Pending reconsideration appeal: its own canonical event row on both
+    // sides (label resolves via the shared map: "Reconsideration requested").
+    // Timestamp-only — the requester's message rides the agency ambient
+    // (queue row), never this entry, so both viewers render identically.
+    if (entity.kind === "rejected" && request.pending_appeal != null) {
+      entries.push({
+        source_type: "join_request",
+        author_role: "seeker",
+        action: "reconsideration_requested",
+        timestamp: request.pending_appeal.created_at,
+        isPendingReconsideration: true,
         ...identity,
       });
     }

@@ -350,6 +350,21 @@ export function resolveReapplyPendingSeekerAmbient(params: {
   };
 }
 
+/* Reconsideration-pending NOTICE — canonical ambient family. Agency Rejected
+   tab ONLY: "New" marker + "{seeker} requested reconsideration of their
+   rejected application. Respond to it in Review Requests." rendered ABOVE
+   the appeal's canonical event row (mirrors the Revoked-tab review notice).
+   Discharges when the appeal resolves (pending_appeal clears, the emitter
+   stops annotating the row). Text derives here only. */
+export function resolveReconsiderationPendingNotice(params: {
+  seekerName?: string | null;
+}): { text: string; tone: AmbientTextTone } {
+  return {
+    text: `${params.seekerName ?? "This seeker"} requested reconsideration of their rejected application. Respond to it in Review Requests.`,
+    tone: "caution",
+  };
+}
+
 export function resolveCooldownAmbient(params: {
   applicantName?: string | null;
   cooldownDate: string | Date;

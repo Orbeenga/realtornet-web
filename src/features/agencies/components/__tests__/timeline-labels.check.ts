@@ -49,6 +49,11 @@ assert(
   "review_request shape unchanged",
 );
 assert(
+  resolveTimelineLabel(entry({ source_type: "join_request", action: "reconsideration_requested" })) ===
+    "Reconsideration requested",
+  "appeal event renders Reconsideration requested",
+);
+assert(
   resolveTimelineLabel(entry({ source_type: "audit_event" })) === "Event",
   "unknown shape still falls back to Event",
 );
