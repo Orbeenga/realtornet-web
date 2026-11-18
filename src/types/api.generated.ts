@@ -5165,6 +5165,7 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reactivation Message */
             reactivation_message?: string | null;
+            pending_appeal?: components["schemas"]["PendingAppeal"] | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
             /** Cooldown Unlock At */
@@ -6498,6 +6499,7 @@ export interface components {
             reactivation_accepted_at?: string | null;
             /** Reactivation Message */
             reactivation_message?: string | null;
+            pending_appeal?: components["schemas"]["PendingAppeal"] | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
             /** Cooldown Unlock At */
@@ -6599,6 +6601,22 @@ export interface components {
             body_text: string;
             /** Is Read */
             is_read: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * PendingAppeal
+         * @description A pending reconsideration appeal on a join request (U-034b Gate 1 data).
+         *
+         *     Lets both viewers decide the double-gate without an extra fetch: present
+         *     means "already pending", absent means clear to open the dialog.
+         */
+        PendingAppeal: {
+            /** Review Request Id */
+            review_request_id: number;
             /**
              * Created At
              * Format: date-time
