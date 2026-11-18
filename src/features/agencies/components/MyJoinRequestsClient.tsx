@@ -38,7 +38,7 @@ import {
   ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
-  hasPendingReactivation,
+  runNudgeGateChecks,
   validateDoubleGateMessage,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
@@ -364,13 +364,12 @@ export function MyJoinRequestsClient() {
   const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
   const rejectReactivation = useRejectJoinRequestReactivation();
 
-  // U-038 double-gate confirm: Gate 1 (pending-check + exact toast) and Gate 2
-  // (message validation) are enforced inside the shared dialog; the message
-  // arrives trimmed and non-blank. "review request" noun: every live
-  // reactivation round-trip lands in, or heads to, the Review Requests queue.
-  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number, message: string) => {
+  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
+  // enforced inside the shared dialog. Expired reactivation takes NO message
+  // (time-driven) — the dialog only confirms.
+  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
     try {
-      await requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId, message });
+      await requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId });
       notify.success("Reactivation requested — awaiting agency response.");
       setNudgeDialogRequestId(null);
     } catch (error) {
@@ -1660,24 +1659,29 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
-      {/* U-038 double-gate nudge dialog (shared canonical component). */}
+      {/* U-050 confirm-only nudge dialog (shared canonical component). */}
       <ConfirmDestructiveDialog
         open={nudgeDialogRequestId !== null}
         onClose={() => setNudgeDialogRequestId(null)}
         title="Request reactivation"
-        description={`Ask ${requests.find((r) => r.join_request_id === nudgeDialogRequestId)?.agency_name ?? "the agency"} to reactivate your expired application. Include a note — they'll see it with your request.`}
-        messageLabel="Message"
-        messagePlaceholder="Note for the agency (required)"
+        description={`Ask ${requests.find((r) => r.join_request_id === nudgeDialogRequestId)?.agency_name ?? "the agency"} to reactivate your expired application.`}
+        variant="confirm-only"
         confirmLabel="Send request"
         checkPending={() => {
-          const groupRequests = expiredRequestGroups.find((group) =>
-            group.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
-          )?.requests ?? [];
-          return hasPendingReactivation(groupRequests, user?.user_id ?? null, true);
+          const group = expiredRequestGroups.find((g) =>
+            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+          );
+          return runNudgeGateChecks({
+            action: "reactivation",
+            requests: group?.requests ?? [],
+            viewerUserId: user?.user_id ?? null,
+            viewerIsApplicant: true,
+            counterpartyName: group?.agencyName ?? "the agency",
+            includeCooldownCheck: false,
+          });
         }}
-        pendingNoun="review request"
         isPending={requestJoinRequestReactivationAsApplicant.isPending}
-        onConfirm={(message) => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivationAsApplicant(nudgeDialogRequestId, message); }}
+        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivationAsApplicant(nudgeDialogRequestId); }}
       />
       <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
         <DialogContent>
