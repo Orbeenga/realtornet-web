@@ -101,6 +101,9 @@ export function useCreateAgencyReviewRequest() {
         queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
         queryClient.invalidateQueries({ queryKey: ["membershipHistory"] }),
         queryClient.invalidateQueries({ queryKey: ["agencyReviewRequests"] }),
+        // The seeker's post-submit ambient derives from the live
+        // pending_appeal row field — refetch the join-request list too.
+        queryClient.invalidateQueries({ queryKey: ["myAgencyJoinRequests"] }),
       ]);
     },
   });

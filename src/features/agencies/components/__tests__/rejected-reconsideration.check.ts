@@ -4,7 +4,10 @@
  *
  * Run: pnpm exec tsx src/features/agencies/components/__tests__/rejected-reconsideration.check.ts
  */
-import { findLatestReconsiderationReview } from "@/lib/membership-lifecycle-messages";
+import {
+  findLatestReconsiderationReview,
+  resolveReconsiderationPendingNotice,
+} from "@/lib/membership-lifecycle-messages";
 import type { MyAgencyJoinRequestResponse } from "@/types";
 import { groupMyJoinRequestCycles } from "../membershipHistory";
 
@@ -134,6 +137,18 @@ const stillCancelled = groupMyJoinRequestCycles(
 assert(
   stillCancelled.length === 1 && stillCancelled[0]?.rejectedRequests.length === 0,
   "cancelled anchor still groups by live status with empty rejected subset",
+);
+
+// 9. Agency New-marker notice copy: exact text, caution tone.
+const notice = resolveReconsiderationPendingNotice({ seekerName: "Seeker Alpha" });
+assert(
+  notice.text === "Seeker Alpha requested reconsideration of their rejected application. Respond to it in Review Requests.",
+  "reconsideration notice copy is exact",
+);
+assert(notice.tone === "caution", "reconsideration notice uses caution tone");
+assert(
+  resolveReconsiderationPendingNotice({}).text.startsWith("This seeker requested reconsideration"),
+  "reconsideration notice falls back without a name",
 );
 
 if (failures > 0) {

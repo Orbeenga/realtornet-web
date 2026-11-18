@@ -188,24 +188,40 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
   return labels[action];
 }
 
-/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 1): make the merged queue's
-   row kind legible. The U-033 discriminator already drives accept/decline
-   routing; this surfaces it as a label. Tier 2 (origin precision:
-   reapplied vs reactivated, revoked vs suspended appeal) requires backend
-   payload shaping and stays out of scope — see the DEF. */
-function reviewQueueSourceLabel(
-  sourceType: AgencyReviewRequestResponse["source_type"],
-): string | null {
-  switch (sourceType) {
-    case "review_request":
-      return "Returning applicant review";
-    case "join_request":
-      return "Reapplication";
-    case "membership_review_request":
-      return "Membership reinstatement appeal";
-    default:
-      return null;
+/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 2, origin precision): the tier-1
+   source split, refined by origin linkage where the payload carries it.
+   review_request rows resolve via Q1b origin_status; join_request rows that
+   arrived expired are B2 reactivation appeals. Splits WITHIN join_request
+   (reapplied origin) and membership rows (prior status) still need backend
+   payload shaping (reapplied_from_request_id, prior status — see the DEF)
+   and keep tier-1 labels. */
+export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string | null {
+  if (row.source_type === "review_request") {
+    if (row.origin_status === "rejected") return "Reconsideration requested";
+    if (row.origin_status === "expired") return "Reactivation requested";
+    return "Returning applicant review";
   }
+  if (row.source_type === "join_request") {
+    if (row.status === "expired") return "Reactivation requested";
+    return "Reapplication";
+  }
+  if (row.source_type === "membership_review_request") {
+    return "Membership reinstatement appeal";
+  }
+  return null;
+}
+
+/* B2 queue actionability: pending rows decide as before; expired join_request
+   rows are actionable exactly when the backend surfaced them (the queue query
+   admits only applicant-requested reactivations). Agency-requested
+   pre-consent rows never reach the queue (U-012 consent gate). */
+export function isQueueActionableRequest(row: AgencyReviewRequestResponse): boolean {
+  if (row.status === "pending") return true;
+  return (
+    row.source_type === "join_request" &&
+    row.status === "expired" &&
+    row.reactivation_requested_by != null
+  );
 }
 
 function groupAgencyReviewRequests(
@@ -1034,6 +1050,9 @@ export function AgencyMembersClient() {
                             history={cumulative.entries}
                             showHeader={false}
                             labelStage="join_request"
+                            pendingReconsiderationNotice={{
+                              seekerName: member?.displayName ?? group.seekerName,
+                            }}
                             emptyTitle="No rejected requests"
                             emptyDescription="Rejected join requests will appear here."
                           />
@@ -1249,12 +1268,10 @@ export function AgencyMembersClient() {
                      pending request, not find()'s oldest-first first
                      match. Superseded priors stay grouped for follow-up
                      surfacing (DEF-U-REVIEWQUEUE-PRIORS-001). */
-                  const pendingRequests = group.requests.filter(
-                    (request) => request.status === "pending",
-                  );
+                  const actionableRequests = group.requests.filter(isQueueActionableRequest);
                   const primaryRequest =
-                    pendingRequests.length > 0
-                      ? pendingRequests.reduce((latest, request) =>
+                    actionableRequests.length > 0
+                      ? actionableRequests.reduce((latest, request) =>
                           new Date(request.created_at).getTime() >
                           new Date(latest.created_at).getTime()
                             ? request
@@ -1277,9 +1294,9 @@ export function AgencyMembersClient() {
                           <Badge variant={primaryRequest.status === "accepted" ? "success" : primaryRequest.status === "declined" ? "danger" : "warning"}>
                             {primaryRequest.status}
                           </Badge>
-                          {reviewQueueSourceLabel(primaryRequest.source_type) ? (
+                          {reviewQueueSourceLabel(primaryRequest) ? (
                             <Badge variant="outline">
-                              {reviewQueueSourceLabel(primaryRequest.source_type)}
+                              {reviewQueueSourceLabel(primaryRequest)}
                             </Badge>
                           ) : null}
                         </div>
@@ -1288,7 +1305,7 @@ export function AgencyMembersClient() {
                         </p>
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {primaryRequest.status === "pending" ? "Review request" : primaryRequest.status === "accepted" ? "Review accepted" : "Review declined"} — {formatDate(primaryRequest.created_at)}
+                            {isQueueActionableRequest(primaryRequest) ? "Review request" : primaryRequest.status === "accepted" ? "Review accepted" : "Review declined"} — {formatDate(primaryRequest.created_at)}
                           </p>
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
@@ -1297,7 +1314,7 @@ export function AgencyMembersClient() {
                           ) : null}
                         </div>
                       </div>
-                      {primaryRequest.status === "pending" ? (
+                      {isQueueActionableRequest(primaryRequest) ? (
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <Button type="button" size="sm"
                             loading={acceptReview.isPending && acceptReview.variables?.requestId === primaryRequest.id}
@@ -1343,7 +1360,7 @@ export function AgencyMembersClient() {
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2 font-medium">
                                 <span className="text-gray-900 dark:text-white">
-                                  {req.status === "pending"
+                                  {isQueueActionableRequest(req)
                                     ? "Review request"
                                     : req.status === "accepted"
                                       ? "Review accepted"

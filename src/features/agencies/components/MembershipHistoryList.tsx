@@ -6,6 +6,7 @@ import {
   ambientTextToneClass,
   resolveReapplyPendingNotice,
   resolveReapplyPendingSeekerAmbient,
+  resolveReconsiderationPendingNotice,
   resolveRevokedReviewNotice,
   resolveStatusBadge,
 } from "@/lib/membership-lifecycle-messages";
@@ -71,6 +72,15 @@ interface MembershipTimelineProps {
     viewerIsApplicant: boolean;
     name?: string | null;
     position: "above" | "below";
+  };
+
+  /** OPT-IN, agency Rejected cards ONLY: renders the ephemeral "New"
+      marker + reconsideration-pending ambient above the appeal's canonical
+      event row (entries annotated `isPendingReconsideration` by the
+      cumulative emitter, U-035 family, Revoked-mechanism reuse). Caller-gated:
+      only the agency Rejected card passes this — never the seeker view. */
+  pendingReconsiderationNotice?: {
+    seekerName?: string | null;
   };
 }
 
@@ -274,6 +284,7 @@ export function MembershipTimeline({
   expanded: expandedProp,
   onExpandedChange,
   pendingReapplyNotice,
+  pendingReconsiderationNotice,
 }: MembershipTimelineProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expandedProp ?? internalExpanded;
@@ -460,6 +471,23 @@ export function MembershipTimeline({
             </p>
           </div>
         ) : null;
+        // Ephemeral reconsideration-pending notice (U-035 family, agency
+        // Rejected cards only): discharges when the appeal resolves (the
+        // emitter stops annotating the row). Text derives in the canonical
+        // ambient family; this component only positions it, above the row.
+        const reconsiderNotice =
+          pendingReconsiderationNotice != null &&
+          (entry as CumulativeRequestLifecycleEntry).isPendingReconsideration === true
+            ? resolveReconsiderationPendingNotice({ seekerName: pendingReconsiderationNotice.seekerName })
+            : null;
+        const reconsiderNoticeBlock = reconsiderNotice ? (
+          <div className="mb-2 space-y-1">
+            <Badge variant="default">New</Badge>
+            <p className={ambientTextToneClass[reconsiderNotice.tone]}>
+              {reconsiderNotice.text}
+            </p>
+          </div>
+        ) : null;
 
         return (
           <Fragment key={entryId}>
@@ -478,6 +506,7 @@ export function MembershipTimeline({
             {reapplyNoticeBlock != null && pendingReapplyNotice?.position === "above"
               ? reapplyNoticeBlock
               : null}
+            {reconsiderNoticeBlock}
             <div
               // Shared zebra banding (grey/white alternating), no borders — same
               // pairing as the simple tier, defined here only (canonical component).
