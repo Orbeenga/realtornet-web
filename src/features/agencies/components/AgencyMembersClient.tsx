@@ -1270,7 +1270,7 @@ export function AgencyMembersClient() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Review requests</h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review returning agents who asked for a membership decision to be reconsidered.
+                Review returning applications, appeals and reactivation requests.
               </p>
             </div>
             {reviewRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
@@ -1380,58 +1380,62 @@ export function AgencyMembersClient() {
                               key={`${req.source_type ?? "req"}-${req.id}`}
                               className={`rounded-md px-3 py-2 text-xs leading-5 ${timelineRowBandClass(idx)}`}
                             >
-                              <div className="flex flex-wrap items-center justify-between gap-2 font-medium">
-                                <span className="text-gray-900 dark:text-white">
-                                  {isQueueActionableRequest(req)
-                                    ? "Requested"
-                                    : req.status === "accepted"
-                                      ? "Accepted"
-                                      : "Declined"}{" "}
-                                  {formatDate(req.created_at)}
-                                </span>
-                                {reviewQueueSourceLabel(req) ? (
-                                  <Badge variant="outline">
-                                    {reviewQueueSourceLabel(req)}
-                                  </Badge>
-                                ) : null}
-                              </div>
-                              {req.message ? (
-                                <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                                  {req.message}
-                                </p>
-                              ) : null}
-                              {isQueueActionableRequest(req) ? (
-                                <div className="mt-2 flex shrink-0 flex-wrap gap-2">
-                                  <Button type="button" size="sm"
-                                    loading={acceptReview.isPending && acceptReview.variables?.requestId === req.id}
-                                    onClick={() =>
-                                      setPendingReviewDecision({
-                                        action: "accept",
-                                        requestId: req.id,
-                                        sourceType: req.source_type,
-                                        requesterName: group.requesterName,
-                                      })
-                                    }
-                                  >
-                                    Accept
-                                  </Button>
-                                  {req.actor_id !== user?.user_id ? (
-                                    <Button type="button" size="sm" variant="secondary"
-                                      loading={declineReview.isPending && declineReview.variables?.requestId === req.id}
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                                    <span className="text-gray-900 dark:text-white">
+                                      {isQueueActionableRequest(req)
+                                        ? "Requested"
+                                        : req.status === "accepted"
+                                          ? "Accepted"
+                                          : "Declined"}{" "}
+                                      {formatDate(req.created_at)}
+                                    </span>
+                                    {reviewQueueSourceLabel(req) ? (
+                                      <Badge variant="outline">
+                                        {reviewQueueSourceLabel(req)}
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                  {req.message ? (
+                                    <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                                      {req.message}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {isQueueActionableRequest(req) ? (
+                                  <div className="flex shrink-0 flex-wrap gap-2">
+                                    <Button type="button" size="sm"
+                                      loading={acceptReview.isPending && acceptReview.variables?.requestId === req.id}
                                       onClick={() =>
                                         setPendingReviewDecision({
-                                          action: "decline",
+                                          action: "accept",
                                           requestId: req.id,
                                           sourceType: req.source_type,
                                           requesterName: group.requesterName,
                                         })
                                       }
                                     >
-                                      Decline
+                                      Accept
                                     </Button>
-                                  ) : null}
-                                </div>
-                              ) : null}
+                                    {req.actor_id !== user?.user_id ? (
+                                      <Button type="button" size="sm" variant="secondary"
+                                        loading={declineReview.isPending && declineReview.variables?.requestId === req.id}
+                                        onClick={() =>
+                                          setPendingReviewDecision({
+                                            action: "decline",
+                                            requestId: req.id,
+                                            sourceType: req.source_type,
+                                            requesterName: group.requesterName,
+                                          })
+                                        }
+                                      >
+                                        Decline
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
                           ))}
                         </div>
