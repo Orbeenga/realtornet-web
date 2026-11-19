@@ -5925,11 +5925,6 @@ export interface components {
             /** Agent User Id */
             agent_user_id: number;
         };
-        /** Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch */
-        Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch: {
-            /** Reason */
-            reason: string;
-        };
         /** Body_login_access_token_api_v1_auth_login_post */
         Body_login_access_token_api_v1_auth_login_post: {
             /** Grant Type */
@@ -10412,7 +10407,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch"];
+                "application/json": components["schemas"]["AgencyDecisionRequest"];
             };
         };
         responses: {
