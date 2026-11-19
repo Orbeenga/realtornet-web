@@ -351,7 +351,8 @@ for (const spec of specs) {
 }
 
 // Migrated ratchet: step 1 lands reapply + cancel; F3/F4 nudges rewired;
-// step 2 lands accept + decline (review queue, Pending tab, consent accept).
+// step 2 lands accept + decline (review queue, Pending tab, consent accept);
+// step 3 lands the lifecycle family (block/suspend/revoke + leave).
 const migrated = specs.filter((s) => s.migrated).map((s) => s.action);
 for (const action of [
   "cancel_join",
@@ -363,12 +364,16 @@ for (const action of [
   "approve_join",
   "reject_join",
   "accept_reactivation",
+  "suspend_membership",
+  "revoke_membership",
+  "block_membership",
+  "leave_membership",
 ] as GateActionKind[]) {
   assert(migrated.includes(action), `migrated: ${action}`);
 }
 assert(
-  migrated.length === 9,
-  `exactly 9 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+  migrated.length === 13,
+  `exactly 13 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
 );
 for (const spec of specs) {
   if (spec.profile === "C" && spec.dialog && spec.migrated) {
