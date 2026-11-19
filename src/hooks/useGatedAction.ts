@@ -41,10 +41,10 @@ export interface GatedDialogProps {
 
 /* NOTE (TDZ): opts closures that run during render must not read component
    consts declared after the hook call (early returns force hooks above data).
-   buildContext/invoke are safe (they run in event handlers, post-render), but
-   description/typenameTarget must be plain strings here. Callers needing
-   seed-dependent copy compute it beside their JSX (where data exists) from
-   gate.seed and spread-override dialogProps. */
+   buildContext/invoke/mapError/typenameTarget-fn are safe (they run in event
+   handlers or submit continuations, post-render). description must be a plain
+   string here; callers needing seed-dependent copy compute it beside their
+   JSX (where data exists) from gate.seed and spread-override dialogProps. */
 export interface UseGatedActionOpts<Seed> {
   buildContext: (seed: Seed) => Gate1Context;
   invoke: (seed: Seed, values: GateFieldValues) => Promise<unknown>;
@@ -52,10 +52,16 @@ export interface UseGatedActionOpts<Seed> {
   description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  typenameTarget?: string;
+  /* Rendered target display: plain string only (JSX-override from gate.seed
+     when seed-dependent). The function form exists ONLY for submit-time
+     validation below — it is never called during render. */
+  typenameTarget?: string | ((seed: Seed) => string);
   successToast: string;
   errorFallback: string;
-  onSuccess?: (seed: Seed) => void;
+  onSuccess?: (seed: Seed, result: unknown) => void;
+  /* Caller error mapping, tried before the pending_exists/verbatim default.
+     Return a toast string to handle the error, null to fall through. */
+  mapError?: (error: unknown) => string | null;
 }
 
 export interface GatedAction<Seed> {
@@ -124,7 +130,12 @@ export function useGatedAction<Seed>(
     const current = optsRef.current;
     const activeSeed = seedRef.current;
     if (activeSeed === null || activeSeed === undefined) return;
-    const target = current.typenameTarget ?? "";
+    // Submit handler: post-render, so the seed-fn form is TDZ-safe here
+    // (and ONLY here — never resolve it during render).
+    const target =
+      typeof current.typenameTarget === "function"
+        ? current.typenameTarget(activeSeed)
+        : (current.typenameTarget ?? "");
     const trimmed: GateFieldValues = {
       message: values.message.trim(),
       reason: values.reason.trim(),
@@ -138,14 +149,19 @@ export function useGatedAction<Seed>(
     setSubmitting(true);
     void current
       .invoke(activeSeed, trimmed)
-      .then(() => {
+      .then((result: unknown) => {
         notify.success(current.successToast);
         setOpen(false);
         setValues(EMPTY_VALUES);
         setErrors({});
-        current.onSuccess?.(activeSeed);
+        current.onSuccess?.(activeSeed, result);
       })
       .catch((error: unknown) => {
+        const mapped = current.mapError?.(error);
+        if (mapped != null) {
+          notify.error(mapped);
+          return;
+        }
         const signal = extractPendingExists(error);
         if (signal) {
           const ctx = current.buildContext(activeSeed);
@@ -173,7 +189,10 @@ export function useGatedAction<Seed>(
       spec,
       values,
       errors,
-      typenameTarget: opts.typenameTarget ?? "",
+      // Function form is submit-only; render gets "" and the caller MUST
+      // JSX-override typenameTarget from gate.seed (else the label is blank).
+      typenameTarget:
+        typeof opts.typenameTarget === "function" ? "" : (opts.typenameTarget ?? ""),
       confirmLabel: opts.confirmLabel ?? spec.confirmLabel,
       cancelLabel: opts.cancelLabel ?? "Cancel",
       isPending: submitting,

@@ -109,6 +109,13 @@ type ReviewDecisionSeed = {
   requesterName: string;
 };
 
+/* Registry seed for roster lifecycle decisions. agentName feeds dialog copy
+   and the Profile D type-the-name target. */
+type MembershipDecisionSeed = {
+  membershipId: number;
+  agentName: string;
+};
+
 interface AgencyReviewRequestGroup {
   userId: number;
   requesterName: string;
@@ -569,6 +576,35 @@ export function AgencyMembersClient() {
     errorFallback: "Could not reject join request",
   });
 
+  // Roster lifecycle decisions run through gates (U-052 step 3). Block adds
+  // the Profile D type-the-name second gate; suspend/revoke keep required
+  // reason with inline Gate-2. Titles/confirm copy preserved verbatim.
+  const suspendGate = useGatedAction<MembershipDecisionSeed>("suspend_membership", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (seed, values) =>
+      suspendMembership.mutateAsync({ membershipId: seed.membershipId, payload: { reason: values.reason } }),
+    title: getMembershipDecisionLabel("suspend"),
+    successToast: "Agent membership suspended. The agent can see the reason in My Agencies.",
+    errorFallback: "Could not update agent membership.",
+  });
+  const revokeGate = useGatedAction<MembershipDecisionSeed>("revoke_membership", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (seed, values) =>
+      revokeMembership.mutateAsync({ membershipId: seed.membershipId, payload: { reason: values.reason } }),
+    title: getMembershipDecisionLabel("revoke"),
+    successToast: "Agent membership revoked. The agent can see the reason in My Agencies.",
+    errorFallback: "Could not update agent membership.",
+  });
+  const blockGate = useGatedAction<MembershipDecisionSeed>("block_membership", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (seed, values) =>
+      blockMembership.mutateAsync({ membershipId: seed.membershipId, payload: { reason: values.reason } }),
+    title: getMembershipDecisionLabel("block"),
+    typenameTarget: (seed) => seed.agentName,
+    successToast: "Agent membership blocked. The agent can see the reason in My Agencies.",
+    errorFallback: "Could not update agent membership.",
+  });
+
 
 
   const handleInvite = async (values: InviteFormValues) => {
@@ -586,40 +622,9 @@ export function AgencyMembersClient() {
     }
   };
 
-  const handleMembershipAction = async (
-    action: Exclude<MembershipDecisionAction, "restore">,
-    membershipId: number,
-  ) => {
-    const reason = membershipReasons[membershipId]?.trim() || null;
-    if (!reason) {
-      notify.error(getRequiredDecisionReasonMessage(action));
-      return;
-    }
-    try {
-      const payload = { membershipId, payload: { reason } };
-      if (action === "suspend") {
-        await suspendMembership.mutateAsync(payload);
-        notify.success("Agent membership suspended. The agent can see the reason in My Agencies.");
-      } else if (action === "revoke") {
-        await revokeMembership.mutateAsync(payload);
-        notify.success("Agent membership revoked. The agent can see the reason in My Agencies.");
-      } else {
-        await blockMembership.mutateAsync(payload);
-        notify.success("Agent membership blocked. The agent can see the reason in My Agencies.");
-      }
-      setMembershipReasons((current) => {
-        const next = { ...current };
-        delete next[membershipId];
-        return next;
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiError && typeof error.detail === "string"
-          ? error.detail
-          : "Could not update agent membership.";
-      notify.error(message);
-    }
-  };
+  // Suspend/revoke/block run through suspendGate/revokeGate/blockGate
+  // (registry step 3) — no bespoke handler. Restore/unblock keep their
+  // handlers below until lead classification.
 
   const handleUnblockMembership = async (membershipId: number) => {
     const reason = membershipReasons[membershipId]?.trim();
@@ -703,17 +708,14 @@ export function AgencyMembersClient() {
     }
   };
 
+  /* Bespoke dialog now serves restore/unblock only (profiles unassigned in
+     U-052 — lead classifies); suspend/revoke/block run through gates. */
   const handleConfirmMembershipDecision = async () => {
     if (!pendingMembershipDecision) return;
     if (pendingMembershipDecision.action === "restore") {
       await handleRestoreMembership(pendingMembershipDecision.membershipId);
     } else if (pendingMembershipDecision.action === "unblock") {
       await handleUnblockMembership(pendingMembershipDecision.membershipId);
-    } else {
-      await handleMembershipAction(
-        pendingMembershipDecision.action,
-        pendingMembershipDecision.membershipId,
-      );
     }
     setPendingMembershipDecision(null);
   };
@@ -845,10 +847,7 @@ export function AgencyMembersClient() {
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
     : "";
   const isPendingDecisionSubmitting = pendingMembershipDecision
-    ? (pendingMembershipDecision.action === "suspend" && suspendMembership.isPending) ||
-      (pendingMembershipDecision.action === "revoke" && revokeMembership.isPending) ||
-      (pendingMembershipDecision.action === "block" && blockMembership.isPending) ||
-      (pendingMembershipDecision.action === "restore" && restoreMembership.isPending) ||
+    ? (pendingMembershipDecision.action === "restore" && restoreMembership.isPending) ||
       (pendingMembershipDecision.action === "unblock" && unblockMembership.isPending)
     : false;
 
@@ -1500,8 +1499,8 @@ export function AgencyMembersClient() {
                               <Button type="button" size="sm" variant="secondary"
                                 loading={suspendMembership.isPending && suspendMembership.variables?.membershipId === agent.membership_id}
                                 onClick={() =>
-                                  setPendingMembershipDecision({
-                                    action: "suspend", membershipId: agent.membership_id,
+                                  suspendGate.attempt({
+                                    membershipId: agent.membership_id,
                                     agentName: agent.display_name || agent.company_name || "this agent",
                                   })
                                 }
@@ -1526,8 +1525,8 @@ export function AgencyMembersClient() {
                               <Button type="button" size="sm" variant="secondary"
                                 loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
                                 onClick={() =>
-                                  setPendingMembershipDecision({
-                                    action: "revoke", membershipId: agent.membership_id,
+                                  revokeGate.attempt({
+                                    membershipId: agent.membership_id,
                                     agentName: agent.display_name || agent.company_name || "this agent",
                                   })
                                 }
@@ -1539,8 +1538,8 @@ export function AgencyMembersClient() {
                               <Button type="button" size="sm" variant="destructive"
                                 loading={blockMembership.isPending && blockMembership.variables?.membershipId === agent.membership_id}
                                 onClick={() =>
-                                  setPendingMembershipDecision({
-                                    action: "block", membershipId: agent.membership_id,
+                                  blockGate.attempt({
+                                    membershipId: agent.membership_id,
                                     agentName: agent.display_name || agent.company_name || "this agent",
                                   })
                                 }
@@ -2138,6 +2137,8 @@ export function AgencyMembersClient() {
         </Card>
       ) : null}
 
+      {/* Restore/unblock only (profiles unassigned in U-052 — lead
+          classifies; suspend/revoke/block run through gates below). */}
       <Dialog
         open={Boolean(pendingMembershipDecision)}
         onOpenChange={(open) => { if (!open) setPendingMembershipDecision(null); }}
@@ -2171,13 +2172,7 @@ export function AgencyMembersClient() {
             <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
             <Button
               type="button"
-              variant={
-                pendingMembershipDecision?.action === "block" ||
-                pendingMembershipDecision?.action === "revoke" ||
-                pendingMembershipDecision?.action === "suspend"
-                  ? "destructive"
-                  : "primary"
-              }
+              variant="primary"
               loading={isPendingDecisionSubmitting}
               disabled={!pendingDecisionReason}
               onClick={() => void handleConfirmMembershipDecision()}
@@ -2187,6 +2182,36 @@ export function AgencyMembersClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Registry-driven lifecycle decisions (U-052 step 3). Seed-dependent
+          copy computes here from gate.seed (TDZ note in useGatedAction);
+          block's typename target MUST be overridden (hook passes "" for the
+          function form, which is submit-only). */}
+      <ConfirmDestructiveDialog
+        {...suspendGate.dialogProps}
+        description={
+          suspendGate.seed === null
+            ? undefined
+            : `Confirm this action for ${suspendGate.seed.agentName}. A reason is required and will be visible in membership history.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...revokeGate.dialogProps}
+        description={
+          revokeGate.seed === null
+            ? undefined
+            : `Confirm this action for ${revokeGate.seed.agentName}. A reason is required and will be visible in membership history.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...blockGate.dialogProps}
+        description={
+          blockGate.seed === null
+            ? undefined
+            : `Confirm this action for ${blockGate.seed.agentName}. A reason is required and will be visible in membership history.`
+        }
+        typenameTarget={blockGate.seed?.agentName ?? ""}
+      />
 
       {/* Registry-driven review-queue + Pending decisions (U-052 step 2).
           Seed-dependent descriptions compute here from gate.seed (TDZ note

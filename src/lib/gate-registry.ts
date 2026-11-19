@@ -271,11 +271,11 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useLeaveAgencyMembership"],
     endpoint: "PATCH /api/v1/agency-memberships/{membershipId}/leave",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for leaving (required)")],
+    fields: [reasonField("Reason", "Reason for leaving (required — shared with the agency)")],
     dialog: true,
     destructive: true,
     confirmLabel: "Leave",
-    migrated: false,
+    migrated: true,
   },
   suspend_membership: {
     action: "suspend_membership",
@@ -286,8 +286,8 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [reasonField("Reason", "Reason for suspending (required)")],
     dialog: true,
     destructive: true,
-    confirmLabel: "Suspend",
-    migrated: false,
+    confirmLabel: "Suspend agent",
+    migrated: true,
   },
   revoke_membership: {
     action: "revoke_membership",
@@ -298,8 +298,8 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [reasonField("Reason", "Reason for revoking (required)")],
     dialog: true,
     destructive: true,
-    confirmLabel: "Revoke",
-    migrated: false,
+    confirmLabel: "Remove from agency",
+    migrated: true,
   },
   apply: {
     action: "apply",
@@ -372,8 +372,8 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [reasonField("Reason", "Reason for blocking (required)"), typenameField],
     dialog: true,
     destructive: true,
-    confirmLabel: "Block",
-    migrated: false,
+    confirmLabel: "Block agent",
+    migrated: true,
   },
 };
 
