@@ -1230,8 +1230,10 @@ export interface paths {
          * @description List pending agency-level review requests with prior membership history.
          *
          *     Also includes pending join requests from returning applicants who
-         *     reapplied after a previous cancelled request (Phase U.4 reapply), and
-         *     pending membership-scoped review requests (revoked/inactive members
+         *     reapplied after a previous cancelled request (Phase U.4 reapply),
+         *     expired rows with applicant-requested reactivation (U-012 Path 2 --
+         *     the request is the applicant's consent, so agency decision is final),
+         *     and pending membership-scoped review requests (revoked/inactive members
          *     appealing via the membership-scoped endpoint) â€” one queue, one
          *     actionable surface.
          */
@@ -1448,7 +1450,10 @@ export interface paths {
          * Request Join Request Reactivation
          * @description Agency owner requests reactivation of an expired join request.
          *
-         *     Writes `reactivation_requested_at/by`. Notifies the applicant.
+         *     Writes `reactivation_requested_at/by`. Notifies the applicant. U-050: no
+         *     message on reactivation (confirm-only dialog); the optional body is
+         *     accepted for compatibility and stored when provided, but conforming
+         *     clients send none.
          */
         patch: operations["request_join_request_reactivation_api_v1_agencies__agency_id__join_requests__request_id__request_reactivation__patch"];
         trace?: never;
@@ -3569,7 +3574,9 @@ export interface paths {
          * @description Applicant requests reactivation of their own expired join request.
          *
          *     Path 2 (seeker-initiated) reactivation flow. Writes
-         *     `reactivation_requested_at/by`. Notifies agency owner.
+         *     `reactivation_requested_at/by`. Notifies agency owner. U-050: no message
+         *     on reactivation (confirm-only dialog); the optional body is accepted for
+         *     compatibility and stored when provided, but conforming clients send none.
          */
         patch: operations["request_join_request_reactivation_as_applicant_api_v1_join_requests__request_id__request_reactivation__patch"];
         trace?: never;
@@ -5097,6 +5104,18 @@ export interface components {
             portfolio_details?: string | null;
         };
         /**
+         * AgencyJoinRequestReactivationCreate
+         * @description Reactivation-nudge body (U-038 Gate 2).
+         *
+         *     Optional server-side for backward compatibility (current callers send no
+         *     body); the shared dialog enforces a non-blank message client-side. Blank
+         *     normalizes to None, mirroring the reapplication-message validator.
+         */
+        AgencyJoinRequestReactivationCreate: {
+            /** Message */
+            message?: string | null;
+        };
+        /**
          * AgencyJoinRequestReapplyCreate
          * @description Reapplication body (U-032 Option (a), DEF-U-REAPPLY-MESSAGE-001).
          *
@@ -5149,13 +5168,13 @@ export interface components {
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reactivation Message */
+            reactivation_message?: string | null;
+            pending_appeal?: components["schemas"]["PendingAppeal"] | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
-            /**
-             * Cooldown Unlock At
-             * @default null
-             */
-            cooldown_unlock_at: string | null;
+            /** Cooldown Unlock At */
+            cooldown_unlock_at?: string | null;
             /** Cycle Number */
             cycle_number?: number | null;
             /** Reapplication Message */
@@ -5336,6 +5355,8 @@ export interface components {
         AgencyReviewRequestCreate: {
             /** Message */
             message?: string | null;
+            /** Join Request Id */
+            join_request_id?: number | null;
         };
         /**
          * AgencyReviewRequestDeclineRequest
@@ -5370,6 +5391,18 @@ export interface components {
             actor_id?: number | null;
             /** Reactivation Requested By */
             reactivation_requested_by?: number | null;
+            /** Join Request Id */
+            join_request_id?: number | null;
+            /** Origin Status */
+            origin_status?: string | null;
+            /** Origin Reason */
+            origin_reason?: string | null;
+            /** Origin Decided At */
+            origin_decided_at?: string | null;
+            /** Reapplied From Request Id */
+            reapplied_from_request_id?: number | null;
+            /** Prior Membership Status */
+            prior_membership_status?: string | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
@@ -6410,6 +6443,8 @@ export interface components {
             review_message?: string | null;
             /** Review Response */
             review_response?: string | null;
+            /** Join Request Id */
+            join_request_id?: number | null;
             /** Agency Name */
             agency_name?: string | null;
             /** User Display Name */
@@ -6473,6 +6508,9 @@ export interface components {
             reactivation_requested_by?: number | null;
             /** Reactivation Accepted At */
             reactivation_accepted_at?: string | null;
+            /** Reactivation Message */
+            reactivation_message?: string | null;
+            pending_appeal?: components["schemas"]["PendingAppeal"] | null;
             /** Reapplied From Request Id */
             reapplied_from_request_id?: number | null;
             /** Cooldown Unlock At */
@@ -6574,6 +6612,22 @@ export interface components {
             body_text: string;
             /** Is Read */
             is_read: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * PendingAppeal
+         * @description A pending reconsideration appeal on a join request (U-034b Gate 1 data).
+         *
+         *     Lets both viewers decide the double-gate without an extra fetch: present
+         *     means "already pending", absent means clear to open the dialog.
+         */
+        PendingAppeal: {
+            /** Review Request Id */
+            review_request_id: number;
             /**
              * Created At
              * Format: date-time
@@ -9906,7 +9960,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestReactivationCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13417,7 +13475,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyJoinRequestReactivationCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

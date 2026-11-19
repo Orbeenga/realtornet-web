@@ -42,9 +42,7 @@ import {
   useDeclineAgencyReviewRequest,
   useInviteAgencyAgent,
   useReactivateInvitation,
-  useReconsiderJoinRequest,
   useRejectAgencyJoinRequest,
-  useRejectJoinRequestReactivation,
   useRequestJoinRequestReactivation,
   useRevokeAgencyMembership,
   useRestoreAgencyMembership,
@@ -52,9 +50,11 @@ import {
   useUnblockAgencyMembership,
   useWithdrawAgencyInvitation,
 } from "@/features/agencies/hooks";
+import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
+  runNudgeGateChecks,
   ambientTextToneClass,
   resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
@@ -66,7 +66,9 @@ import {
 import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
+  getRejectedAppealHistory,
   getRevokedMembershipHistory,
+  groupAgencyRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
@@ -77,7 +79,6 @@ import {
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
-  AgencyJoinRequestResponse,
   AgencyReviewRequestResponse,
 } from "@/types";
 import {
@@ -187,41 +188,63 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
   return labels[action];
 }
 
-/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 1): make the merged queue's
-   row kind legible. The U-033 discriminator already drives accept/decline
-   routing; this surfaces it as a label. Tier 2 (origin precision:
-   reapplied vs reactivated, revoked vs suspended appeal) requires backend
-   payload shaping and stays out of scope — see the DEF. */
-function reviewQueueSourceLabel(
-  sourceType: AgencyReviewRequestResponse["source_type"],
-): string | null {
-  switch (sourceType) {
-    case "review_request":
-      return "Returning applicant review";
-    case "join_request":
-      return "Reapplication";
-    case "membership_review_request":
-      return "Membership reinstatement appeal";
-    default:
-      return null;
+/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 2, origin precision — vocabulary
+   locked by lead sign-off 2026-11-19): one-word labels, Review Requests tab
+   ONLY. review_request rows resolve by Q1b origin; join_request rows by the
+   split rule (reactivation_requested_by set wins over reapplied_from);
+   membership rows by served prior status (blocked has no return path, so no
+   badge). Two-word forms live everywhere else; never import this map outside
+   the queue. Unlinked review rows and unknown prior states fall back to the
+   generic word of their family — legacy data only, since conforming rows
+   always link. */
+export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string | null {
+  if (row.source_type === "review_request") {
+    if (row.origin_status === "rejected") return "Reconsideration";
+    if (row.origin_status === "expired") return "Reactivation";
+    return "Review";
   }
+  if (row.source_type === "join_request") {
+    if (row.reactivation_requested_by != null) return "Reactivation";
+    if (row.reapplied_from_request_id != null) return "Reapplication";
+    return "Reapplication";
+  }
+  if (row.source_type === "membership_review_request") {
+    if (row.prior_membership_status === "revoked") return "Review";
+    if (row.prior_membership_status === "suspended") return "Reinstatement";
+    if (row.prior_membership_status === "left") return "Return";
+    if (row.prior_membership_status === "blocked") return null;
+    return "Reinstatement";
+  }
+  return null;
 }
 
-function groupAgencyReviewRequests(
+/* B2 queue actionability: pending rows decide as before; expired join_request
+   rows are actionable exactly when the backend surfaced them (the queue query
+   admits only applicant-requested reactivations). Agency-requested
+   pre-consent rows never reach the queue (U-012 consent gate). */
+export function isQueueActionableRequest(row: AgencyReviewRequestResponse): boolean {
+  if (row.status === "pending") return true;
+  return (
+    row.source_type === "join_request" &&
+    row.status === "expired" &&
+    row.reactivation_requested_by != null
+  );
+}
+
+export function groupAgencyReviewRequests(
   reviewRequests: AgencyReviewRequestResponse[],
 ): AgencyReviewRequestGroup[] {
   const groups = new Map<number, AgencyReviewRequestGroup>();
 
   /* Rule 21 action-queue discipline (Fix 2, belt-and-suspenders): this tab
-     renders ONLY unresolved rows. Filtering here — not just in the cache
+     renders ONLY actionable rows. Filtering here — not just in the cache
      mutation — guarantees a stale resolved entry (30s staleTime or any
-     race) can never surface as an actionable card. The server already
-     excludes non-pending rows; this defends against cache staleness. */
-  const pendingRequests = reviewRequests.filter(
-    (request) => request.status === "pending",
-  );
+     race) can never surface as an actionable card. Actionable means pending
+     rows plus B2 expired-plus-requested rows (same predicate the cards use);
+     resolved rows stay excluded as the staleness defense. */
+  const actionableRequests = reviewRequests.filter(isQueueActionableRequest);
 
-  for (const request of pendingRequests) {
+  for (const request of actionableRequests) {
     const current = groups.get(request.user_id);
     if (current) {
       current.requests.push(request);
@@ -250,51 +273,7 @@ function groupAgencyReviewRequests(
     .sort((first, second) => first.requesterName.localeCompare(second.requesterName));
 }
 
-interface AgencyRequestCycleGroup {
-  userId: number;
-  seekerName: string;
-  seekerEmail?: string | null;
-  requests: AgencyJoinRequestResponse[];
-}
 
-/* Shared agency request-cycle grouping lives HERE ONLY (canonical
-   AgencyMembersClient module). Groups are anchored by users carrying the
-   given status; the cumulative emitter filters each group's rows to its own
-   lineage downstream. Consumers: Cancelled + Rejected sub-tabs. */
-function groupAgencyRequestCycles(
-  requests: AgencyJoinRequestResponse[],
-  anchorStatus: "cancelled" | "rejected",
-) {
-  const userIdsWithAnchor = new Set(
-    requests.filter((r) => r.status === anchorStatus).map((r) => r.user_id),
-  );
-  const groups = new Map<number, AgencyRequestCycleGroup>();
-
-  for (const request of requests) {
-    if (!userIdsWithAnchor.has(request.user_id)) continue;
-    const current = groups.get(request.user_id);
-    if (current) {
-      current.requests.push(request);
-      continue;
-    }
-
-    groups.set(request.user_id, {
-      userId: request.user_id,
-      seekerName: request.seeker_name ?? "Seeker",
-      seekerEmail: request.seeker_email,
-      requests: [request],
-    });
-  }
-
-  return [...groups.values()]
-    .map((group) => ({
-      ...group,
-      requests: [...group.requests].sort(
-        (first, second) => new Date(first.created_at).getTime() - new Date(second.created_at).getTime(),
-      ),
-    }))
-    .sort((first, second) => first.seekerName.localeCompare(second.seekerName));
-}
 
 interface AgencyHistoryMember {
   userId: number;
@@ -385,6 +364,9 @@ export function AgencyMembersClient() {
   const [pendingReviewDecision, setPendingReviewDecision] =
     useState<PendingReviewDecision | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
+  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
+  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
   const {
     register,
     handleSubmit,
@@ -485,6 +467,32 @@ export function AgencyMembersClient() {
     expiredRequests.map((r) => r.user_id),
     Boolean(agencyId) && expiredRequests.length > 0,
   );
+  // Keyed by request id so each grouped Expired section resolves its own
+  // narrative timeline (replaces the pre-grouping positional index).
+  const expiredHistoryByRequestId = new Map(
+    expiredRequests.map((request, index) => [request.join_request_id, expiredHistoryQueries[index]?.data ?? []] as const),
+  );
+  // Rejected-tab appeal rows (Revoked mechanism): per-member history for
+  // rejected applicants, mirroring every sibling tab. User set matches the
+  // rejected anchor exactly (users with >=1 rejected row); keyed by user id
+  // so each grouped card resolves its own appeal rows. Shares React Query
+  // cache keys with the History tab feeds — no duplicate infra, same known
+  // per-member fan-out cost (DEF-U-MEMBER-HISTORY-PERF-001).
+  const rejectedHistoryUserIds = [
+    ...new Set(
+      (joinRequestsQuery.data ?? [])
+        .filter((request) => request.status === "rejected")
+        .map((request) => request.user_id),
+    ),
+  ];
+  const rejectedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    rejectedHistoryUserIds,
+    Boolean(agencyId) && rejectedHistoryUserIds.length > 0,
+  );
+  const rejectedHistoryByUserId = new Map(
+    rejectedHistoryUserIds.map((userId, index) => [userId, rejectedHistoryQueries[index]?.data ?? []] as const),
+  );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
   const rejectJoinRequest = useRejectAgencyJoinRequest(agencyId);
@@ -500,18 +508,6 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
-  const rejectReactivation = useRejectJoinRequestReactivation(agencyId);
-  const reconsiderJoinRequest = useReconsiderJoinRequest(agencyId);
-
-  const handleReconsiderJoinRequest = async (requestId: number) => {
-    try {
-      await reconsiderJoinRequest.mutateAsync(requestId);
-      notify.success("Join request sent back to pending. The applicant can see the decision in My Agencies.");
-    } catch {
-      notify.error("Could not reconsider join request");
-    }
-  };
-
   const handleApproveJoinRequest = async (requestId: number) => {
     try {
       await approveJoinRequest.mutateAsync(requestId);
@@ -540,28 +536,7 @@ export function AgencyMembersClient() {
     }
   };
 
-  const handleRejectJoinRequestReactivation = async (requestId: number) => {
-    const reason = rejectReasons[requestId]?.trim();
-    if (!reason) {
-      notify.error("Enter a reason before rejecting this reactivation request.");
-      return;
-    }
-    try {
-      await rejectReactivation.mutateAsync({ requestId, reason });
-      notify.success("Reactivation request rejected. The applicant can see the decision in My Agencies.");
-      setRejectReasons((current) => {
-        const next = { ...current };
-        delete next[requestId];
-        return next;
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiError && typeof error.detail === "string"
-          ? error.detail
-          : "Could not reject reactivation request.";
-      notify.error(message);
-    }
-  };
+
 
   const handleInvite = async (values: InviteFormValues) => {
     try {
@@ -646,10 +621,14 @@ export function AgencyMembersClient() {
     }
   };
 
+  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
+  // enforced inside the shared dialog. Expired reactivation takes NO message
+  // (time-driven) — the dialog only confirms.
   const handleRequestJoinRequestReactivation = async (requestId: number) => {
     try {
-      await requestJoinRequestReactivation.mutateAsync(requestId);
+      await requestJoinRequestReactivation.mutateAsync({ requestId });
       notify.success("Reactivation requested — applicant will be notified.");
+      setNudgeDialogRequestId(null);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not request reactivation.");
@@ -833,6 +812,9 @@ export function AgencyMembersClient() {
   // Rejected sub-tab entity groups (grouped by user_id) — one cumulative card
   // per applicant, mirroring the Cancelled tab (U-028/U-009).
   const rejectedCycleGroups = groupAgencyRequestCycles(joinRequests, "rejected");
+  // Expired sub-tab entity groups (grouped by user_id) — one cumulative card
+  // per applicant, mirroring the Cancelled tab (answer 4: grouping global).
+  const expiredCycleGroups = groupAgencyRequestCycles(joinRequests, "expired-history");
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const invitations = invitationsQuery.data ?? [];
@@ -919,7 +901,7 @@ export function AgencyMembersClient() {
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length})` },
                 { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
                 { value: "rejected" as const, label: `Rejected (${rejectedCycleGroups.length})` },
-                { value: "expired" as const, label: `Expired (${joinRequests.filter(hasExpiredHistory).length})` },
+                { value: "expired" as const, label: `Expired (${expiredCycleGroups.length})` },
                 { value: "cancelled" as const, label: `Cancelled (${cancelledCycleGroups.length})` },
               ].map(({ value, label }) => (
                 <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value)}>
@@ -1067,12 +1049,18 @@ export function AgencyMembersClient() {
                         group.requests,
                         { kind: "rejected" },
                       );
-                      const rejectedRows = group.requests
-                        .filter((r) => r.status === "rejected")
-                        .sort(
-                          (a, b) => new Date(b.decided_at ?? b.created_at).getTime() - new Date(a.decided_at ?? a.created_at).getTime(),
-                        );
-                      const latestRejected = rejectedRows[0];
+                      // Rejected-tab appeal rows: real history rows (message +
+                      // timestamp inline, Revoked mechanism), filtered per
+                      // group. Liveness annotates from the group's live
+                      // pending_appeal — never synthesized, never merged.
+                      const groupHasLiveAppeal = group.requests.some(
+                        (request) => request.pending_appeal != null,
+                      );
+                      const appealRows = getRejectedAppealHistory(
+                        rejectedHistoryByUserId.get(group.userId) ?? [],
+                        { user_id: group.userId },
+                        groupHasLiveAppeal,
+                      );
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         <TimelineHeader
@@ -1090,11 +1078,12 @@ export function AgencyMembersClient() {
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
                             tier="rich"
-                            history={cumulative.entries}
-                            alwaysExpanded
+                            history={[...cumulative.entries, ...appealRows]}
                             showHeader={false}
                             labelStage="join_request"
-                            sortDirection="asc"
+                            pendingReconsiderationNotice={{
+                              seekerName: member?.displayName ?? group.seekerName,
+                            }}
                             emptyTitle="No rejected requests"
                             emptyDescription="Rejected join requests will appear here."
                           />
@@ -1104,22 +1093,6 @@ export function AgencyMembersClient() {
                             {resolveTerminalReactivationRejectionMessage()}
                           </p>
                         ) : null}
-                        {!cumulative.terminal && latestRejected ? (
-                          <div className="mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              loading={
-                                reconsiderJoinRequest.isPending &&
-                                reconsiderJoinRequest.variables === latestRejected.join_request_id
-                              }
-                              onClick={() => void handleReconsiderJoinRequest(latestRejected.join_request_id)}
-                            >
-                              Reconsider
-                            </Button>
-                          </div>
-                        ) : null}
                       </div>
                       );
                     })}
@@ -1128,36 +1101,42 @@ export function AgencyMembersClient() {
               </>
             ) : requestSubTab === "expired" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(hasExpiredHistory).length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && expiredCycleGroups.length === 0 ? (
                   <EmptyState title="No expired requests" description="Requests that ever passed through the expired state will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(hasExpiredHistory).length > 0 ? (
+                {!joinRequestsQuery.isLoading && expiredCycleGroups.length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(hasExpiredHistory).map((request, expiredIndex) => {
-                      const agent = agents.find((a) => a.user_id === request.user_id);
-                      const liveStatus = agent?.membership_status ?? request.status;
-                      const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                      // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
-                      // chronological stream via resolveExpiredNarrativeTimeline
-                      // (single sorted array, single banded loop - no second list).
-                      const narrativeEvents = resolveExpiredNarrativeTimeline(
-                        expiredHistoryQueries[expiredIndex]?.data ?? [],
-                        request,
-                        { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
-                      );
+                    {expiredCycleGroups.map((group) => {
+                      const member = historyMemberById.get(group.userId);
                       return (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                          <TimelineHeader
-                            entity="person"
-                            name={request.seeker_name ?? "Seeker"}
-                            role={agent?.user_role}
-                            status={liveStatus}
-                            applicationStatus={request.status}
-                            email={request.seeker_email ?? undefined}
-                            lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
-                            eventCount={narrativeEvents.length}
-                          />
-                        <div className="mt-2 space-y-2">
+                      <div key={group.userId} className="rounded-lg border border-border p-4">
+                        {/* Rich person header via the shared TimelineHeader SSOT
+                            (same identity the History member blocks use). The
+                            expired application badge is the canonical
+                            applicationStatus (top-right), not a hand-rolled Badge. */}
+                        <TimelineHeader
+                          entity="person"
+                          name={member?.displayName ?? group.seekerName}
+                          email={member?.email ?? group.seekerEmail ?? undefined}
+                          avatarUrl={member?.avatarUrl}
+                          role={member?.role}
+                          status={member?.status}
+                          lastSeen={member?.lastSeen}
+                          qualifiers={member?.qualifiers}
+                          applicationStatus="expired"
+                        />
+                        {group.requests.map((request, requestIndex) => {
+                          // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                          // chronological stream via resolveExpiredNarrativeTimeline
+                          // (single sorted array, single banded loop - no second list).
+                          const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
+                          const narrativeEvents = resolveExpiredNarrativeTimeline(
+                            expiredHistoryByRequestId.get(request.join_request_id) ?? [],
+                            request,
+                            { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                          );
+                          return (
+                          <div key={request.join_request_id} className={requestIndex === 0 ? "mt-2 space-y-2" : "mt-4 space-y-2 border-t border-border pt-4"}>
                           {narrativeEvents.length > 0 ? (
                             <div className="space-y-1">
                               {narrativeEvents.map((event, index) => (
@@ -1179,40 +1158,9 @@ export function AgencyMembersClient() {
                               Request is pending a response from {request.seeker_name ?? "the applicant"}.
                             </p>
                           ) : reactivationStage === "seeker_requested" ? (
-                            <div className="space-y-3">
-                              <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                                Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
-                              </p>
-                              <div className="space-y-2">
-                                <Input
-                                  label="Rejection reason"
-                                  placeholder="Required to reject reactivation"
-                                  value={rejectReasons[request.join_request_id] ?? ""}
-                                  onChange={(event) =>
-                                    setRejectReasons((current) => ({
-                                      ...current,
-                                      [request.join_request_id]: event.target.value,
-                                    }))
-                                  }
-                                />
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="secondary"
-                                    loading={
-                                      rejectReactivation.isPending &&
-                                      rejectReactivation.variables?.requestId === request.join_request_id
-                                    }
-                                    onClick={() =>
-                                      void handleRejectJoinRequestReactivation(request.join_request_id)
-                                    }
-                                  >
-                                    Reject Reactivation
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
+                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                              Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
+                            </p>
                           ) : reactivationStage === "initial" ? (
                             <div className="space-y-2">
                               <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
@@ -1220,14 +1168,15 @@ export function AgencyMembersClient() {
                               </p>
                               <Button
                                 type="button" size="sm"
-                                loading={requestJoinRequestReactivation.isPending && requestJoinRequestReactivation.variables === request.join_request_id}
-                                onClick={() => void handleRequestJoinRequestReactivation(request.join_request_id)}
+                                onClick={() => setNudgeDialogRequestId(request.join_request_id)}
                               >
                                 Reactivate Application
                               </Button>
                             </div>
                           ) : null}
                         </div>
+                        );
+                      })}
                       </div>
                     );
                     })}
@@ -1276,23 +1225,6 @@ export function AgencyMembersClient() {
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
                         />
-                        <div className="mt-3 space-y-2">
-                          <MembershipTimeline
-                            tier="rich"
-                            history={cumulative.entries}
-                            alwaysExpanded
-                            showHeader={false}
-                            labelStage="join_request"
-                            sortDirection="asc"
-                            pendingReapplyNotice={{
-                              viewerIsApplicant: false,
-                              name: group.seekerName,
-                              position: "above",
-                            }}
-                            emptyTitle="No cancelled requests"
-                            emptyDescription="Cancelled join requests will appear here."
-                          />
-                        </div>
                         {cooldownDate ? (
                           (() => {
                             const cooldown = resolveCooldownAmbient({
@@ -1306,6 +1238,21 @@ export function AgencyMembersClient() {
                             );
                           })()
                         ) : null}
+                        <div className="mt-3 space-y-2">
+                          <MembershipTimeline
+                            tier="rich"
+                            history={cumulative.entries}
+                            showHeader={false}
+                            labelStage="join_request"
+                            pendingReapplyNotice={{
+                              viewerIsApplicant: false,
+                              name: group.seekerName,
+                              position: "above",
+                            }}
+                            emptyTitle="No cancelled requests"
+                            emptyDescription="Cancelled join requests will appear here."
+                          />
+                        </div>
                       </div>
                       );
                     })}
@@ -1323,7 +1270,7 @@ export function AgencyMembersClient() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Review requests</h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review returning agents who asked for a membership decision to be reconsidered.
+                Review returning applications, appeals and reactivation requests.
               </p>
             </div>
             {reviewRequestsQuery.isLoading ? <AgencyOwnerTabListSkeleton /> : null}
@@ -1346,12 +1293,10 @@ export function AgencyMembersClient() {
                      pending request, not find()'s oldest-first first
                      match. Superseded priors stay grouped for follow-up
                      surfacing (DEF-U-REVIEWQUEUE-PRIORS-001). */
-                  const pendingRequests = group.requests.filter(
-                    (request) => request.status === "pending",
-                  );
+                  const actionableRequests = group.requests.filter(isQueueActionableRequest);
                   const primaryRequest =
-                    pendingRequests.length > 0
-                      ? pendingRequests.reduce((latest, request) =>
+                    actionableRequests.length > 0
+                      ? actionableRequests.reduce((latest, request) =>
                           new Date(request.created_at).getTime() >
                           new Date(latest.created_at).getTime()
                             ? request
@@ -1371,12 +1316,9 @@ export function AgencyMembersClient() {
                           <p className="font-semibold text-gray-900 dark:text-white">
                             {group.requesterName}
                           </p>
-                          <Badge variant={primaryRequest.status === "accepted" ? "success" : primaryRequest.status === "declined" ? "danger" : "warning"}>
-                            {primaryRequest.status}
-                          </Badge>
-                          {reviewQueueSourceLabel(primaryRequest.source_type) ? (
+                          {reviewQueueSourceLabel(primaryRequest) ? (
                             <Badge variant="outline">
-                              {reviewQueueSourceLabel(primaryRequest.source_type)}
+                              {reviewQueueSourceLabel(primaryRequest)}
                             </Badge>
                           ) : null}
                         </div>
@@ -1385,7 +1327,7 @@ export function AgencyMembersClient() {
                         </p>
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {primaryRequest.status === "pending" ? "Review request" : primaryRequest.status === "accepted" ? "Review accepted" : "Review declined"} — {formatDate(primaryRequest.created_at)}
+                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} {formatDate(primaryRequest.created_at)}
                           </p>
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
@@ -1394,7 +1336,7 @@ export function AgencyMembersClient() {
                           ) : null}
                         </div>
                       </div>
-                      {primaryRequest.status === "pending" ? (
+                      {isQueueActionableRequest(primaryRequest) ? (
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <Button type="button" size="sm"
                             loading={acceptReview.isPending && acceptReview.variables?.requestId === primaryRequest.id}
@@ -1438,32 +1380,62 @@ export function AgencyMembersClient() {
                               key={`${req.source_type ?? "req"}-${req.id}`}
                               className={`rounded-md px-3 py-2 text-xs leading-5 ${timelineRowBandClass(idx)}`}
                             >
-                              <div className="flex flex-wrap items-center justify-between gap-2 font-medium">
-                                <span className="text-gray-900 dark:text-white">
-                                  {req.status === "pending"
-                                    ? "Review request"
-                                    : req.status === "accepted"
-                                      ? "Review accepted"
-                                      : "Review declined"}{" "}
-                                  — {formatDate(req.created_at)}
-                                </span>
-                                <Badge
-                                  variant={
-                                    req.status === "accepted"
-                                      ? "success"
-                                      : req.status === "declined"
-                                        ? "danger"
-                                        : "warning"
-                                  }
-                                >
-                                  {req.status}
-                                </Badge>
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                                    <span className="text-gray-900 dark:text-white">
+                                      {isQueueActionableRequest(req)
+                                        ? "Requested"
+                                        : req.status === "accepted"
+                                          ? "Accepted"
+                                          : "Declined"}{" "}
+                                      {formatDate(req.created_at)}
+                                    </span>
+                                    {reviewQueueSourceLabel(req) ? (
+                                      <Badge variant="outline">
+                                        {reviewQueueSourceLabel(req)}
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                  {req.message ? (
+                                    <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                                      {req.message}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {isQueueActionableRequest(req) ? (
+                                  <div className="flex shrink-0 flex-wrap gap-2">
+                                    <Button type="button" size="sm"
+                                      loading={acceptReview.isPending && acceptReview.variables?.requestId === req.id}
+                                      onClick={() =>
+                                        setPendingReviewDecision({
+                                          action: "accept",
+                                          requestId: req.id,
+                                          sourceType: req.source_type,
+                                          requesterName: group.requesterName,
+                                        })
+                                      }
+                                    >
+                                      Accept
+                                    </Button>
+                                    {req.actor_id !== user?.user_id ? (
+                                      <Button type="button" size="sm" variant="secondary"
+                                        loading={declineReview.isPending && declineReview.variables?.requestId === req.id}
+                                        onClick={() =>
+                                          setPendingReviewDecision({
+                                            action: "decline",
+                                            requestId: req.id,
+                                            sourceType: req.source_type,
+                                            requesterName: group.requesterName,
+                                          })
+                                        }
+                                      >
+                                        Decline
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </div>
-                              {req.message ? (
-                                <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                                  {req.message}
-                                </p>
-                              ) : null}
                             </div>
                           ))}
                         </div>
@@ -1934,19 +1906,6 @@ export function AgencyMembersClient() {
                           ]}
                         />
                       </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button type="button" size="sm"
-                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                          onClick={() =>
-                            setPendingMembershipDecision({
-                              action: "restore", membershipId: agent.membership_id,
-                              agentName: agent.display_name || agent.company_name || "this agent",
-                            })
-                          }
-                        >
-                          Reinstate
-                        </Button>
-                      </div>
                     </div>
                     {(() => {
                       // U-035-parity: this member's suspension lifecycle renders
@@ -2018,19 +1977,6 @@ export function AgencyMembersClient() {
                             `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
                           ]}
                         />
-                      </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button type="button" size="sm"
-                          loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                          onClick={() =>
-                            setPendingMembershipDecision({
-                              action: "restore", membershipId: agent.membership_id,
-                              agentName: agent.display_name || agent.company_name || "this agent",
-                            })
-                          }
-                        >
-                          Reinstate
-                        </Button>
                       </div>
                     </div>
                     {/* U-028: cumulative card — this member's 'left' events render
@@ -2333,6 +2279,34 @@ export function AgencyMembersClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* U-050 confirm-only nudge dialog (shared canonical component). Root-level:
+          it must stay mounted regardless of which tab panel is active. */}
+      <ConfirmDestructiveDialog
+        open={nudgeDialogRequestId !== null}
+        onClose={() => setNudgeDialogRequestId(null)}
+        title="Reactivate application"
+        description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application.`}
+        variant="confirm-only"
+        confirmLabel="Send request"
+        checkPending={() => {
+          const group = expiredCycleGroups.find((g) =>
+            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+          );
+          return runNudgeGateChecks({
+            action: "reactivation",
+            requests: group?.requests ?? [],
+            viewerUserId: user?.user_id ?? null,
+            viewerIsApplicant: false,
+            counterpartyName: group
+              ? (historyMemberById.get(group.userId)?.displayName ?? group.seekerName)
+              : "the applicant",
+            includeCooldownCheck: false,
+          });
+        }}
+        isPending={requestJoinRequestReactivation.isPending}
+        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId); }}
+      />
     </div>
   );
 }

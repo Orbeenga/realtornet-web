@@ -24,6 +24,9 @@ interface JoinRequestIdentity {
   reactivation_requested_by?: number | null;
   reactivation_accepted_at?: string | null;
   seeker_name?: string | null;
+  reapplication_message?: string | null;
+  pending_appeal?: { review_request_id: number; created_at: string } | null;
+  cooldown_unlock_at?: string | null;
 }
 
 export type JoinRequestReactivationStage =
@@ -347,6 +350,21 @@ export function resolveReapplyPendingSeekerAmbient(params: {
   };
 }
 
+/* Reconsideration-pending NOTICE — canonical ambient family. Agency Rejected
+   tab ONLY: "New" marker + "{seeker} requested reconsideration of their
+   rejected application. Respond to it in Review Requests." rendered ABOVE
+   the appeal's canonical event row (mirrors the Revoked-tab review notice).
+   Discharges when the appeal resolves (pending_appeal clears, the emitter
+   stops annotating the row). Text derives here only. */
+export function resolveReconsiderationPendingNotice(params: {
+  seekerName?: string | null;
+}): { text: string; tone: AmbientTextTone } {
+  return {
+    text: `${params.seekerName ?? "This seeker"} requested reconsideration of their rejected application. Respond to it in Review Requests.`,
+    tone: "caution",
+  };
+}
+
 export function resolveCooldownAmbient(params: {
   applicantName?: string | null;
   cooldownDate: string | Date;
@@ -362,3 +380,104 @@ export function resolveCooldownAmbient(params: {
     tone: "caution",
   };
 }
+
+/* Canonical U-050 ordered-check copy + predicates live HERE ONLY
+   (NudgeActionNoun, doubleGateOrderedToast, resolveNudgePendingSides,
+   runNudgeGateChecks, validateDoubleGateMessage). Consumed by the shared
+   ConfirmDestructiveDialog (message-required + confirm-only variants).
+   Gate 1 runs checks 1→2→3 before the dialog opens and toasts the exact
+   copy below (dialog never opens on block); Gate 2 (message validation)
+   blocks submit client-side on blank in the message-required variant. The
+   server stays authoritative for both. */
+export type NudgeActionNoun = "reapplication" | "reactivation" | "reconsideration";
+
+export function doubleGateOrderedToast(noun: NudgeActionNoun, name: string): string {
+  return `A ${noun} is already pending with ${name}`;
+}
+
+// Check 3 (Cancelled reapply only): UI-008 requires the known unblock date
+// in the message. Extends the UI-008 example copy verbatim with the date.
+function cooldownGateToast(unlockLabel: string): string {
+  return `Limit exceeded. Apply again after ${unlockLabel}.`;
+}
+
+function formatGateDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(new Date(iso));
+}
+
+export interface NudgePendingSides {
+  otherSide: boolean;
+  thisSide: boolean;
+}
+
+// U-050 checks 1-2 per action, evaluated over already-fetched rows (never
+// fetches). Reactivation pending sides derive from the lifecycle stage;
+// reconsideration pends only with the agency (pending_appeal); reapply pends
+// only with the agency (pending reapply row) — cooldown is check 3, not here.
+export function resolveNudgePendingSides(
+  action: NudgeActionNoun,
+  requests: JoinRequestIdentity[],
+  viewerUserId: number | null,
+  viewerIsApplicant: boolean,
+): NudgePendingSides {
+  if (action === "reconsideration") {
+    return { otherSide: requests.some((r) => r.pending_appeal != null), thisSide: false };
+  }
+  if (action === "reapplication") {
+    return {
+      otherSide: requests.some((r) => r.status === "pending" && r.reapplication_message != null),
+      thisSide: false,
+    };
+  }
+  let otherSide = false;
+  let thisSide = false;
+  for (const request of requests) {
+    const stage = resolveJoinRequestReactivationStage(request, viewerUserId, viewerIsApplicant);
+    if (stage === "agency_requested") {
+      if (viewerIsApplicant) thisSide = true;
+      else otherSide = true;
+    } else if (stage === "seeker_requested" || stage === "agency_accepted") {
+      if (viewerIsApplicant) otherSide = true;
+      else thisSide = true;
+    }
+  }
+  return { otherSide, thisSide };
+}
+
+// U-050 Gate 1 runner: checks 1→2→3 in order, first block wins. Returns the
+// exact toast copy when blocked, else null (dialog may open).
+// counterpartyName is the agency name (seeker view) or seeker name (agency
+// view); this-side blocks address the viewer as "you".
+export function runNudgeGateChecks(params: {
+  action: NudgeActionNoun;
+  requests: JoinRequestIdentity[];
+  viewerUserId: number | null;
+  viewerIsApplicant: boolean;
+  counterpartyName: string;
+  includeCooldownCheck: boolean;
+}): string | null {
+  const sides = resolveNudgePendingSides(
+    params.action,
+    params.requests,
+    params.viewerUserId,
+    params.viewerIsApplicant,
+  );
+  if (sides.otherSide) return doubleGateOrderedToast(params.action, params.counterpartyName);
+  if (sides.thisSide) return doubleGateOrderedToast(params.action, "you");
+  if (params.includeCooldownCheck) {
+    const unlocks = params.requests
+      .map((r) => r.cooldown_unlock_at)
+      .filter((v): v is string => v != null);
+    if (unlocks.length > 0) {
+      const latest = unlocks.sort().at(-1)!;
+      return cooldownGateToast(formatGateDate(latest));
+    }
+  }
+  return null;
+}
+
+export function validateDoubleGateMessage(message: string): string | null {
+  return message.trim() ? null : "Enter a message before continuing.";
+}
+
+

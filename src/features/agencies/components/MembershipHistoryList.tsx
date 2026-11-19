@@ -6,6 +6,7 @@ import {
   ambientTextToneClass,
   resolveReapplyPendingNotice,
   resolveReapplyPendingSeekerAmbient,
+  resolveReconsiderationPendingNotice,
   resolveRevokedReviewNotice,
   resolveStatusBadge,
 } from "@/lib/membership-lifecycle-messages";
@@ -26,7 +27,6 @@ interface MembershipTimelineProps {
   emptyTitle?: string;
   emptyDescription?: string;
   defaultUserDisplayName?: string;
-  alwaysExpanded?: boolean;
   showHeader?: boolean;
   /** Header contract discriminator (U-019): person = name|role|status|event_count|last_seen, agency = name|verified|event_count */
   entity?: "person" | "agency";
@@ -62,11 +62,7 @@ interface MembershipTimelineProps {
       never expose "fetch more" while the bounded reveal is still collapsed). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  /** Rich-tier sort order. Default "desc" preserves the canonical
-      newest-first History ordering; cumulative narrative cards (Cancelled,
-      Rejected) pass "asc" to keep the story reading order they migrated
-      from. Additive — existing consumers are unchanged. */
-  sortDirection?: "asc" | "desc";
+
   /** OPT-IN, cumulative Cancelled cards ONLY: renders the ephemeral "New"
       marker + reapply-pending ambient adjacent to the pending reapply's
       submission row (entries annotated `isPendingReapply` by the cumulative
@@ -76,6 +72,15 @@ interface MembershipTimelineProps {
     viewerIsApplicant: boolean;
     name?: string | null;
     position: "above" | "below";
+  };
+
+  /** OPT-IN, agency Rejected cards ONLY: renders the ephemeral "New"
+      marker + reconsideration-pending ambient above the appeal's canonical
+      event row (entries annotated `isPendingReconsideration` by the
+      cumulative emitter, U-035 family, Revoked-mechanism reuse). Caller-gated:
+      only the agency Rejected card passes this — never the seeker view. */
+  pendingReconsiderationNotice?: {
+    seekerName?: string | null;
   };
 }
 
@@ -88,8 +93,12 @@ export function timelineRowBandClass(index: number): string {
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
+/* Canonical shared label map (U-017): the sole authority for timeline event
+   labels across both tiers. Extended: join_request rows carrying
+   reapplied_from_request_id render "Reapplied" instead of "Submitted"
+   (U-017 amendment owed in backend DECISIONS.md). */
 export function resolveTimelineLabel(
-  entry: MembershipTimelineEntry,
+  entry: MembershipTimelineEntry & { reapplied_from_request_id?: number | null },
   labelStage: "invitation" | "join_request" = "invitation",
 ): string {
   if (entry.action) {
@@ -98,8 +107,17 @@ export function resolveTimelineLabel(
     if (entry.action === "review_requested") return "Review requested";
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
-  if (entry.source_type === "join_request") return "Submitted";
-  if (entry.source_type === "review_request") return "Review requested";
+  if (entry.source_type === "join_request") {
+    return entry.reapplied_from_request_id != null ? "Reapplied" : "Submitted";
+  }
+  // Linked review rows ARE reconsideration appeals: the reconsideration POST is
+  // the sole flow creating join-linked review rows (it 400s non-rejected
+  // origins), so linkage presence alone determines origin — identically in
+  // History, Rejected, and every other consumer. Unlinked rows keep the
+  // generic membership-appeal label.
+  if (entry.source_type === "review_request") {
+    return entry.join_request_id != null ? "Reconsideration requested" : "Review requested";
+  }
   return "Event";
 }
 
@@ -258,7 +276,6 @@ export function MembershipTimeline({
   emptyTitle = tier === "rich" ? "No membership history" : "No events",
   emptyDescription = tier === "rich" ? "Agency membership events will appear here when they exist." : "Events will appear here when they exist.",
   defaultUserDisplayName,
-  alwaysExpanded = false,
   showHeader = true,
   entity = "person",
   role,
@@ -273,8 +290,8 @@ export function MembershipTimeline({
   pendingReviewHighlight,
   expanded: expandedProp,
   onExpandedChange,
-  sortDirection = "desc",
   pendingReapplyNotice,
+  pendingReconsiderationNotice,
 }: MembershipTimelineProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expandedProp ?? internalExpanded;
@@ -355,12 +372,14 @@ export function MembershipTimeline({
   const sortedHistory = [...history].sort((first, second) => {
     const diff =
       new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime();
-    return sortDirection === "asc" ? diff : -diff;
+    // Canonical newest-first order (lead answer 2): the shared tier always
+    // sorts descending. No per-consumer direction.
+    return -diff;
   });
 
-  const showAllEntries = alwaysExpanded || isExpanded;
+  const showAllEntries = isExpanded;
   const visibleEntries = showAllEntries ? sortedHistory : sortedHistory.slice(0, 2);
-  const hasMoreEntries = sortedHistory.length > 2 && !alwaysExpanded;
+  const hasMoreEntries = sortedHistory.length > 2;
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
   const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0], labelStage) : "");
@@ -459,6 +478,23 @@ export function MembershipTimeline({
             </p>
           </div>
         ) : null;
+        // Ephemeral reconsideration-pending notice (U-035 family, agency
+        // Rejected cards only): discharges when the appeal resolves (the
+        // emitter stops annotating the row). Text derives in the canonical
+        // ambient family; this component only positions it, above the row.
+        const reconsiderNotice =
+          pendingReconsiderationNotice != null &&
+          (entry as CumulativeRequestLifecycleEntry).isPendingReconsideration === true
+            ? resolveReconsiderationPendingNotice({ seekerName: pendingReconsiderationNotice.seekerName })
+            : null;
+        const reconsiderNoticeBlock = reconsiderNotice ? (
+          <div className="mb-2 space-y-1">
+            <Badge variant="default">New</Badge>
+            <p className={ambientTextToneClass[reconsiderNotice.tone]}>
+              {reconsiderNotice.text}
+            </p>
+          </div>
+        ) : null;
 
         return (
           <Fragment key={entryId}>
@@ -477,6 +513,7 @@ export function MembershipTimeline({
             {reapplyNoticeBlock != null && pendingReapplyNotice?.position === "above"
               ? reapplyNoticeBlock
               : null}
+            {reconsiderNoticeBlock}
             <div
               // Shared zebra banding (grey/white alternating), no borders — same
               // pairing as the simple tier, defined here only (canonical component).

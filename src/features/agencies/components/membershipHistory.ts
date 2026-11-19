@@ -1,5 +1,9 @@
 import { hasExpiredHistory } from "@/lib/membership-lifecycle-messages";
-import type { MembershipTimelineEntry } from "@/types";
+import type {
+  AgencyJoinRequestResponse,
+  MembershipTimelineEntry,
+  MyAgencyJoinRequestResponse,
+} from "@/types";
 
 export function formatMembershipDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -432,10 +436,18 @@ export interface CumulativeRequestLifecycle {
     MembershipTimelineEntryWithResolution precedent below. */
 export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
   isPendingReapply?: boolean;
+  /** Set on a reconsideration-appeal event row while its appeal is live
+      (pending_appeal present). Drives the agency-only ephemeral "New"
+      marker + ambient notice (Revoked-mechanism reuse, U-035 family) —
+      never merges or mutates row content. Not part of the wire contract. */
+  isPendingReconsideration?: boolean;
   /** Preserved per-entry cycle attribution (backend cycle_number). Renders
       "Cycle: N" on both rows of a numbered pair; null/undefined renders no
       label (never "Not part of a cycle" / "No reapply"). */
   cycle_number?: number | null;
+  /** Carried for the shared label map: submitted anchors of reapply rows
+      render "Reapplied" instead of "Submitted" (U-017 extension). */
+  reapplied_from_request_id?: number | null;
 };
 
 /* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Entries
@@ -454,6 +466,131 @@ export function timelineEntryKey(entry: {
   }
 
   return `${entry.source_type}:${entry.action ?? "row"}:${entry.timestamp}`;
+}
+
+/* Shared agency request-cycle grouping lives HERE ONLY (canonical
+   membershipHistory module). Groups are anchored by users carrying the
+   given anchor; member rows follow the anchor kind: cancelled/rejected
+   keep all rows (the cumulative emitter filters each group's rows to its
+   own lineage downstream); expired-history keeps expired-history rows
+   only (Expired narrative blocks are per-row self-contained).
+   Consumers: Cancelled + Rejected + Expired sub-tabs. */
+export interface AgencyRequestCycleGroup {
+  userId: number;
+  seekerName: string;
+  seekerEmail?: string | null;
+  requests: AgencyJoinRequestResponse[];
+}
+
+export type AgencyRequestCycleAnchor = "cancelled" | "rejected" | "expired-history";
+
+export function groupAgencyRequestCycles(
+  requests: AgencyJoinRequestResponse[],
+  anchor: AgencyRequestCycleAnchor,
+) {
+  const isAnchorRow =
+    anchor === "expired-history"
+      ? (request: AgencyJoinRequestResponse) => hasExpiredHistory(request)
+      : (request: AgencyJoinRequestResponse) => request.status === anchor;
+  const userIdsWithAnchor = new Set(
+    requests.filter(isAnchorRow).map((request) => request.user_id),
+  );
+  const groups = new Map<number, AgencyRequestCycleGroup>();
+
+  for (const request of requests) {
+    if (!userIdsWithAnchor.has(request.user_id)) continue;
+    if (anchor === "expired-history" && !hasExpiredHistory(request)) continue;
+    const current = groups.get(request.user_id);
+    if (current) {
+      current.requests.push(request);
+      continue;
+    }
+
+    groups.set(request.user_id, {
+      userId: request.user_id,
+      seekerName: request.seeker_name ?? "Seeker",
+      seekerEmail: request.seeker_email,
+      requests: [request],
+    });
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      requests: [...group.requests].sort(
+        (first, second) => new Date(first.created_at).getTime() - new Date(second.created_at).getTime(),
+      ),
+    }))
+    .sort((first, second) => first.seekerName.localeCompare(second.seekerName));
+}
+
+/* Shared seeker request-cycle grouping lives HERE ONLY (canonical
+   membershipHistory module). One group per agency; cancelledRequests,
+   expiredRequests and rejectedRequests subsets ride along; the anchor
+   selects which subset admits the group. Consumers: Cancelled + Expired +
+   Rejected sub-tabs. */
+export interface MyJoinRequestCycleGroup {
+  agencyId: number;
+  agencyName: string;
+  requests: MyAgencyJoinRequestResponse[];
+  cancelledRequests: MyAgencyJoinRequestResponse[];
+  expiredRequests: MyAgencyJoinRequestResponse[];
+  rejectedRequests: MyAgencyJoinRequestResponse[];
+}
+
+export type MyJoinRequestCycleAnchor = "cancelled" | "expired-history" | "rejected";
+
+export function groupMyJoinRequestCycles(
+  requests: MyAgencyJoinRequestResponse[],
+  anchor: MyJoinRequestCycleAnchor = "cancelled",
+) {
+  const groups = new Map<number, MyJoinRequestCycleGroup>();
+
+  for (const request of requests) {
+    // Expired-history anchor admits ONLY rows that ever passed through expired
+    // (mirrors the agency grouper) — pending/approved rows in the same agency
+    // must not leak Expired sections into the card.
+    if (anchor === "expired-history" && !hasExpiredHistory(request)) continue;
+    // Rejected anchor admits ONLY rejected rows (card content and the
+    // latest-rejection payload for reconsideration stay exact).
+    if (anchor === "rejected" && request.status !== "rejected") continue;
+    const current = groups.get(request.agency_id);
+    if (current) {
+      current.requests.push(request);
+      if (request.status === "cancelled") current.cancelledRequests.push(request);
+      if (hasExpiredHistory(request)) current.expiredRequests.push(request);
+      if (request.status === "rejected") current.rejectedRequests.push(request);
+      continue;
+    }
+
+    groups.set(request.agency_id, {
+      agencyId: request.agency_id,
+      agencyName: request.agency_name,
+      requests: [request],
+      cancelledRequests: request.status === "cancelled" ? [request] : [],
+      expiredRequests: hasExpiredHistory(request) ? [request] : [],
+      rejectedRequests: request.status === "rejected" ? [request] : [],
+    });
+  }
+
+  const subsetKey =
+    anchor === "expired-history" ? "expiredRequests" : anchor === "rejected" ? "rejectedRequests" : "cancelledRequests";
+  const bySubmittedAt = (
+    first: MyAgencyJoinRequestResponse,
+    second: MyAgencyJoinRequestResponse,
+  ) =>
+    new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime();
+
+  return [...groups.values()]
+    .filter((group) => group[subsetKey].length > 0)
+    .map((group) => ({
+      ...group,
+      requests: [...group.requests].sort(bySubmittedAt),
+      cancelledRequests: [...group.cancelledRequests].sort(bySubmittedAt),
+      expiredRequests: [...group.expiredRequests].sort(bySubmittedAt),
+      rejectedRequests: [...group.rejectedRequests].sort(bySubmittedAt),
+    }))
+    .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
 }
 
 export function resolveCumulativeRequestLifecycleTimeline(
@@ -515,6 +652,7 @@ export function resolveCumulativeRequestLifecycleTimeline(
       portfolio_details: request.portfolio_details ?? null,
       reapplication_message: request.reapplication_message ?? null,
       cycle_number: request.cycle_number ?? null,
+      reapplied_from_request_id: request.reapplied_from_request_id ?? null,
       isPendingReapply:
         entity.kind === "cancelled" &&
         request.status === "pending" &&
@@ -581,11 +719,14 @@ export function getRevokedMembershipHistory(
   };
 
   // The appeal is a SINGLE row. Filter for membership-scoped review_request
-  // rows, then annotate each with its matched resolution action (the latest
+  // rows (no join linkage — only the reconsideration flow links), then
+  // annotate each with its matched resolution action (the latest
   // reinstated/review_declined audit for the same agency+user that happened
   // AFTER this appeal). Do NOT append those audit events as separate rows.
+  // Join-linked reconsideration appeals belong to Rejected cards
+  // (getRejectedAppealHistory), never here.
   const reviewRows: MembershipTimelineEntryWithResolution[] = history
-    .filter((entry) => entry.source_type === "review_request" && entityMatch(entry))
+    .filter((entry) => entry.source_type === "review_request" && entry.join_request_id == null && entityMatch(entry))
     .map((entry) => {
       const entityTime = (x: MembershipTimelineEntry) => new Date(x.timestamp).getTime();
 
@@ -630,4 +771,31 @@ export function getRevokedMembershipHistory(
   return [...revoked, ...reviewRows, ...resolutionRows].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
+}
+
+/* Canonical rejected-appeal filter lives HERE ONLY (shared helper mirroring
+   getRevokedMembershipHistory). Returns the reconsideration-appeal history
+   rows for one Rejected card: source review_request rows carrying join
+   linkage (the reconsideration POST is the sole linking flow), matched by
+   user+agency. Untouched rows — the label resolves through the shared U-017
+   map, so History and Rejected render the identical row identically.
+   pending_appeal stays OUT of this filter: it is only the gate and the
+   ambient discharge signal, supplied by the caller as markLive. */
+export function getRejectedAppealHistory(
+  history: MembershipTimelineEntry[],
+  match: { agency_id?: number | null; user_id?: number | null },
+  markLive: boolean,
+): CumulativeRequestLifecycleEntry[] {
+  return history
+    .filter(
+      (entry) =>
+        entry.source_type === "review_request" &&
+        entry.join_request_id != null &&
+        (match.user_id == null || entry.user_id == null || entry.user_id === match.user_id) &&
+        (match.agency_id == null || entry.agency_id == null || entry.agency_id === match.agency_id),
+    )
+    .map((entry) => ({
+      ...entry,
+      isPendingReconsideration: markLive || undefined,
+    }));
 }

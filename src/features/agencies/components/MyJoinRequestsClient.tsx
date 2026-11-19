@@ -8,10 +8,13 @@ import { normalizeAppRole } from "@/features/auth/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
+import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   getApprovedRequestCycleHistory,
   getMembershipHistoryByAction,
+  getRejectedAppealHistory,
   getRevokedMembershipHistory,
+  groupMyJoinRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
 } from "./membershipHistory";
@@ -20,6 +23,7 @@ import {
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
   useCreateAgencyMembershipReviewRequest,
+  useCreateAgencyReviewRequest,
   useInvitationEvents,
   useMembershipHistory,
   useMyAgencyInvitations,
@@ -35,6 +39,7 @@ import {
   ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
+  runNudgeGateChecks,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
@@ -44,7 +49,6 @@ import {
 } from "@/lib/membership-lifecycle-messages";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
-import type { MyAgencyJoinRequestResponse } from "@/types";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -73,12 +77,7 @@ type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 const COOLDOWN_WINDOW_DAYS = 30;
 const COOLDOWN_LIMIT = 3;
 
-interface MyJoinRequestCycleGroup {
-  agencyId: number;
-  agencyName: string;
-  requests: MyAgencyJoinRequestResponse[];
-  cancelledRequests: MyAgencyJoinRequestResponse[];
-}
+
 
 /* DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a): the reapply unlock date is
    SERVER-COMPUTED — `cooldown_unlock_at` (ISO datetime | null) is returned on
@@ -90,38 +89,7 @@ interface MyJoinRequestCycleGroup {
    longer re-derives gate math (single source of truth: the backend gate).
    null = gate not tripped, reapply allowed. */
 
-function groupMyJoinRequestCycles(requests: MyAgencyJoinRequestResponse[]) {
-  const groups = new Map<number, MyJoinRequestCycleGroup>();
 
-  for (const request of requests) {
-    const current = groups.get(request.agency_id);
-    if (current) {
-      current.requests.push(request);
-      if (request.status === "cancelled") current.cancelledRequests.push(request);
-      continue;
-    }
-
-    groups.set(request.agency_id, {
-      agencyId: request.agency_id,
-      agencyName: request.agency_name,
-      requests: [request],
-      cancelledRequests: request.status === "cancelled" ? [request] : [],
-    });
-  }
-
-  return [...groups.values()]
-    .filter((group) => group.cancelledRequests.length > 0)
-    .map((group) => ({
-      ...group,
-      requests: [...group.requests].sort(
-        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
-      ),
-      cancelledRequests: [...group.cancelledRequests].sort(
-        (first, second) => new Date(first.submitted_at).getTime() - new Date(second.submitted_at).getTime(),
-      ),
-    }))
-    .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
-}
 
 /* Seekers/Agency-history per-agency group (Rule 20/22 mirror of the agency
    side's AgencyMemberHistoryGroup): one cursor-paginated feed PER AGENCY
@@ -367,6 +335,9 @@ export function MyJoinRequestsClient() {
      second layer. Button stays clickable — never hard-disable. */
   const [reapplyDialogAgencyId, setReapplyDialogAgencyId] = useState<number | null>(null);
   const [reapplyMessage, setReapplyMessage] = useState("");
+  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
+  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
+  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
 
   const handleReapply = async (agencyId: number) => {
     if (applyAgainDates.has(agencyId)) {
@@ -392,13 +363,42 @@ export function MyJoinRequestsClient() {
   const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
   const rejectReactivation = useRejectJoinRequestReactivation();
 
+  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
+  // enforced inside the shared dialog. Expired reactivation takes NO message
+  // (time-driven) — the dialog only confirms.
   const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
     try {
-      await requestJoinRequestReactivationAsApplicant.mutateAsync(requestId);
+      await requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId });
       notify.success("Reactivation requested — awaiting agency response.");
+      setNudgeDialogRequestId(null);
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
+    }
+  };
+
+  const createReconsiderationRequest = useCreateAgencyReviewRequest();
+  // U-049/U-050 reconsideration flow (Rejected tab): exactly one button per
+  // fresh card → Gate 1 → message dialog → POST. No pre-rendered box, no
+  // Apply Again. The verbatim post-submit ambient derives from the live
+  // pending_appeal row field (single source of truth, survives reload).
+  const [reconsiderDialog, setReconsiderDialog] = useState<{ agencyId: number; joinRequestId: number } | null>(null);
+
+  // Gate 1 (pending_appeal check + exact toast) and Gate 2 (message
+  // validation) are enforced inside the shared dialog; the message arrives
+  // trimmed and non-blank. POSTs the EXISTING review-requests endpoint with
+  // Q1b origin linkage (Q1d: no new endpoint); 409/400/404 stay server-side.
+  const handleRequestReconsideration = async (agencyId: number, joinRequestId: number, message: string) => {
+    try {
+      await createReconsiderationRequest.mutateAsync({
+        agencyId,
+        payload: { message, join_request_id: joinRequestId },
+      });
+      notify.success("Reconsideration requested — it will appear in the agency's Review Requests queue.");
+      setReconsiderDialog(null);
+    } catch (error) {
+      const detail = error instanceof ApiError ? error.detail : null;
+      notify.error(typeof detail === "string" ? detail : "Could not request reconsideration");
     }
   };
 
@@ -461,18 +461,12 @@ export function MyJoinRequestsClient() {
 
   const requests = requestsQuery.data ?? [];
   const cancelledRequestGroups = groupMyJoinRequestCycles(requests);
-  // U-028 / U-009: rejected requests grouped per (user, agency) pair — one
-  // cumulative card per agency, every rejected cycle inside it.
-  const groupedRejectedRequests = [
-    ...requests
-      .filter((r) => r.status === "rejected")
-      .reduce((acc, request) => {
-        const group = acc.get(request.agency_id) ?? [];
-        group.push(request);
-        acc.set(request.agency_id, group);
-        return acc;
-      }, new Map<number, MyAgencyJoinRequestResponse[]>()),
-  ];
+  // Expired sub-tab entity groups (grouped by agency_id) — one cumulative card
+  // per agency, mirroring the Cancelled tab (answer 4: grouping global).
+  const expiredRequestGroups = groupMyJoinRequestCycles(requests, "expired-history");
+  // Rejected sub-tab entity groups (grouped by agency_id) — one cumulative card
+  // per agency via the shared grouper, mirroring Cancelled/Expired (U-034b).
+  const rejectedRequestGroups = groupMyJoinRequestCycles(requests, "rejected");
   const applyAgainDates = new Map<number, Date>();
   for (const group of cancelledRequestGroups) {
     // Server-computed unlock date (see DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a) above).
@@ -1236,8 +1230,8 @@ export function MyJoinRequestsClient() {
           {[
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
             { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved").length})` },
-            { value: "rejected" as const, label: `Rejected (${requests.filter(r => r.status === "rejected").length})` },
-            { value: "expired" as const, label: `Expired (${requests.filter(hasExpiredHistory).length})` },
+            { value: "rejected" as const, label: `Rejected (${rejectedRequestGroups.length})` },
+            { value: "expired" as const, label: `Expired (${expiredRequestGroups.length})` },
             { value: "cancelled" as const, label: `Cancelled (${cancelledRequestGroups.length})` },
           ].map(({ value, label }) => (
             <Button key={value} type="button" variant={requestSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setRequestSubTab(value as "pending" | "approved" | "rejected" | "expired" | "cancelled")}>
@@ -1380,7 +1374,9 @@ export function MyJoinRequestsClient() {
                 <EmptyState title="No rejected requests" description="You have no rejected join requests." />
               </div>
             ) : (
-              groupedRejectedRequests.map(([agencyId, groupRequests]) => {
+              rejectedRequestGroups.map((group) => {
+                const agencyId = group.agencyId;
+                const groupRequests = group.requests;
                 // U-028 / U-009: one cumulative card per (user, agency) pair —
                 // every rejected cycle's decision stays visible inside the card.
                 // U-034b: terminal groups (returning-appeal rejection, or a
@@ -1392,25 +1388,34 @@ export function MyJoinRequestsClient() {
                 const latestRequest = [...groupRequests].sort(
                   (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
                 )[groupRequests.length - 1];
+                // Live appeal state (A2 persistence fix): the ambient derives
+                // from the row's pending_appeal, never ephemeral submit state,
+                // so it survives reload and discharges on resolution.
+                const hasLiveAppeal = groupRequests.some((request) => request.pending_appeal != null);
+                // Rejected-tab appeal rows: real history rows (message +
+                // timestamp inline, Revoked mechanism), filtered per agency.
+                const appealRows = getRejectedAppealHistory(
+                  historyQuery.data ?? [],
+                  { agency_id: group.agencyId },
+                  hasLiveAppeal,
+                );
                 return (
                 <Card key={agencyId}>
                   <CardBody className="space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <Link
-                        href={`/agencies/${agencyId}`}
-                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                      >
-                        {latestRequest.agency_name}
-                      </Link>
-                      <Badge variant="danger">rejected</Badge>
-                    </div>
+                    {/* Agency header via the shared TimelineHeader SSOT. The
+                        rejected application badge is the canonical
+                        applicationStatus, not a hand-rolled Badge. */}
+                    <TimelineHeader
+                      entity="agency"
+                      name={group.agencyName}
+                      verified={latestRequest?.is_verified}
+                      applicationStatus="rejected"
+                    />
                     <MembershipTimeline
                       tier="rich"
-                      history={cumulative.entries}
-                      alwaysExpanded
+                      history={[...cumulative.entries, ...appealRows]}
                       showHeader={false}
                       labelStage="join_request"
-                      sortDirection="asc"
                       emptyTitle="No rejected requests"
                       emptyDescription="You have no rejected join requests."
                     />
@@ -1420,13 +1425,19 @@ export function MyJoinRequestsClient() {
                       </p>
                     ) : null}
                     {!cumulative.terminal ? (
-                      <div className="pt-2">
-                        <Link
-                          href={`/agencies/${agencyId}/join`}
-                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                        >
-                          Apply Again
-                        </Link>
+                      <div className="space-y-3 pt-2">
+                        {hasLiveAppeal ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Your reconsideration request is pending a decision from {latestRequest.agency_name}. It&apos;s with {latestRequest.agency_name} for a decision.
+                          </p>
+                        ) : (
+                          <Button
+                            type="button" size="sm"
+                            onClick={() => setReconsiderDialog({ agencyId, joinRequestId: latestRequest.join_request_id })}
+                          >
+                            Request Reconsideration
+                          </Button>
+                        )}
                       </div>
                     ) : null}
                   </CardBody>
@@ -1437,34 +1448,40 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "expired" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(hasExpiredHistory).length === 0 ? (
+            {expiredRequestGroups.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No expired requests" description="Requests that ever passed through the expired state will appear here." />
               </div>
             ) : (
-              requests.filter(hasExpiredHistory).map((request) => {
-                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
-                // chronological stream. resolveExpiredNarrativeTimeline merges all
-                // events (submitted, expired, reactivation, approval, downstream
-                // revoked/reinstated) into a single sorted array with real
-                // timestamps — never two separately-rendered lists, which is what
-                // previously produced out-of-order rows and broken banding.
-                const narrativeEvents = resolveExpiredNarrativeTimeline(
-                  historyQuery.data ?? [],
-                  request,
-                  { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                );
+              expiredRequestGroups.map((group) => {
+                const latestRequest = group.requests[0];
                 return (
-                  <Card key={request.join_request_id}>
+                  <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
+                      {/* Agency header via the shared TimelineHeader SSOT. The
+                          expired application badge is the canonical
+                          applicationStatus, not a hand-rolled Badge. */}
                       <TimelineHeader
                         entity="agency"
-                        name={request.agency_name}
-                        verified={request.is_verified}
-                        applicationStatus={request.status}
-                         eventCount={narrativeEvents.length}
+                        name={group.agencyName}
+                        verified={latestRequest?.is_verified}
+                        applicationStatus="expired"
                       />
+                      {group.requests.map((request, requestIndex) => {
+                        // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
+                        // chronological stream. resolveExpiredNarrativeTimeline merges all
+                        // events (submitted, expired, reactivation, approval, downstream
+                        // revoked/reinstated) into a single sorted array with real
+                        // timestamps — never two separately-rendered lists, which is what
+                        // previously produced out-of-order rows and broken banding.
+                        const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
+                        const narrativeEvents = resolveExpiredNarrativeTimeline(
+                          historyQuery.data ?? [],
+                          request,
+                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                        );
+                        return (
+                          <div key={request.join_request_id} className={requestIndex === 0 ? "space-y-4" : "space-y-4 border-t border-border pt-4"}>
                       {request.cover_note ? (
                         <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
                           <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
@@ -1520,13 +1537,15 @@ export function MyJoinRequestsClient() {
                           </p>
                           <Button
                             type="button" size="sm"
-                            loading={requestJoinRequestReactivationAsApplicant.isPending && requestJoinRequestReactivationAsApplicant.variables === request.join_request_id}
-                            onClick={() => void handleRequestJoinRequestReactivationAsApplicant(request.join_request_id)}
+                            onClick={() => setNudgeDialogRequestId(request.join_request_id)}
                           >
                             Request Reactivation
                           </Button>
                         </div>
                       ) : null}
+                          </div>
+                        );
+                      })}
                     </CardBody>
                   </Card>
                 );
@@ -1565,14 +1584,21 @@ export function MyJoinRequestsClient() {
                       eventCount={group.requests.length}
                       applicationStatus="cancelled"
                     />
+                    {(() => {
+                      const ambient = resolveCancelledApplicationAmbient({
+                        agencyName: group.agencyName,
+                        applyAgainDate,
+                      });
+                      return (
+                        <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
+                      );
+                    })()}
                     <div className="space-y-2">
                       <MembershipTimeline
                         tier="rich"
                         history={cumulative.entries}
-                        alwaysExpanded
                         showHeader={false}
                         labelStage="join_request"
-                        sortDirection="asc"
                         pendingReapplyNotice={{
                           viewerIsApplicant: true,
                           name: group.agencyName,
@@ -1601,15 +1627,6 @@ export function MyJoinRequestsClient() {
                       >
                         Apply Again
                       </Button>
-                      {(() => {
-                        const ambient = resolveCancelledApplicationAmbient({
-                          agencyName: group.agencyName,
-                          applyAgainDate,
-                        });
-                        return (
-                          <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
-                        );
-                      })()}
                     </div>
                   </CardBody>
                 </Card>
@@ -1621,6 +1638,54 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
+      {/* U-050 confirm-only nudge dialog (shared canonical component). */}
+      <ConfirmDestructiveDialog
+        open={nudgeDialogRequestId !== null}
+        onClose={() => setNudgeDialogRequestId(null)}
+        title="Request reactivation"
+        description={`Ask ${requests.find((r) => r.join_request_id === nudgeDialogRequestId)?.agency_name ?? "the agency"} to reactivate your expired application.`}
+        variant="confirm-only"
+        confirmLabel="Send request"
+        checkPending={() => {
+          const group = expiredRequestGroups.find((g) =>
+            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
+          );
+          return runNudgeGateChecks({
+            action: "reactivation",
+            requests: group?.requests ?? [],
+            viewerUserId: user?.user_id ?? null,
+            viewerIsApplicant: true,
+            counterpartyName: group?.agencyName ?? "the agency",
+            includeCooldownCheck: false,
+          });
+        }}
+        isPending={requestJoinRequestReactivationAsApplicant.isPending}
+        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivationAsApplicant(nudgeDialogRequestId); }}
+      />
+      {/* U-050 message-required reconsideration dialog (shared canonical component). */}
+      <ConfirmDestructiveDialog
+        open={reconsiderDialog !== null}
+        onClose={() => setReconsiderDialog(null)}
+        title="Request reconsideration"
+        description={`Ask ${rejectedRequestGroups.find((g) => g.agencyId === reconsiderDialog?.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`}
+        variant="message-required"
+        messageLabel="Message"
+        messagePlaceholder="Message for the agency owner (required)"
+        confirmLabel="Send request"
+        checkPending={() => {
+          const group = rejectedRequestGroups.find((g) => g.agencyId === reconsiderDialog?.agencyId);
+          return runNudgeGateChecks({
+            action: "reconsideration",
+            requests: group?.requests ?? [],
+            viewerUserId: user?.user_id ?? null,
+            viewerIsApplicant: true,
+            counterpartyName: group?.agencyName ?? "the agency",
+            includeCooldownCheck: false,
+          });
+        }}
+        isPending={createReconsiderationRequest.isPending}
+        onConfirm={(message) => { if (reconsiderDialog !== null) void handleRequestReconsideration(reconsiderDialog.agencyId, reconsiderDialog.joinRequestId, message); }}
+      />
       <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
         <DialogContent>
           <DialogHeader>

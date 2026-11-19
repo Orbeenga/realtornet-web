@@ -144,6 +144,44 @@ const anchorKey = timelineEntryKey({ source_type: "join_request", timestamp: "20
 const decisionKey = timelineEntryKey({ source_type: "audit_event", action: "cancelled", timestamp: "2026-09-10T10:00:00Z" });
 assert(anchorKey !== decisionKey, "same-timestamp anchor/decision rows get distinct keys");
 
+// 10. Submitted anchors carry reapplied_from_request_id for the shared label
+// map (reapply rows render "Reapplied"); fresh anchors carry null.
+const reappliedGroup = resolveCumulativeRequestLifecycleTimeline(
+  [
+    request({ join_request_id: 50, status: "cancelled", decided_at: "2026-09-02T10:00:00Z" }),
+    request({
+      join_request_id: 51,
+      status: "cancelled",
+      submitted_at: "2026-09-10T10:00:00Z",
+      created_at: "2026-09-10T10:00:00Z",
+      decided_at: "2026-09-11T10:00:00Z",
+      reapplied_from_request_id: 50,
+    }),
+  ],
+  { kind: "cancelled" },
+);
+const anchors = reappliedGroup.entries.filter((e) => e.action == null);
+assert(
+  anchors.find((e) => e.timestamp.startsWith("2026-09-10"))?.reapplied_from_request_id === 50,
+  "reapply anchor carries its lineage marker",
+);
+assert(
+  anchors.find((e) => e.timestamp.startsWith("2026-09-01"))?.reapplied_from_request_id == null,
+  "fresh anchor carries no lineage marker",
+);
+
+// 11. Rejected cards never synthesize appeal rows: reconsideration appeals
+// surface as real history rows via getRejectedAppealHistory (Revoked
+// mechanism), never from emitter input. The emitter stays silent here.
+const rejectedNoSynthesize = resolveCumulativeRequestLifecycleTimeline(
+  [request({ join_request_id: 60, status: "rejected", decided_at: "2026-09-02T10:00:00Z" })],
+  { kind: "rejected" },
+);
+assert(
+  rejectedNoSynthesize.entries.every((e) => e.action !== "reconsideration_requested"),
+  "emitter never synthesizes appeal rows",
+);
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);
