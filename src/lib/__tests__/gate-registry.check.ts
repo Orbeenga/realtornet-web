@@ -25,7 +25,9 @@ import {
   GATE_REGISTRY,
   REGISTRY_HOOK_NAMES,
   resolveStaleViewToast,
+  runGate1Checks,
   validateGateFieldValues,
+  type Gate1Context,
   type GateActionKind,
   type GateFieldValues,
 } from "@/lib/gate-registry";
@@ -352,7 +354,9 @@ for (const spec of specs) {
 
 // Migrated ratchet: step 1 lands reapply + cancel; F3/F4 nudges rewired;
 // step 2 lands accept + decline (review queue, Pending tab, consent accept);
-// step 3 lands the lifecycle family (block/suspend/revoke + leave).
+// step 3 lands the lifecycle family (block/suspend/revoke + leave);
+// step 4 lands plain confirms (withdraw + invitation reactivation request).
+// apply stays unmigrated (Gate-1 predicate owed a lead ruling).
 const migrated = specs.filter((s) => s.migrated).map((s) => s.action);
 for (const action of [
   "cancel_join",
@@ -368,12 +372,18 @@ for (const action of [
   "revoke_membership",
   "block_membership",
   "leave_membership",
+  "withdraw_invitation",
+  "invitation_reactivation_request",
 ] as GateActionKind[]) {
   assert(migrated.includes(action), `migrated: ${action}`);
 }
 assert(
-  migrated.length === 13,
-  `exactly 13 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+  migrated.length === 15,
+  `exactly 15 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+);
+assert(
+  GATE_REGISTRY.apply.migrated === false,
+  "apply stays unmigrated until its Gate-1 predicate is ruled",
 );
 for (const spec of specs) {
   if (spec.profile === "C" && spec.dialog && spec.migrated) {
@@ -475,6 +485,45 @@ assert(
   resolveStaleViewToast(GATE_REGISTRY.apply, "join_request", "Acme") === null,
   "stale-view: unmigrated apply falls back to server-verbatim",
 );
+
+/* Invitation Gate-1 same-kind check (target-only; the UI hides the button
+   once requested, so this path is spec-covered, not browser-covered). */
+{
+  const spec = GATE_REGISTRY.invitation_reactivation_request;
+  const base: {
+    joinRequests: Gate1Context["joinRequests"];
+    reviewRequests: Gate1Context["reviewRequests"];
+    viewerUserId: number;
+    viewerIsApplicant: boolean;
+    counterpartyName: string;
+    includeCooldownCheck: boolean;
+  } = {
+    joinRequests: [],
+    reviewRequests: [],
+    viewerUserId: 1,
+    viewerIsApplicant: true,
+    counterpartyName: "Acme",
+    includeCooldownCheck: false,
+  };
+  assert(
+    runGate1Checks(spec, {
+      ...base,
+      invitations: [{ status: "expired", reactivation_requested_at: "2026-11-19T00:00:00Z" }],
+    }) === "A reactivation is already pending with Acme",
+    "Gate 1: requested invitation blocks with reactivation toast",
+  );
+  assert(
+    runGate1Checks(spec, {
+      ...base,
+      invitations: [{ status: "expired", reactivation_requested_at: null }],
+    }) === null,
+    "Gate 1: fresh invitation is clear",
+  );
+  assert(
+    runGate1Checks(spec, { ...base, invitations: [] }) === null,
+    "Gate 1: missing target is clear (server authoritative)",
+  );
+}
 assert(
   resolveStaleViewToast(GATE_REGISTRY.cancel_join, "join_request", "Acme") === null,
   "stale-view: non-C actions fall back to server-verbatim",

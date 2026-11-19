@@ -215,7 +215,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [],
     dialog: true,
     confirmLabel: "Withdraw",
-    migrated: false,
+    migrated: true,
   },
   reject_join: {
     action: "reject_join",
@@ -360,8 +360,8 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     nudgeNoun: "reactivation",
     dialog: true,
     confirmLabel: "Send request",
-    migrated: false,
-    note: "Same-kind pending check only; message TBD at migration (endpoint takes no body today).",
+    migrated: true,
+    note: "Same-kind pending check over the TARGET invitation only (callers pass ctx.invitations: [target]): the server guards per-invitation, so a pair-wide check would false-block legitimate requests (UI-008). No message — the endpoint takes no body.",
   },
   block_membership: {
     action: "block_membership",

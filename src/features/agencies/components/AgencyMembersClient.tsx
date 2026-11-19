@@ -507,6 +507,17 @@ export function AgencyMembersClient() {
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
 
+  // Registry Profile A (U-052 step 4): withdraw gains a confirm-only dialog
+  // (was direct-fire). Error mapping also improves: verbatim-or-fallback
+  // replaces the old error.message ("API error 403").
+  const withdrawGate = useGatedAction<number>("withdraw_invitation", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (invitationId) => withdrawInvitation.mutateAsync(invitationId),
+    title: "Withdraw invitation",
+    successToast: "Invitation withdrawn.",
+    errorFallback: "Could not withdraw invitation",
+  });
+
   // Registry review-queue decisions run through gates (U-052 step 2).
   // Review accept drops its formerly-optional reason (Profile A renders no
   // fields; backend accepts null). Decline keeps required reason with
@@ -1691,13 +1702,7 @@ export function AgencyMembersClient() {
                           size="sm"
                           variant="secondary"
                           loading={withdrawInvitation.isPending && withdrawInvitation.variables === invitation.invitation_id}
-                          onClick={() => {
-                            void withdrawInvitation.mutateAsync(invitation.invitation_id).then(() => {
-                              notify.success("Invitation withdrawn.");
-                            }).catch((error: unknown) => {
-                              notify.error(error instanceof ApiError ? error.message : "Could not withdraw invitation");
-                            });
-                          }}
+                          onClick={() => withdrawGate.attempt(invitation.invitation_id)}
                         >
                           Withdraw
                         </Button>
@@ -2211,6 +2216,16 @@ export function AgencyMembersClient() {
             : `Confirm this action for ${blockGate.seed.agentName}. A reason is required and will be visible in membership history.`
         }
         typenameTarget={blockGate.seed?.agentName ?? ""}
+      />
+
+      {/* Registry-driven plain confirms (U-052 step 4). */}
+      <ConfirmDestructiveDialog
+        {...withdrawGate.dialogProps}
+        description={
+          withdrawGate.seed === null
+            ? undefined
+            : `Withdraw the pending invitation for ${invitations.find((i) => i.invitation_id === withdrawGate.seed)?.email ?? "this address"}?`
+        }
       />
 
       {/* Registry-driven review-queue + Pending decisions (U-052 step 2).

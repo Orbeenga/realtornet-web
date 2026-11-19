@@ -322,15 +322,28 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleRequestReactivation = async (invitationId: number) => {
-    try {
-      await requestReactivation.mutateAsync(invitationId);
-      notify.success("Reactivation requested");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
-    }
-  };
+  // Registry Profile C, confirm-only variant (U-052 step 4): same-kind
+  // Gate-1 over the TARGET invitation (server guards per-invitation; a
+  // pair-wide check would false-block), then the dialog only confirms —
+  // the endpoint takes no body.
+  const inviteReactivationGate = useGatedAction<number>("invitation_reactivation_request", {
+    buildContext: (invitationId) => {
+      const target = invitations.find((i) => i.invitation_id === invitationId);
+      return {
+        joinRequests: [],
+        invitations: target ? [target] : [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: true,
+        counterpartyName: target?.agency_name ?? "the agency",
+        includeCooldownCheck: false,
+      };
+    },
+    invoke: (invitationId) => requestReactivation.mutateAsync(invitationId),
+    title: "Request reactivation",
+    successToast: "Reactivation requested",
+    errorFallback: "Could not request reactivation",
+  });
 
   // Cancel runs through cancelGate (registry Profile B) — no bespoke handler.
 
@@ -740,7 +753,7 @@ export function MyJoinRequestsClient() {
                               requestReactivation.variables === invitation.invitation_id
                             }
                             onClick={() =>
-                              void handleRequestReactivation(invitation.invitation_id)
+                              inviteReactivationGate.attempt(invitation.invitation_id)
                             }
                           >
                             Request Reactivation
@@ -806,7 +819,7 @@ export function MyJoinRequestsClient() {
                               requestReactivation.variables === invitation.invitation_id
                             }
                             onClick={() =>
-                              void handleRequestReactivation(invitation.invitation_id)
+                              inviteReactivationGate.attempt(invitation.invitation_id)
                             }
                           >
                             Express Interest
@@ -1663,6 +1676,17 @@ export function MyJoinRequestsClient() {
             ? undefined
             : `Accept the reactivation request from ${requests.find((r) => r.join_request_id === acceptReactivationGate.seed)?.agency_name ?? "the agency"}? Your application will be pending again.`
         }
+      />
+      <ConfirmDestructiveDialog
+        {...inviteReactivationGate.dialogProps}
+        description={(() => {
+          if (inviteReactivationGate.seed === null) return undefined;
+          const target = invitations.find((i) => i.invitation_id === inviteReactivationGate.seed);
+          const agency = target?.agency_name ?? "the agency";
+          return target?.status === "withdrawn"
+            ? `Express interest in the withdrawn invitation from ${agency}? They will be notified.`
+            : `Ask ${agency} to reactivate your expired invitation.`;
+        })()}
       />
     </div>
   );
