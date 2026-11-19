@@ -6443,6 +6443,8 @@ export interface components {
             review_message?: string | null;
             /** Review Response */
             review_response?: string | null;
+            /** Join Request Id */
+            join_request_id?: number | null;
             /** Agency Name */
             agency_name?: string | null;
             /** User Display Name */
