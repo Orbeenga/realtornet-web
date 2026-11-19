@@ -236,23 +236,6 @@ export function MyJoinRequestsClient() {
     invoke: (requestId, values) =>
       cancelJoinRequest.mutateAsync({ requestId, reason: values.reason }),
     title: "Cancel join request",
-    description: (requestId) => {
-      const target = requests.find((r) => r.join_request_id === requestId) ?? null;
-      const recentCount = target
-        ? requests.filter((request) => {
-            if (request.agency_id !== target.agency_id) return false;
-            if (request.status !== "cancelled" || !request.decided_at) return false;
-            return new Date(request.decided_at).getTime() >= cooldownCutoff;
-          }).length
-        : 0;
-      if (recentCount >= COOLDOWN_LIMIT - 1) {
-        return "If you proceed, you will not be able to reapply to this agency for 30 days.";
-      }
-      if (recentCount >= COOLDOWN_LIMIT - 2) {
-        return "If you proceed, you are close to exhausting the maximum allowed limit for reapplications.";
-      }
-      return "Are you sure you want to cancel this join request? This cannot be undone.";
-    },
     cancelLabel: "Keep",
     successToast: "Join request cancelled",
     errorFallback: "Could not cancel join request",
@@ -396,8 +379,6 @@ export function MyJoinRequestsClient() {
     invoke: (requestId) =>
       requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId }),
     title: "Request reactivation",
-    description: (requestId) =>
-      `Ask ${requests.find((r) => r.join_request_id === requestId)?.agency_name ?? "the agency"} to reactivate your expired application.`,
     successToast: "Reactivation requested — awaiting agency response.",
     errorFallback: "Could not request reactivation",
   });
@@ -430,8 +411,6 @@ export function MyJoinRequestsClient() {
           payload: { message: values.message, join_request_id: seed.joinRequestId },
         }),
       title: "Request reconsideration",
-      description: (seed) =>
-        `Ask ${rejectedRequestGroups.find((g) => g.agencyId === seed.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`,
       successToast: "Reconsideration requested — it will appear in the agency's Review Requests queue.",
       errorFallback: "Could not request reconsideration",
     },
@@ -1640,10 +1619,49 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
-      {/* Registry-driven dialogs (U-052): one pure renderer, four actions. */}
-      <ConfirmDestructiveDialog {...reactivationGate.dialogProps} />
-      <ConfirmDestructiveDialog {...reconsiderGate.dialogProps} />
-      <ConfirmDestructiveDialog {...cancelGate.dialogProps} />
+      {/* Registry-driven dialogs (U-052): one pure renderer, four actions.
+          Seed-dependent descriptions compute here (data exists) from
+          gate.seed and spread-override dialogProps (TDZ note in
+          useGatedAction — never as opts closures). */}
+      <ConfirmDestructiveDialog
+        {...reactivationGate.dialogProps}
+        description={
+          reactivationGate.seed === null
+            ? undefined
+            : `Ask ${requests.find((r) => r.join_request_id === reactivationGate.seed)?.agency_name ?? "the agency"} to reactivate your expired application.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...reconsiderGate.dialogProps}
+        description={
+          reconsiderGate.seed === null
+            ? undefined
+            : `Ask ${rejectedRequestGroups.find((g) => g.agencyId === reconsiderGate.seed?.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...cancelGate.dialogProps}
+        description={(() => {
+          const target =
+            cancelGate.seed === null
+              ? null
+              : (requests.find((r) => r.join_request_id === cancelGate.seed) ?? null);
+          const recentCount = target
+            ? requests.filter((request) => {
+                if (request.agency_id !== target.agency_id) return false;
+                if (request.status !== "cancelled" || !request.decided_at) return false;
+                return new Date(request.decided_at).getTime() >= cooldownCutoff;
+              }).length
+            : 0;
+          if (recentCount >= COOLDOWN_LIMIT - 1) {
+            return "If you proceed, you will not be able to reapply to this agency for 30 days.";
+          }
+          if (recentCount >= COOLDOWN_LIMIT - 2) {
+            return "If you proceed, you are close to exhausting the maximum allowed limit for reapplications.";
+          }
+          return "Are you sure you want to cancel this join request? This cannot be undone.";
+        })()}
+      />
       <ConfirmDestructiveDialog {...reapplyGate.dialogProps} />
     </div>
   );

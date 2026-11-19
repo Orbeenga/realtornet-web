@@ -640,8 +640,6 @@ export function AgencyMembersClient() {
     invoke: (requestId) =>
       requestJoinRequestReactivation.mutateAsync({ requestId }),
     title: "Reactivate application",
-    description: (requestId) =>
-      `Ask ${joinRequests.find((r) => r.join_request_id === requestId)?.seeker_name ?? "the applicant"} to reactivate their expired application.`,
     successToast: "Reactivation requested — applicant will be notified.",
     errorFallback: "Could not request reactivation.",
   });
@@ -2292,8 +2290,17 @@ export function AgencyMembersClient() {
       </Dialog>
 
       {/* Registry-driven dialog (U-052). Root-level: it must stay mounted
-          regardless of which tab panel is active. */}
-      <ConfirmDestructiveDialog {...reactivationGate.dialogProps} />
+          regardless of which tab panel is active. Seed-dependent
+          description computes here from gate.seed (TDZ note in
+          useGatedAction — never as an opts closure). */}
+      <ConfirmDestructiveDialog
+        {...reactivationGate.dialogProps}
+        description={
+          reactivationGate.seed === null
+            ? undefined
+            : `Ask ${joinRequests.find((r) => r.join_request_id === reactivationGate.seed)?.seeker_name ?? "the applicant"} to reactivate their expired application.`
+        }
+      />
     </div>
   );
 }
