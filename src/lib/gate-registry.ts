@@ -55,6 +55,24 @@ export interface Gate1Context {
   includeCooldownCheck: boolean;
 }
 
+/* Empty context for actions without Gate-1 checks (profiles A/B/D).
+   Values are never read (no checks run); stale-view mapping only applies to
+   profile C. Provided to keep call sites to one line. */
+export function emptyGate1Context(
+  viewerUserId: number | null = null,
+  viewerIsApplicant = false,
+): Gate1Context {
+  return {
+    joinRequests: [],
+    invitations: [],
+    reviewRequests: [],
+    viewerUserId,
+    viewerIsApplicant,
+    counterpartyName: "",
+    includeCooldownCheck: false,
+  };
+}
+
 export interface Gate1Check {
   id: string;
   run: (ctx: Gate1Context) => string | null;
@@ -164,7 +182,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [],
     dialog: true,
     confirmLabel: "Accept",
-    migrated: false,
+    migrated: true,
   },
   approve_join: {
     action: "approve_join",
@@ -175,7 +193,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [],
     dialog: true,
     confirmLabel: "Approve",
-    migrated: false,
+    migrated: true,
   },
   accept_review: {
     action: "accept_review",
@@ -186,7 +204,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     fields: [],
     dialog: true,
     confirmLabel: "Accept",
-    migrated: false,
+    migrated: true,
   },
   withdraw_invitation: {
     action: "withdraw_invitation",
@@ -209,7 +227,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     dialog: true,
     destructive: true,
     confirmLabel: "Reject",
-    migrated: false,
+    migrated: true,
   },
   decline_review: {
     action: "decline_review",
@@ -221,7 +239,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     dialog: true,
     destructive: true,
     confirmLabel: "Decline",
-    migrated: false,
+    migrated: true,
   },
   reconsider_agency: {
     action: "reconsider_agency",

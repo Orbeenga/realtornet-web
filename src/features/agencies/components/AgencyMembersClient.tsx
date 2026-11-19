@@ -52,6 +52,7 @@ import {
 } from "@/features/agencies/hooks";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import { useGatedAction } from "@/hooks/useGatedAction";
+import { emptyGate1Context } from "@/lib/gate-registry";
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
@@ -99,13 +100,12 @@ type PendingMembershipDecision = {
   agentName: string;
 };
 
-type PendingReviewDecision = {
-  action: "accept" | "decline";
+/* Registry seed for review-queue decisions. sourceType is non-nullable here:
+   the U-033 contract guard in attemptReviewDecision rejects missing
+   discriminators before any gate runs, rather than guessing a source table. */
+type ReviewDecisionSeed = {
   requestId: number;
-  /* Mirrors AgencyReviewRequestResponse.source_type (nullable/optional); the
-     accept/decline handler re-validates it (U-033 discriminator) and fails
-     loudly on a missing value rather than guessing a source table. */
-  sourceType?: string | null;
+  sourceType: string;
   requesterName: string;
 };
 
@@ -350,7 +350,6 @@ function AgencyMemberHistoryGroup({
 export function AgencyMembersClient() {
   const gate = useAgentRoleGate();
   const { user } = useAuth();
-  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [membershipReasons, setMembershipReasons] = useState<Record<number, string>>({});
   const [activeTab, setActiveTab] = useState<AgencyOwnerTab>("joinRequests");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "withdrawn">("pending");
@@ -358,11 +357,6 @@ export function AgencyMembersClient() {
   const [expandedApplicationUserId, setExpandedApplicationUserId] = useState<number | null>(null);
   const [pendingMembershipDecision, setPendingMembershipDecision] =
     useState<PendingMembershipDecision | null>(null);
-  /* Review-queue decisions use the same click-to-confirm dialog pattern as the
-     membership-decision dialog (SSOT pattern, 2ef202c): reason entry lives in
-     the popover, never inline-preset on the row. */
-  const [pendingReviewDecision, setPendingReviewDecision] =
-    useState<PendingReviewDecision | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const {
     register,
@@ -505,33 +499,75 @@ export function AgencyMembersClient() {
   const withdrawInvitation = useWithdrawAgencyInvitation(agencyId);
   const reactivateInvitation = useReactivateInvitation();
   const requestJoinRequestReactivation = useRequestJoinRequestReactivation(agencyId);
-  const handleApproveJoinRequest = async (requestId: number) => {
-    try {
-      await approveJoinRequest.mutateAsync(requestId);
-      notify.success("Join request approved. The applicant can see the decision in My Agencies.");
-    } catch {
-      notify.error("Could not approve join request");
-    }
-  };
 
-  const handleRejectJoinRequest = async (requestId: number) => {
-    const reason = rejectReasons[requestId]?.trim();
-    if (!reason) {
-      notify.error("Enter a reason before rejecting this join request.");
+  // Registry review-queue decisions run through gates (U-052 step 2).
+  // Review accept drops its formerly-optional reason (Profile A renders no
+  // fields; backend accepts null). Decline keeps required reason with
+  // inline Gate-2.
+  const acceptReviewGate = useGatedAction<ReviewDecisionSeed>("accept_review", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (seed) =>
+      acceptReview.mutateAsync({
+        requestId: seed.requestId,
+        payload: { reason: null },
+        sourceType: seed.sourceType,
+      }),
+    title: "Accept review request",
+    successToast: "Review request accepted. The agent role has been reinstated if needed.",
+    errorFallback: "Could not update review request.",
+  });
+  const declineReviewGate = useGatedAction<ReviewDecisionSeed>("decline_review", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (seed, values) =>
+      declineReview.mutateAsync({
+        requestId: seed.requestId,
+        payload: { reason: values.reason },
+        sourceType: seed.sourceType,
+      }),
+    title: "Decline review request",
+    successToast: "Review request declined. The requester has been notified.",
+    errorFallback: "Could not update review request.",
+  });
+  /* U-033 contract guard (not a gate): the queue discriminator must be echoed
+     back — the backend routes strictly by source_type. Fail loudly on a
+     missing value rather than guessing a table. Shared by all four queue
+     buttons (primary + priors × accept/decline). */
+  const attemptReviewDecision = (
+    action: "accept" | "decline",
+    request: { id: number; source_type?: string | null },
+    requesterName: string,
+  ) => {
+    if (!request.source_type) {
+      notify.error("Review request is missing its source type. Refresh and try again.");
       return;
     }
-    try {
-      await rejectJoinRequest.mutateAsync({ requestId, payload: { reason } });
-      notify.success("Join request rejected. The applicant can see the reason in My Agencies.");
-      setRejectReasons((current) => {
-        const next = { ...current };
-        delete next[requestId];
-        return next;
-      });
-    } catch {
-      notify.error("Could not reject join request");
-    }
+    const seed: ReviewDecisionSeed = {
+      requestId: request.id,
+      sourceType: request.source_type,
+      requesterName,
+    };
+    if (action === "accept") acceptReviewGate.attempt(seed);
+    else declineReviewGate.attempt(seed);
   };
+
+  // Pending-tab decisions run through gates (U-052 step 2). Approve gains a
+  // confirm dialog (ruling 3: accepts confirm); reject replaces its inline
+  // reason input with the shared reason dialog.
+  const approveGate = useGatedAction<number>("approve_join", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (requestId) => approveJoinRequest.mutateAsync(requestId),
+    title: "Approve join request",
+    successToast: "Join request approved. The applicant can see the decision in My Agencies.",
+    errorFallback: "Could not approve join request",
+  });
+  const rejectGate = useGatedAction<number>("reject_join", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null),
+    invoke: (requestId, values) =>
+      rejectJoinRequest.mutateAsync({ requestId, payload: { reason: values.reason } }),
+    title: "Reject join request",
+    successToast: "Join request rejected. The applicant can see the reason in My Agencies.",
+    errorFallback: "Could not reject join request",
+  });
 
 
 
@@ -682,44 +718,8 @@ export function AgencyMembersClient() {
     setPendingMembershipDecision(null);
   };
 
-  const handleReviewDecision = async (
-    action: "accept" | "decline",
-    requestId: number,
-    sourceType?: string | null,
-  ) => {
-    /* U-033: the queue row's discriminator MUST be echoed back — the backend
-       routes strictly by source_type (no fallback). A row without one is a
-       contract violation; fail loudly rather than guess a table. */
-    if (!sourceType) {
-      notify.error("Review request is missing its source type. Refresh and try again.");
-      return;
-    }
-    const reason = membershipReasons[requestId]?.trim() || null;
-    if (action === "decline" && !reason) {
-      notify.error("Enter a reason before declining this review request.");
-      return;
-    }
-    try {
-      if (action === "accept") {
-        await acceptReview.mutateAsync({ requestId, payload: { reason }, sourceType });
-        notify.success("Review request accepted. The agent role has been reinstated if needed.");
-      } else {
-        await declineReview.mutateAsync({ requestId, payload: { reason }, sourceType });
-        notify.success("Review request declined. The requester has been notified.");
-      }
-      setMembershipReasons((current) => {
-        const next = { ...current };
-        delete next[requestId];
-        return next;
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiError && typeof error.detail === "string"
-          ? error.detail
-          : "Could not update review request.";
-      notify.error(message);
-    }
-  };
+  // Review decisions run through acceptReviewGate/declineReviewGate
+  // (registry step 2) — no bespoke handler.
 
   /* Three distinct states were previously collapsed into one branch. Because
      `gate.isChecking` is true during SSR and first paint, every viewer - of any
@@ -852,24 +852,6 @@ export function AgencyMembersClient() {
       (pendingMembershipDecision.action === "unblock" && unblockMembership.isPending)
     : false;
 
-  /* Review-queue confirm dialog: reason entry lives in the popover only
-     (SSOT pattern, 2ef202c) - required for decline, optional for accept, so a
-     decline is blocked until a reason is entered and an accept never is. */
-  const pendingReviewDecisionReason = pendingReviewDecision
-    ? membershipReasons[pendingReviewDecision.requestId]?.trim()
-    : "";
-  const isPendingReviewSubmitting = pendingReviewDecision
-    ? (pendingReviewDecision.action === "accept" ? acceptReview.isPending : declineReview.isPending)
-    : false;
-  const canSubmitReviewDecision =
-    pendingReviewDecision != null &&
-    (pendingReviewDecision.action === "accept" || Boolean(pendingReviewDecisionReason));
-  const handleConfirmReviewDecision = async () => {
-    if (!pendingReviewDecision) return;
-    const { action, requestId, sourceType } = pendingReviewDecision;
-    await handleReviewDecision(action, requestId, sourceType);
-    setPendingReviewDecision(null);
-  };
   return (
     <div className="space-y-6">
       <div>
@@ -967,29 +949,19 @@ export function AgencyMembersClient() {
                             <Button
                               type="button" size="sm"
                               loading={approveJoinRequest.isPending && approveJoinRequest.variables === request.join_request_id}
-                              onClick={() => void handleApproveJoinRequest(request.join_request_id)}
+                              onClick={() => approveGate.attempt(request.join_request_id)}
                             >
                               Approve
                             </Button>
                             <Button
                               type="button" size="sm" variant="destructive"
                               loading={rejectJoinRequest.isPending && rejectJoinRequest.variables?.requestId === request.join_request_id}
-                              onClick={() => void handleRejectJoinRequest(request.join_request_id)}
+                              onClick={() => rejectGate.attempt(request.join_request_id)}
                             >
                               Reject
                             </Button>
                           </div>
                         </div>
-                        <Input
-                          className="mt-4" label="Reject reason" placeholder="Required before rejecting"
-                          value={rejectReasons[request.join_request_id] ?? ""}
-                          onChange={(event) =>
-                            setRejectReasons((current) => ({
-                              ...current,
-                              [request.join_request_id]: event.target.value,
-                            }))
-                          }
-                        />
                       </div>
                     ))}
                   </div>
@@ -1349,28 +1321,14 @@ export function AgencyMembersClient() {
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <Button type="button" size="sm"
                             loading={acceptReview.isPending && acceptReview.variables?.requestId === primaryRequest.id}
-                            onClick={() =>
-                              setPendingReviewDecision({
-                                action: "accept",
-                                requestId: primaryRequest.id,
-                                sourceType: primaryRequest.source_type,
-                                requesterName: group.requesterName,
-                              })
-                            }
+                            onClick={() => attemptReviewDecision("accept", primaryRequest, group.requesterName)}
                           >
                             Accept
                           </Button>
                           {primaryRequest.actor_id !== user?.user_id ? (
                             <Button type="button" size="sm" variant="secondary"
                               loading={declineReview.isPending && declineReview.variables?.requestId === primaryRequest.id}
-                              onClick={() =>
-                                setPendingReviewDecision({
-                                  action: "decline",
-                                  requestId: primaryRequest.id,
-                                  sourceType: primaryRequest.source_type,
-                                  requesterName: group.requesterName,
-                                })
-                              }
+                              onClick={() => attemptReviewDecision("decline", primaryRequest, group.requesterName)}
                             >
                               Decline
                             </Button>
@@ -1416,28 +1374,14 @@ export function AgencyMembersClient() {
                                   <div className="flex shrink-0 flex-wrap gap-2">
                                     <Button type="button" size="sm"
                                       loading={acceptReview.isPending && acceptReview.variables?.requestId === req.id}
-                                      onClick={() =>
-                                        setPendingReviewDecision({
-                                          action: "accept",
-                                          requestId: req.id,
-                                          sourceType: req.source_type,
-                                          requesterName: group.requesterName,
-                                        })
-                                      }
+                                      onClick={() => attemptReviewDecision("accept", req, group.requesterName)}
                                     >
                                       Accept
                                     </Button>
                                     {req.actor_id !== user?.user_id ? (
                                       <Button type="button" size="sm" variant="secondary"
                                         loading={declineReview.isPending && declineReview.variables?.requestId === req.id}
-                                        onClick={() =>
-                                          setPendingReviewDecision({
-                                            action: "decline",
-                                            requestId: req.id,
-                                            sourceType: req.source_type,
-                                            requesterName: group.requesterName,
-                                          })
-                                        }
+                                        onClick={() => attemptReviewDecision("decline", req, group.requesterName)}
                                       >
                                         Decline
                                       </Button>
@@ -2244,50 +2188,41 @@ export function AgencyMembersClient() {
         </DialogContent>
       </Dialog>
 
-      {/* Review-queue decisions: same click-to-confirm dialog pattern as the
-          membership-decision dialog (SSOT pattern, 2ef202c) - reason entry
-          lives in the popover, never inline-preset on the queue row. */}
-      <Dialog
-        open={Boolean(pendingReviewDecision)}
-        onOpenChange={(open) => { if (!open) setPendingReviewDecision(null); }}
-      >
-        <DialogContent finalFocus={false}>
-          <DialogHeader>
-            <DialogTitle>
-              {pendingReviewDecision?.action === "accept" ? "Accept review request" : "Decline review request"}
-            </DialogTitle>
-            <DialogDescription>
-              {pendingReviewDecision
-                ? `Confirm this action for ${pendingReviewDecision.requesterName}. A reason is required for decline and will be visible in membership history.`
-                : "Confirm this review decision."}
-            </DialogDescription>
-          </DialogHeader>
-          {pendingReviewDecision ? (
-            <Input
-              label="Reason" placeholder="Required for decline, optional for accept"
-              value={membershipReasons[pendingReviewDecision.requestId] ?? ""}
-              onChange={(event) =>
-                setMembershipReasons((current) => ({
-                  ...current,
-                  [pendingReviewDecision.requestId]: event.target.value,
-                }))
-              }
-            />
-          ) : null}
-          <DialogFooter>
-            <DialogClose render={<Button type="button" variant="secondary" />}>Cancel</DialogClose>
-            <Button
-              type="button"
-              variant={pendingReviewDecision?.action === "decline" ? "destructive" : "primary"}
-              loading={isPendingReviewSubmitting}
-              disabled={!canSubmitReviewDecision}
-              onClick={() => void handleConfirmReviewDecision()}
-            >
-              {pendingReviewDecision?.action === "accept" ? "Accept" : "Decline"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Registry-driven review-queue + Pending decisions (U-052 step 2).
+          Seed-dependent descriptions compute here from gate.seed (TDZ note
+          in useGatedAction — never as opts closures). */}
+      <ConfirmDestructiveDialog
+        {...acceptReviewGate.dialogProps}
+        description={
+          acceptReviewGate.seed === null
+            ? undefined
+            : `Confirm this action for ${acceptReviewGate.seed.requesterName}.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...declineReviewGate.dialogProps}
+        description={
+          declineReviewGate.seed === null
+            ? undefined
+            : `Confirm this action for ${declineReviewGate.seed.requesterName}. A reason is required for decline and will be visible in membership history.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...approveGate.dialogProps}
+        description={
+          approveGate.seed === null
+            ? undefined
+            : `Confirm this action for ${joinRequests.find((r) => r.join_request_id === approveGate.seed)?.seeker_name ?? "the applicant"}.`
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...rejectGate.dialogProps}
+        description={
+          rejectGate.seed === null
+            ? undefined
+            : `Confirm this action for ${joinRequests.find((r) => r.join_request_id === rejectGate.seed)?.seeker_name ?? "the applicant"}. A reason is required and will be visible to the applicant.`
+        }
+      />
 
       {/* Registry-driven dialog (U-052). Root-level: it must stay mounted
           regardless of which tab panel is active. Seed-dependent

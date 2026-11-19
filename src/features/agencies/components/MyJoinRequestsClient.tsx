@@ -5,6 +5,7 @@ import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useGatedAction } from "@/hooks/useGatedAction";
+import { emptyGate1Context } from "@/lib/gate-registry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
@@ -224,15 +225,7 @@ export function MyJoinRequestsClient() {
 
   // Registry Profile B (U-052): reason, then confirm. No Gate 1.
   const cancelGate = useGatedAction<number>("cancel_join", {
-    buildContext: () => ({
-      joinRequests: [],
-      invitations: [],
-      reviewRequests: [],
-      viewerUserId: user?.user_id ?? null,
-      viewerIsApplicant: true,
-      counterpartyName: "",
-      includeCooldownCheck: false,
-    }),
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
     invoke: (requestId, values) =>
       cancelJoinRequest.mutateAsync({ requestId, reason: values.reason }),
     title: "Cancel join request",
@@ -341,15 +334,15 @@ export function MyJoinRequestsClient() {
 
   // Cancel runs through cancelGate (registry Profile B) — no bespoke handler.
 
-  const handleAcceptReactivation = async (requestId: number) => {
-    try {
-      await acceptReactivation.mutateAsync(requestId);
-      notify.success("Reactivation accepted — request is pending again.");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not accept reactivation");
-    }
-  };
+  // Registry Profile A (U-052 step 2, ruling 3): applicant consent accept
+  // gains a confirm-only dialog (was direct-fire).
+  const acceptReactivationGate = useGatedAction<number>("accept_reactivation", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (requestId) => acceptReactivation.mutateAsync(requestId),
+    title: "Accept reactivation",
+    successToast: "Reactivation accepted — request is pending again.",
+    errorFallback: "Could not accept reactivation",
+  });
 
   /* Reapply runs through reapplyGate (registry Profile C): Gate-1 ordered
      checks (pending 1-2 + cooldown 3 with date) pre-dialog, message Gate 2
@@ -1506,7 +1499,7 @@ export function MyJoinRequestsClient() {
                             <Button
                               type="button" size="sm"
                               loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                              onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                              onClick={() => acceptReactivationGate.attempt(request.join_request_id)}
                             >
                               Accept Reactivation
                             </Button>
@@ -1663,6 +1656,14 @@ export function MyJoinRequestsClient() {
         })()}
       />
       <ConfirmDestructiveDialog {...reapplyGate.dialogProps} />
+      <ConfirmDestructiveDialog
+        {...acceptReactivationGate.dialogProps}
+        description={
+          acceptReactivationGate.seed === null
+            ? undefined
+            : `Accept the reactivation request from ${requests.find((r) => r.join_request_id === acceptReactivationGate.seed)?.agency_name ?? "the agency"}? Your application will be pending again.`
+        }
+      />
     </div>
   );
 }
