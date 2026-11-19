@@ -39,14 +39,20 @@ export interface GatedDialogProps {
   onClose: () => void;
 }
 
+/* NOTE (TDZ): opts closures that run during render must not read component
+   consts declared after the hook call (early returns force hooks above data).
+   buildContext/invoke are safe (they run in event handlers, post-render), but
+   description/typenameTarget must be plain strings here. Callers needing
+   seed-dependent copy compute it beside their JSX (where data exists) from
+   gate.seed and spread-override dialogProps. */
 export interface UseGatedActionOpts<Seed> {
   buildContext: (seed: Seed) => Gate1Context;
   invoke: (seed: Seed, values: GateFieldValues) => Promise<unknown>;
   title: string;
-  description?: string | ((seed: Seed) => string | undefined);
+  description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  typenameTarget?: string | ((seed: Seed) => string);
+  typenameTarget?: string;
   successToast: string;
   errorFallback: string;
   onSuccess?: (seed: Seed) => void;
@@ -118,10 +124,7 @@ export function useGatedAction<Seed>(
     const current = optsRef.current;
     const activeSeed = seedRef.current;
     if (activeSeed === null || activeSeed === undefined) return;
-    const target =
-      typeof current.typenameTarget === "function"
-        ? current.typenameTarget(activeSeed)
-        : (current.typenameTarget ?? "");
+    const target = current.typenameTarget ?? "";
     const trimmed: GateFieldValues = {
       message: values.message.trim(),
       reason: values.reason.trim(),
@@ -158,20 +161,6 @@ export function useGatedAction<Seed>(
       });
   }, [spec, values]);
 
-  // Render-time resolution reads reactive state (never the ref).
-  const typenameTarget =
-    typeof opts.typenameTarget === "function"
-      ? seed === null || seed === undefined
-        ? ""
-        : opts.typenameTarget(seed)
-      : (opts.typenameTarget ?? "");
-  const description =
-    typeof opts.description === "function"
-      ? seed === null || seed === undefined
-        ? undefined
-        : opts.description(seed)
-      : opts.description;
-
   return {
     attempt,
     close,
@@ -180,11 +169,11 @@ export function useGatedAction<Seed>(
     dialogProps: {
       open,
       title: opts.title,
-      description,
+      description: opts.description,
       spec,
       values,
       errors,
-      typenameTarget,
+      typenameTarget: opts.typenameTarget ?? "",
       confirmLabel: opts.confirmLabel ?? spec.confirmLabel,
       cancelLabel: opts.cancelLabel ?? "Cancel",
       isPending: submitting,
