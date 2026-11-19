@@ -36,36 +36,39 @@ function historyEntry(
   } as MembershipTimelineEntry;
 }
 
-// 1. Matches reconsideration rows by user + agency; other entities excluded.
+// 1. Matches linked reconsideration rows by user + agency; everything else
+//    excluded (other entities, non-review sources, unlinked rows).
 const appeals = getRejectedAppealHistory(
   [
-    historyEntry({ id: 1, review_message: "Please reconsider" }),
-    historyEntry({ id: 2, user_id: 8, review_message: "Other user" }),
-    historyEntry({ id: 3, agency_id: 43, review_message: "Other agency" }),
+    historyEntry({ id: 1, join_request_id: 9, review_message: "Please reconsider" }),
+    historyEntry({ id: 2, user_id: 8, join_request_id: 9, review_message: "Other user" }),
+    historyEntry({ id: 3, agency_id: 43, join_request_id: 9, review_message: "Other agency" }),
     historyEntry({ id: 4, source_type: "audit_event", action: "note", review_message: null }),
+    historyEntry({ id: 5, review_message: "Unlinked appeal" }),
   ],
   { user_id: 7, agency_id: 42 },
   true,
 );
-assert(appeals.length === 1 && appeals[0]?.id === 1, "filter matches user+agency reconsiderations only");
+assert(appeals.length === 1 && appeals[0]?.id === 1, "filter matches linked user+agency reconsiderations only");
 
-// 2. Membership appeals (no review_message) stay out of Rejected cards.
+// 2. Membership appeals (no linkage) stay out of Rejected cards.
 const membership = getRejectedAppealHistory(
-  [historyEntry({ id: 5, review_message: null, reason: "I believe this was a mistake" })],
+  [historyEntry({ id: 6, review_message: null, reason: "I believe this was a mistake" })],
   { user_id: 7, agency_id: 42 },
   true,
 );
 assert(membership.length === 0, "membership-scoped rows stay out of Rejected cards");
 
-// 3. Label annotation, liveness, and message passthrough.
-assert(appeals[0]?.action === "reconsideration_requested", "appeal row annotated for the shared label map");
+// 3. Untouched rows, liveness, and message passthrough. The label resolves in
+//    the shared map (see timeline-labels) — no action annotation is added.
+assert(appeals[0]?.action == null, "appeal row passes through unannotated");
 assert(appeals[0]?.isPendingReconsideration === true, "live appeal annotated for the New marker");
 assert(
   appeals[0]?.review_message === "Please reconsider",
   "real row carries its message (no synthesis)",
 );
 const quiet = getRejectedAppealHistory(
-  [historyEntry({ id: 6, review_message: "Old appeal" })],
+  [historyEntry({ id: 7, join_request_id: 9, review_message: "Old appeal" })],
   { user_id: 7, agency_id: 42 },
   false,
 );
@@ -77,16 +80,16 @@ assert(
 // 4. Revoked excludes join-linked reconsiderations, keeps membership appeals.
 const revokedView = getRevokedMembershipHistory(
   [
-    historyEntry({ id: 7, source_type: "audit_event", action: "revoked", timestamp: "2026-08-10T10:00:00Z" }),
-    historyEntry({ id: 8, review_message: null, reason: "Membership appeal" }),
-    historyEntry({ id: 9, review_message: "Reconsideration appeal" }),
+    historyEntry({ id: 8, source_type: "audit_event", action: "revoked", timestamp: "2026-08-10T10:00:00Z" }),
+    historyEntry({ id: 9, review_message: null, reason: "Membership appeal" }),
+    historyEntry({ id: 10, join_request_id: 9, review_message: "Reconsideration appeal" }),
   ],
   { user_id: 7, agency_id: 42 },
   { includeReviewRequests: true },
 );
 const revokedReviewIds = revokedView.filter((e) => e.source_type === "review_request").map((e) => e.id);
-assert(revokedReviewIds.includes(8), "Revoked keeps membership appeals");
-assert(!revokedReviewIds.includes(9), "Revoked excludes join-linked reconsiderations");
+assert(revokedReviewIds.includes(9), "Revoked keeps membership appeals");
+assert(!revokedReviewIds.includes(10), "Revoked excludes join-linked reconsiderations");
 
 // 5. Seeker "rejected" anchor: only agencies with rejected rows admit a
 //    group, and group.requests holds ONLY rejected rows (live rows in the
