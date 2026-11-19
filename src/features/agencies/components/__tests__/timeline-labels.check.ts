@@ -49,9 +49,9 @@ assert(
   "review_request shape unchanged",
 );
 assert(
-  resolveTimelineLabel(entry({ source_type: "join_request", action: "reconsideration_requested" })) ===
+  resolveTimelineLabel(entry({ source_type: "review_request", join_request_id: 9 })) ===
     "Reconsideration requested",
-  "appeal event renders Reconsideration requested",
+  "linked appeal renders Reconsideration requested in every tab",
 );
 assert(
   resolveTimelineLabel(entry({ source_type: "audit_event" })) === "Event",

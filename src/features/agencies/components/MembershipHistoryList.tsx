@@ -110,7 +110,14 @@ export function resolveTimelineLabel(
   if (entry.source_type === "join_request") {
     return entry.reapplied_from_request_id != null ? "Reapplied" : "Submitted";
   }
-  if (entry.source_type === "review_request") return "Review requested";
+  // Linked review rows ARE reconsideration appeals: the reconsideration POST is
+  // the sole flow creating join-linked review rows (it 400s non-rejected
+  // origins), so linkage presence alone determines origin — identically in
+  // History, Rejected, and every other consumer. Unlinked rows keep the
+  // generic membership-appeal label.
+  if (entry.source_type === "review_request") {
+    return entry.join_request_id != null ? "Reconsideration requested" : "Review requested";
+  }
   return "Event";
 }
 
