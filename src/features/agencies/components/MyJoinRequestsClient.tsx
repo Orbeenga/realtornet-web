@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { useGatedAction } from "@/hooks/useGatedAction";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
@@ -39,7 +39,6 @@ import {
   ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
-  runNudgeGateChecks,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
@@ -222,8 +221,64 @@ export function MyJoinRequestsClient() {
   const cancelJoinRequest = useCancelAgencyJoinRequest();
   const acceptReactivation = useAcceptJoinRequestReactivation();
   const reapplyJoinRequest = useReapplyAgencyJoinRequest();
-  const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
+
+  // Registry Profile B (U-052): reason, then confirm. No Gate 1.
+  const cancelGate = useGatedAction<number>("cancel_join", {
+    buildContext: () => ({
+      joinRequests: [],
+      invitations: [],
+      reviewRequests: [],
+      viewerUserId: user?.user_id ?? null,
+      viewerIsApplicant: true,
+      counterpartyName: "",
+      includeCooldownCheck: false,
+    }),
+    invoke: (requestId, values) =>
+      cancelJoinRequest.mutateAsync({ requestId, reason: values.reason }),
+    title: "Cancel join request",
+    description: (requestId) => {
+      const target = requests.find((r) => r.join_request_id === requestId) ?? null;
+      const recentCount = target
+        ? requests.filter((request) => {
+            if (request.agency_id !== target.agency_id) return false;
+            if (request.status !== "cancelled" || !request.decided_at) return false;
+            return new Date(request.decided_at).getTime() >= cooldownCutoff;
+          }).length
+        : 0;
+      if (recentCount >= COOLDOWN_LIMIT - 1) {
+        return "If you proceed, you will not be able to reapply to this agency for 30 days.";
+      }
+      if (recentCount >= COOLDOWN_LIMIT - 2) {
+        return "If you proceed, you are close to exhausting the maximum allowed limit for reapplications.";
+      }
+      return "Are you sure you want to cancel this join request? This cannot be undone.";
+    },
+    cancelLabel: "Keep",
+    successToast: "Join request cancelled",
+    errorFallback: "Could not cancel join request",
+  });
+
+  // Registry Profile C (U-052): Gate-1 ordered checks, then message, then confirm.
+  const reapplyGate = useGatedAction<number>("reapply", {
+    buildContext: (agencyId) => {
+      const group = cancelledRequestGroups.find((g) => g.agencyId === agencyId);
+      return {
+        joinRequests: group?.requests ?? [],
+        invitations: [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: true,
+        counterpartyName: group?.agencyName ?? "the agency",
+        includeCooldownCheck: true,
+      };
+    },
+    invoke: (agencyId, values) =>
+      reapplyJoinRequest.mutateAsync({ agencyId, message: values.message }),
+    title: "Apply again",
+    description: "Include a message for the agency owner with your reapplication.",
+    successToast: "Application submitted — it will appear in the agency's Review Requests queue.",
+    errorFallback: "Could not reapply",
+  });
 
   const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
 
@@ -233,9 +288,8 @@ export function MyJoinRequestsClient() {
     pendingReviewRequestId?: number | null,
   ) => {
     // UI-008 gate order: the pending-review check must short-circuit FIRST,
-    // before any reason-field validation (mirrors handleReapply's
-    // cooldown-check-first shape); the server 409 path below stays as the
-    // defensive second layer.
+    // before any reason-field validation (mirrors the registry Gate-1-first
+    // shape); the server 409 path below stays as the defensive second layer.
     if (pendingReviewRequestId != null) {
       notify.info("Review request already submitted - waiting for agency response.");
       return;
@@ -302,22 +356,7 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleCancelJoinRequest = async (requestId: number) => {
-    const reason = cancelReason.trim();
-    if (!reason) {
-      notify.error("Please provide a reason before cancelling the join request.");
-      return;
-    }
-    try {
-      await cancelJoinRequest.mutateAsync({ requestId, reason });
-      notify.success("Join request cancelled");
-      setCancelConfirmId(null);
-      setCancelReason("");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not cancel join request");
-    }
-  };
+  // Cancel runs through cancelGate (registry Profile B) — no bespoke handler.
 
   const handleAcceptReactivation = async (requestId: number) => {
     try {
@@ -329,78 +368,74 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  /* Shared cooldown-gated CTA handler lives HERE ONLY (canonical UI-008
-     reapply pattern). Variants: client-side cooldown-gate first (fast/local,
-     notify.error), then fire; server 403/409 detail surfaced as the defensive
-     second layer. Button stays clickable — never hard-disable. */
-  const [reapplyDialogAgencyId, setReapplyDialogAgencyId] = useState<number | null>(null);
-  const [reapplyMessage, setReapplyMessage] = useState("");
-  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
-  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
-  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
-
-  const handleReapply = async (agencyId: number) => {
-    if (applyAgainDates.has(agencyId)) {
-      notify.error("Limit exceeded. Apply again after the cooldown period.");
-      return;
-    }
-    const message = reapplyMessage.trim();
-    if (!message) {
-      notify.error("Please provide a message before reapplying.");
-      return;
-    }
-    try {
-      await reapplyJoinRequest.mutateAsync({ agencyId, message });
-      notify.success("Application submitted — it will appear in the agency's Review Requests queue.");
-      setReapplyDialogAgencyId(null);
-      setReapplyMessage("");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not reapply");
-    }
-  };
+  /* Reapply runs through reapplyGate (registry Profile C): Gate-1 ordered
+     checks (pending 1-2 + cooldown 3 with date) pre-dialog, message Gate 2
+     in-dialog, pending_exists stale-view mapping on the server path. Button
+     stays clickable — never hard-disable (UI-008). */
 
   const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
   const rejectReactivation = useRejectJoinRequestReactivation();
 
-  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
-  // enforced inside the shared dialog. Expired reactivation takes NO message
-  // (time-driven) — the dialog only confirms.
-  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
-    try {
-      await requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId });
-      notify.success("Reactivation requested — awaiting agency response.");
-      setNudgeDialogRequestId(null);
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
-    }
-  };
+  // Registry Profile C, confirm-only variant (U-050): Expired reactivation
+  // takes NO message (time-driven) — Gate 1, then the dialog only confirms.
+  const reactivationGate = useGatedAction<number>("reactivation_request", {
+    buildContext: (requestId) => {
+      const group = expiredRequestGroups.find((g) =>
+        g.requests.some((r) => r.join_request_id === requestId),
+      );
+      return {
+        joinRequests: group?.requests ?? [],
+        invitations: [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: true,
+        counterpartyName: group?.agencyName ?? "the agency",
+        includeCooldownCheck: false,
+      };
+    },
+    invoke: (requestId) =>
+      requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId }),
+    title: "Request reactivation",
+    description: (requestId) =>
+      `Ask ${requests.find((r) => r.join_request_id === requestId)?.agency_name ?? "the agency"} to reactivate your expired application.`,
+    successToast: "Reactivation requested — awaiting agency response.",
+    errorFallback: "Could not request reactivation",
+  });
 
   const createReconsiderationRequest = useCreateAgencyReviewRequest();
-  // U-049/U-050 reconsideration flow (Rejected tab): exactly one button per
-  // fresh card → Gate 1 → message dialog → POST. No pre-rendered box, no
-  // Apply Again. The verbatim post-submit ambient derives from the live
-  // pending_appeal row field (single source of truth, survives reload).
-  const [reconsiderDialog, setReconsiderDialog] = useState<{ agencyId: number; joinRequestId: number } | null>(null);
-
-  // Gate 1 (pending_appeal check + exact toast) and Gate 2 (message
-  // validation) are enforced inside the shared dialog; the message arrives
-  // trimmed and non-blank. POSTs the EXISTING review-requests endpoint with
+  // U-049/U-050 reconsideration flow (Rejected tab) on the registry
+  // (Profile C): exactly one button per fresh card → Gate 1 → message dialog
+  // → POST. No pre-rendered box, no Apply Again. The verbatim post-submit
+  // ambient derives from the live pending_appeal row field (single source of
+  // truth, survives reload). POSTs the EXISTING review-requests endpoint with
   // Q1b origin linkage (Q1d: no new endpoint); 409/400/404 stay server-side.
-  const handleRequestReconsideration = async (agencyId: number, joinRequestId: number, message: string) => {
-    try {
-      await createReconsiderationRequest.mutateAsync({
-        agencyId,
-        payload: { message, join_request_id: joinRequestId },
-      });
-      notify.success("Reconsideration requested — it will appear in the agency's Review Requests queue.");
-      setReconsiderDialog(null);
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reconsideration");
-    }
-  };
+  const reconsiderGate = useGatedAction<{ agencyId: number; joinRequestId: number }>(
+    "reconsideration_request",
+    {
+      buildContext: (seed) => {
+        const group = rejectedRequestGroups.find((g) => g.agencyId === seed.agencyId);
+        return {
+          joinRequests: group?.requests ?? [],
+          invitations: [],
+          reviewRequests: [],
+          viewerUserId: user?.user_id ?? null,
+          viewerIsApplicant: true,
+          counterpartyName: group?.agencyName ?? "the agency",
+          includeCooldownCheck: false,
+        };
+      },
+      invoke: (seed, values) =>
+        createReconsiderationRequest.mutateAsync({
+          agencyId: seed.agencyId,
+          payload: { message: values.message, join_request_id: seed.joinRequestId },
+        }),
+      title: "Request reconsideration",
+      description: (seed) =>
+        `Ask ${rejectedRequestGroups.find((g) => g.agencyId === seed.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`,
+      successToast: "Reconsideration requested — it will appear in the agency's Review Requests queue.",
+      errorFallback: "Could not request reconsideration",
+    },
+  );
 
   const handleRejectReactivation = async (requestId: number) => {
     try {
@@ -467,27 +502,6 @@ export function MyJoinRequestsClient() {
   // Rejected sub-tab entity groups (grouped by agency_id) — one cumulative card
   // per agency via the shared grouper, mirroring Cancelled/Expired (U-034b).
   const rejectedRequestGroups = groupMyJoinRequestCycles(requests, "rejected");
-  const applyAgainDates = new Map<number, Date>();
-  for (const group of cancelledRequestGroups) {
-    // Server-computed unlock date (see DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a) above).
-    const unlockAt = group.requests[0]?.cooldown_unlock_at;
-    if (unlockAt) applyAgainDates.set(group.agencyId, new Date(unlockAt));
-  }
-  const cancelConfirmRequest = cancelConfirmId === null
-    ? null
-    : requests.find((request) => request.join_request_id === cancelConfirmId) ?? null;
-  const cancelConfirmRecentCount = cancelConfirmRequest
-    ? requests.filter((request) => {
-        if (request.agency_id !== cancelConfirmRequest.agency_id) return false;
-        if (request.status !== "cancelled" || !request.decided_at) return false;
-        return new Date(request.decided_at).getTime() >= cooldownCutoff;
-      }).length
-    : 0;
-  const cancelWarningMessage = cancelConfirmRecentCount >= COOLDOWN_LIMIT - 1
-    ? "If you proceed, you will not be able to reapply to this agency for 30 days."
-    : cancelConfirmRecentCount >= COOLDOWN_LIMIT - 2
-      ? "If you proceed, you are close to exhausting the maximum allowed limit for reapplications."
-      : "Are you sure you want to cancel this join request? This cannot be undone.";
   const memberships = membershipsQuery.data ?? [];
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
@@ -1296,7 +1310,7 @@ export function MyJoinRequestsClient() {
                         size="sm"
                         variant="secondary"
                         loading={cancelJoinRequest.isPending && cancelJoinRequest.variables?.requestId === request.join_request_id}
-                        onClick={() => setCancelConfirmId(request.join_request_id)}
+                        onClick={() => cancelGate.attempt(request.join_request_id)}
                       >
                         Cancel
                       </Button>
@@ -1433,7 +1447,7 @@ export function MyJoinRequestsClient() {
                         ) : (
                           <Button
                             type="button" size="sm"
-                            onClick={() => setReconsiderDialog({ agencyId, joinRequestId: latestRequest.join_request_id })}
+                            onClick={() => reconsiderGate.attempt({ agencyId, joinRequestId: latestRequest.join_request_id })}
                           >
                             Request Reconsideration
                           </Button>
@@ -1537,7 +1551,7 @@ export function MyJoinRequestsClient() {
                           </p>
                           <Button
                             type="button" size="sm"
-                            onClick={() => setNudgeDialogRequestId(request.join_request_id)}
+                            onClick={() => reactivationGate.attempt(request.join_request_id)}
                           >
                             Request Reactivation
                           </Button>
@@ -1611,19 +1625,7 @@ export function MyJoinRequestsClient() {
                     <div className="space-y-2 pt-2">
                       <Button
                         type="button" size="sm"
-                        onClick={() => {
-                          /* Gate 1 (U-038 pending-check): duplicate-in-flight guard,
-                             fires pre-dialog before opening the reapply dialog.
-                             Distinct from UI-008's cooldown gate (rate limit). */
-                          const hasPendingReapply = group.requests.some(
-                            (r) => r.status === "pending" && r.reapplication_message != null,
-                          );
-                          if (hasPendingReapply) {
-                            notify.info(`You already have a pending reapplication for ${group.agencyName}.`);
-                            return;
-                          }
-                          setReapplyDialogAgencyId(group.agencyId); setReapplyMessage("");
-                        }}
+                        onClick={() => reapplyGate.attempt(group.agencyId)}
                       >
                         Apply Again
                       </Button>
@@ -1638,114 +1640,11 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
-      {/* U-050 confirm-only nudge dialog (shared canonical component). */}
-      <ConfirmDestructiveDialog
-        open={nudgeDialogRequestId !== null}
-        onClose={() => setNudgeDialogRequestId(null)}
-        title="Request reactivation"
-        description={`Ask ${requests.find((r) => r.join_request_id === nudgeDialogRequestId)?.agency_name ?? "the agency"} to reactivate your expired application.`}
-        variant="confirm-only"
-        confirmLabel="Send request"
-        checkPending={() => {
-          const group = expiredRequestGroups.find((g) =>
-            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
-          );
-          return runNudgeGateChecks({
-            action: "reactivation",
-            requests: group?.requests ?? [],
-            viewerUserId: user?.user_id ?? null,
-            viewerIsApplicant: true,
-            counterpartyName: group?.agencyName ?? "the agency",
-            includeCooldownCheck: false,
-          });
-        }}
-        isPending={requestJoinRequestReactivationAsApplicant.isPending}
-        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivationAsApplicant(nudgeDialogRequestId); }}
-      />
-      {/* U-050 message-required reconsideration dialog (shared canonical component). */}
-      <ConfirmDestructiveDialog
-        open={reconsiderDialog !== null}
-        onClose={() => setReconsiderDialog(null)}
-        title="Request reconsideration"
-        description={`Ask ${rejectedRequestGroups.find((g) => g.agencyId === reconsiderDialog?.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`}
-        variant="message-required"
-        messageLabel="Message"
-        messagePlaceholder="Message for the agency owner (required)"
-        confirmLabel="Send request"
-        checkPending={() => {
-          const group = rejectedRequestGroups.find((g) => g.agencyId === reconsiderDialog?.agencyId);
-          return runNudgeGateChecks({
-            action: "reconsideration",
-            requests: group?.requests ?? [],
-            viewerUserId: user?.user_id ?? null,
-            viewerIsApplicant: true,
-            counterpartyName: group?.agencyName ?? "the agency",
-            includeCooldownCheck: false,
-          });
-        }}
-        isPending={createReconsiderationRequest.isPending}
-        onConfirm={(message) => { if (reconsiderDialog !== null) void handleRequestReconsideration(reconsiderDialog.agencyId, reconsiderDialog.joinRequestId, message); }}
-      />
-      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel join request</DialogTitle>
-            <DialogDescription>
-              {cancelWarningMessage}
-            </DialogDescription>
-          </DialogHeader>
-          <textarea
-            rows={3}
-            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            placeholder="Reason for cancelling (required)"
-            value={cancelReason}
-            onChange={(event) => setCancelReason(event.target.value)}
-          />
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => { setCancelConfirmId(null); setCancelReason(""); }}>
-              Keep
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              loading={cancelJoinRequest.isPending}
-              onClick={() => cancelConfirmId !== null && void handleCancelJoinRequest(cancelConfirmId)}
-            >
-              Cancel request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={reapplyDialogAgencyId !== null} onOpenChange={(open) => { if (!open) { setReapplyDialogAgencyId(null); setReapplyMessage(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Apply again</DialogTitle>
-            <DialogDescription>
-              Include a message for the agency owner with your reapplication.
-            </DialogDescription>
-          </DialogHeader>
-          <textarea
-            rows={3}
-            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            placeholder="Reapplication message (required)"
-            value={reapplyMessage}
-            onChange={(event) => setReapplyMessage(event.target.value)}
-          />
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => { setReapplyDialogAgencyId(null); setReapplyMessage(""); }}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              loading={reapplyJoinRequest.isPending && reapplyJoinRequest.variables?.agencyId === reapplyDialogAgencyId}
-              onClick={() => reapplyDialogAgencyId !== null && void handleReapply(reapplyDialogAgencyId)}
-            >
-              Submit application
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Registry-driven dialogs (U-052): one pure renderer, four actions. */}
+      <ConfirmDestructiveDialog {...reactivationGate.dialogProps} />
+      <ConfirmDestructiveDialog {...reconsiderGate.dialogProps} />
+      <ConfirmDestructiveDialog {...cancelGate.dialogProps} />
+      <ConfirmDestructiveDialog {...reapplyGate.dialogProps} />
     </div>
   );
 }

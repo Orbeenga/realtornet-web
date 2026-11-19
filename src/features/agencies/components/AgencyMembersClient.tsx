@@ -51,10 +51,10 @@ import {
   useWithdrawAgencyInvitation,
 } from "@/features/agencies/hooks";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
+import { useGatedAction } from "@/hooks/useGatedAction";
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
-  runNudgeGateChecks,
   ambientTextToneClass,
   resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
@@ -364,9 +364,6 @@ export function AgencyMembersClient() {
   const [pendingReviewDecision, setPendingReviewDecision] =
     useState<PendingReviewDecision | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
-  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
-  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
   const {
     register,
     handleSubmit,
@@ -621,19 +618,33 @@ export function AgencyMembersClient() {
     }
   };
 
-  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
-  // enforced inside the shared dialog. Expired reactivation takes NO message
-  // (time-driven) — the dialog only confirms.
-  const handleRequestJoinRequestReactivation = async (requestId: number) => {
-    try {
-      await requestJoinRequestReactivation.mutateAsync({ requestId });
-      notify.success("Reactivation requested — applicant will be notified.");
-      setNudgeDialogRequestId(null);
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reactivation.");
-    }
-  };
+  // Registry Profile C, confirm-only variant (U-050): Expired reactivation
+  // takes NO message (time-driven) — Gate 1, then the dialog only confirms.
+  const reactivationGate = useGatedAction<number>("reactivation_request", {
+    buildContext: (requestId) => {
+      const group = expiredCycleGroups.find((g) =>
+        g.requests.some((r) => r.join_request_id === requestId),
+      );
+      return {
+        joinRequests: group?.requests ?? [],
+        invitations: [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: false,
+        counterpartyName: group
+          ? (historyMemberById.get(group.userId)?.displayName ?? group.seekerName)
+          : "the applicant",
+        includeCooldownCheck: false,
+      };
+    },
+    invoke: (requestId) =>
+      requestJoinRequestReactivation.mutateAsync({ requestId }),
+    title: "Reactivate application",
+    description: (requestId) =>
+      `Ask ${joinRequests.find((r) => r.join_request_id === requestId)?.seeker_name ?? "the applicant"} to reactivate their expired application.`,
+    successToast: "Reactivation requested — applicant will be notified.",
+    errorFallback: "Could not request reactivation.",
+  });
 
   const handleRestoreMembership = async (membershipId: number) => {
     const reason = membershipReasons[membershipId]?.trim();
@@ -1168,7 +1179,7 @@ export function AgencyMembersClient() {
                               </p>
                               <Button
                                 type="button" size="sm"
-                                onClick={() => setNudgeDialogRequestId(request.join_request_id)}
+                                onClick={() => reactivationGate.attempt(request.join_request_id)}
                               >
                                 Reactivate Application
                               </Button>
@@ -2280,33 +2291,9 @@ export function AgencyMembersClient() {
         </DialogContent>
       </Dialog>
 
-      {/* U-050 confirm-only nudge dialog (shared canonical component). Root-level:
-          it must stay mounted regardless of which tab panel is active. */}
-      <ConfirmDestructiveDialog
-        open={nudgeDialogRequestId !== null}
-        onClose={() => setNudgeDialogRequestId(null)}
-        title="Reactivate application"
-        description={`Ask ${joinRequests.find((r) => r.join_request_id === nudgeDialogRequestId)?.seeker_name ?? "the applicant"} to reactivate their expired application.`}
-        variant="confirm-only"
-        confirmLabel="Send request"
-        checkPending={() => {
-          const group = expiredCycleGroups.find((g) =>
-            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
-          );
-          return runNudgeGateChecks({
-            action: "reactivation",
-            requests: group?.requests ?? [],
-            viewerUserId: user?.user_id ?? null,
-            viewerIsApplicant: false,
-            counterpartyName: group
-              ? (historyMemberById.get(group.userId)?.displayName ?? group.seekerName)
-              : "the applicant",
-            includeCooldownCheck: false,
-          });
-        }}
-        isPending={requestJoinRequestReactivation.isPending}
-        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivation(nudgeDialogRequestId); }}
-      />
+      {/* Registry-driven dialog (U-052). Root-level: it must stay mounted
+          regardless of which tab panel is active. */}
+      <ConfirmDestructiveDialog {...reactivationGate.dialogProps} />
     </div>
   );
 }
