@@ -1,11 +1,14 @@
 "use client";
 
-/* Runner for the gate registry SSOT (U-052). Owns the gated-action state
-   machine: attempt runs Gate 1 (block toasts, dialog never opens), submit
-   runs Gate-2 validation (inline errors) then the caller's mutate. Server
-   stays authoritative: pending_exists maps to the action's Gate-1 toast,
-   anything else surfaces verbatim (UI-008). The dialog is a pure renderer
-   of dialogProps — no gate logic inside it. */
+/* Runner for the gate registry SSOT (U-052, step model U-053). Owns the
+   gated-action state machine: attempt runs Gate 1 (block toasts, dialog
+   never opens), primary advances validated steps, final primary submits.
+   Cancel semantics (U-053): first step ends the action; final step returns
+   to the reason/message step with text preserved; reason step ends the
+   action. Dismissal (X, overlay, Escape) always abandons. Server stays
+   authoritative: pending_exists maps to the action's Gate-1 toast, anything
+   else surfaces verbatim (UI-008). The dialog is a pure renderer of
+   dialogProps — no gate logic inside it. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/client";
@@ -14,12 +17,14 @@ import {
   resolveActionSpec,
   resolveStaleViewToast,
   runGate1Checks,
-  validateGateFieldValues,
+  validateStepFields,
   type ActionGateSpec,
   type Gate1Context,
   type GateActionKind,
+  type GateCopyTokens,
   type GateFieldKind,
   type GateFieldValues,
+  type GateStepSpec,
 } from "@/lib/gate-registry";
 import { notify } from "@/lib/toast";
 
@@ -28,51 +33,67 @@ export interface GatedDialogProps {
   title: string;
   description?: string;
   spec: ActionGateSpec;
+  step: GateStepSpec;
+  stepIndex: number;
+  stepCount: number;
+  stepLabel: string | null;
   values: GateFieldValues;
   errors: Partial<Record<GateFieldKind, string>>;
   typenameTarget: string;
-  confirmLabel: string;
+  tokens: GateCopyTokens;
   cancelLabel: string;
+  primaryDisabled: boolean;
   isPending: boolean;
   onValueChange: (kind: GateFieldKind, value: string) => void;
-  onSubmit: () => void;
+  onPrimary: () => void;
+  onCancel: () => void;
   onClose: () => void;
 }
 
 /* NOTE (TDZ): opts closures that run during render must not read component
    consts declared after the hook call (early returns force hooks above data).
-   buildContext/invoke/mapError/typenameTarget-fn are safe (they run in event
-   handlers or submit continuations, post-render). description must be a plain
-   string here; callers needing seed-dependent copy compute it beside their
-   JSX (where data exists) from gate.seed and spread-override dialogProps. */
+   buildContext/invoke/mapError are safe (event handlers/submit continuations,
+   post-render). description must be a plain string; callers needing
+   seed-dependent copy compute it beside JSX from gate.seed and
+   spread-override dialogProps. The typenameTarget fn form runs during render
+   AND submit, so it must be seed-pure (read the seed argument only). */
 export interface UseGatedActionOpts<Seed> {
   buildContext: (seed: Seed) => Gate1Context;
   invoke: (seed: Seed, values: GateFieldValues) => Promise<unknown>;
   title: string;
   description?: string;
-  confirmLabel?: string;
   cancelLabel?: string;
-  /* Rendered target display: plain string only (JSX-override from gate.seed
-     when seed-dependent). The function form exists ONLY for submit-time
-     validation below — it is never called during render. */
+  /* Seed-dependent target: fn form must be seed-pure (see TDZ note).
+     Rendered display ALSO needs the JSX-override from gate.seed
+     (dialogProps passes "" for the fn form). */
   typenameTarget?: string | ((seed: Seed) => string);
   successToast: string;
   errorFallback: string;
   onSuccess?: (seed: Seed, result: unknown) => void;
-  /* Caller error mapping, tried before the pending_exists/verbatim default.
-     Return a toast string to handle the error, null to fall through. */
   mapError?: (error: unknown) => string | null;
 }
 
 export interface GatedAction<Seed> {
   attempt: (seed: Seed) => void;
   close: () => void;
-  dialogProps: GatedDialogProps;
+  /* Tokens are deliberately absent: callers pass them beside JSX (where
+     data exists — TDZ note above) and tsc fails the spread without them.
+     Actions without templated copy pass tokens={{}} explicitly. */
+  dialogProps: Omit<GatedDialogProps, "tokens">;
   isOpen: boolean;
   seed: Seed | null;
 }
 
-const EMPTY_VALUES: GateFieldValues = { message: "", reason: "", typename: "" };
+const EMPTY_VALUES: GateFieldValues = { message: "", reason: "", typename: "", note: "" };
+
+function trimValues(values: GateFieldValues): GateFieldValues {
+  return {
+    message: values.message.trim(),
+    reason: values.reason.trim(),
+    typename: values.typename.trim(),
+    note: values.note.trim(),
+  };
+}
 
 export function useGatedAction<Seed>(
   action: GateActionKind,
@@ -81,6 +102,7 @@ export function useGatedAction<Seed>(
   const spec = resolveActionSpec(action);
   const [open, setOpen] = useState(false);
   const [seed, setSeed] = useState<Seed | null>(null);
+  const [stepIndex, setStepIndex] = useState(0);
   const [values, setValues] = useState<GateFieldValues>(EMPTY_VALUES);
   const [errors, setErrors] = useState<Partial<Record<GateFieldKind, string>>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -94,9 +116,16 @@ export function useGatedAction<Seed>(
 
   const seedRef = useRef<Seed | null>(null);
 
-  const close = useCallback(() => {
+  const reset = useCallback(() => {
     setOpen(false);
+    setStepIndex(0);
+    setValues(EMPTY_VALUES);
+    setErrors({});
   }, []);
+
+  const close = useCallback(() => {
+    reset();
+  }, [reset]);
 
   const attempt = useCallback(
     (nextSeed: Seed) => {
@@ -111,6 +140,7 @@ export function useGatedAction<Seed>(
       if (!spec.dialog) return;
       setValues(EMPTY_VALUES);
       setErrors({});
+      setStepIndex(0);
       setOpen(true);
     },
     [spec],
@@ -126,24 +156,35 @@ export function useGatedAction<Seed>(
     });
   }, []);
 
-  const onSubmit = useCallback(() => {
+  const resolveTarget = useCallback(
+    (seedValue: Seed | null): string => {
+      const current = optsRef.current;
+      if (typeof current.typenameTarget === "function") {
+        if (seedValue === null || seedValue === undefined) return "";
+        return current.typenameTarget(seedValue);
+      }
+      return current.typenameTarget ?? "";
+    },
+    [],
+  );
+
+  const onPrimary = useCallback(() => {
     const current = optsRef.current;
     const activeSeed = seedRef.current;
     if (activeSeed === null || activeSeed === undefined) return;
-    // Submit handler: post-render, so the seed-fn form is TDZ-safe here
-    // (and ONLY here — never resolve it during render).
-    const target =
-      typeof current.typenameTarget === "function"
-        ? current.typenameTarget(activeSeed)
-        : (current.typenameTarget ?? "");
-    const trimmed: GateFieldValues = {
-      message: values.message.trim(),
-      reason: values.reason.trim(),
-      typename: values.typename.trim(),
-    };
-    const fieldErrors = validateGateFieldValues(spec, trimmed, target);
+    const step = spec.steps[stepIndex];
+    if (!step) return;
+    const trimmed = trimValues(values);
+    const target = resolveTarget(activeSeed);
+    const fieldErrors = validateStepFields(step.fields, trimmed, target);
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+    const isLast = stepIndex >= spec.steps.length - 1;
+    if (!isLast) {
+      setStepIndex(stepIndex + 1);
       return;
     }
     setSubmitting(true);
@@ -151,9 +192,7 @@ export function useGatedAction<Seed>(
       .invoke(activeSeed, trimmed)
       .then((result: unknown) => {
         notify.success(current.successToast);
-        setOpen(false);
-        setValues(EMPTY_VALUES);
-        setErrors({});
+        reset();
         current.onSuccess?.(activeSeed, result);
       })
       .catch((error: unknown) => {
@@ -165,8 +204,8 @@ export function useGatedAction<Seed>(
         const signal = extractPendingExists(error);
         if (signal) {
           const ctx = current.buildContext(activeSeed);
-          const mapped = resolveStaleViewToast(spec, signal.kind, ctx.counterpartyName);
-          notify.error(mapped ?? current.errorFallback);
+          const mappedToast = resolveStaleViewToast(spec, signal.kind, ctx.counterpartyName);
+          notify.error(mappedToast ?? current.errorFallback);
           return;
         }
         const detail = error instanceof ApiError ? error.detail : null;
@@ -175,7 +214,42 @@ export function useGatedAction<Seed>(
       .finally(() => {
         setSubmitting(false);
       });
-  }, [spec, values]);
+  }, [spec, stepIndex, values, reset, resolveTarget]);
+
+  const onCancel = useCallback(() => {
+    // U-053 cancel semantics: final step of a multi-step flow returns to
+    // the nearest prior step with input fields (reason/message), with text
+    // preserved; every other step (first, intent, fields) ends the action.
+    const isLast = stepIndex >= spec.steps.length - 1;
+    if (isLast && spec.steps.length > 1) {
+      for (let i = stepIndex - 1; i >= 0; i -= 1) {
+        if ((spec.steps[i]?.fields.length ?? 0) > 0) {
+          setStepIndex(i);
+          setErrors({});
+          return;
+        }
+      }
+    }
+    reset();
+  }, [spec, stepIndex, reset]);
+
+  const step = spec.steps[stepIndex] ?? spec.steps[0];
+  const stepCount = spec.steps.length;
+  // Typename-gated primary (Profile D final): disabled until exact match.
+  // Locked exception to the clickable-button rule — the gate IS the match.
+  // Reads opts directly (render scope, no ref): the fn form must be
+  // seed-pure — it runs here during render, so it must never close over
+  // component consts declared after the hook call (TDZ).
+  const renderTarget =
+    typeof opts.typenameTarget === "function"
+      ? seed == null
+        ? ""
+        : opts.typenameTarget(seed)
+      : (opts.typenameTarget ?? "");
+  const typenameGated =
+    step != null &&
+    step.fields.some((f) => f.kind === "typename" && f.required) &&
+    values.typename.trim() !== renderTarget;
 
   return {
     attempt,
@@ -187,17 +261,20 @@ export function useGatedAction<Seed>(
       title: opts.title,
       description: opts.description,
       spec,
+      step: step as GateStepSpec,
+      stepIndex,
+      stepCount,
+      stepLabel: stepCount > 1 ? `Step ${stepIndex + 1} of ${stepCount}` : null,
       values,
       errors,
-      // Function form is submit-only; render gets "" and the caller MUST
-      // JSX-override typenameTarget from gate.seed (else the label is blank).
       typenameTarget:
         typeof opts.typenameTarget === "function" ? "" : (opts.typenameTarget ?? ""),
-      confirmLabel: opts.confirmLabel ?? spec.confirmLabel,
       cancelLabel: opts.cancelLabel ?? "Cancel",
+      primaryDisabled: typenameGated,
       isPending: submitting,
       onValueChange,
-      onSubmit,
+      onPrimary,
+      onCancel,
       onClose: close,
     },
   };
