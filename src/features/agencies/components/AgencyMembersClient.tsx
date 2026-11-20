@@ -52,7 +52,7 @@ import {
 } from "@/features/agencies/hooks";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import { useGatedAction } from "@/hooks/useGatedAction";
-import { emptyGate1Context } from "@/lib/gate-registry";
+import { declineRequestKind, emptyGate1Context } from "@/lib/gate-registry";
 import {
   hasExpiredHistory,
   hasWithdrawnHistory,
@@ -108,6 +108,7 @@ type ReviewDecisionSeed = {
   requestId: number;
   sourceType: string;
   requesterName: string;
+  kind: string;
 };
 
 /* Registry seed for roster lifecycle decisions. agentName feeds dialog copy
@@ -556,7 +557,13 @@ export function AgencyMembersClient() {
      buttons (primary + priors × accept/decline). */
   const attemptReviewDecision = (
     action: "accept" | "decline",
-    request: { id: number; source_type?: string | null },
+    request: {
+      id: number;
+      source_type?: string | null;
+      join_request_id?: number | null;
+      reapplied_from_request_id?: number | null;
+      reactivation_requested_by?: number | null;
+    },
     requesterName: string,
   ) => {
     if (!request.source_type) {
@@ -567,6 +574,7 @@ export function AgencyMembersClient() {
       requestId: request.id,
       sourceType: request.source_type,
       requesterName,
+      kind: declineRequestKind(request),
     };
     if (action === "accept") acceptReviewGate.attempt(seed);
     else declineReviewGate.attempt(seed);
@@ -2205,11 +2213,6 @@ export function AgencyMembersClient() {
                   invitations.find((i) => i.agency_name)?.agency_name ?? "this agency",
               }
         }
-        description={
-          suspendGate.seed === null
-            ? undefined
-            : `Confirm this action for ${suspendGate.seed.agentName}. A reason is required and will be visible in membership history.`
-        }
       />
       <ConfirmDestructiveDialog
         {...revokeGate.dialogProps}
@@ -2222,19 +2225,17 @@ export function AgencyMembersClient() {
                   invitations.find((i) => i.agency_name)?.agency_name ?? "this agency",
               }
         }
-        description={
-          revokeGate.seed === null
-            ? undefined
-            : `Confirm this action for ${revokeGate.seed.agentName}. A reason is required and will be visible in membership history.`
-        }
       />
       <ConfirmDestructiveDialog
         {...blockGate.dialogProps}
-        tokens={blockGate.seed === null ? {} : { name: blockGate.seed.agentName }}
-        description={
+        tokens={
           blockGate.seed === null
-            ? undefined
-            : `Confirm this action for ${blockGate.seed.agentName}. A reason is required and will be visible in membership history.`
+            ? {}
+            : {
+                name: blockGate.seed.agentName,
+                agency:
+                  invitations.find((i) => i.agency_name)?.agency_name ?? "this agency",
+              }
         }
         typenameTarget={blockGate.seed?.agentName ?? ""}
       />
@@ -2264,11 +2265,10 @@ export function AgencyMembersClient() {
       />
       <ConfirmDestructiveDialog
         {...declineReviewGate.dialogProps}
-        tokens={{}}
-        description={
+        tokens={
           declineReviewGate.seed === null
-            ? undefined
-            : `Confirm this action for ${declineReviewGate.seed.requesterName}. A reason is required for decline and will be visible in membership history.`
+            ? {}
+            : { name: declineReviewGate.seed.requesterName, kind: declineReviewGate.seed.kind }
         }
       />
       <ConfirmDestructiveDialog
