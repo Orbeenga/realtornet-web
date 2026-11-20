@@ -29,6 +29,20 @@ interface JoinRequestIdentity {
   cooldown_unlock_at?: string | null;
 }
 
+/* Legacy machine-written audit reasons (U-053 §4). The backend stopped
+   emitting them (person-written-or-null since c691854); the renderer
+   suppresses these exact strings as a backstop for pre-fix rows only, so
+   machine text never renders as if a person wrote it. Exact match —
+   substring matching would risk hiding person text. */
+const LEGACY_MACHINE_REASONS: ReadonlySet<string> = new Set([
+  "Agency reapply approved",
+  "Agency invitation accepted",
+]);
+
+export function isLegacyMachineReason(text: string | null | undefined): boolean {
+  return text != null && LEGACY_MACHINE_REASONS.has(text);
+}
+
 export type JoinRequestReactivationStage =
   | "initial"
   | "agency_requested"
