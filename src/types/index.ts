@@ -39,6 +39,7 @@ export type AgencyUpdate = components["schemas"]["AgencyUpdate"];
 export type AgencyApplicationCreate = components["schemas"]["AgencyApplicationCreate"];
 export type AgencyApplicationResponse = components["schemas"]["AgencyApplicationResponse"];
 export type AgencyInvitationResponse = components["schemas"]["AgencyInvitationResponse"];
+export type AgencyInvitationAcceptRequest = components["schemas"]["AgencyInvitationAcceptRequest"];
 export type AgencyInvitationStatus = components["schemas"]["AgencyInvitationStatus"];
 export type AgencyInviteAcceptRequest = components["schemas"]["AgencyInviteAcceptRequest"];
 export type AgencyInviteAcceptResponse = components["schemas"]["AgencyInviteAcceptResponse"];

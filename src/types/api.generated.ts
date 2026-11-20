@@ -1609,6 +1609,9 @@ export interface paths {
         /**
          * Accept My Agency Invitation
          * @description Accept a pending agency invitation for the authenticated user.
+         *
+         *     Profile A with a note (U-053): the optional body carries the invitee's
+         *     own note, persisted as the accept audit reason (or null when absent).
          */
         patch: operations["accept_my_agency_invitation_api_v1_agency_invitations__invitation_id__accept__patch"];
         trace?: never;
@@ -4995,6 +4998,19 @@ export interface components {
         AgencyDecisionRequest: {
             /** Reason */
             reason: string;
+        };
+        /**
+         * AgencyInvitationAcceptRequest
+         * @description Invitee-accept body (Profile A with a note, U-053).
+         *
+         *     Optional applicant note persisted as the accept audit reason so it
+         *     renders beside the Accepted event. Entire body is optional for backward
+         *     compatibility (older callers send none); blank normalizes to None. Never
+         *     machine-filled (C1: only person-written reasons render).
+         */
+        AgencyInvitationAcceptRequest: {
+            /** Message */
+            message?: string | null;
         };
         /** AgencyInvitationResponse */
         AgencyInvitationResponse: {
@@ -10191,7 +10207,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyInvitationAcceptRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
