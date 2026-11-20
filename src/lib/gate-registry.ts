@@ -111,9 +111,12 @@ export interface GateCopyTokens {
   name?: string;
   agency?: string;
   target?: string;
+  kind?: string;
 }
 
-const COPY_TOKENS = ["name", "agency", "target"] as const;
+const COPY_TOKENS = ["name", "agency", "target", "kind"] as const;
+
+export const KNOWN_COPY_TOKENS: readonly string[] = COPY_TOKENS;
 
 /* Resolve copy templates. Supplied tokens substitute; missing tokens stay
    literal (loud in screenshots — callers must supply what templates use;
@@ -336,8 +339,21 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     endpoint: "PATCH /api/v1/agencies/{agencyId}/review-requests/{requestId}/decline",
     gate1: [],
     steps: [
-      fieldsStep([reasonField("Reason", "Reason for declining (required)")]),
-      reviewStep("Decline", ["reason"]),
+      {
+        id: "fields",
+        titleTemplate: "Decline {kind}",
+        fields: [reasonField("Reason", "Reason for declining (required)")],
+        bodyTemplate: "Confirm decline for {name}'s {kind}. A reason is required for decline and will be visible in membership history.",
+        primaryLabel: "Proceed",
+      },
+      {
+        id: "review",
+        titleTemplate: "Decline {kind}",
+        fields: [],
+        echo: ["reason"],
+        bodyTemplate: "Confirm decline for {name}'s {kind}.",
+        primaryLabel: "Decline",
+      },
     ],
     dialog: true,
     destructive: true,
@@ -397,7 +413,12 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     gate1: [],
     steps: [
       intentStep("Suspend {name}?", "This pauses the membership — {name} keeps their role and can return through review."),
-      fieldsStep([reasonField("Reason", "Reason for suspending (required)")]),
+      {
+        id: "fields",
+        fields: [reasonField("Reason", "Reason for suspending (required)")],
+        bodyTemplate: "Confirm suspension for {name}. A reason is required and will be visible in membership history.",
+        primaryLabel: "Proceed",
+      },
       reviewStep("Suspend agent", ["reason"], [], "{name} will be suspended from {agency}."),
     ],
     dialog: true,
@@ -413,7 +434,12 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     gate1: [],
     steps: [
       intentStep("Revoke {name}'s membership?", "This ends the membership permanently. Any future return starts as a fresh decision."),
-      fieldsStep([reasonField("Reason", "Reason for revoking (required)")]),
+      {
+        id: "fields",
+        fields: [reasonField("Reason", "Reason for revoking (required)")],
+        bodyTemplate: "Confirm you want to revoke {name}'s membership. A reason is required and will be visible in membership history.",
+        primaryLabel: "Proceed",
+      },
       reviewStep("Revoke membership", ["reason"], [], "{name}'s membership will be revoked from {agency}."),
     ],
     dialog: true,
@@ -497,8 +523,19 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     gate1: [],
     steps: [
       intentStep(undefined, "You are about to block {name}. This action cannot be undone."),
-      fieldsStep([reasonField("Reason", "Reason for blocking (required)")]),
-      reviewStep("Block agent", ["reason"], [typenameField]),
+      {
+        id: "fields",
+        fields: [reasonField("Reason", "Reason for blocking (required)")],
+        bodyTemplate: "Confirm you want to block {name}. A reason is required and will be visible in membership history.",
+        primaryLabel: "Proceed",
+      },
+      {
+        id: "review",
+        fields: [typenameField],
+        echo: ["reason"],
+        bodyTemplate: "Confirm you want to block {name}. Membership with {agency} will be blocked with no path to appeal.",
+        primaryLabel: "Block agent",
+      },
     ],
     dialog: true,
     destructive: true,
@@ -514,6 +551,26 @@ for (const spec of Object.values(GATE_REGISTRY)) {
   if (spec.nudgeNoun && spec.action !== "invitation_reactivation_request") {
     spec.gate1 = [nudgeOrderedCheck(spec.nudgeNoun)];
   }
+}
+
+/* Decline kind word for event-aware copy: what is being declined, in the
+   row's own terms. Linked review rows are reconsideration appeals;
+   join rows split by their markers; everything else is a review request
+   (the decision frame — always safe, never wrong). */
+export interface DeclineKindRow {
+  source_type?: string | null;
+  join_request_id?: number | null;
+  reapplied_from_request_id?: number | null;
+  reactivation_requested_by?: number | null;
+}
+
+export function declineRequestKind(row: DeclineKindRow): string {
+  if (row.source_type === "review_request" && row.join_request_id != null) {
+    return "reconsideration request";
+  }
+  if (row.reactivation_requested_by != null) return "reactivation";
+  if (row.reapplied_from_request_id != null) return "reapplication";
+  return "review request";
 }
 
 export function resolveActionSpec(action: GateActionKind): ActionGateSpec {

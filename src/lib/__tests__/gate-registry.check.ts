@@ -21,8 +21,10 @@ import {
   validateDoubleGateMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  declineRequestKind,
   extractPendingExists,
   GATE_REGISTRY,
+  KNOWN_COPY_TOKENS,
   REGISTRY_HOOK_NAMES,
   resolveCopyTemplate,
   resolveStaleViewToast,
@@ -405,11 +407,11 @@ for (const spec of specs) {
       assert(template.length > 0, `${spec.action}: template is non-empty`);
       for (const token of templateTokens(template)) {
         assert(
-          ["name", "agency", "target"].includes(token),
+          KNOWN_COPY_TOKENS.includes(token),
           `${spec.action}: template token {${token}} is known`,
         );
       }
-      const rendered = resolveCopyTemplate(template, { name: "N", agency: "A", target: "T" });
+      const rendered = resolveCopyTemplate(template, { name: "N", agency: "A", target: "T", kind: "K" });
       assert(!rendered.includes("{"), `${spec.action}: sample render leaves no braces`);
     }
   }
@@ -453,6 +455,62 @@ assert(
 assert(
   GATE_REGISTRY.revoke_membership.confirmLabel === "Revoke membership",
   "copy: revoke renamed (Remove from agency is gone)",
+);
+
+// Operator-approved step copy (surgical tune-up): severe reason steps name
+// the action; block final states the technical outcome; decline is
+// event-aware via the kind token.
+assert(
+  stepBody(GATE_REGISTRY.block_membership, "fields") ===
+    "Confirm you want to block {name}. A reason is required and will be visible in membership history.",
+  "copy: block reason body verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.block_membership, "review") ===
+    "Confirm you want to block {name}. Membership with {agency} will be blocked with no path to appeal.",
+  "copy: block final body verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.revoke_membership, "fields") ===
+    "Confirm you want to revoke {name}'s membership. A reason is required and will be visible in membership history.",
+  "copy: revoke reason body verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.suspend_membership, "fields") ===
+    "Confirm suspension for {name}. A reason is required and will be visible in membership history.",
+  "copy: suspend reason body verbatim",
+);
+assert(
+  stepTitle(GATE_REGISTRY.decline_review, "fields") === "Decline {kind}" &&
+    stepBody(GATE_REGISTRY.decline_review, "fields") ===
+      "Confirm decline for {name}'s {kind}. A reason is required for decline and will be visible in membership history." &&
+    stepTitle(GATE_REGISTRY.decline_review, "review") === "Decline {kind}" &&
+    stepBody(GATE_REGISTRY.decline_review, "review") === "Confirm decline for {name}'s {kind}.",
+  "copy: decline event-aware title+bodies verbatim",
+);
+assert(
+  declineRequestKind({ source_type: "review_request", join_request_id: 9 }) ===
+    "reconsideration request",
+  "kind: linked review row is a reconsideration request",
+);
+assert(
+  declineRequestKind({ source_type: "review_request", join_request_id: null }) ===
+    "review request",
+  "kind: unlinked review row falls back to review request",
+);
+assert(
+  declineRequestKind({ source_type: "join_request", reapplied_from_request_id: 4 }) ===
+    "reapplication",
+  "kind: reapplied row is a reapplication",
+);
+assert(
+  declineRequestKind({ source_type: "join_request", reactivation_requested_by: 2 }) ===
+    "reactivation",
+  "kind: reactivation row is a reactivation",
+);
+assert(
+  declineRequestKind({ source_type: "membership_review_request" }) === "review request",
+  "kind: membership rows fall back to review request",
 );
 
 // Message blank copy stays canonical (single source in messages lib).
