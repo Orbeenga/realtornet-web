@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type {
+  AgencyInvitationAcceptRequest,
   AgencyInviteCreate,
   AgencyInviteAcceptRequest,
   AgencyInviteAcceptResponse,
@@ -201,11 +202,20 @@ export function useAcceptAgencyInvitation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (invitationId: number) =>
-      apiClient<AgencyInviteAcceptResponse>(
+    mutationFn: ({
+      invitationId,
+      message,
+    }: {
+      invitationId: number;
+      message?: string | null;
+    }) => {
+      const payload: AgencyInvitationAcceptRequest | undefined =
+        message != null && message !== "" ? { message } : undefined;
+      return apiClient<AgencyInviteAcceptResponse>(
         `/api/v1/agency-invitations/${invitationId}/accept/`,
-        { method: "PATCH" },
-      ),
+        payload ? { method: "PATCH", body: JSON.stringify(payload) } : { method: "PATCH" },
+      );
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] }),

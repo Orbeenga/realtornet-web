@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeAppRole } from "@/features/auth/navigation";
+import { useGatedAction } from "@/hooks/useGatedAction";
+import { emptyGate1Context } from "@/lib/gate-registry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
@@ -17,6 +18,7 @@ import {
   groupMyJoinRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  type ApprovalOriginRow,
 } from "./membershipHistory";
 import {
   useAcceptAgencyInvitation,
@@ -39,7 +41,6 @@ import {
   ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
-  runNudgeGateChecks,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
   resolveJoinRequestReactivationStage,
@@ -102,9 +103,11 @@ const COOLDOWN_LIMIT = 3;
 function SeekerAgencyHistoryGroup({
   agency,
   enabled,
+  originRows,
 }: {
   agency: { agency_id: number; agency_name: string; status?: string; is_verified?: boolean };
   enabled: boolean;
+  originRows?: ApprovalOriginRow[];
 }) {
   const feed = useMembershipHistory(enabled && Boolean(agency.agency_id), agency.agency_id);
   const [expanded, setExpanded] = useState(false);
@@ -121,6 +124,7 @@ function SeekerAgencyHistoryGroup({
         entity="agency"
         verified={agency.is_verified}
         history={feed.data}
+        originRows={originRows}
         isLoading={feed.isLoading}
         isError={feed.isError}
         onRetry={() => {
@@ -222,8 +226,39 @@ export function MyJoinRequestsClient() {
   const cancelJoinRequest = useCancelAgencyJoinRequest();
   const acceptReactivation = useAcceptJoinRequestReactivation();
   const reapplyJoinRequest = useReapplyAgencyJoinRequest();
-  const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
+
+  // Registry Profile B (U-052): reason, then confirm. No Gate 1.
+  const cancelGate = useGatedAction<number>("cancel_join", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (requestId, values) =>
+      cancelJoinRequest.mutateAsync({ requestId, reason: values.reason }),
+    title: "Cancel join request",
+    cancelLabel: "Keep",
+    successToast: "Join request cancelled",
+    errorFallback: "Could not cancel join request",
+  });
+
+  // Registry Profile C (U-052): Gate-1 ordered checks, then message, then confirm.
+  const reapplyGate = useGatedAction<number>("reapply", {
+    buildContext: (agencyId) => {
+      const group = cancelledRequestGroups.find((g) => g.agencyId === agencyId);
+      return {
+        joinRequests: group?.requests ?? [],
+        invitations: [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: true,
+        counterpartyName: group?.agencyName ?? "the agency",
+        includeCooldownCheck: true,
+      };
+    },
+    invoke: (agencyId, values) =>
+      reapplyJoinRequest.mutateAsync({ agencyId, message: values.message }),
+    title: "Apply again",
+    description: "Include a message for the agency owner with your reapplication.",
+    successToast: "Application submitted — it will appear in the agency's Review Requests queue.",
+    errorFallback: "Could not reapply",
+  });
 
   const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
 
@@ -233,9 +268,8 @@ export function MyJoinRequestsClient() {
     pendingReviewRequestId?: number | null,
   ) => {
     // UI-008 gate order: the pending-review check must short-circuit FIRST,
-    // before any reason-field validation (mirrors handleReapply's
-    // cooldown-check-first shape); the server 409 path below stays as the
-    // defensive second layer.
+    // before any reason-field validation (mirrors the registry Gate-1-first
+    // shape); the server 409 path below stays as the defensive second layer.
     if (pendingReviewRequestId != null) {
       notify.info("Review request already submitted - waiting for agency response.");
       return;
@@ -274,14 +308,20 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleAcceptInvitation = async (invitationId: number) => {
-    try {
-      await acceptInvitation.mutateAsync(invitationId);
-      notify.success("Invitation accepted");
-    } catch {
-      notify.error("Could not accept invitation");
-    }
-  };
+  // Registry Profile A with optional note (U-053): confirm + note on one
+  // dialog, no gate. Blank note sends no body (backend backward compat).
+  const inviteAcceptGate = useGatedAction<number>("invitation_accept", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (invitationId, values) => {
+      const note = values.note.trim();
+      return acceptInvitation.mutateAsync(
+        note ? { invitationId, message: note } : { invitationId },
+      );
+    },
+    title: "Accept invitation",
+    successToast: "Invitation accepted",
+    errorFallback: "Could not accept invitation",
+  });
 
   const handleRejectInvitation = async (invitationId: number) => {
     try {
@@ -292,115 +332,105 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleRequestReactivation = async (invitationId: number) => {
-    try {
-      await requestReactivation.mutateAsync(invitationId);
-      notify.success("Reactivation requested");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
-    }
-  };
+  // Registry Profile C, confirm-only variant (U-052 step 4): same-kind
+  // Gate-1 over the TARGET invitation (server guards per-invitation; a
+  // pair-wide check would false-block), then the dialog only confirms —
+  // the endpoint takes no body.
+  const inviteReactivationGate = useGatedAction<number>("invitation_reactivation_request", {
+    buildContext: (invitationId) => {
+      const target = invitations.find((i) => i.invitation_id === invitationId);
+      return {
+        joinRequests: [],
+        invitations: target ? [target] : [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: true,
+        counterpartyName: target?.agency_name ?? "the agency",
+        includeCooldownCheck: false,
+      };
+    },
+    invoke: (invitationId) => requestReactivation.mutateAsync(invitationId),
+    title: "Request reactivation",
+    successToast: "Reactivation requested",
+    errorFallback: "Could not request reactivation",
+  });
 
-  const handleCancelJoinRequest = async (requestId: number) => {
-    const reason = cancelReason.trim();
-    if (!reason) {
-      notify.error("Please provide a reason before cancelling the join request.");
-      return;
-    }
-    try {
-      await cancelJoinRequest.mutateAsync({ requestId, reason });
-      notify.success("Join request cancelled");
-      setCancelConfirmId(null);
-      setCancelReason("");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not cancel join request");
-    }
-  };
+  // Cancel runs through cancelGate (registry Profile B) — no bespoke handler.
 
-  const handleAcceptReactivation = async (requestId: number) => {
-    try {
-      await acceptReactivation.mutateAsync(requestId);
-      notify.success("Reactivation accepted — request is pending again.");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not accept reactivation");
-    }
-  };
+  // Registry Profile A (U-052 step 2, ruling 3): applicant consent accept
+  // gains a confirm-only dialog (was direct-fire).
+  const acceptReactivationGate = useGatedAction<number>("accept_reactivation", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (requestId) => acceptReactivation.mutateAsync(requestId),
+    title: "Accept reactivation",
+    successToast: "Reactivation accepted — request is pending again.",
+    errorFallback: "Could not accept reactivation",
+  });
 
-  /* Shared cooldown-gated CTA handler lives HERE ONLY (canonical UI-008
-     reapply pattern). Variants: client-side cooldown-gate first (fast/local,
-     notify.error), then fire; server 403/409 detail surfaced as the defensive
-     second layer. Button stays clickable — never hard-disable. */
-  const [reapplyDialogAgencyId, setReapplyDialogAgencyId] = useState<number | null>(null);
-  const [reapplyMessage, setReapplyMessage] = useState("");
-  // U-038 double-gate nudge dialog (Expired tab): request id under edit.
-  // Gate 1 (pending-check) + Gate 2 (message) live inside the shared dialog.
-  const [nudgeDialogRequestId, setNudgeDialogRequestId] = useState<number | null>(null);
-
-  const handleReapply = async (agencyId: number) => {
-    if (applyAgainDates.has(agencyId)) {
-      notify.error("Limit exceeded. Apply again after the cooldown period.");
-      return;
-    }
-    const message = reapplyMessage.trim();
-    if (!message) {
-      notify.error("Please provide a message before reapplying.");
-      return;
-    }
-    try {
-      await reapplyJoinRequest.mutateAsync({ agencyId, message });
-      notify.success("Application submitted — it will appear in the agency's Review Requests queue.");
-      setReapplyDialogAgencyId(null);
-      setReapplyMessage("");
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not reapply");
-    }
-  };
+  /* Reapply runs through reapplyGate (registry Profile C): Gate-1 ordered
+     checks (pending 1-2 + cooldown 3 with date) pre-dialog, message Gate 2
+     in-dialog, pending_exists stale-view mapping on the server path. Button
+     stays clickable — never hard-disable (UI-008). */
 
   const requestJoinRequestReactivationAsApplicant = useRequestJoinRequestReactivationAsApplicant();
   const rejectReactivation = useRejectJoinRequestReactivation();
 
-  // U-050 confirm-only nudge: Gate 1 (ordered checks 1-2 + exact toast) is
-  // enforced inside the shared dialog. Expired reactivation takes NO message
-  // (time-driven) — the dialog only confirms.
-  const handleRequestJoinRequestReactivationAsApplicant = async (requestId: number) => {
-    try {
-      await requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId });
-      notify.success("Reactivation requested — awaiting agency response.");
-      setNudgeDialogRequestId(null);
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reactivation");
-    }
-  };
+  // Registry Profile C, confirm-only variant (U-050): Expired reactivation
+  // takes NO message (time-driven) — Gate 1, then the dialog only confirms.
+  const reactivationGate = useGatedAction<number>("reactivation_request", {
+    buildContext: (requestId) => {
+      const group = expiredRequestGroups.find((g) =>
+        g.requests.some((r) => r.join_request_id === requestId),
+      );
+      return {
+        joinRequests: group?.requests ?? [],
+        invitations: [],
+        reviewRequests: [],
+        viewerUserId: user?.user_id ?? null,
+        viewerIsApplicant: true,
+        counterpartyName: group?.agencyName ?? "the agency",
+        includeCooldownCheck: false,
+      };
+    },
+    invoke: (requestId) =>
+      requestJoinRequestReactivationAsApplicant.mutateAsync({ requestId }),
+    title: "Request reactivation",
+    successToast: "Reactivation requested — awaiting agency response.",
+    errorFallback: "Could not request reactivation",
+  });
 
   const createReconsiderationRequest = useCreateAgencyReviewRequest();
-  // U-049/U-050 reconsideration flow (Rejected tab): exactly one button per
-  // fresh card → Gate 1 → message dialog → POST. No pre-rendered box, no
-  // Apply Again. The verbatim post-submit ambient derives from the live
-  // pending_appeal row field (single source of truth, survives reload).
-  const [reconsiderDialog, setReconsiderDialog] = useState<{ agencyId: number; joinRequestId: number } | null>(null);
-
-  // Gate 1 (pending_appeal check + exact toast) and Gate 2 (message
-  // validation) are enforced inside the shared dialog; the message arrives
-  // trimmed and non-blank. POSTs the EXISTING review-requests endpoint with
+  // U-049/U-050 reconsideration flow (Rejected tab) on the registry
+  // (Profile C): exactly one button per fresh card → Gate 1 → message dialog
+  // → POST. No pre-rendered box, no Apply Again. The verbatim post-submit
+  // ambient derives from the live pending_appeal row field (single source of
+  // truth, survives reload). POSTs the EXISTING review-requests endpoint with
   // Q1b origin linkage (Q1d: no new endpoint); 409/400/404 stay server-side.
-  const handleRequestReconsideration = async (agencyId: number, joinRequestId: number, message: string) => {
-    try {
-      await createReconsiderationRequest.mutateAsync({
-        agencyId,
-        payload: { message, join_request_id: joinRequestId },
-      });
-      notify.success("Reconsideration requested — it will appear in the agency's Review Requests queue.");
-      setReconsiderDialog(null);
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      notify.error(typeof detail === "string" ? detail : "Could not request reconsideration");
-    }
-  };
+  const reconsiderGate = useGatedAction<{ agencyId: number; joinRequestId: number }>(
+    "reconsideration_request",
+    {
+      buildContext: (seed) => {
+        const group = rejectedRequestGroups.find((g) => g.agencyId === seed.agencyId);
+        return {
+          joinRequests: group?.requests ?? [],
+          invitations: [],
+          reviewRequests: [],
+          viewerUserId: user?.user_id ?? null,
+          viewerIsApplicant: true,
+          counterpartyName: group?.agencyName ?? "the agency",
+          includeCooldownCheck: false,
+        };
+      },
+      invoke: (seed, values) =>
+        createReconsiderationRequest.mutateAsync({
+          agencyId: seed.agencyId,
+          payload: { message: values.message, join_request_id: seed.joinRequestId },
+        }),
+      title: "Request reconsideration",
+      successToast: "Reconsideration requested — it will appear in the agency's Review Requests queue.",
+      errorFallback: "Could not request reconsideration",
+    },
+  );
 
   const handleRejectReactivation = async (requestId: number) => {
     try {
@@ -467,27 +497,6 @@ export function MyJoinRequestsClient() {
   // Rejected sub-tab entity groups (grouped by agency_id) — one cumulative card
   // per agency via the shared grouper, mirroring Cancelled/Expired (U-034b).
   const rejectedRequestGroups = groupMyJoinRequestCycles(requests, "rejected");
-  const applyAgainDates = new Map<number, Date>();
-  for (const group of cancelledRequestGroups) {
-    // Server-computed unlock date (see DEF-U-COOLDOWN-UNLOCK-DATE-MISMATCH-001(a) above).
-    const unlockAt = group.requests[0]?.cooldown_unlock_at;
-    if (unlockAt) applyAgainDates.set(group.agencyId, new Date(unlockAt));
-  }
-  const cancelConfirmRequest = cancelConfirmId === null
-    ? null
-    : requests.find((request) => request.join_request_id === cancelConfirmId) ?? null;
-  const cancelConfirmRecentCount = cancelConfirmRequest
-    ? requests.filter((request) => {
-        if (request.agency_id !== cancelConfirmRequest.agency_id) return false;
-        if (request.status !== "cancelled" || !request.decided_at) return false;
-        return new Date(request.decided_at).getTime() >= cooldownCutoff;
-      }).length
-    : 0;
-  const cancelWarningMessage = cancelConfirmRecentCount >= COOLDOWN_LIMIT - 1
-    ? "If you proceed, you will not be able to reapply to this agency for 30 days."
-    : cancelConfirmRecentCount >= COOLDOWN_LIMIT - 2
-      ? "If you proceed, you are close to exhausting the maximum allowed limit for reapplications."
-      : "Are you sure you want to cancel this join request? This cannot be undone.";
   const memberships = membershipsQuery.data ?? [];
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
@@ -600,10 +609,10 @@ export function MyJoinRequestsClient() {
                           size="sm"
                           loading={
                             acceptInvitation.isPending &&
-                            acceptInvitation.variables === invitation.invitation_id
+                            acceptInvitation.variables?.invitationId === invitation.invitation_id
                           }
                           onClick={() =>
-                            void handleAcceptInvitation(invitation.invitation_id)
+                            inviteAcceptGate.attempt(invitation.invitation_id)
                           }
                         >
                           Accept
@@ -754,7 +763,7 @@ export function MyJoinRequestsClient() {
                               requestReactivation.variables === invitation.invitation_id
                             }
                             onClick={() =>
-                              void handleRequestReactivation(invitation.invitation_id)
+                              inviteReactivationGate.attempt(invitation.invitation_id)
                             }
                           >
                             Request Reactivation
@@ -820,7 +829,7 @@ export function MyJoinRequestsClient() {
                               requestReactivation.variables === invitation.invitation_id
                             }
                             onClick={() =>
-                              void handleRequestReactivation(invitation.invitation_id)
+                              inviteReactivationGate.attempt(invitation.invitation_id)
                             }
                           >
                             Express Interest
@@ -933,7 +942,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            labelStage="join_request"
                           />
                         );
                       })()}
@@ -1013,7 +1021,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            labelStage="join_request"
                           />
                         );
                       })()}
@@ -1176,7 +1183,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            labelStage="join_request"
                           />
                         );
                       })()}
@@ -1212,6 +1218,7 @@ export function MyJoinRequestsClient() {
                       is_verified: membership.is_verified,
                     }}
                     enabled={canViewAgencyMemberships}
+                    originRows={requests}
                   />
                 ))
               )}
@@ -1296,7 +1303,7 @@ export function MyJoinRequestsClient() {
                         size="sm"
                         variant="secondary"
                         loading={cancelJoinRequest.isPending && cancelJoinRequest.variables?.requestId === request.join_request_id}
-                        onClick={() => setCancelConfirmId(request.join_request_id)}
+                        onClick={() => cancelGate.attempt(request.join_request_id)}
                       >
                         Cancel
                       </Button>
@@ -1341,7 +1348,6 @@ export function MyJoinRequestsClient() {
                                verified={request.is_verified}
                                status={liveStatus}
                                applicationStatus={request.status}
-                               labelStage="join_request"
                              />
                           );
                         })()}
@@ -1415,7 +1421,6 @@ export function MyJoinRequestsClient() {
                       tier="rich"
                       history={[...cumulative.entries, ...appealRows]}
                       showHeader={false}
-                      labelStage="join_request"
                       emptyTitle="No rejected requests"
                       emptyDescription="You have no rejected join requests."
                     />
@@ -1433,7 +1438,7 @@ export function MyJoinRequestsClient() {
                         ) : (
                           <Button
                             type="button" size="sm"
-                            onClick={() => setReconsiderDialog({ agencyId, joinRequestId: latestRequest.join_request_id })}
+                            onClick={() => reconsiderGate.attempt({ agencyId, joinRequestId: latestRequest.join_request_id })}
                           >
                             Request Reconsideration
                           </Button>
@@ -1513,7 +1518,7 @@ export function MyJoinRequestsClient() {
                             <Button
                               type="button" size="sm"
                               loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                              onClick={() => void handleAcceptReactivation(request.join_request_id)}
+                              onClick={() => acceptReactivationGate.attempt(request.join_request_id)}
                             >
                               Accept Reactivation
                             </Button>
@@ -1537,7 +1542,7 @@ export function MyJoinRequestsClient() {
                           </p>
                           <Button
                             type="button" size="sm"
-                            onClick={() => setNudgeDialogRequestId(request.join_request_id)}
+                            onClick={() => reactivationGate.attempt(request.join_request_id)}
                           >
                             Request Reactivation
                           </Button>
@@ -1598,7 +1603,6 @@ export function MyJoinRequestsClient() {
                         tier="rich"
                         history={cumulative.entries}
                         showHeader={false}
-                        labelStage="join_request"
                         pendingReapplyNotice={{
                           viewerIsApplicant: true,
                           name: group.agencyName,
@@ -1611,19 +1615,7 @@ export function MyJoinRequestsClient() {
                     <div className="space-y-2 pt-2">
                       <Button
                         type="button" size="sm"
-                        onClick={() => {
-                          /* Gate 1 (U-038 pending-check): duplicate-in-flight guard,
-                             fires pre-dialog before opening the reapply dialog.
-                             Distinct from UI-008's cooldown gate (rate limit). */
-                          const hasPendingReapply = group.requests.some(
-                            (r) => r.status === "pending" && r.reapplication_message != null,
-                          );
-                          if (hasPendingReapply) {
-                            notify.info(`You already have a pending reapplication for ${group.agencyName}.`);
-                            return;
-                          }
-                          setReapplyDialogAgencyId(group.agencyId); setReapplyMessage("");
-                        }}
+                        onClick={() => reapplyGate.attempt(group.agencyId)}
                       >
                         Apply Again
                       </Button>
@@ -1638,114 +1630,89 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
-      {/* U-050 confirm-only nudge dialog (shared canonical component). */}
+      {/* Registry-driven dialogs (U-052/U-053): one pure renderer. Seed-dependent
+          descriptions and copy tokens compute here (data exists) from
+          gate.seed and spread-override dialogProps (TDZ note in
+          useGatedAction — never as opts closures). */}
       <ConfirmDestructiveDialog
-        open={nudgeDialogRequestId !== null}
-        onClose={() => setNudgeDialogRequestId(null)}
-        title="Request reactivation"
-        description={`Ask ${requests.find((r) => r.join_request_id === nudgeDialogRequestId)?.agency_name ?? "the agency"} to reactivate your expired application.`}
-        variant="confirm-only"
-        confirmLabel="Send request"
-        checkPending={() => {
-          const group = expiredRequestGroups.find((g) =>
-            g.requests.some((r) => r.join_request_id === nudgeDialogRequestId),
-          );
-          return runNudgeGateChecks({
-            action: "reactivation",
-            requests: group?.requests ?? [],
-            viewerUserId: user?.user_id ?? null,
-            viewerIsApplicant: true,
-            counterpartyName: group?.agencyName ?? "the agency",
-            includeCooldownCheck: false,
-          });
-        }}
-        isPending={requestJoinRequestReactivationAsApplicant.isPending}
-        onConfirm={() => { if (nudgeDialogRequestId !== null) void handleRequestJoinRequestReactivationAsApplicant(nudgeDialogRequestId); }}
+        {...reactivationGate.dialogProps}
+        tokens={{}}
+        description={
+          reactivationGate.seed === null
+            ? undefined
+            : `Ask ${requests.find((r) => r.join_request_id === reactivationGate.seed)?.agency_name ?? "the agency"} to reactivate your expired application.`
+        }
       />
-      {/* U-050 message-required reconsideration dialog (shared canonical component). */}
       <ConfirmDestructiveDialog
-        open={reconsiderDialog !== null}
-        onClose={() => setReconsiderDialog(null)}
-        title="Request reconsideration"
-        description={`Ask ${rejectedRequestGroups.find((g) => g.agencyId === reconsiderDialog?.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`}
-        variant="message-required"
-        messageLabel="Message"
-        messagePlaceholder="Message for the agency owner (required)"
-        confirmLabel="Send request"
-        checkPending={() => {
-          const group = rejectedRequestGroups.find((g) => g.agencyId === reconsiderDialog?.agencyId);
-          return runNudgeGateChecks({
-            action: "reconsideration",
-            requests: group?.requests ?? [],
-            viewerUserId: user?.user_id ?? null,
-            viewerIsApplicant: true,
-            counterpartyName: group?.agencyName ?? "the agency",
-            includeCooldownCheck: false,
-          });
-        }}
-        isPending={createReconsiderationRequest.isPending}
-        onConfirm={(message) => { if (reconsiderDialog !== null) void handleRequestReconsideration(reconsiderDialog.agencyId, reconsiderDialog.joinRequestId, message); }}
+        {...reconsiderGate.dialogProps}
+        tokens={{}}
+        description={
+          reconsiderGate.seed === null
+            ? undefined
+            : `Ask ${rejectedRequestGroups.find((g) => g.agencyId === reconsiderGate.seed?.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`
+        }
       />
-      <Dialog open={cancelConfirmId !== null} onOpenChange={(open) => { if (!open) { setCancelConfirmId(null); setCancelReason(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel join request</DialogTitle>
-            <DialogDescription>
-              {cancelWarningMessage}
-            </DialogDescription>
-          </DialogHeader>
-          <textarea
-            rows={3}
-            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            placeholder="Reason for cancelling (required)"
-            value={cancelReason}
-            onChange={(event) => setCancelReason(event.target.value)}
-          />
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => { setCancelConfirmId(null); setCancelReason(""); }}>
-              Keep
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              loading={cancelJoinRequest.isPending}
-              onClick={() => cancelConfirmId !== null && void handleCancelJoinRequest(cancelConfirmId)}
-            >
-              Cancel request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={reapplyDialogAgencyId !== null} onOpenChange={(open) => { if (!open) { setReapplyDialogAgencyId(null); setReapplyMessage(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Apply again</DialogTitle>
-            <DialogDescription>
-              Include a message for the agency owner with your reapplication.
-            </DialogDescription>
-          </DialogHeader>
-          <textarea
-            rows={3}
-            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            placeholder="Reapplication message (required)"
-            value={reapplyMessage}
-            onChange={(event) => setReapplyMessage(event.target.value)}
-          />
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => { setReapplyDialogAgencyId(null); setReapplyMessage(""); }}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              loading={reapplyJoinRequest.isPending && reapplyJoinRequest.variables?.agencyId === reapplyDialogAgencyId}
-              onClick={() => reapplyDialogAgencyId !== null && void handleReapply(reapplyDialogAgencyId)}
-            >
-              Submit application
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDestructiveDialog
+        {...cancelGate.dialogProps}
+        tokens={{}}
+        description={(() => {
+          const target =
+            cancelGate.seed === null
+              ? null
+              : (requests.find((r) => r.join_request_id === cancelGate.seed) ?? null);
+          const recentCount = target
+            ? requests.filter((request) => {
+                if (request.agency_id !== target.agency_id) return false;
+                if (request.status !== "cancelled" || !request.decided_at) return false;
+                return new Date(request.decided_at).getTime() >= cooldownCutoff;
+              }).length
+            : 0;
+          if (recentCount >= COOLDOWN_LIMIT - 1) {
+            return "If you proceed, you will not be able to reapply to this agency for 30 days.";
+          }
+          if (recentCount >= COOLDOWN_LIMIT - 2) {
+            return "If you proceed, you are close to exhausting the maximum allowed limit for reapplications.";
+          }
+          return "Are you sure you want to cancel this join request? This cannot be undone.";
+        })()}
+      />
+      <ConfirmDestructiveDialog {...reapplyGate.dialogProps} tokens={{}} />
+      <ConfirmDestructiveDialog
+        {...acceptReactivationGate.dialogProps}
+        tokens={
+          acceptReactivationGate.seed === null
+            ? {}
+            : {
+                name:
+                  requests.find((r) => r.join_request_id === acceptReactivationGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...inviteReactivationGate.dialogProps}
+        tokens={{}}
+        description={(() => {
+          if (inviteReactivationGate.seed === null) return undefined;
+          const target = invitations.find((i) => i.invitation_id === inviteReactivationGate.seed);
+          const agency = target?.agency_name ?? "the agency";
+          return target?.status === "withdrawn"
+            ? `Express interest in the withdrawn invitation from ${agency}? They will be notified.`
+            : `Ask ${agency} to reactivate your expired invitation.`;
+        })()}
+      />
+      <ConfirmDestructiveDialog
+        {...inviteAcceptGate.dialogProps}
+        tokens={
+          inviteAcceptGate.seed === null
+            ? {}
+            : {
+                agency:
+                  invitations.find((i) => i.invitation_id === inviteAcceptGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
+      />
     </div>
   );
 }

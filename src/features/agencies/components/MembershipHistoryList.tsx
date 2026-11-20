@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
 import {
   ambientTextToneClass,
+  isLegacyMachineReason,
   resolveReapplyPendingNotice,
   resolveReapplyPendingSeekerAmbient,
   resolveReconsiderationPendingNotice,
@@ -11,8 +12,11 @@ import {
   resolveStatusBadge,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  annotateApprovalOrigins,
   formatMembershipDate,
   timelineEntryKey,
+  type ApprovalOrigin,
+  type ApprovalOriginRow,
   type CumulativeRequestLifecycleEntry,
   type MembershipTimelineEntryWithResolution,
 } from "./membershipHistory";
@@ -35,11 +39,12 @@ interface MembershipTimelineProps {
   status?: string;
   verified?: boolean;
   lastSeen?: string;
-  /** Discriminator for action→label resolution (U-017 option b): the lifecycle
-      context this timeline renders. `joined` renders as "Approved" under
-      "join_request" (join-request approval) and stays "Accepted" (U-014) for
-      invitation acceptance. Consumers pass this explicitly; no silent per-tier map. */
-  labelStage?: "invitation" | "join_request";
+  /** Join rows for approval-origin annotation (U-053 verb rule): approved
+      entries correlate to their anchoring row for origin stems
+      ("Reapplication/Reactivation/Reconsideration approved"). Without rows
+      the map renders the bare verb. (Replaces labelStage: origin decides,
+      not the surface.) */
+  originRows?: ApprovalOriginRow[];
   /** Application-level status badge rendered top-right on the header, independent
       of the membership-status qualifier below. Used where application status and
       membership status need to coexist (e.g., Approved tab showing "approved"
@@ -93,17 +98,37 @@ export function timelineRowBandClass(index: number): string {
 
 const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
 
-/* Canonical shared label map (U-017): the sole authority for timeline event
-   labels across both tiers. Extended: join_request rows carrying
+/* Canonical shared label map (U-017, verb rule U-053): the sole authority for
+   timeline event labels across both tiers. Extended: join_request rows carrying
    reapplied_from_request_id render "Reapplied" instead of "Submitted"
-   (U-017 amendment owed in backend DECISIONS.md). */
+   (U-017 amendment owed in backend DECISIONS.md). Verb rule: agency-decides
+   renders Approved (+ origin stem), seeker-agrees renders Accepted,
+   restoration renders Reinstated. Origin arrives annotated on the entry
+   (annotateApprovalOrigins); invitation origin derives from invitation_id
+   (C2); fresh/origin-less renders the bare verb. The audit action enum is
+   unchanged (U-014 pattern). Never render a bare "Accepted" for an agency
+   decision. labelStage was removed: origin decides, not the surface. */
 export function resolveTimelineLabel(
-  entry: MembershipTimelineEntry & { reapplied_from_request_id?: number | null },
-  labelStage: "invitation" | "join_request" = "invitation",
+  entry: MembershipTimelineEntry & {
+    reapplied_from_request_id?: number | null;
+    approvalOrigin?: ApprovalOrigin | null;
+  },
 ): string {
   if (entry.action) {
+    if (entry.action === "joined" || entry.action === "approved") {
+      if (entry.invitation_id != null) return "Accepted";
+      switch (entry.approvalOrigin) {
+        case "reapplication":
+          return "Reapplication approved";
+        case "reactivation":
+          return "Reactivation approved";
+        case "reconsideration":
+          return "Reconsideration approved";
+        default:
+          return "Approved";
+      }
+    }
     const raw = entry.action.replace(/_/g, " ");
-    if (entry.action === "joined") return labelStage === "join_request" ? "Approved" : "Accepted";
     if (entry.action === "review_requested") return "Review requested";
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
@@ -282,7 +307,7 @@ export function MembershipTimeline({
   status,
   verified,
   lastSeen,
-  labelStage = "invitation",
+  originRows,
   applicationStatus,
   email,
   avatarUrl,
@@ -320,15 +345,18 @@ export function MembershipTimeline({
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
 
+  const entries =
+    originRows == null ? history : annotateApprovalOrigins(history, originRows, history);
+
   if (tier === "simple") {
-    const sorted = [...history].sort(
+    const sorted = [...entries].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
 
     const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
 
     const headerName = defaultUserDisplayName ?? sorted[0]?.user_display_name ?? sorted[0]?.agency_name ?? "Unknown";
-    const headerStatus = status ?? (sorted[0]?.action ? resolveTimelineLabel(sorted[0], labelStage) : "");
+    const headerStatus = status ?? (sorted[0]?.action ? resolveTimelineLabel(sorted[0]) : "");
     const eventCount = sorted.length;
 
     return (
@@ -358,7 +386,7 @@ export function MembershipTimeline({
             {/* Shared zebra banding lives HERE ONLY (canonical timeline component).
                 Light pair: transparent / gray-50. Dark pair: transparent / white/5. */}
 
-            {resolveTimelineLabel(entry, labelStage)} - {formatMembershipDate(entry.timestamp)}
+            {resolveTimelineLabel(entry)} - {formatMembershipDate(entry.timestamp)}
           </p>
         ))}
       </div>
@@ -369,7 +397,7 @@ export function MembershipTimeline({
   // request and resolution are independent entries with genuine timestamps;
   // no resolvedAt substitution, identical to History. Direction defaults to
   // descending (newest first); cumulative narrative cards pass "asc".
-  const sortedHistory = [...history].sort((first, second) => {
+  const sortedHistory = [...entries].sort((first, second) => {
     const diff =
       new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime();
     // Canonical newest-first order (lead answer 2): the shared tier always
@@ -382,7 +410,7 @@ export function MembershipTimeline({
   const hasMoreEntries = sortedHistory.length > 2;
 
   const headerName = defaultUserDisplayName ?? sortedHistory[0]?.user_display_name ?? sortedHistory[0]?.agency_name ?? "Unknown";
-  const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0], labelStage) : "");
+  const headerStatus = status ?? (sortedHistory[0]?.action ? resolveTimelineLabel(sortedHistory[0]) : "");
   const eventCount = sortedHistory.length;
 
   return (
@@ -404,7 +432,7 @@ export function MembershipTimeline({
       ) : null}
       {visibleEntries.map((entry, index) => {
         const entryId = timelineEntryKey(entry);
-        const label = resolveTimelineLabel(entry, labelStage);
+        const label = resolveTimelineLabel(entry);
         /* Pending-review NOTICE — OPT-IN (pendingReviewHighlight, consumed
            only by the agency Revoked tab). Per the locked design spec: the
            event row is ALWAYS canonical — same zebra banding, same neutral
@@ -535,7 +563,7 @@ export function MembershipTimeline({
                   </Badge>
                 ) : null}
               </div>
-              {entry.reason ? (
+              {entry.reason && !isLegacyMachineReason(entry.reason) ? (
                 <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
               ) : null}
             {entry.cover_note ? (

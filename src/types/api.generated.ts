@@ -1609,6 +1609,9 @@ export interface paths {
         /**
          * Accept My Agency Invitation
          * @description Accept a pending agency invitation for the authenticated user.
+         *
+         *     Profile A with a note (U-053): the optional body carries the invitee's
+         *     own note, persisted as the accept audit reason (or null when absent).
          */
         patch: operations["accept_my_agency_invitation_api_v1_agency_invitations__invitation_id__accept__patch"];
         trace?: never;
@@ -4996,6 +4999,19 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * AgencyInvitationAcceptRequest
+         * @description Invitee-accept body (Profile A with a note, U-053).
+         *
+         *     Optional applicant note persisted as the accept audit reason so it
+         *     renders beside the Accepted event. Entire body is optional for backward
+         *     compatibility (older callers send none); blank normalizes to None. Never
+         *     machine-filled (C1: only person-written reasons render).
+         */
+        AgencyInvitationAcceptRequest: {
+            /** Message */
+            message?: string | null;
+        };
         /** AgencyInvitationResponse */
         AgencyInvitationResponse: {
             /** Invitation Id */
@@ -5924,11 +5940,6 @@ export interface components {
         Body_bootstrap_demo_data_api_v1_admin_bootstrap_demo_data_post: {
             /** Agent User Id */
             agent_user_id: number;
-        };
-        /** Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch */
-        Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch: {
-            /** Reason */
-            reason: string;
         };
         /** Body_login_access_token_api_v1_auth_login_post */
         Body_login_access_token_api_v1_auth_login_post: {
@@ -10196,7 +10207,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyInvitationAcceptRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10412,7 +10427,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Body_leave_my_agency_membership_api_v1_agency_memberships__membership_id__leave__patch"];
+                "application/json": components["schemas"]["AgencyDecisionRequest"];
             };
         };
         responses: {

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card, CardBody, Modal } from "@/components";
+import { Badge, Button, Card, CardBody } from "@/components";
+import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
+import { useGatedAction } from "@/hooks/useGatedAction";
 import { useAuth } from "@/features/auth/AuthContext";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import {
@@ -17,7 +18,8 @@ import { isVerifiedAgency } from "@/features/agencies/lib/verification";
 import { getStoredJwtRole } from "@/lib/jwt";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
-import type { Agency } from "@/types";
+import { emptyGate1Context } from "@/lib/gate-registry";
+import type { Agency, MyAgencyMembershipResponse } from "@/types";
 import {
   getLatestMembershipRecord,
   isReturningMembershipAction,
@@ -41,9 +43,6 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
   const { user, loading } = useAuth();
   const [reviewMessage, setReviewMessage] = useState("");
   const [submittedReviewRequest, setSubmittedReviewRequest] = useState(false);
-  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
-  const [leaveReason, setLeaveReason] = useState("");
-  const [leaveReasonError, setLeaveReasonError] = useState("");
   const role = normalizeAppRole(getStoredJwtRole() ?? user?.user_role);
   const isAgencyApplicantRole = role === "seeker" || role === "agent";
   const requestsQuery = useMyAgencyJoinRequests(
@@ -72,31 +71,26 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
     (requestsQuery.isLoading || membershipsQuery.isLoading || historyQuery.isLoading);
 
   const leaveMutation = useLeaveAgencyMembership();
-  const queryClient = useQueryClient();
 
-  const handleLeave = async () => {
-    if (!matchingMembership) return;
-    const trimmedReason = leaveReason.trim();
-    if (!trimmedReason) {
-      setLeaveReasonError("Please provide a reason for leaving.");
-      return;
-    }
-    setLeaveReasonError("");
-    try {
-      const result = await leaveMutation.mutateAsync({
-        membershipId: matchingMembership.membership_id,
-        reason: trimmedReason,
-      });
-      setShowLeaveDialog(false);
-      setLeaveReason("");
-      if (result.role_changed && result.new_role === "seeker") {
-        queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+  // Registry Profile B (U-052 step 3): reason, then confirm. Preserved
+  // behaviors: role_changed redirect (via result-aware onSuccess), 409
+  // active-listings mapping (via mapError), hook-owned invalidations.
+  const leaveGate = useGatedAction<number>("leave_membership", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, false),
+    invoke: (membershipId, values) =>
+      leaveMutation.mutateAsync({ membershipId, reason: values.reason }),
+    title: "Leave this agency",
+    description:
+      "Are you sure you want to leave this agency? If you have active listings through this agency, you'll need to transfer or remove them first.",
+    successToast: "You have left the agency.",
+    errorFallback: "Could not leave this agency.",
+    onSuccess: (_seed, result) => {
+      const response = result as MyAgencyMembershipResponse;
+      if (response.role_changed && response.new_role === "seeker") {
         window.location.assign("/");
-      } else {
-        await queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] });
-        await queryClient.invalidateQueries({ queryKey: ["membershipHistory"] });
       }
-    } catch (error) {
+    },
+    mapError: (error) => {
       const detail = error instanceof ApiError ? error.detail : null;
       const text = typeof detail === "string" ? detail.toLowerCase() : "";
       if (
@@ -104,12 +98,11 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
         error.status === 409 &&
         (text.includes("active") || text.includes("listings"))
       ) {
-        notify.error("Cannot leave agency while you have active listings.");
-      } else {
-        notify.error("Could not leave this agency.");
+        return "Cannot leave agency while you have active listings.";
       }
-    }
-  };
+      return null;
+    },
+  });
 
   const handleRequestReview = async () => {
     try {
@@ -174,7 +167,9 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
           </span>
           <button
             type="button"
-            onClick={() => setShowLeaveDialog(true)}
+            onClick={() => {
+              if (matchingMembership) leaveGate.attempt(matchingMembership.membership_id);
+            }}
             className="text-sm text-red-600 underline underline-offset-2 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
           >
             Leave this agency
@@ -318,56 +313,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
         </CardBody>
       </Card>
 
-      <Modal
-        open={showLeaveDialog}
-        onClose={() => {
-          setShowLeaveDialog(false);
-          setLeaveReason("");
-          setLeaveReasonError("");
-        }}
-        title="Leave this agency"
-        description="Are you sure you want to leave this agency? If you have active listings through this agency, you'll need to transfer or remove them first."
-        footer={
-          <div className="flex w-full gap-3">
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => {
-                setShowLeaveDialog(false);
-                setLeaveReason("");
-                setLeaveReasonError("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1"
-              loading={leaveMutation.isPending}
-              disabled={!leaveReason.trim()}
-              onClick={() => void handleLeave()}
-            >
-              Leave
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-2">
-          <textarea
-            rows={3}
-            className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            placeholder="Reason for leaving (required — shared with the agency)"
-            value={leaveReason}
-            onChange={(event) => {
-              setLeaveReason(event.target.value);
-              if (leaveReasonError) setLeaveReasonError("");
-            }}
-          />
-          {leaveReasonError ? (
-            <p className="text-xs text-red-500">{leaveReasonError}</p>
-          ) : null}
-        </div>
-      </Modal>
+      <ConfirmDestructiveDialog {...leaveGate.dialogProps} tokens={{}} />
     </>
   );
 }
