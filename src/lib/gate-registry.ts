@@ -1,11 +1,17 @@
-/* Gate registry SSOT (U-052). Policy as data, not code in callers: each
-   action declares a gate profile, one runner enforces it, the dialog is a
-   pure renderer. Profiles: A = confirm only; B = reason, then confirm;
-   C = Gate-1 pre-check, then message (where applicable), then confirm;
-   D = reason, then type-the-name, then confirm. Reason vs message stay
+/* Gate registry SSOT (U-052, step model + copy rule U-053). Policy as data, not
+   code in callers: each action declares ordered steps[], per-action copy
+   templates, and Gate-1 checks; one runner enforces the sequence; the dialog
+   renders step N of M as a pure renderer. Profiles: A = single confirm
+   (+optional note, no gate); B plain = reason, then final; B severe
+   (block/revoke/suspend) = intent, reason, final; C = message, then confirm
+   (no-message variants are confirm-only); D = intent, reason, type-the-name
+   with Confirm disabled until exact match. Reason vs message vs note stay
    distinct field kinds: reason is backend-required and persisted, message is
-   an applicant note. Gate-1 copy/predicates for nudges stay canonical in
-   membership-lifecycle-messages; this module references them, never copies. */
+   an applicant note on a request, note is an optional acceptance annotation.
+   Gate-1 copy/predicates for nudges stay canonical in
+   membership-lifecycle-messages; this module references them, never copies.
+   Copy templates use {name} {agency} {target} tokens resolved with
+   caller-supplied values (callers own data; the registry owns words). */
 
 import { ApiError } from "@/lib/api/client";
 import {
@@ -16,8 +22,9 @@ import {
 } from "@/lib/membership-lifecycle-messages";
 
 export type GateProfile = "A" | "B" | "C" | "D";
-export type GateFieldKind = "message" | "reason" | "typename";
+export type GateFieldKind = "message" | "reason" | "typename" | "note";
 export type PendingExistsKind = "join_request" | "review_request" | "reactivation";
+export type GateStepId = "intent" | "fields" | "review" | "confirm";
 
 /* Structural screen-state slices for Gate 1. JoinRequestIdentity in
    membership-lifecycle-messages is not exported, so the join shape is
@@ -86,11 +93,54 @@ export interface GateFieldSpec {
   blankError: string;
 }
 
+/* One sequenced step. Title/body templates resolve {name} {agency} {target}
+   with caller tokens; absent title falls back to the action title, absent
+   body to the caller description. echo renders drafted values read-only
+   (the final-step review point). primaryLabel is "Proceed" except on the
+   final step, which carries the action confirm label. */
+export interface GateStepSpec {
+  id: GateStepId;
+  titleTemplate?: string;
+  bodyTemplate?: string;
+  fields: GateFieldSpec[];
+  echo?: ("reason" | "message")[];
+  primaryLabel: string;
+}
+
+export interface GateCopyTokens {
+  name?: string;
+  agency?: string;
+  target?: string;
+}
+
+const COPY_TOKENS = ["name", "agency", "target"] as const;
+
+/* Resolve copy templates. Supplied tokens substitute; missing tokens stay
+   literal (loud in screenshots — callers must supply what templates use;
+   the spec asserts sample renders leave no braces). */
+export function resolveCopyTemplate(template: string, tokens: GateCopyTokens): string {
+  let out = template;
+  for (const key of COPY_TOKENS) {
+    const value = tokens[key];
+    if (value != null) out = out.split(`{${key}}`).join(value);
+  }
+  return out;
+}
+
+export function templateTokens(template: string): string[] {
+  const found: string[] = [];
+  for (const match of template.matchAll(/\{([a-z]+)\}/g)) {
+    if (!found.includes(match[1])) found.push(match[1]);
+  }
+  return found;
+}
+
 export type GateActionKind =
   | "accept_reactivation"
   | "approve_join"
   | "accept_review"
   | "withdraw_invitation"
+  | "invitation_accept"
   | "reject_join"
   | "decline_review"
   | "reconsider_agency"
@@ -111,7 +161,7 @@ export interface ActionGateSpec {
   hooks: string[];
   endpoint: string;
   gate1: Gate1Check[];
-  fields: GateFieldSpec[];
+  steps: GateStepSpec[];
   nudgeNoun?: NudgeActionNoun;
   dialog: boolean;
   destructive?: boolean;
@@ -138,9 +188,9 @@ function nudgeOrderedCheck(noun: NudgeActionNoun): Gate1Check {
   };
 }
 
-/* Same-kind pending check for invitation reactivation: an invitation whose
-   reactivation is already requested blocks a second request for the pair.
-   Copy reuses the locked reactivation noun toast. */
+/* Same-kind pending check for invitation reactivation: the target invitation
+   already requested blocks a second request. Copy reuses the locked
+   reactivation noun toast. Callers pass ctx.invitations: [target] only. */
 const invitationReactivationPendingCheck: Gate1Check = {
   id: "invitation-reactivation-pending",
   run: (ctx) =>
@@ -172,6 +222,38 @@ const typenameField: GateFieldSpec = {
   blankError: "",
 };
 
+const noteField: GateFieldSpec = {
+  kind: "note",
+  label: "Note",
+  placeholder: "Optional note (visible in history)",
+  required: false,
+  blankError: "",
+};
+
+const PROCEED = "Proceed";
+
+function confirmStep(primaryLabel: string, fields: GateFieldSpec[] = [], bodyTemplate?: string): GateStepSpec {
+  return { id: "confirm", fields, primaryLabel, ...(bodyTemplate ? { bodyTemplate } : {}) };
+}
+
+function fieldsStep(fields: GateFieldSpec[]): GateStepSpec {
+  return { id: "fields", fields, primaryLabel: PROCEED };
+}
+
+function reviewStep(primaryLabel: string, echo: ("reason" | "message")[], fields: GateFieldSpec[] = [], bodyTemplate?: string): GateStepSpec {
+  return { id: "review", fields, echo, primaryLabel, ...(bodyTemplate ? { bodyTemplate } : {}) };
+}
+
+function intentStep(titleTemplate: string | undefined, bodyTemplate: string): GateStepSpec {
+  return {
+    id: "intent",
+    fields: [],
+    primaryLabel: PROCEED,
+    ...(titleTemplate ? { titleTemplate } : {}),
+    bodyTemplate,
+  };
+}
+
 export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
   accept_reactivation: {
     action: "accept_reactivation",
@@ -179,10 +261,11 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useAcceptJoinRequestReactivation"],
     endpoint: "PATCH /api/v1/join-requests/{requestId}/accept-reactivation/",
     gate1: [],
-    fields: [],
+    steps: [confirmStep("Accept", [], "Confirm reactivation for {name}. Your application will be pending again.")],
     dialog: true,
     confirmLabel: "Accept",
     migrated: true,
+    note: "No note field: endpoint takes no body.",
   },
   approve_join: {
     action: "approve_join",
@@ -190,10 +273,11 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useApproveAgencyJoinRequest"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/join-requests/{requestId}/approve",
     gate1: [],
-    fields: [],
+    steps: [confirmStep("Approve", [], "Confirm membership for {name}.")],
     dialog: true,
     confirmLabel: "Approve",
     migrated: true,
+    note: "No note field: endpoint takes no body.",
   },
   accept_review: {
     action: "accept_review",
@@ -201,7 +285,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useAcceptAgencyReviewRequest"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/review-requests/{requestId}/accept",
     gate1: [],
-    fields: [],
+    steps: [confirmStep("Accept", [noteField], "Confirm membership for {name}.")],
     dialog: true,
     confirmLabel: "Accept",
     migrated: true,
@@ -212,10 +296,23 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useWithdrawAgencyInvitation"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/invitations/{invitationId}/withdraw",
     gate1: [],
-    fields: [],
+    steps: [confirmStep("Withdraw", [], "Withdraw the pending invitation for {name}?")],
     dialog: true,
     confirmLabel: "Withdraw",
     migrated: true,
+    note: "No note field: endpoint takes no body. {name} resolves to the invitee email.",
+  },
+  invitation_accept: {
+    action: "invitation_accept",
+    profile: "A",
+    hooks: ["useAcceptAgencyInvitation"],
+    endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/accept/",
+    gate1: [],
+    steps: [confirmStep("Accept", [noteField], "Accept the invitation from {agency}?")],
+    dialog: true,
+    confirmLabel: "Accept",
+    migrated: true,
+    note: "Note persists via the optional invitation-accept body (c691854); blank sends no body.",
   },
   reject_join: {
     action: "reject_join",
@@ -223,7 +320,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useRejectAgencyJoinRequest"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/join-requests/{requestId}/reject",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for rejecting (required)")],
+    steps: [
+      fieldsStep([reasonField("Reason", "Reason for rejecting (required)")]),
+      reviewStep("Reject", ["reason"]),
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Reject",
@@ -235,7 +335,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useDeclineAgencyReviewRequest"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/review-requests/{requestId}/decline",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for declining (required)")],
+    steps: [
+      fieldsStep([reasonField("Reason", "Reason for declining (required)")]),
+      reviewStep("Decline", ["reason"]),
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Decline",
@@ -247,7 +350,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useReconsiderJoinRequest"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/join-requests/{requestId}/reconsider/",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for reconsidering (required)")],
+    steps: [
+      fieldsStep([reasonField("Reason", "Reason for reconsidering (required)")]),
+      reviewStep("Reconsider", ["reason"]),
+    ],
     dialog: true,
     confirmLabel: "Reconsider",
     migrated: false,
@@ -259,7 +365,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useCancelAgencyJoinRequest"],
     endpoint: "PATCH /api/v1/join-requests/{requestId}/cancel/",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for cancelling (required)")],
+    steps: [
+      fieldsStep([reasonField("Reason", "Reason for cancelling (required)")]),
+      reviewStep("Cancel request", ["reason"]),
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Cancel request",
@@ -271,7 +380,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useLeaveAgencyMembership"],
     endpoint: "PATCH /api/v1/agency-memberships/{membershipId}/leave",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for leaving (required — shared with the agency)")],
+    steps: [
+      fieldsStep([reasonField("Reason", "Reason for leaving (required — shared with the agency)")]),
+      reviewStep("Leave", ["reason"]),
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Leave",
@@ -283,7 +395,11 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useSuspendAgencyMembership"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/agents/{membershipId}/suspend",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for suspending (required)")],
+    steps: [
+      intentStep("Suspend {name}?", "This pauses the membership — {name} keeps their role and can return through review."),
+      fieldsStep([reasonField("Reason", "Reason for suspending (required)")]),
+      reviewStep("Suspend agent", ["reason"], [], "{name} will be suspended from {agency}."),
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Suspend agent",
@@ -295,10 +411,14 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useRevokeAgencyMembership"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/agents/{membershipId}/revoke",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for revoking (required)")],
+    steps: [
+      intentStep("Revoke {name}'s membership?", "This ends the membership permanently. Any future return starts as a fresh decision."),
+      fieldsStep([reasonField("Reason", "Reason for revoking (required)")]),
+      reviewStep("Revoke membership", ["reason"], [], "{name}'s membership will be revoked from {agency}."),
+    ],
     dialog: true,
     destructive: true,
-    confirmLabel: "Remove from agency",
+    confirmLabel: "Revoke membership",
     migrated: true,
   },
   apply: {
@@ -307,11 +427,11 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useCreateAgencyJoinRequest"],
     endpoint: "POST /api/v1/agencies/{agencyId}/join-request",
     gate1: [],
-    fields: [],
+    steps: [],
     dialog: false,
     confirmLabel: "Submit application",
     migrated: false,
-    note: "Form owns its UI (no dialog). Local Gate-1 predicate and blocked copy are owed a lead ruling; the server 400/pending_exists backstop is authoritative until then.",
+    note: "Form owns its UI (no dialog). Profile C per lead classification; local Gate-1 predicate and blocked copy still owed — the server 400/pending_exists backstop is authoritative until then.",
   },
   reapply: {
     action: "reapply",
@@ -319,7 +439,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useReapplyAgencyJoinRequest"],
     endpoint: "POST /api/v1/agencies/{agencyId}/join-requests/reapply/",
     gate1: [],
-    fields: [messageField("Message", "Reapplication message (required)")],
+    steps: [
+      fieldsStep([messageField("Message", "Reapplication message (required)")]),
+      reviewStep("Submit application", ["message"]),
+    ],
     nudgeNoun: "reapplication",
     dialog: true,
     confirmLabel: "Submit application",
@@ -331,7 +454,10 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useCreateAgencyReviewRequest"],
     endpoint: "POST /api/v1/agencies/{agencyId}/review-requests",
     gate1: [],
-    fields: [messageField("Message", "Message for the agency owner (required)")],
+    steps: [
+      fieldsStep([messageField("Message", "Message for the agency owner (required)")]),
+      reviewStep("Send request", ["message"]),
+    ],
     nudgeNoun: "reconsideration",
     dialog: true,
     confirmLabel: "Send request",
@@ -343,7 +469,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useRequestJoinRequestReactivation", "useRequestJoinRequestReactivationAsApplicant"],
     endpoint: "PATCH /api/v1/.../join-requests/{requestId}/request-reactivation/",
     gate1: [],
-    fields: [],
+    steps: [confirmStep("Send request")],
     nudgeNoun: "reactivation",
     dialog: true,
     confirmLabel: "Send request",
@@ -356,7 +482,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useRequestInvitationReactivation"],
     endpoint: "POST /api/v1/agency-invitations/{invitationId}/request-reactivation/",
     gate1: [invitationReactivationPendingCheck],
-    fields: [],
+    steps: [confirmStep("Send request")],
     nudgeNoun: "reactivation",
     dialog: true,
     confirmLabel: "Send request",
@@ -369,7 +495,11 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useBlockAgencyMembership"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/agents/{membershipId}/block",
     gate1: [],
-    fields: [reasonField("Reason", "Reason for blocking (required)"), typenameField],
+    steps: [
+      intentStep(undefined, "You are about to block {name}. This action cannot be undone."),
+      fieldsStep([reasonField("Reason", "Reason for blocking (required)")]),
+      reviewStep("Block agent", ["reason"], [typenameField]),
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Block agent",
@@ -416,16 +546,17 @@ export function typenameMismatchError(target: string): string {
   return `Type "${target}" exactly to confirm.`;
 }
 
-/* Gate 2: blank/invalid per declared field. Values arrive trimmed. Message
-   blank copy stays canonical via validateDoubleGateMessage (asserted in the
-   enforcement spec, not copied). */
-export function validateGateFieldValues(
-  spec: ActionGateSpec,
+/* Gate 2: blank/invalid per declared field on ONE step. Values arrive
+   trimmed. Message blank copy stays canonical via validateDoubleGateMessage
+   (asserted in the enforcement spec, not copied). Optional fields (note)
+   never error. */
+export function validateStepFields(
+  fields: GateFieldSpec[],
   values: GateFieldValues,
   typenameTarget?: string,
 ): Partial<Record<GateFieldKind, string>> {
   const errors: Partial<Record<GateFieldKind, string>> = {};
-  for (const field of spec.fields) {
+  for (const field of fields) {
     if (!field.required) continue;
     const value = values[field.kind];
     if (!value) {
@@ -505,4 +636,3 @@ export function resolveStaleViewToast(
 export const REGISTRY_HOOK_NAMES: ReadonlySet<string> = new Set(
   Object.values(GATE_REGISTRY).flatMap((spec) => spec.hooks),
 );
-

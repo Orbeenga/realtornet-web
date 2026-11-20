@@ -24,13 +24,27 @@ import {
   extractPendingExists,
   GATE_REGISTRY,
   REGISTRY_HOOK_NAMES,
+  resolveCopyTemplate,
   resolveStaleViewToast,
   runGate1Checks,
-  validateGateFieldValues,
+  templateTokens,
+  validateStepFields,
+  type ActionGateSpec,
   type Gate1Context,
   type GateActionKind,
   type GateFieldValues,
+  type GateStepId,
 } from "@/lib/gate-registry";
+
+function stepBody(spec: ActionGateSpec, id?: GateStepId): string | undefined {
+  const step = id == null ? spec.steps[0] : spec.steps.find((s) => s.id === id);
+  return step?.bodyTemplate;
+}
+
+function stepTitle(spec: ActionGateSpec, id?: GateStepId): string | undefined {
+  const step = id == null ? spec.steps[0] : spec.steps.find((s) => s.id === id);
+  return step?.titleTemplate;
+}
 
 let failures = 0;
 function assert(condition: boolean, message: string) {
@@ -181,8 +195,7 @@ const UNGATED_ALLOWLIST: Record<string, string> = {
   useSuspendAgency: "agency-application decision; profile unassigned in U-052",
   // Invitations.
   useInviteAgencyAgent: "invite create form, not a gated dialog",
-  useAcceptAgencyInvite: "legacy accept path; confirm live vs dead at invitation migration",
-  useAcceptAgencyInvitation: "restorative accept; Profile A candidate",
+  useAcceptAgencyInvite: "legacy token-page accept path; the inbox accept migrated as invitation_accept",
   useRejectAgencyInvitation: "U-052 open: carries no reason — B needs a contract change; confirm-only candidate",
   useReactivateInvitation: "decision-side of invitation reactivation; profile unassigned in U-052",
   // Membership consent + restorative (profiles unassigned in U-052).
@@ -305,7 +318,10 @@ for (const name of REGISTRY_HOOK_NAMES) {
 /* ------------------------------------------------------------------ */
 
 const specs = Object.values(GATE_REGISTRY);
-assert(specs.length === 17, `registry holds 17 actions (found ${specs.length})`);
+assert(specs.length === 18, `registry holds 18 actions (found ${specs.length})`);
+
+const stepIds = (spec: (typeof specs)[number]) => spec.steps.map((s) => s.id).join(",");
+const SEVERE = new Set(["block_membership", "revoke_membership", "suspend_membership"]);
 
 const seenHooks = new Set<string>();
 for (const spec of specs) {
@@ -319,23 +335,125 @@ for (const spec of specs) {
     assert(!seenHooks.has(hook), `hook ${hook} in exactly one action`);
     seenHooks.add(hook);
   }
-  for (const field of spec.fields) {
-    assert(
-      ["message", "reason", "typename"].includes(field.kind),
-      `${spec.action}: valid field kind ${field.kind}`,
-    );
+  // Steps shape per U-053 (dialog:false ⟺ no steps).
+  if (!spec.dialog) {
+    assert(spec.steps.length === 0, `${spec.action}: no dialog means no steps`);
+  } else {
+    assert(spec.steps.length > 0, `${spec.action}: dialog means steps`);
   }
+  const ids = stepIds(spec);
   if (spec.profile === "A") {
-    assert(spec.fields.length === 0, `${spec.action}: Profile A renders no fields`);
+    assert(ids === "confirm", `${spec.action}: Profile A is a single confirm`);
+  } else if (spec.profile === "B") {
+    assert(
+      ids === (SEVERE.has(spec.action) ? "intent,fields,review" : "fields,review"),
+      `${spec.action}: B ${SEVERE.has(spec.action) ? "severe" : "plain"} step shape (${ids})`,
+    );
+  } else if (spec.profile === "C" && spec.dialog) {
+    assert(
+      ids === "fields,review" || ids === "confirm",
+      `${spec.action}: Profile C is message+confirm or confirm-only (${ids})`,
+    );
+  } else if (spec.profile === "D") {
+    assert(ids === "intent,fields,review", `${spec.action}: Profile D is intent+reason+typename (${ids})`);
+  }
+  // Per-step rules.
+  for (const [i, step] of spec.steps.entries()) {
+    const last = i === spec.steps.length - 1;
+    assert(step.primaryLabel.length > 0, `${spec.action}: step ${i} names its primary`);
+    if (!last) {
+      assert(step.primaryLabel === "Proceed", `${spec.action}: non-final primary is Proceed`);
+    } else {
+      assert(
+        step.primaryLabel === spec.confirmLabel,
+        `${spec.action}: final primary matches confirm label`,
+      );
+    }
+    if (step.id === "intent") {
+      assert(step.fields.length === 0, `${spec.action}: intent step has no fields`);
+      assert(!step.echo?.length, `${spec.action}: intent step has no echo`);
+    }
+    if (step.id === "review") {
+      assert((step.echo?.length ?? 0) > 0, `${spec.action}: review step echoes drafted input`);
+    }
+    if (step.id === "confirm") {
+      for (const field of step.fields) {
+        assert(
+          field.kind === "note" && !field.required,
+          `${spec.action}: confirm-step fields are optional notes only`,
+        );
+      }
+    }
+    for (const field of step.fields) {
+      assert(
+        ["message", "reason", "typename", "note"].includes(field.kind),
+        `${spec.action}: valid field kind ${field.kind}`,
+      );
+      if (field.kind === "typename") {
+        assert(
+          spec.action === "block_membership",
+          `${spec.action}: type-the-name belongs to block only`,
+        );
+      }
+      if (field.kind === "note") {
+        assert(spec.profile === "A", `${spec.action}: notes belong to Profile A only`);
+      }
+    }
+    // Template token hygiene.
+    for (const template of [step.titleTemplate, step.bodyTemplate]) {
+      if (template == null) continue;
+      assert(template.length > 0, `${spec.action}: template is non-empty`);
+      for (const token of templateTokens(template)) {
+        assert(
+          ["name", "agency", "target"].includes(token),
+          `${spec.action}: template token {${token}} is known`,
+        );
+      }
+      const rendered = resolveCopyTemplate(template, { name: "N", agency: "A", target: "T" });
+      assert(!rendered.includes("{"), `${spec.action}: sample render leaves no braces`);
+    }
   }
   if (spec.profile === "D") {
+    const allKinds = spec.steps.flatMap((s) => s.fields.map((f) => f.kind));
     assert(
-      spec.fields.some((f) => f.kind === "reason") &&
-        spec.fields.some((f) => f.kind === "typename"),
+      allKinds.includes("reason") && allKinds.includes("typename"),
       `${spec.action}: Profile D renders reason + type-the-name`,
     );
   }
 }
+
+// Verbatim locked copy (U-053): any drift fails.
+assert(
+  stepBody(GATE_REGISTRY.accept_review) === "Confirm membership for {name}.",
+  "copy: accept review body verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.block_membership, "intent") ===
+    "You are about to block {name}. This action cannot be undone.",
+  "copy: block intent body verbatim",
+);
+assert(
+  stepTitle(GATE_REGISTRY.revoke_membership, "intent") === "Revoke {name}'s membership?",
+  "copy: revoke intent title verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.revoke_membership, "review") ===
+    "{name}'s membership will be revoked from {agency}.",
+  "copy: revoke final body verbatim",
+);
+assert(
+  stepTitle(GATE_REGISTRY.suspend_membership, "intent") === "Suspend {name}?",
+  "copy: suspend intent title verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.suspend_membership, "review") ===
+    "{name} will be suspended from {agency}.",
+  "copy: suspend final body verbatim",
+);
+assert(
+  GATE_REGISTRY.revoke_membership.confirmLabel === "Revoke membership",
+  "copy: revoke renamed (Remove from agency is gone)",
+);
 
 // Message blank copy stays canonical (single source in messages lib).
 assert(
@@ -343,20 +461,19 @@ assert(
   "message blank copy canonical",
 );
 for (const spec of specs) {
-  for (const field of spec.fields) {
-    if (field.kind !== "message") continue;
-    assert(
-      field.blankError === validateDoubleGateMessage(" "),
-      `${spec.action}: message blankError matches canonical copy`,
-    );
+  for (const step of spec.steps) {
+    for (const field of step.fields) {
+      if (field.kind !== "message") continue;
+      assert(
+        field.blankError === validateDoubleGateMessage(" "),
+        `${spec.action}: message blankError matches canonical copy`,
+      );
+    }
   }
 }
 
-// Migrated ratchet: step 1 lands reapply + cancel; F3/F4 nudges rewired;
-// step 2 lands accept + decline (review queue, Pending tab, consent accept);
-// step 3 lands the lifecycle family (block/suspend/revoke + leave);
-// step 4 lands plain confirms (withdraw + invitation reactivation request).
-// apply stays unmigrated (Gate-1 predicate owed a lead ruling).
+// Migrated ratchet: steps 1-4 land 15 actions; U-053 adds invitation_accept
+// (Profile A + note, the only consumer of the new invitation note body).
 const migrated = specs.filter((s) => s.migrated).map((s) => s.action);
 for (const action of [
   "cancel_join",
@@ -374,12 +491,13 @@ for (const action of [
   "leave_membership",
   "withdraw_invitation",
   "invitation_reactivation_request",
+  "invitation_accept",
 ] as GateActionKind[]) {
   assert(migrated.includes(action), `migrated: ${action}`);
 }
 assert(
-  migrated.length === 15,
-  `exactly 15 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+  migrated.length === 16,
+  `exactly 16 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
 );
 assert(
   GATE_REGISTRY.apply.migrated === false,
@@ -396,32 +514,36 @@ assert(GATE_REGISTRY.apply.dialog === false, "apply: form owns UI, no dialog");
 /* Gate-2 validation                                                   */
 /* ------------------------------------------------------------------ */
 
-const EMPTY: GateFieldValues = { message: "", reason: "", typename: "" };
+const EMPTY: GateFieldValues = { message: "", reason: "", typename: "", note: "" };
+
+function fieldsOf(action: GateActionKind, id: GateStepId) {
+  return GATE_REGISTRY[action].steps.find((s) => s.id === id)?.fields ?? [];
+}
 
 assert(
-  validateGateFieldValues(GATE_REGISTRY.reapply, EMPTY).message ===
+  validateStepFields(fieldsOf("reapply", "fields"), EMPTY).message ===
     "Enter a message before continuing.",
   "Gate 2: blank message blocks with canonical copy",
 );
 assert(
-  validateGateFieldValues(GATE_REGISTRY.cancel_join, EMPTY).reason ===
+  validateStepFields(fieldsOf("cancel_join", "fields"), EMPTY).reason ===
     "Enter a reason before continuing.",
   "Gate 2: blank reason blocks with reason copy",
 );
 assert(
   Object.keys(
-    validateGateFieldValues(GATE_REGISTRY.reapply, { ...EMPTY, message: " hi " }),
+    validateStepFields(fieldsOf("reapply", "fields"), { ...EMPTY, message: " hi " }),
   ).length === 0,
   "Gate 2: non-blank message passes",
 );
 assert(
-  validateGateFieldValues(GATE_REGISTRY.block_membership, EMPTY, "Ada").typename ===
+  validateStepFields(fieldsOf("block_membership", "review"), EMPTY, "Ada").typename ===
     'Type "Ada" to continue.',
   "Gate 2: blank typename blocks with target copy",
 );
 assert(
-  validateGateFieldValues(
-    GATE_REGISTRY.block_membership,
+  validateStepFields(
+    fieldsOf("block_membership", "review"),
     { ...EMPTY, reason: "x", typename: "ada" },
     "Ada",
   ).typename === 'Type "Ada" exactly to confirm.',
@@ -429,13 +551,19 @@ assert(
 );
 assert(
   Object.keys(
-    validateGateFieldValues(
-      GATE_REGISTRY.block_membership,
+    validateStepFields(
+      fieldsOf("block_membership", "review"),
       { ...EMPTY, reason: "x", typename: "Ada" },
       "Ada",
     ),
   ).length === 0,
   "Gate 2: exact typename passes",
+);
+assert(
+  Object.keys(
+    validateStepFields(fieldsOf("accept_review", "confirm"), EMPTY),
+  ).length === 0,
+  "Gate 2: blank optional note passes (no gate)",
 );
 
 /* ------------------------------------------------------------------ */

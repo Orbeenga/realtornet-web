@@ -72,6 +72,7 @@ import {
   groupAgencyRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  type ApprovalOriginRow,
 } from "./membershipHistory";
 import {
   MembershipTimeline,
@@ -187,7 +188,7 @@ function getRequiredDecisionReasonMessage(action: MembershipDecisionAction) {
 function getMembershipDecisionLabel(action: MembershipDecisionAction) {
   const labels = {
     suspend: "Suspend agent",
-    revoke: "Remove from agency",
+    revoke: "Revoke membership",
     block: "Block agent",
     restore: "Restore agent",
     unblock: "Unblock agent",
@@ -308,10 +309,12 @@ function AgencyMemberHistoryGroup({
   agencyId,
   member,
   enabled,
+  originRows,
 }: {
   agencyId?: number;
   member: AgencyHistoryMember;
   enabled: boolean;
+  originRows?: ApprovalOriginRow[];
 }) {
   const feed = useAgencyMembershipHistory(agencyId, member.userId, Boolean(agencyId) && enabled);
   const [expanded, setExpanded] = useState(false);
@@ -325,6 +328,7 @@ function AgencyMemberHistoryGroup({
         tier="rich"
         entity="person"
         history={feed.data}
+        originRows={originRows}
         isLoading={feed.isLoading}
         isError={feed.isError}
         onRetry={() => { feed.refetch(); }}
@@ -524,10 +528,10 @@ export function AgencyMembersClient() {
   // inline Gate-2.
   const acceptReviewGate = useGatedAction<ReviewDecisionSeed>("accept_review", {
     buildContext: () => emptyGate1Context(user?.user_id ?? null),
-    invoke: (seed) =>
+    invoke: (seed, values) =>
       acceptReview.mutateAsync({
         requestId: seed.requestId,
-        payload: { reason: null },
+        payload: { reason: values.note.trim() || null },
         sourceType: seed.sourceType,
       }),
     title: "Accept review request",
@@ -1004,7 +1008,6 @@ export function AgencyMembersClient() {
                                role={agent?.user_role}
                               status={liveStatus}
                               applicationStatus={request.status}
-                              labelStage="join_request"
                               lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                             />
                           );
@@ -1071,7 +1074,6 @@ export function AgencyMembersClient() {
                             tier="rich"
                             history={[...cumulative.entries, ...appealRows]}
                             showHeader={false}
-                            labelStage="join_request"
                             pendingReconsiderationNotice={{
                               seekerName: member?.displayName ?? group.seekerName,
                             }}
@@ -1234,7 +1236,6 @@ export function AgencyMembersClient() {
                             tier="rich"
                             history={cumulative.entries}
                             showHeader={false}
-                            labelStage="join_request"
                             pendingReapplyNotice={{
                               viewerIsApplicant: false,
                               name: group.seekerName,
@@ -2134,6 +2135,7 @@ export function AgencyMembersClient() {
                     agencyId={agencyId}
                     member={member}
                     enabled={activeTab === "history"}
+                    originRows={joinRequests}
                   />
                 ))}
               </div>
@@ -2194,6 +2196,15 @@ export function AgencyMembersClient() {
           function form, which is submit-only). */}
       <ConfirmDestructiveDialog
         {...suspendGate.dialogProps}
+        tokens={
+          suspendGate.seed === null
+            ? {}
+            : {
+                name: suspendGate.seed.agentName,
+                agency:
+                  invitations.find((i) => i.agency_name)?.agency_name ?? "this agency",
+              }
+        }
         description={
           suspendGate.seed === null
             ? undefined
@@ -2202,6 +2213,15 @@ export function AgencyMembersClient() {
       />
       <ConfirmDestructiveDialog
         {...revokeGate.dialogProps}
+        tokens={
+          revokeGate.seed === null
+            ? {}
+            : {
+                name: revokeGate.seed.agentName,
+                agency:
+                  invitations.find((i) => i.agency_name)?.agency_name ?? "this agency",
+              }
+        }
         description={
           revokeGate.seed === null
             ? undefined
@@ -2210,6 +2230,7 @@ export function AgencyMembersClient() {
       />
       <ConfirmDestructiveDialog
         {...blockGate.dialogProps}
+        tokens={blockGate.seed === null ? {} : { name: blockGate.seed.agentName }}
         description={
           blockGate.seed === null
             ? undefined
@@ -2221,26 +2242,29 @@ export function AgencyMembersClient() {
       {/* Registry-driven plain confirms (U-052 step 4). */}
       <ConfirmDestructiveDialog
         {...withdrawGate.dialogProps}
-        description={
+        tokens={
           withdrawGate.seed === null
-            ? undefined
-            : `Withdraw the pending invitation for ${invitations.find((i) => i.invitation_id === withdrawGate.seed)?.email ?? "this address"}?`
+            ? {}
+            : {
+                name:
+                  invitations.find((i) => i.invitation_id === withdrawGate.seed)?.email ??
+                  "this address",
+              }
         }
       />
 
       {/* Registry-driven review-queue + Pending decisions (U-052 step 2).
-          Seed-dependent descriptions compute here from gate.seed (TDZ note
-          in useGatedAction — never as opts closures). */}
+          Seed-dependent descriptions and copy tokens compute here from
+          gate.seed (TDZ note in useGatedAction — never as opts closures). */}
       <ConfirmDestructiveDialog
         {...acceptReviewGate.dialogProps}
-        description={
-          acceptReviewGate.seed === null
-            ? undefined
-            : `Confirm this action for ${acceptReviewGate.seed.requesterName}.`
+        tokens={
+          acceptReviewGate.seed === null ? {} : { name: acceptReviewGate.seed.requesterName }
         }
       />
       <ConfirmDestructiveDialog
         {...declineReviewGate.dialogProps}
+        tokens={{}}
         description={
           declineReviewGate.seed === null
             ? undefined
@@ -2249,14 +2273,19 @@ export function AgencyMembersClient() {
       />
       <ConfirmDestructiveDialog
         {...approveGate.dialogProps}
-        description={
+        tokens={
           approveGate.seed === null
-            ? undefined
-            : `Confirm this action for ${joinRequests.find((r) => r.join_request_id === approveGate.seed)?.seeker_name ?? "the applicant"}.`
+            ? {}
+            : {
+                name:
+                  joinRequests.find((r) => r.join_request_id === approveGate.seed)?.seeker_name ??
+                  "the applicant",
+              }
         }
       />
       <ConfirmDestructiveDialog
         {...rejectGate.dialogProps}
+        tokens={{}}
         description={
           rejectGate.seed === null
             ? undefined
@@ -2270,6 +2299,7 @@ export function AgencyMembersClient() {
           useGatedAction — never as an opts closure). */}
       <ConfirmDestructiveDialog
         {...reactivationGate.dialogProps}
+        tokens={{}}
         description={
           reactivationGate.seed === null
             ? undefined

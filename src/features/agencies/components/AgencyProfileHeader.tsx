@@ -313,7 +313,7 @@ export function AgencyProfileHeader({ agency }: AgencyProfileHeaderProps) {
         </CardBody>
       </Card>
 
-      <ConfirmDestructiveDialog {...leaveGate.dialogProps} />
+      <ConfirmDestructiveDialog {...leaveGate.dialogProps} tokens={{}} />
     </>
   );
 }

@@ -18,6 +18,7 @@ import {
   groupMyJoinRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  type ApprovalOriginRow,
 } from "./membershipHistory";
 import {
   useAcceptAgencyInvitation,
@@ -102,9 +103,11 @@ const COOLDOWN_LIMIT = 3;
 function SeekerAgencyHistoryGroup({
   agency,
   enabled,
+  originRows,
 }: {
   agency: { agency_id: number; agency_name: string; status?: string; is_verified?: boolean };
   enabled: boolean;
+  originRows?: ApprovalOriginRow[];
 }) {
   const feed = useMembershipHistory(enabled && Boolean(agency.agency_id), agency.agency_id);
   const [expanded, setExpanded] = useState(false);
@@ -121,6 +124,7 @@ function SeekerAgencyHistoryGroup({
         entity="agency"
         verified={agency.is_verified}
         history={feed.data}
+        originRows={originRows}
         isLoading={feed.isLoading}
         isError={feed.isError}
         onRetry={() => {
@@ -304,14 +308,20 @@ export function MyJoinRequestsClient() {
     }
   };
 
-  const handleAcceptInvitation = async (invitationId: number) => {
-    try {
-      await acceptInvitation.mutateAsync(invitationId);
-      notify.success("Invitation accepted");
-    } catch {
-      notify.error("Could not accept invitation");
-    }
-  };
+  // Registry Profile A with optional note (U-053): confirm + note on one
+  // dialog, no gate. Blank note sends no body (backend backward compat).
+  const inviteAcceptGate = useGatedAction<number>("invitation_accept", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (invitationId, values) => {
+      const note = values.note.trim();
+      return acceptInvitation.mutateAsync(
+        note ? { invitationId, message: note } : { invitationId },
+      );
+    },
+    title: "Accept invitation",
+    successToast: "Invitation accepted",
+    errorFallback: "Could not accept invitation",
+  });
 
   const handleRejectInvitation = async (invitationId: number) => {
     try {
@@ -599,10 +609,10 @@ export function MyJoinRequestsClient() {
                           size="sm"
                           loading={
                             acceptInvitation.isPending &&
-                            acceptInvitation.variables === invitation.invitation_id
+                            acceptInvitation.variables?.invitationId === invitation.invitation_id
                           }
                           onClick={() =>
-                            void handleAcceptInvitation(invitation.invitation_id)
+                            inviteAcceptGate.attempt(invitation.invitation_id)
                           }
                         >
                           Accept
@@ -932,7 +942,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            labelStage="join_request"
                           />
                         );
                       })()}
@@ -1012,7 +1021,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            labelStage="join_request"
                           />
                         );
                       })()}
@@ -1175,7 +1183,6 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
-                            labelStage="join_request"
                           />
                         );
                       })()}
@@ -1211,6 +1218,7 @@ export function MyJoinRequestsClient() {
                       is_verified: membership.is_verified,
                     }}
                     enabled={canViewAgencyMemberships}
+                    originRows={requests}
                   />
                 ))
               )}
@@ -1340,7 +1348,6 @@ export function MyJoinRequestsClient() {
                                verified={request.is_verified}
                                status={liveStatus}
                                applicationStatus={request.status}
-                               labelStage="join_request"
                              />
                           );
                         })()}
@@ -1414,7 +1421,6 @@ export function MyJoinRequestsClient() {
                       tier="rich"
                       history={[...cumulative.entries, ...appealRows]}
                       showHeader={false}
-                      labelStage="join_request"
                       emptyTitle="No rejected requests"
                       emptyDescription="You have no rejected join requests."
                     />
@@ -1597,7 +1603,6 @@ export function MyJoinRequestsClient() {
                         tier="rich"
                         history={cumulative.entries}
                         showHeader={false}
-                        labelStage="join_request"
                         pendingReapplyNotice={{
                           viewerIsApplicant: true,
                           name: group.agencyName,
@@ -1625,12 +1630,13 @@ export function MyJoinRequestsClient() {
       </section>
       ) : null}
 
-      {/* Registry-driven dialogs (U-052): one pure renderer, four actions.
-          Seed-dependent descriptions compute here (data exists) from
+      {/* Registry-driven dialogs (U-052/U-053): one pure renderer. Seed-dependent
+          descriptions and copy tokens compute here (data exists) from
           gate.seed and spread-override dialogProps (TDZ note in
           useGatedAction — never as opts closures). */}
       <ConfirmDestructiveDialog
         {...reactivationGate.dialogProps}
+        tokens={{}}
         description={
           reactivationGate.seed === null
             ? undefined
@@ -1639,6 +1645,7 @@ export function MyJoinRequestsClient() {
       />
       <ConfirmDestructiveDialog
         {...reconsiderGate.dialogProps}
+        tokens={{}}
         description={
           reconsiderGate.seed === null
             ? undefined
@@ -1647,6 +1654,7 @@ export function MyJoinRequestsClient() {
       />
       <ConfirmDestructiveDialog
         {...cancelGate.dialogProps}
+        tokens={{}}
         description={(() => {
           const target =
             cancelGate.seed === null
@@ -1668,17 +1676,22 @@ export function MyJoinRequestsClient() {
           return "Are you sure you want to cancel this join request? This cannot be undone.";
         })()}
       />
-      <ConfirmDestructiveDialog {...reapplyGate.dialogProps} />
+      <ConfirmDestructiveDialog {...reapplyGate.dialogProps} tokens={{}} />
       <ConfirmDestructiveDialog
         {...acceptReactivationGate.dialogProps}
-        description={
+        tokens={
           acceptReactivationGate.seed === null
-            ? undefined
-            : `Accept the reactivation request from ${requests.find((r) => r.join_request_id === acceptReactivationGate.seed)?.agency_name ?? "the agency"}? Your application will be pending again.`
+            ? {}
+            : {
+                name:
+                  requests.find((r) => r.join_request_id === acceptReactivationGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
         }
       />
       <ConfirmDestructiveDialog
         {...inviteReactivationGate.dialogProps}
+        tokens={{}}
         description={(() => {
           if (inviteReactivationGate.seed === null) return undefined;
           const target = invitations.find((i) => i.invitation_id === inviteReactivationGate.seed);
@@ -1687,6 +1700,18 @@ export function MyJoinRequestsClient() {
             ? `Express interest in the withdrawn invitation from ${agency}? They will be notified.`
             : `Ask ${agency} to reactivate your expired invitation.`;
         })()}
+      />
+      <ConfirmDestructiveDialog
+        {...inviteAcceptGate.dialogProps}
+        tokens={
+          inviteAcceptGate.seed === null
+            ? {}
+            : {
+                agency:
+                  invitations.find((i) => i.invitation_id === inviteAcceptGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
       />
     </div>
   );

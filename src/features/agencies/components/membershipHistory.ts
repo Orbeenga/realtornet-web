@@ -180,7 +180,79 @@ export function getApprovedRequestCycleHistory(
     });
   }
 
-  return result;
+  return annotateApprovalOrigins(result, [request], history);
+}
+
+/* Approval origin (U-053 verb rule). Derived per approved entry from its
+   anchoring join row — never stored, never migrated (C2: the audit row
+   cannot carry origin without a join FK, ruled out). U-051 split order on
+   the anchor: reactivation_requested_by set wins, else reapplied_from, else
+   reconsideration lineage (an accepted-appeal review linking the anchor's
+   OWN id — a declined-then-fresh sibling links a different id and correctly
+   misses), else null (fresh/origin-less renders the bare verb). Invitation
+   origin needs no anchor: entry.invitation_id set is decisive (C2). */
+export type ApprovalOrigin = "reapplication" | "reactivation" | "reconsideration";
+
+export interface ApprovalOriginRow {
+  join_request_id?: number | null;
+  user_id?: number | null;
+  agency_id?: number | null;
+  decided_at?: string | null;
+  reactivation_requested_by?: number | null;
+  reapplied_from_request_id?: number | null;
+}
+
+export function resolveApprovalOrigin(
+  anchor: ApprovalOriginRow | null,
+  history: MembershipTimelineEntry[],
+): ApprovalOrigin | null {
+  if (anchor == null) return null;
+  if (anchor.reactivation_requested_by != null) return "reactivation";
+  if (anchor.reapplied_from_request_id != null) return "reapplication";
+  const linkedAppeal =
+    anchor.join_request_id != null &&
+    history.some(
+      (entry) =>
+        entry.source_type === "review_request" && entry.join_request_id === anchor.join_request_id,
+    );
+  if (linkedAppeal) return "reconsideration";
+  return null;
+}
+
+function findAnchorRow(
+  entry: MembershipTimelineEntry,
+  rows: ApprovalOriginRow[],
+): ApprovalOriginRow | null {
+  for (const row of rows) {
+    if (row.user_id != null && entry.user_id != null && row.user_id !== entry.user_id) continue;
+    if (row.agency_id != null && entry.agency_id != null && row.agency_id !== entry.agency_id) continue;
+    if (!row.decided_at) continue;
+    if (Math.abs(new Date(entry.timestamp).getTime() - new Date(row.decided_at).getTime()) > 5_000) {
+      continue;
+    }
+    return row;
+  }
+  return null;
+}
+
+export type MembershipTimelineEntryWithOrigin = MembershipTimelineEntry & {
+  approvalOrigin?: ApprovalOrigin | null;
+};
+
+/* Annotate joined/approved entries with their approval origin for the U-017
+   map. Invitation-linked entries skip annotation (invitation_id decides
+   "Accepted" in the map). Pure: returns new objects, never mutates. */
+export function annotateApprovalOrigins(
+  entries: MembershipTimelineEntry[],
+  rows: ApprovalOriginRow[],
+  history: MembershipTimelineEntry[],
+): MembershipTimelineEntryWithOrigin[] {
+  return entries.map((entry) => {
+    if (entry.action !== "joined" && entry.action !== "approved") return entry;
+    if (entry.invitation_id != null) return entry;
+    const origin = resolveApprovalOrigin(findAnchorRow(entry, rows), history);
+    return origin == null ? entry : { ...entry, approvalOrigin: origin };
+  });
 }
 
 /* Canonical request-lifecycle timeline emitter (Rule 20, decision (a) for the
