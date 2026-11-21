@@ -15,7 +15,6 @@ export {
   useMembershipHistory,
   useMyAgencyMemberships,
   useRevokeAgencyMembership,
-  useRestoreAgencyMembership,
   useSuspendAgencyMembership,
   useUnblockAgencyMembership,
 } from "./useAgencyMembershipActions";

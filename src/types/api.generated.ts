@@ -1130,7 +1130,14 @@ export interface paths {
         head?: never;
         /**
          * Restore Agency Agent Membership
-         * @description Reactivate a revoked, suspended, or blocked agency membership.
+         * @description Deprecated (U.9.3) — reinstatement flows through Review Requests only.
+         *
+         *     This direct agency-side restore bypassed the review-requests table, so a
+         *     resolution could flip a membership to active without a review_requests row
+         *     carrying actor_id, reason, and outcome. The lawful path is the Review
+         *     Requests queue accept (source_type-routed per U-033). Follows the G3
+         *     DELETE→410 deprecation pattern: the route stays registered so existing
+         *     callers get an explicit deprecation instead of a 404.
          */
         patch: operations["restore_agency_agent_membership_api_v1_agencies__agency_id__agents__membership_id__restore__patch"];
         trace?: never;
@@ -1169,7 +1176,10 @@ export interface paths {
         put?: never;
         /**
          * Create Agency Membership Review Request
-         * @description Allow an agent to request review of a revoked, suspended, or blocked membership.
+         * @description Allow an agent to request review of a revoked, suspended, left, or inactive membership.
+         *
+         *     Blocked memberships cannot be appealed (Phase Q no-appeal lock); active
+         *     memberships do not require review.
          */
         post: operations["create_agency_membership_review_request_api_v1_agencies__agency_id__agents__membership_id__review_request__post"];
         delete?: never;
@@ -5199,6 +5209,7 @@ export interface components {
             seeker_email?: string | null;
             /** Seeker Name */
             seeker_name?: string | null;
+            prior_invitation?: components["schemas"]["PriorInvitationContext"] | null;
             /**
              * Created At
              * Format: date-time
@@ -6644,6 +6655,27 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * PriorInvitationContext
+         * @description Derived prior-outreach context for a join request (brief item F).
+         *
+         *     The latest rejected, non-deleted invitation for (agency_id, user) that
+         *     predates the application. Lets the agency Pending card render
+         *     "Previously invited {sent}, declined {rejected}" without an extra fetch.
+         *     The invitation captured no artifacts, so this is context only, never an
+         *     origin stem (U-032 amendment).
+         */
+        PriorInvitationContext: {
+            /** Invitation Id */
+            invitation_id: number;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            /** Rejected At */
+            rejected_at?: string | null;
         };
         /**
          * ProfileCreate
@@ -9407,19 +9439,15 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgencyAgentMembershipActionRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgencyAgentMembershipResponse"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

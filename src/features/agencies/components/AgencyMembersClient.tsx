@@ -45,7 +45,6 @@ import {
   useRejectAgencyJoinRequest,
   useRequestJoinRequestReactivation,
   useRevokeAgencyMembership,
-  useRestoreAgencyMembership,
   useSuspendAgencyMembership,
   useUnblockAgencyMembership,
   useWithdrawAgencyInvitation,
@@ -94,7 +93,7 @@ const inviteSchema = z.object({
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
 type AgencyOwnerTab = "joinRequests" | "reviewRequests" | "agents" | "inactive" | "invitations" | "suspended" | "leftCancelled" | "revoked" | "blocked" | "history";
-type MembershipDecisionAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
+type MembershipDecisionAction = "suspend" | "revoke" | "block" | "unblock";
 type PendingMembershipDecision = {
   action: MembershipDecisionAction;
   membershipId: number;
@@ -180,7 +179,6 @@ function getRequiredDecisionReasonMessage(action: MembershipDecisionAction) {
     suspend: "suspending",
     revoke: "revoking",
     block: "blocking",
-    restore: "restoring",
     unblock: "unblocking",
   } as const;
   return `Enter a reason before ${actionLabels[action]} this agent.`;
@@ -191,7 +189,6 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
     suspend: "Suspend agent",
     revoke: "Revoke membership",
     block: "Block agent",
-    restore: "Restore agent",
     unblock: "Unblock agent",
   } as const;
   return labels[action];
@@ -503,7 +500,6 @@ export function AgencyMembersClient() {
   const suspendMembership = useSuspendAgencyMembership(agencyId);
   const revokeMembership = useRevokeAgencyMembership(agencyId);
   const blockMembership = useBlockAgencyMembership(agencyId);
-  const restoreMembership = useRestoreAgencyMembership(agencyId);
   const unblockMembership = useUnblockAgencyMembership(agencyId);
   const acceptReview = useAcceptAgencyReviewRequest(agencyId);
   const declineReview = useDeclineAgencyReviewRequest(agencyId);
@@ -646,8 +642,8 @@ export function AgencyMembersClient() {
   };
 
   // Suspend/revoke/block run through suspendGate/revokeGate/blockGate
-  // (registry step 3) — no bespoke handler. Restore/unblock keep their
-  // handlers below until lead classification.
+  // (registry step 3) — no bespoke handler. Unblock keeps its handler
+  // below (queued as Profile B); restore deleted per U.9.3.
 
   const handleUnblockMembership = async (membershipId: number) => {
     const reason = membershipReasons[membershipId]?.trim();
@@ -708,36 +704,12 @@ export function AgencyMembersClient() {
     errorFallback: "Could not request reactivation.",
   });
 
-  const handleRestoreMembership = async (membershipId: number) => {
-    const reason = membershipReasons[membershipId]?.trim();
-    if (!reason) {
-      notify.error(getRequiredDecisionReasonMessage("restore"));
-      return;
-    }
-    try {
-      await restoreMembership.mutateAsync({ membershipId, payload: { reason } });
-      notify.success("Agent membership restored. The agent can see the updated status in My Agencies.");
-      setMembershipReasons((current) => {
-        const next = { ...current };
-        delete next[membershipId];
-        return next;
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiError && typeof error.detail === "string"
-          ? error.detail
-          : "Could not restore agent membership.";
-      notify.error(message);
-    }
-  };
-
-  /* Bespoke dialog now serves restore/unblock only (profiles unassigned in
-     U-052 — lead classifies); suspend/revoke/block run through gates. */
+  /* Bespoke dialog now serves unblock only (queued as Profile B);
+     suspend/revoke/block run through gates. Restore deleted per U.9.3 —
+     reinstatement flows through Review Requests only. */
   const handleConfirmMembershipDecision = async () => {
     if (!pendingMembershipDecision) return;
-    if (pendingMembershipDecision.action === "restore") {
-      await handleRestoreMembership(pendingMembershipDecision.membershipId);
-    } else if (pendingMembershipDecision.action === "unblock") {
+    if (pendingMembershipDecision.action === "unblock") {
       await handleUnblockMembership(pendingMembershipDecision.membershipId);
     }
     setPendingMembershipDecision(null);
@@ -870,8 +842,7 @@ export function AgencyMembersClient() {
     ? membershipReasons[pendingMembershipDecision.membershipId]?.trim()
     : "";
   const isPendingDecisionSubmitting = pendingMembershipDecision
-    ? (pendingMembershipDecision.action === "restore" && restoreMembership.isPending) ||
-      (pendingMembershipDecision.action === "unblock" && unblockMembership.isPending)
+    ? pendingMembershipDecision.action === "unblock" && unblockMembership.isPending
     : false;
 
   return (
@@ -1528,19 +1499,6 @@ export function AgencyMembersClient() {
                                 Suspend
                               </Button>
                             ) : null}
-                            {agent.membership_status !== "active" ? (
-                              <Button type="button" size="sm"
-                                loading={restoreMembership.isPending && restoreMembership.variables?.membershipId === agent.membership_id}
-                                onClick={() =>
-                                  setPendingMembershipDecision({
-                                    action: "restore", membershipId: agent.membership_id,
-                                    agentName: agent.display_name || agent.company_name || "this agent",
-                                  })
-                                }
-                              >
-                                Restore
-                              </Button>
-                            ) : null}
                             {agent.membership_status === "active" ? (
                               <Button type="button" size="sm" variant="secondary"
                                 loading={revokeMembership.isPending && revokeMembership.variables?.membershipId === agent.membership_id}
@@ -2152,8 +2110,8 @@ export function AgencyMembersClient() {
         </Card>
       ) : null}
 
-      {/* Restore/unblock only (profiles unassigned in U-052 — lead
-          classifies; suspend/revoke/block run through gates below). */}
+      {/* Unblock only (queued as Profile B); suspend/revoke/block run
+          through gates below. Restore deleted per U.9.3. */}
       <Dialog
         open={Boolean(pendingMembershipDecision)}
         onOpenChange={(open) => { if (!open) setPendingMembershipDecision(null); }}

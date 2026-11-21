@@ -201,7 +201,6 @@ const UNGATED_ALLOWLIST: Record<string, string> = {
   useReactivateInvitation: "decision-side of invitation reactivation; profile unassigned in U-052",
   // Membership consent + restorative (profiles unassigned in U-052).
   useRejectJoinRequestReactivation: "seeker consent reject carries no reason ({requestId} only); profile unassigned in U-052",
-  useRestoreAgencyMembership: "restorative; Profile A candidate",
   useUnblockAgencyMembership: "restorative; Profile A candidate",
   useCreateAgencyMembershipReviewRequest: "request-creating but unlisted in U-052 Gate-1 scope; 409 string-sniff retained",
   // Dedicated forms owning their own validation (not gate dialogs).

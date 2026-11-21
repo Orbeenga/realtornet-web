@@ -16,7 +16,7 @@ import type {
 } from "@/types";
 import { useMembershipHistoryFeed, normalizeMembershipHistoryPage } from "./useAgencyMembershipHistory";
 
-type MembershipAction = "suspend" | "revoke" | "block" | "restore" | "unblock";
+type MembershipAction = "suspend" | "revoke" | "block" | "unblock";
 
 interface MembershipMutationVariables {
   membershipId: number;
@@ -69,10 +69,6 @@ export function useRevokeAgencyMembership(agencyId?: string | number | null) {
 
 export function useBlockAgencyMembership(agencyId?: string | number | null) {
   return useAgencyMembershipAction(agencyId, "block");
-}
-
-export function useRestoreAgencyMembership(agencyId?: string | number | null) {
-  return useAgencyMembershipAction(agencyId, "restore");
 }
 
 export function useUnblockAgencyMembership(agencyId?: string | number | null) {
