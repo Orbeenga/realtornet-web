@@ -43,6 +43,7 @@ import {
   hasWithdrawnHistory,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
+  resolveInvitationRejectedSeekerText,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
@@ -323,14 +324,15 @@ export function MyJoinRequestsClient() {
     errorFallback: "Could not accept invitation",
   });
 
-  const handleRejectInvitation = async (invitationId: number) => {
-    try {
-      await rejectInvitation.mutateAsync(invitationId);
-      notify.success("Invitation rejected");
-    } catch {
-      notify.error("Could not reject invitation");
-    }
-  };
+  // Registry Profile A (invitations crossover): terminal reject gains a
+  // confirm-only dialog with the locked terminal warning (was direct-fire).
+  const inviteRejectGate = useGatedAction<number>("invitation_reject", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (invitationId) => rejectInvitation.mutateAsync(invitationId),
+    title: "Reject invitation",
+    successToast: "Invitation rejected",
+    errorFallback: "Could not reject invitation",
+  });
 
   // Registry Profile C, confirm-only variant (U-052 step 4): same-kind
   // Gate-1 over the TARGET invitation (server guards per-invitation; a
@@ -626,7 +628,7 @@ export function MyJoinRequestsClient() {
                             rejectInvitation.variables === invitation.invitation_id
                           }
                           onClick={() =>
-                            void handleRejectInvitation(invitation.invitation_id)
+                            inviteRejectGate.attempt(invitation.invitation_id)
                           }
                         >
                           Reject
@@ -692,7 +694,7 @@ export function MyJoinRequestsClient() {
                         <Badge variant="danger">rejected</Badge>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invitation from {invitation.agency_name} was rejected.
+                        {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Sent {formatDate(invitation.created_at)}
@@ -1709,6 +1711,18 @@ export function MyJoinRequestsClient() {
             : {
                 agency:
                   invitations.find((i) => i.invitation_id === inviteAcceptGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...inviteRejectGate.dialogProps}
+        tokens={
+          inviteRejectGate.seed === null
+            ? {}
+            : {
+                agency:
+                  invitations.find((i) => i.invitation_id === inviteRejectGate.seed)
                     ?.agency_name ?? "the agency",
               }
         }

@@ -198,7 +198,6 @@ const UNGATED_ALLOWLIST: Record<string, string> = {
   // Invitations.
   useInviteAgencyAgent: "invite create form, not a gated dialog",
   useAcceptAgencyInvite: "legacy token-page accept path; the inbox accept migrated as invitation_accept",
-  useRejectAgencyInvitation: "U-052 open: carries no reason — B needs a contract change; confirm-only candidate",
   useReactivateInvitation: "decision-side of invitation reactivation; profile unassigned in U-052",
   // Membership consent + restorative (profiles unassigned in U-052).
   useRejectJoinRequestReactivation: "seeker consent reject carries no reason ({requestId} only); profile unassigned in U-052",
@@ -320,7 +319,7 @@ for (const name of REGISTRY_HOOK_NAMES) {
 /* ------------------------------------------------------------------ */
 
 const specs = Object.values(GATE_REGISTRY);
-assert(specs.length === 18, `registry holds 18 actions (found ${specs.length})`);
+assert(specs.length === 19, `registry holds 19 actions (found ${specs.length})`);
 
 const stepIds = (spec: (typeof specs)[number]) => spec.steps.map((s) => s.id).join(",");
 const SEVERE = new Set(["block_membership", "revoke_membership", "suspend_membership"]);
@@ -456,6 +455,11 @@ assert(
   GATE_REGISTRY.revoke_membership.confirmLabel === "Revoke membership",
   "copy: revoke renamed (Remove from agency is gone)",
 );
+assert(
+  stepBody(GATE_REGISTRY.invitation_reject) ===
+    "Reject the invitation from {agency}? Rejecting ends the invitation. You can still apply later.",
+  "copy: invitation reject body verbatim (terminal warning locked)",
+);
 
 // Operator-approved step copy (surgical tune-up): severe reason steps name
 // the action; block final states the technical outcome; decline is
@@ -531,7 +535,8 @@ for (const spec of specs) {
 }
 
 // Migrated ratchet: steps 1-4 land 15 actions; U-053 adds invitation_accept
-// (Profile A + note, the only consumer of the new invitation note body).
+// (Profile A + note, the only consumer of the new invitation note body);
+// the invitations crossover adds invitation_reject (Profile A confirm-only).
 const migrated = specs.filter((s) => s.migrated).map((s) => s.action);
 for (const action of [
   "cancel_join",
@@ -550,12 +555,13 @@ for (const action of [
   "withdraw_invitation",
   "invitation_reactivation_request",
   "invitation_accept",
+  "invitation_reject",
 ] as GateActionKind[]) {
   assert(migrated.includes(action), `migrated: ${action}`);
 }
 assert(
-  migrated.length === 16,
-  `exactly 16 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+  migrated.length === 17,
+  `exactly 17 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
 );
 assert(
   GATE_REGISTRY.apply.migrated === false,

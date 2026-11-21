@@ -144,6 +144,7 @@ export type GateActionKind =
   | "accept_review"
   | "withdraw_invitation"
   | "invitation_accept"
+  | "invitation_reject"
   | "reject_join"
   | "decline_review"
   | "reconsider_agency"
@@ -316,6 +317,19 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     confirmLabel: "Accept",
     migrated: true,
     note: "Note persists via the optional invitation-accept body (c691854); blank sends no body.",
+  },
+  invitation_reject: {
+    action: "invitation_reject",
+    profile: "A",
+    hooks: ["useRejectAgencyInvitation"],
+    endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/reject/",
+    gate1: [],
+    steps: [confirmStep("Reject", [], "Reject the invitation from {agency}? Rejecting ends the invitation. You can still apply later.")],
+    dialog: true,
+    destructive: true,
+    confirmLabel: "Reject",
+    migrated: true,
+    note: "No note field: endpoint takes no body. Terminal per U-041; warning copy locked.",
   },
   reject_join: {
     action: "reject_join",

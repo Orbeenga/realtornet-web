@@ -155,6 +155,17 @@ export function resolveInvitationAmbientMessage(
   return null;
 }
 
+/* Rejected-invitation card sentence (canonical text family). Rendered by
+   the seeker Rejected invitation card only — the terminal U-041 model:
+   rejection ends the invitation, and the normal Find-an-Agency route stays
+   open. Text derives here only. */
+export function resolveInvitationRejectedSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "this agency";
+  return `You rejected the invitation from ${agency}. You can apply to join them any time from Find an Agency.`;
+}
+
 export function resolveJoinRequestAmbientMessage(
   request: JoinRequestIdentity,
   viewerUserId: number | null,
