@@ -704,12 +704,6 @@ export function MyJoinRequestsClient() {
                           Rejected {formatDate(invitation.rejected_at)}
                         </p>
                       ) : null}
-                      <Link
-                        href={`/agencies/${invitation.agency_id}/join`}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                      >
-                        Apply Again
-                      </Link>
                     </CardBody>
                   </Card>
                 ))
