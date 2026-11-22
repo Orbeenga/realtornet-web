@@ -10,9 +10,11 @@ import {
   resolveInvitationPendingAgencyText,
   resolveInvitationPendingSeekerText,
   resolveInvitationWithdrawnSeekerText,
+  resolvePriorInvitationContextLine,
 } from "@/lib/membership-lifecycle-messages";
 import {
   getInvitationDecisionResults,
+  getInvitationSubsequentApplications,
   resolveInvitationColumnTimeline,
 } from "../membershipHistory";
 import type { AgencyInvitationResponse, MembershipTimelineEntry } from "@/types";
@@ -125,6 +127,83 @@ assert(
 assert(
   getInvitationDecisionResults([feedEntry({ id: 6, action: "reactivated" })]).length === 0,
   "reactivation lifecycle rows stay out of results",
+);
+
+// 5. Prior-invitation context line (agency Pending card), verbatim.
+assert(
+  resolvePriorInvitationContextLine({
+    sent_at: "2026-10-01T10:00:00Z",
+    rejected_at: "2026-10-03T10:00:00Z",
+  }) === "Previously invited Oct 1, 2026, declined Oct 3, 2026",
+  "context line is verbatim with both dates",
+);
+assert(
+  resolvePriorInvitationContextLine({
+    sent_at: "2026-10-01T10:00:00Z",
+    rejected_at: null,
+  }) === "Previously invited Oct 1, 2026",
+  "context line degrades without a declined date",
+);
+
+// 6. Subsequent-application correlation: (agency_id, user_id) only —
+//    never email — strictly after the rejection, ascending.
+const rejectedInvitation = {
+  agency_id: 42,
+  invited_user_id: 7,
+  rejected_at: "2026-10-03T10:00:00Z",
+};
+const candidateRequests = [
+  { agency_id: 42, user_id: 7, submitted_at: "2026-10-05T10:00:00Z" },
+  { agency_id: 42, user_id: 7, submitted_at: "2026-10-01T10:00:00Z" },
+  { agency_id: 42, user_id: 8, submitted_at: "2026-10-06T10:00:00Z" },
+  { agency_id: 43, user_id: 7, submitted_at: "2026-10-06T10:00:00Z" },
+  { agency_id: 42, user_id: 7, submitted_at: "2026-10-03T10:00:00Z" },
+];
+assert(
+  getInvitationSubsequentApplications(rejectedInvitation, candidateRequests, {
+    viewerUserId: 99,
+    viewerIsApplicant: false,
+  }).map((r) => r.submitted_at).join(",") === "2026-10-05T10:00:00Z",
+  "agency view matches same pair strictly after rejection only",
+);
+assert(
+  getInvitationSubsequentApplications(
+    rejectedInvitation,
+    [{ agency_id: 42, submitted_at: "2026-10-05T10:00:00Z" }],
+    { viewerUserId: 7, viewerIsApplicant: true },
+  ).length === 1,
+  "applicant view treats missing user ids as the viewer",
+);
+assert(
+  getInvitationSubsequentApplications(
+    { agency_id: 42, invited_user_id: null, rejected_at: "2026-10-03T10:00:00Z" },
+    [{ agency_id: 42, submitted_at: "2026-10-05T10:00:00Z" }],
+    { viewerUserId: 7, viewerIsApplicant: true },
+  ).length === 1,
+  "legacy NULL invitee still correlates for the viewer (list attested)",
+);
+assert(
+  getInvitationSubsequentApplications(
+    { agency_id: 42, invited_user_id: null, rejected_at: "2026-10-03T10:00:00Z" },
+    [{ agency_id: 42, user_id: 7, submitted_at: "2026-10-05T10:00:00Z" }],
+    { viewerUserId: 99, viewerIsApplicant: false },
+  ).length === 0,
+  "legacy NULL invitee never correlates agency-side (no email fallback)",
+);
+assert(
+  getInvitationSubsequentApplications(
+    { agency_id: 42, invited_user_id: 7, rejected_at: null },
+    [{ agency_id: 42, user_id: 7, submitted_at: "2026-10-05T10:00:00Z" }],
+    { viewerUserId: 99, viewerIsApplicant: false },
+  ).length === 0,
+  "missing rejection date correlates nothing",
+);
+assert(
+  getInvitationSubsequentApplications(rejectedInvitation, candidateRequests, {
+    viewerUserId: null,
+    viewerIsApplicant: true,
+  }).length === 0,
+  "applicant view without a viewer correlates nothing",
 );
 
 if (failures > 0) {

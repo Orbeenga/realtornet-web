@@ -192,6 +192,19 @@ export function resolveInvitationWithdrawnSeekerText(params: {
   return `${agency} has withdrawn their invitation to you. You can express interest.`;
 }
 
+/* Prior-outreach context line (rejected-then-apply, item 2): a derived
+   line on the agency Pending card, read from the served prior_invitation
+   — never stored on the application. The application stays a fresh first
+   application; this line is context only, never an origin stem. */
+export function resolvePriorInvitationContextLine(params: {
+  sent_at: string;
+  rejected_at?: string | null;
+}): string {
+  const sent = fmtAmbientDate(params.sent_at);
+  if (!params.rejected_at) return `Previously invited ${sent}`;
+  return `Previously invited ${sent}, declined ${fmtAmbientDate(params.rejected_at)}`;
+}
+
 export function resolveJoinRequestAmbientMessage(
   request: JoinRequestIdentity,
   viewerUserId: number | null,

@@ -13,6 +13,7 @@ import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDial
 import {
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
+  getInvitationSubsequentApplications,
   getMembershipHistoryByAction,
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
@@ -691,32 +692,47 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No rejected invitations" description="Rejected invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "rejected").map((invitation) => (
-                  <Card key={invitation.invitation_id}>
-                    <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
-                        <Badge variant="danger">rejected</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sent {formatDate(invitation.created_at)}
-                      </p>
-                      {invitation.rejected_at ? (
+                invitations.filter(i => i.status === "rejected").map((invitation) => {
+                  const subsequent = getInvitationSubsequentApplications(
+                    invitation,
+                    requests.map((request) => ({
+                      agency_id: request.agency_id,
+                      submitted_at: request.submitted_at,
+                    })),
+                    { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                  );
+                  return (
+                    <Card key={invitation.invitation_id}>
+                      <CardBody className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <Link
+                            href={`/agencies/${invitation.agency_id}`}
+                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
+                          >
+                            {invitation.agency_name}
+                          </Link>
+                          <Badge variant="danger">rejected</Badge>
+                        </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Rejected {formatDate(invitation.rejected_at)}
+                          {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
                         </p>
-                      ) : null}
-                    </CardBody>
-                  </Card>
-                ))
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Sent {formatDate(invitation.created_at)}
+                        </p>
+                        {invitation.rejected_at ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Rejected {formatDate(invitation.rejected_at)}
+                          </p>
+                        ) : null}
+                        {subsequent.map((application) => (
+                          <p key={application.submitted_at} className="text-sm text-gray-500 dark:text-gray-400">
+                            Applied {formatDate(application.submitted_at)}
+                          </p>
+                        ))}
+                      </CardBody>
+                    </Card>
+                  );
+                })
               )}
             </div>
           ) : invitationSubTab === "expired" ? (

@@ -397,6 +397,56 @@ export function getInvitationDecisionResults(
   );
 }
 
+/* Rejected-then-apply correlation lives HERE ONLY (shared helper, both
+   invitation surfaces). Matches join requests that followed a rejected
+   invitation for the same person, so the Rejected card gains its later
+   "Applied" events. Match key is (agency_id, user_id) ONLY — never email
+   (lead ruling on item 2). Missing user ids mean the viewer (the seeker
+   list carries no user_id; legacy invitations carry no invitee): the
+   applicant view trusts list membership, so NULLs attest; the agency view
+   requires the stamped pair, so legacy NULL rows never correlate there.
+   Strictly after the rejection; ascending. No rejection date, no match. */
+export interface InvitationApplicationCandidate {
+  agency_id?: number | null;
+  user_id?: number | null;
+  submitted_at: string;
+}
+
+export function getInvitationSubsequentApplications(
+  invitation: {
+    agency_id: number;
+    invited_user_id?: number | null;
+    rejected_at?: string | null;
+  },
+  requests: InvitationApplicationCandidate[],
+  viewer: { viewerUserId: number | null; viewerIsApplicant: boolean },
+): InvitationApplicationCandidate[] {
+  if (!invitation.rejected_at) return [];
+  if (viewer.viewerIsApplicant && viewer.viewerUserId == null) return [];
+  const rejectedTime = new Date(invitation.rejected_at).getTime();
+  return requests
+    .filter((request) => {
+      if ((request.agency_id ?? null) !== invitation.agency_id) return false;
+      if (new Date(request.submitted_at).getTime() <= rejectedTime) return false;
+      if (viewer.viewerIsApplicant) {
+        const inviteeIsViewer =
+          invitation.invited_user_id == null ||
+          invitation.invited_user_id === viewer.viewerUserId;
+        const requesterIsViewer =
+          request.user_id == null || request.user_id === viewer.viewerUserId;
+        return inviteeIsViewer && requesterIsViewer;
+      }
+      return (
+        invitation.invited_user_id != null &&
+        request.user_id === invitation.invited_user_id
+      );
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+    );
+}
+
 /* Shared Expired-tab narration lives HERE ONLY (canonical membershipHistory module).
    U-022d + expired-tab incident fix (2026-08-29): the Expired tab narrates its
    ENTIRE lifecycle as ONE chronological stream — submitted, expired, reactivation

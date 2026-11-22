@@ -62,12 +62,14 @@ import {
   resolveInvitationPendingAgencyText,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
+  resolvePriorInvitationContextLine,
   resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
+  getInvitationSubsequentApplications,
   getMembershipHistoryByAction,
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
@@ -990,10 +992,18 @@ export function AgencyMembersClient() {
                                 {request.seeker_name ?? "Seeker"}
                               </p>
                               <Badge variant="warning">pending</Badge>
+                              {request.prior_invitation ? (
+                                <Badge variant="outline">Invited</Badge>
+                              ) : null}
                             </div>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
                             </p>
+                            {request.prior_invitation ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {resolvePriorInvitationContextLine(request.prior_invitation)}
+                              </p>
+                            ) : null}
                             {request.cover_note ? (
                               <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                                 {request.cover_note}
@@ -1767,15 +1777,31 @@ export function AgencyMembersClient() {
                 {invitations.filter(i => i.status === "rejected").length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">No rejected invitations.</p>
                 ) : (
-                  invitations.filter(i => i.status === "rejected").map((invitation) => (
-                    <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                        <Badge variant="danger">rejected</Badge>
+                  invitations.filter(i => i.status === "rejected").map((invitation) => {
+                    const subsequent = getInvitationSubsequentApplications(
+                      invitation,
+                      joinRequests.map((request) => ({
+                        agency_id: request.agency_id,
+                        user_id: request.user_id,
+                        submitted_at: request.created_at,
+                      })),
+                      { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                    );
+                    return (
+                      <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                          <Badge variant="danger">rejected</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                        {subsequent.map((application) => (
+                          <p key={application.submitted_at} className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Applied {formatDate(application.submitted_at)}
+                          </p>
+                        ))}
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             ) : invitationSubTab === "expired" ? (
