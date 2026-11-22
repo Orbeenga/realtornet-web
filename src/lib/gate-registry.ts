@@ -300,11 +300,15 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useWithdrawAgencyInvitation"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/invitations/{invitationId}/withdraw",
     gate1: [],
-    steps: [confirmStep("Withdraw", [], "Withdraw the pending invitation for {name}?")],
+    steps: [
+      intentStep(undefined, "Withdrawing invitations is permanent."),
+      confirmStep("Withdraw", [], "Invitations to {name} will not be possible anymore."),
+    ],
     dialog: true,
+    destructive: true,
     confirmLabel: "Withdraw",
     migrated: true,
-    note: "No note field: endpoint takes no body. {name} resolves to the invitee email.",
+    note: "No note field: endpoint takes no body. {name} resolves to the invitee email. Two-step permanent warning per the invitation contract (U-041 addendum); Cancel abandons from both steps.",
   },
   invitation_accept: {
     action: "invitation_accept",

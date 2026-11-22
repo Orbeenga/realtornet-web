@@ -5374,7 +5374,7 @@ export interface components {
              * Source Type
              * @enum {string}
              */
-            source_type: "review_request" | "membership_review_request" | "join_request";
+            source_type: "review_request" | "membership_review_request" | "join_request" | "invitation";
             /** Reason */
             reason?: string | null;
         };
@@ -5394,7 +5394,7 @@ export interface components {
              * Source Type
              * @enum {string}
              */
-            source_type: "review_request" | "membership_review_request" | "join_request";
+            source_type: "review_request" | "membership_review_request" | "join_request" | "invitation";
             /** Reason */
             reason: string;
         };
@@ -5430,6 +5430,10 @@ export interface components {
             reapplied_from_request_id?: number | null;
             /** Prior Membership Status */
             prior_membership_status?: string | null;
+            /** Origin */
+            origin?: string | null;
+            /** Interest Expressed At */
+            interest_expressed_at?: string | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */

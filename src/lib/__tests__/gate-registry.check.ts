@@ -343,7 +343,10 @@ for (const spec of specs) {
   }
   const ids = stepIds(spec);
   if (spec.profile === "A") {
-    assert(ids === "confirm", `${spec.action}: Profile A is a single confirm`);
+    assert(
+      ids === "confirm" || ids === "intent,confirm",
+      `${spec.action}: Profile A is a single confirm, or intent+confirm for a permanent warning (${ids})`,
+    );
   } else if (spec.profile === "B") {
     assert(
       ids === (SEVERE.has(spec.action) ? "intent,fields,review" : "fields,review"),
@@ -458,6 +461,16 @@ assert(
   stepBody(GATE_REGISTRY.invitation_reject) ===
     "Reject the invitation from {agency}? Rejecting ends the invitation. You can still apply later.",
   "copy: invitation reject body verbatim (terminal warning locked)",
+);
+assert(
+  stepBody(GATE_REGISTRY.withdraw_invitation, "intent") ===
+    "Withdrawing invitations is permanent.",
+  "copy: withdraw intent body verbatim (permanent warning locked)",
+);
+assert(
+  stepBody(GATE_REGISTRY.withdraw_invitation, "confirm") ===
+    "Invitations to {name} will not be possible anymore.",
+  "copy: withdraw final body verbatim (no-second-invitation locked)",
 );
 
 // Operator-approved step copy (surgical tune-up): severe reason steps name

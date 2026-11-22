@@ -166,6 +166,32 @@ export function resolveInvitationRejectedSeekerText(params: {
   return `You rejected the invitation from ${agency}. You can apply to join them any time from Find an Agency.`;
 }
 
+/* Invitation per-tab contract ambients (Tier-1 invitations crossover).
+   Pending (both viewers) and Withdrawn-seeker strings, verbatim per the
+   locked contract table. The agency Withdrawn card carries no ambient —
+   timeline rows plus the Review Requests decision surface only. Events
+   and dates never appear inside ambient strings. Text derives here only. */
+export function resolveInvitationPendingAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `Invitation is pending a response from ${name}.`;
+}
+
+export function resolveInvitationPendingSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `${agency} has invited you to join their agency. Find it in Pending.`;
+}
+
+export function resolveInvitationWithdrawnSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `${agency} has withdrawn their invitation to you. You can express interest.`;
+}
+
 export function resolveJoinRequestAmbientMessage(
   request: JoinRequestIdentity,
   viewerUserId: number | null,

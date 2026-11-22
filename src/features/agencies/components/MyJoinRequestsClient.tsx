@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useGatedAction } from "@/hooks/useGatedAction";
@@ -12,14 +12,17 @@ import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/feat
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   getApprovedRequestCycleHistory,
+  getInvitationDecisionResults,
   getMembershipHistoryByAction,
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupMyJoinRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  resolveInvitationColumnTimeline,
   type ApprovalOriginRow,
 } from "./membershipHistory";
+import type { AgencyInvitationResponse } from "@/types";
 import {
   useAcceptAgencyInvitation,
   useAcceptJoinRequestReactivation,
@@ -43,7 +46,9 @@ import {
   hasWithdrawnHistory,
   invitationHasPendingAction,
   resolveCancelledApplicationAmbient,
+  resolveInvitationPendingSeekerText,
   resolveInvitationRejectedSeekerText,
+  resolveInvitationWithdrawnSeekerText,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolveStatusBadge,
@@ -150,46 +155,59 @@ function SeekerAgencyHistoryGroup({
   );
 }
 
-/* Per-invitation events feed for the Withdrawn tab (DEF-U-INVITATION-EVENTS-FEED-001).
-   One cursor-paginated feed per invitation, rendering the canonical MembershipTimeline
-   rich tier with disclosure sequencing (U-036): the "Load more events" fetch control
-   only renders once the bounded reveal is expanded. Symmetric with SeekerAgencyHistoryGroup
-   (per-invitation here, per-agency there). */
-function WithdrawnInvitationEvents({
-  invitationId,
-  enabled,
+/* Seeker Withdrawn invitation card (per-tab contract): agency identity
+   block, column timeline (Sent, Withdrawn, Interest) plus terminal
+   interest-path results from the per-invitation audit feed. The feed never
+   renders lifecycle rows (the columns carry those) — results only. A
+   decided interest (declined, or accepted via the queue) renders terminal:
+   the result row speaks, with no ambient and no CTA. */
+function SeekerWithdrawnInvitationCard({
+  invitation,
+  expressLoading,
+  onExpressInterest,
 }: {
-  invitationId: number;
-  enabled: boolean;
+  invitation: AgencyInvitationResponse;
+  expressLoading: boolean;
+  onExpressInterest: () => void;
 }) {
-  const feed = useInvitationEvents(invitationId, enabled);
-  const [expanded, setExpanded] = useState(false);
+  const feed = useInvitationEvents(invitation.invitation_id, true);
+  const history = [
+    ...resolveInvitationColumnTimeline(invitation),
+    ...getInvitationDecisionResults(feed.data ?? []),
+  ];
+  const decided =
+    invitation.status === "accepted" ||
+    history.some((entry) => entry.action === "reactivation_rejected");
   return (
-    <>
-      <MembershipTimeline
-        tier="rich"
-        entity="person"
-        history={feed.data}
-        isLoading={feed.isLoading}
-        isError={feed.isError}
-        onRetry={() => {
-          feed.refetch();
-        }}
-        expanded={expanded}
-        onExpandedChange={setExpanded}
-      />
-      {expanded && feed.hasMore ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={feed.loadMore}
-          disabled={feed.isFetchingNextPage}
-        >
-          {feed.isFetchingNextPage ? "Loading..." : "Load more events"}
-        </Button>
-      ) : null}
-    </>
+    <Card>
+      <CardBody className="space-y-4">
+        <TimelineHeader entity="agency" name={invitation.agency_name} />
+        <MembershipTimeline tier="simple" history={history} showHeader={false} />
+        {decided ? null : invitation.reactivated_at ? (
+          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
+            Invitation reactivated — pending your response.
+          </p>
+        ) : !invitation.interest_expressed_at ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              loading={expressLoading}
+              onClick={onExpressInterest}
+            >
+              Express Interest
+            </Button>
+          </div>
+        ) : (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            Interest expressed — awaiting agency response
+          </p>
+        )}
+      </CardBody>
+    </Card>
   );
 }
 
@@ -590,20 +608,12 @@ export function MyJoinRequestsClient() {
                 invitations.filter(i => i.status === "pending").map((invitation) => (
                   <Card key={invitation.invitation_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
-                        <Badge variant="warning">pending</Badge>
-                      </div>
+                      <TimelineHeader entity="agency" name={invitation.agency_name} />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        You have been invited to join {invitation.agency_name}.
+                        Invited {formatDate(invitation.created_at)}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sent {formatDate(invitation.created_at)}
+                        {resolveInvitationPendingSeekerText({ agencyName: invitation.agency_name })}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -778,63 +788,19 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No withdrawn invitations" description="Invitations that ever passed through the withdrawn state will appear here." />
                 </div>
               ) : (
-                invitations.filter(hasWithdrawnHistory).map((invitation) => {
-                  const hasPendingAction = invitationHasPendingAction(invitation, user?.user_id ?? null);
-                  const badge = resolveStatusBadge(invitation.status);
-                  return (
-                    <Card key={invitation.invitation_id}>
-                      <CardBody className="space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <Link
-                            href={`/agencies/${invitation.agency_id}`}
-                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                          >
-                            {invitation.agency_name}
-                          </Link>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Invitation from {invitation.agency_name} was withdrawn.
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Sent {formatDate(invitation.created_at)}
-                        </p>
-                        {invitation.withdrawn_at ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Withdrawn {formatDate(invitation.withdrawn_at)}
-                          </p>
-                        ) : null}
-                        <WithdrawnInvitationEvents
-                          invitationId={invitation.invitation_id}
-                          enabled={invitationSubTab === "withdrawn"}
-                        />
-                        {invitation.reactivated_at ? (
-                          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                            Invitation reactivated — pending your response.
-                          </p>
-                        ) : hasPendingAction ? (
-                          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            Interest expressed — awaiting agency response
-                          </p>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            loading={
-                              requestReactivation.isPending &&
-                              requestReactivation.variables === invitation.invitation_id
-                            }
-                            onClick={() =>
-                              inviteReactivationGate.attempt(invitation.invitation_id)
-                            }
-                          >
-                            Express Interest
-                          </Button>
-                        )}
-                      </CardBody>
-                    </Card>
-                  );
-                })
+                invitations.filter(hasWithdrawnHistory).map((invitation) => (
+                  <SeekerWithdrawnInvitationCard
+                    key={invitation.invitation_id}
+                    invitation={invitation}
+                    expressLoading={
+                      requestReactivation.isPending &&
+                      requestReactivation.variables === invitation.invitation_id
+                    }
+                    onExpressInterest={() =>
+                      inviteReactivationGate.attempt(invitation.invitation_id)
+                    }
+                  />
+                ))
               )}
             </div>
           ) : (

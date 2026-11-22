@@ -1,5 +1,6 @@
 import { hasExpiredHistory } from "@/lib/membership-lifecycle-messages";
 import type {
+  AgencyInvitationResponse,
   AgencyJoinRequestResponse,
   MembershipTimelineEntry,
   MyAgencyJoinRequestResponse,
@@ -308,6 +309,92 @@ export function resolveRequestLifecycleTimeline(
 
   // Stable chronological order, same as the narrative resolver.
   return rows.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+/* Shared invitation column timeline lives HERE ONLY (canonical
+   membershipHistory module). Synthesizes canonical audit_event rows from
+   the invitation's own lifecycle columns — the reliable backbone the
+   per-tab contract renders ("Sent", "Withdrawn", "Expired", "Interest
+   expressed"). Column truth, never feed-derived: the audit feed carries
+   lifecycle rows too, and merging both without this split duplicates.
+   The Expired row keys off live status (expires_at alone is a deadline,
+   not an event). Both invitation surfaces consume this — never hand-roll
+   invitation rows per card. */
+export function resolveInvitationColumnTimeline(
+  invitation: Pick<
+    AgencyInvitationResponse,
+    | "agency_id"
+    | "agency_name"
+    | "created_at"
+    | "expires_at"
+    | "interest_expressed_at"
+    | "invited_user_id"
+    | "status"
+    | "withdrawn_at"
+  >,
+): MembershipTimelineEntry[] {
+  const identity = {
+    agency_id: invitation.agency_id ?? undefined,
+    agency_name: invitation.agency_name ?? undefined,
+    user_id: invitation.invited_user_id ?? undefined,
+  };
+  const rows: MembershipTimelineEntry[] = [
+    {
+      source_type: "audit_event",
+      action: "sent",
+      author_role: "agency",
+      timestamp: invitation.created_at,
+      ...identity,
+    },
+  ];
+  if (invitation.withdrawn_at) {
+    rows.push({
+      source_type: "audit_event",
+      action: "withdrawn",
+      author_role: "agency",
+      timestamp: invitation.withdrawn_at,
+      ...identity,
+    });
+  }
+  if (invitation.status === "expired") {
+    rows.push({
+      source_type: "audit_event",
+      action: "expired",
+      author_role: "system",
+      timestamp: invitation.expires_at,
+      ...identity,
+    });
+  }
+  if (invitation.interest_expressed_at) {
+    rows.push({
+      source_type: "audit_event",
+      action: "interest_expressed",
+      author_role: "seeker",
+      timestamp: invitation.interest_expressed_at,
+      ...identity,
+    });
+  }
+  return rows.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+/* Invitation decision-result filter lives HERE ONLY (shared helper
+   mirroring getRevokedMembershipHistory). Returns the terminal
+   interest-path outcomes from one invitation's audit feed: the queue
+   decline (reactivation_rejected) and the queue/inbox accept (joined).
+   Lifecycle rows (invited, withdrawn, interest_expressed, reactivated)
+   stay out — the column timeline carries the lifecycle, so admitting
+   them would render every event twice. */
+const INVITATION_DECISION_ACTIONS: ReadonlySet<string> = new Set([
+  "reactivation_rejected",
+  "joined",
+]);
+
+export function getInvitationDecisionResults(
+  history: MembershipTimelineEntry[],
+): MembershipTimelineEntry[] {
+  return history.filter(
+    (entry) => entry.action != null && INVITATION_DECISION_ACTIONS.has(entry.action),
+  );
 }
 
 /* Shared Expired-tab narration lives HERE ONLY (canonical membershipHistory module).

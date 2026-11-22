@@ -40,6 +40,7 @@ import {
   useApproveAgencyJoinRequest,
   useBlockAgencyMembership,
   useDeclineAgencyReviewRequest,
+  useInvitationEvents,
   useInviteAgencyAgent,
   useReactivateInvitation,
   useRejectAgencyJoinRequest,
@@ -58,6 +59,7 @@ import {
   ambientTextToneClass,
   resolveCooldownAmbient,
   resolveInvitationAmbientMessage,
+  resolveInvitationPendingAgencyText,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
   resolveStatusBadge,
@@ -65,12 +67,14 @@ import {
 } from "@/lib/membership-lifecycle-messages";
 import {
   getApprovedRequestCycleHistory,
+  getInvitationDecisionResults,
   getMembershipHistoryByAction,
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupAgencyRequestCycles,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  resolveInvitationColumnTimeline,
   type ApprovalOriginRow,
 } from "./membershipHistory";
 import {
@@ -80,6 +84,7 @@ import {
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
+  AgencyInvitationResponse,
   AgencyReviewRequestResponse,
 } from "@/types";
 import {
@@ -199,10 +204,12 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
    ONLY. review_request rows resolve by Q1b origin; join_request rows by the
    split rule (reactivation_requested_by set wins over reapplied_from);
    membership rows by served prior status (blocked has no return path, so no
-   badge). Two-word forms live everywhere else; never import this map outside
-   the queue. Unlinked review rows and unknown prior states fall back to the
-   generic word of their family — legacy data only, since conforming rows
-   always link. */
+   badge); invitation rows render the served origin stem in full (the only
+   multi-word badge — the origin vocabulary for this family is the stem
+   itself, not a one-word compression). Two-word forms live everywhere else;
+   never import this map outside the queue. Unlinked review rows and unknown
+   prior states fall back to the generic word of their family — legacy data
+   only, since conforming rows always link. */
 export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string | null {
   if (row.source_type === "review_request") {
     if (row.origin_status === "rejected") return "Reconsideration";
@@ -221,7 +228,23 @@ export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string
     if (row.prior_membership_status === "blocked") return null;
     return "Reinstatement";
   }
+  if (row.source_type === "invitation") {
+    if (row.origin === "withdrawn_interest") return "Reactivation of withdrawn invitation";
+    return "Review";
+  }
   return null;
+}
+
+/* Queue invitation rows are actionable at the interest moment, not the send
+   date: the payload's created_at is the invitation's send time, while the
+   request the queue decides was created when interest was expressed. Every
+   queue date render and recency comparison for invitation rows must use
+   this — never created_at directly. */
+export function queueRowActionableAt(row: AgencyReviewRequestResponse): string {
+  if (row.source_type === "invitation" && row.interest_expressed_at) {
+    return row.interest_expressed_at;
+  }
+  return row.created_at;
 }
 
 /* B2 queue actionability: pending rows decide as before; expired join_request
@@ -293,6 +316,51 @@ interface AgencyHistoryMember {
      license, decision reason) — derived here from the roster record and passed
      through the shared MembershipTimeline/TimelineHeader SSOT. */
   qualifiers?: string[];
+}
+
+/* Agency Withdrawn invitation card (per-tab contract): invitee identity
+   block, column timeline (Sent, Withdrawn, Interest) plus terminal
+   interest-path results from the per-invitation audit feed. No ambient —
+   the timeline plus the Review Requests decision surface only. Reactivate
+   renders on the proactive path only (no expressed interest, still
+   withdrawn): interest is decided in the queue, and a reactivated row is
+   pending again so the button would 400. */
+function AgencyWithdrawnInvitationCard({
+  invitation,
+  reactivateLoading,
+  onReactivate,
+}: {
+  invitation: AgencyInvitationResponse;
+  reactivateLoading: boolean;
+  onReactivate: () => void;
+}) {
+  const feed = useInvitationEvents(invitation.invitation_id, true);
+  const history = [
+    ...resolveInvitationColumnTimeline(invitation),
+    ...getInvitationDecisionResults(feed.data ?? []),
+  ];
+  const showReactivate =
+    invitation.status === "withdrawn" && !invitation.interest_expressed_at;
+  return (
+    <div className="rounded-lg border border-border p-3 text-sm">
+      <TimelineHeader entity="person" name={invitation.email} />
+      <div className="mt-2">
+        <MembershipTimeline tier="simple" history={history} showHeader={false} />
+      </div>
+      {showReactivate ? (
+        <div className="mt-2">
+          <Button
+            type="button"
+            size="sm"
+            loading={reactivateLoading}
+            onClick={onReactivate}
+          >
+            Reactivate Invitation
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /* Per-member history group for the agency Membership history tab (Rule 20/22):
@@ -1268,8 +1336,8 @@ export function AgencyMembersClient() {
                   const primaryRequest =
                     actionableRequests.length > 0
                       ? actionableRequests.reduce((latest, request) =>
-                          new Date(request.created_at).getTime() >
-                          new Date(latest.created_at).getTime()
+                          new Date(queueRowActionableAt(request)).getTime() >
+                          new Date(queueRowActionableAt(latest)).getTime()
                             ? request
                             : latest,
                         )
@@ -1298,7 +1366,7 @@ export function AgencyMembersClient() {
                         </p>
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} {formatDate(primaryRequest.created_at)}
+                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} {formatDate(queueRowActionableAt(primaryRequest))}
                           </p>
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
@@ -1346,7 +1414,7 @@ export function AgencyMembersClient() {
                                         : req.status === "accepted"
                                           ? "Accepted"
                                           : "Declined"}{" "}
-                                      {formatDate(req.created_at)}
+                                      {formatDate(queueRowActionableAt(req))}
                                     </span>
                                     {reviewQueueSourceLabel(req) ? (
                                       <Badge variant="outline">
@@ -1658,11 +1726,11 @@ export function AgencyMembersClient() {
                 ) : (
                   invitations.filter(i => i.status === "pending").map((invitation) => (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                        <Badge variant="warning">pending</Badge>
-                      </div>
+                      <TimelineHeader entity="person" name={invitation.email} />
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {resolveInvitationPendingAgencyText({ name: invitation.email })}
+                      </p>
                       <div className="mt-2">
                         <Button
                           type="button"
@@ -1752,36 +1820,17 @@ export function AgencyMembersClient() {
                 {invitations.filter(hasWithdrawnHistory).length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">No withdrawn invitations.</p>
                 ) : (
-                  invitations.filter(hasWithdrawnHistory).map((invitation) => {
-                    const ambientMessage = resolveInvitationAmbientMessage(invitation, user?.user_id ?? null);
-                    const badge = resolveStatusBadge(invitation.status);
-                    return (
-                      <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
-                        {invitation.withdrawn_at ? (
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Withdrawn {formatDate(invitation.withdrawn_at)}</p>
-                        ) : null}
-                        {ambientMessage ? (
-                          <div className="mt-2 space-y-2">
-                            <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              {ambientMessage}
-                            </p>
-                            <Button
-                              type="button" size="sm"
-                              loading={reactivateInvitation.isPending && reactivateInvitation.variables === invitation.invitation_id}
-                              onClick={() => void handleReactivateInvitation(invitation.invitation_id)}
-                            >
-                              Reactivate Invitation
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })
+                  invitations.filter(hasWithdrawnHistory).map((invitation) => (
+                    <AgencyWithdrawnInvitationCard
+                      key={invitation.invitation_id}
+                      invitation={invitation}
+                      reactivateLoading={
+                        reactivateInvitation.isPending &&
+                        reactivateInvitation.variables === invitation.invitation_id
+                      }
+                      onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
+                    />
+                  ))
                 )}
               </div>
             ) : null}

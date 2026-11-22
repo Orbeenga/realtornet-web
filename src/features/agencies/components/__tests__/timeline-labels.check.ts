@@ -191,6 +191,31 @@ assert(
   "suppress: matching is exact (case-sensitive)",
 );
 
+// Invitation lifecycle actions render through the generic verb mapping —
+// the Withdrawn-tab column timeline and decision rows depend on these.
+assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "sent" })) === "Sent",
+  "invitation sent renders Sent",
+);
+assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "withdrawn" })) === "Withdrawn",
+  "invitation withdrawn renders Withdrawn",
+);
+assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "expired" })) === "Expired",
+  "invitation expired renders Expired",
+);
+assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "interest_expressed" })) ===
+    "Interest expressed",
+  "interest expressed renders Interest expressed",
+);
+assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "reactivation_rejected" })) ===
+    "Reactivation rejected",
+  "declined interest renders Reactivation rejected",
+);
+
 if (failures > 0) {
   console.error(`${failures} assertion(s) failed`);
   process.exit(1);

@@ -9,6 +9,7 @@ import type { AgencyReviewRequestResponse } from "@/types";
 import {
   groupAgencyReviewRequests,
   isQueueActionableRequest,
+  queueRowActionableAt,
   reviewQueueSourceLabel,
 } from "../AgencyMembersClient";
 
@@ -106,6 +107,43 @@ assert(
 assert(
   reviewQueueSourceLabel(queueRow({ id: 12, source_type: null })) === null,
   "unknown source yields no badge",
+);
+
+// 3b. Invitation origin: withdrawn-interest rows render the full stem;
+//     unknown invitation origins fall back to the family word.
+assert(
+  reviewQueueSourceLabel(
+    queueRow({ id: 13, source_type: "invitation", origin: "withdrawn_interest" }),
+  ) === "Reactivation of withdrawn invitation",
+  "withdrawn-interest rows render the full stem",
+);
+assert(
+  reviewQueueSourceLabel(queueRow({ id: 14, source_type: "invitation" })) === "Review",
+  "unknown invitation origin falls back to Review",
+);
+
+// 3c. Invitation rows are actionable at the interest moment, not the send.
+assert(
+  queueRowActionableAt(
+    queueRow({
+      id: 15,
+      source_type: "invitation",
+      created_at: "2026-08-01T10:00:00Z",
+      interest_expressed_at: "2026-11-20T10:00:00Z",
+    }),
+  ) === "2026-11-20T10:00:00Z",
+  "invitation rows date at interest_expressed_at",
+);
+assert(
+  queueRowActionableAt(
+    queueRow({ id: 16, source_type: "invitation", interest_expressed_at: null }),
+  ) === "2026-09-06T10:00:00Z",
+  "invitation rows without interest fall back to created_at",
+);
+assert(
+  queueRowActionableAt(queueRow({ id: 17, source_type: "join_request" })) ===
+    "2026-09-06T10:00:00Z",
+  "non-invitation rows keep created_at",
 );
 
 // 4. B2 actionability: pending as before; expired join rows only with a
