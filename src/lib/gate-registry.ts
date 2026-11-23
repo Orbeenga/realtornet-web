@@ -145,6 +145,8 @@ export type GateActionKind =
   | "withdraw_invitation"
   | "invitation_accept"
   | "invitation_reject"
+  | "invitation_reactivation_accept"
+  | "invitation_reactivation_reject"
   | "reject_join"
   | "decline_review"
   | "reconsider_agency"
@@ -301,7 +303,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     endpoint: "PATCH /api/v1/agencies/{agencyId}/invitations/{invitationId}/withdraw",
     gate1: [],
     steps: [
-      intentStep(undefined, "Withdrawing invitations is permanent."),
+      intentStep(undefined, "Withdrawing invitations is permanent. Confirm you want to proceed"),
       confirmStep("Withdraw", [], "Invitations to {name} will not be possible anymore."),
     ],
     dialog: true,
@@ -334,6 +336,31 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     confirmLabel: "Reject",
     migrated: true,
     note: "No note field: endpoint takes no body. Terminal per U-041; warning copy locked.",
+  },
+  invitation_reactivation_accept: {
+    action: "invitation_reactivation_accept",
+    profile: "A",
+    hooks: ["useAcceptInvitationReactivation"],
+    endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/accept-reactivation/",
+    gate1: [],
+    steps: [confirmStep("Accept", [noteField], "Accept the reactivation request from {agency}?")],
+    dialog: true,
+    confirmLabel: "Accept",
+    migrated: true,
+    note: "Invitee-only in-tab decision on agency-requested expired rows (seeker Pending). Note persists via the optional body; blank sends no body. Single act to membership.",
+  },
+  invitation_reactivation_reject: {
+    action: "invitation_reactivation_reject",
+    profile: "A",
+    hooks: ["useRejectInvitationReactivation"],
+    endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/reject-reactivation/",
+    gate1: [],
+    steps: [confirmStep("Reject", [], "Reject the reactivation request from {agency}? Rejecting ends the invitation. You can still apply later.")],
+    dialog: true,
+    destructive: true,
+    confirmLabel: "Reject",
+    migrated: true,
+    note: "Invitee-only in-tab decision, terminal for both sides. No note field: the optional server reason stays unwired (invitation-refusal exception, same as invitation_reject).",
   },
   reject_join: {
     action: "reject_join",

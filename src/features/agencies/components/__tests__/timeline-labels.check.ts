@@ -215,6 +215,23 @@ assert(
     "Reactivation rejected",
   "declined interest renders Reactivation rejected",
 );
+assert(
+  resolveTimelineLabel(
+    entry({ source_type: "audit_event", action: "joined", invitation_id: 9, user_id: 7, actor_id: 2 }),
+  ) === "Restored",
+  "queue-accepted interest renders Restored",
+);
+assert(
+  resolveTimelineLabel(
+    entry({ source_type: "audit_event", action: "joined", invitation_id: 9, user_id: 7, actor_id: 7 }),
+  ) === "Accepted",
+  "self-accepted invitation stays Accepted",
+);
+assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "joined", invitation_id: 9 })) ===
+    "Accepted",
+  "unknown actor falls through to Accepted",
+);
 
 if (failures > 0) {
   console.error(`${failures} assertion(s) failed`);

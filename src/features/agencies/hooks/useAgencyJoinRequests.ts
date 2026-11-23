@@ -242,6 +242,50 @@ export function useRejectAgencyInvitation() {
   });
 }
 
+export function useAcceptInvitationReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invitationId,
+      message,
+    }: {
+      invitationId: number;
+      message?: string | null;
+    }) => {
+      const payload: AgencyInvitationAcceptRequest | undefined =
+        message != null && message !== "" ? { message } : undefined;
+      return apiClient<AgencyInviteAcceptResponse>(
+        `/api/v1/agency-invitations/${invitationId}/accept-reactivation/`,
+        payload ? { method: "PATCH", body: JSON.stringify(payload) } : { method: "PATCH" },
+      );
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] }),
+        queryClient.invalidateQueries({ queryKey: ["myAgencyMemberships"] }),
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] }),
+        queryClient.invalidateQueries({ queryKey: ["agentProfileByUser"] }),
+      ]);
+    },
+  });
+}
+
+export function useRejectInvitationReactivation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invitationId: number) =>
+      apiClient<AgencyInvitationResponse>(
+        `/api/v1/agency-invitations/${invitationId}/reject-reactivation/`,
+        { method: "PATCH" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] });
+    },
+  });
+}
+
 export function useWithdrawAgencyInvitation(agencyId?: string | number | null) {
   const queryClient = useQueryClient();
 

@@ -103,6 +103,7 @@ const REDUNDANT_ACTIONS = new Set(["joined", "submitted"]);
    reapplied_from_request_id render "Reapplied" instead of "Submitted"
    (U-017 amendment owed in backend DECISIONS.md). Verb rule: agency-decides
    renders Approved (+ origin stem), seeker-agrees renders Accepted,
+   invitation queue-accept renders Restored (owner acted for invitee),
    restoration renders Reinstated. Origin arrives annotated on the entry
    (annotateApprovalOrigins); invitation origin derives from invitation_id
    (C2); fresh/origin-less renders the bare verb. The audit action enum is
@@ -116,7 +117,19 @@ export function resolveTimelineLabel(
 ): string {
   if (entry.action) {
     if (entry.action === "joined" || entry.action === "approved") {
-      if (entry.invitation_id != null) return "Accepted";
+      if (entry.invitation_id != null) {
+        // Queue-accepted interest restores the membership: someone else
+        // (the agency owner) acted for the invitee. Self-accepts stay
+        // Accepted. Unknown actors fall through to Accepted.
+        if (
+          entry.actor_id != null &&
+          entry.user_id != null &&
+          entry.actor_id !== entry.user_id
+        ) {
+          return "Restored";
+        }
+        return "Accepted";
+      }
       switch (entry.approvalOrigin) {
         case "reapplication":
           return "Reapplication approved";

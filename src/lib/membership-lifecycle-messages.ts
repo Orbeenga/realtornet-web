@@ -6,16 +6,6 @@ function fmtAmbientDate(value: string) {
   }).format(new Date(value));
 }
 
-interface InvitationIdentity {
-  status?: string | null;
-  reactivation_requested_at?: string | null;
-  reactivation_requested_by?: number | null;
-  reactivated_at?: string | null;
-  interest_expressed_at?: string | null;
-  invited_user_id?: number | null;
-  email: string;
-}
-
 interface JoinRequestIdentity {
   status?: string | null;
   user_id?: number | null;
@@ -115,6 +105,32 @@ export function hasWithdrawnHistory(
 }
 
 /**
+ * "Is this an agency-requested expired invitation awaiting THIS viewer's
+ * decision?" — the seeker-Pending merge predicate. The row stays expired
+ * (single-shot request model); the invitee accepts (membership at once)
+ * or rejects (terminal) from Pending. Requester must be someone other
+ * than the invitee; invitee defaults to the viewer (legacy NULL rows are
+ * list-attested). No viewer, no merge.
+ */
+export function isAgencyRequestedExpiredInvitation(
+  invitation: {
+    status?: string | null;
+    reactivation_requested_at?: string | null;
+    reactivation_requested_by?: number | null;
+    invited_user_id?: number | null;
+  },
+  viewerUserId: number | null,
+): boolean {
+  if (invitation.status !== "expired") return false;
+  if (invitation.reactivation_requested_at == null) return false;
+  if (invitation.reactivation_requested_by == null) return false;
+  if (viewerUserId == null) return false;
+  const inviteeId = invitation.invited_user_id ?? viewerUserId;
+  if (inviteeId !== viewerUserId) return false;
+  return invitation.reactivation_requested_by !== inviteeId;
+}
+
+/**
  * Badge label + variant derived from the record's LIVE status (O-002: label
  * always derives from live status, never a cached resolved flag). A record
  * that was reactivated is `pending` and so shows a `pending` badge even in
@@ -139,22 +155,6 @@ export function resolveStatusBadge(status: string | null | undefined): StatusBad
   }
 }
 
-export function resolveInvitationAmbientMessage(
-  invitation: InvitationIdentity,
-  viewerUserId: number | null,
-): string | null {
-  if (invitation.reactivated_at) {
-    return `Invitation reactivated — pending invitee response — ${fmtAmbientDate(invitation.reactivated_at)}`;
-  }
-  if (invitation.reactivation_requested_at && invitation.reactivation_requested_by !== viewerUserId) {
-    return `${invitation.invited_user_id ? "Invitee" : invitation.email} requested reactivation — ${fmtAmbientDate(invitation.reactivation_requested_at)}`;
-  }
-  if (invitation.interest_expressed_at) {
-    return `${invitation.invited_user_id ? "Invitee" : invitation.email} expressed interest in this withdrawn invitation — ${fmtAmbientDate(invitation.interest_expressed_at)}`;
-  }
-  return null;
-}
-
 /* Rejected-invitation card sentence (canonical text family). Rendered by
    the seeker Rejected invitation card only — the terminal U-041 model:
    rejection ends the invitation, and the normal Find-an-Agency route stays
@@ -163,7 +163,25 @@ export function resolveInvitationRejectedSeekerText(params: {
   agencyName?: string | null;
 }): string {
   const agency = params.agencyName ?? "this agency";
-  return `You rejected the invitation from ${agency}. You can apply to join them any time from Find an Agency.`;
+  return `you have rejected membership invitation from ${agency}. You can apply to join them any time from Find an Agency.`;
+}
+
+/* Invitee display name (invitation contract): the invitation payload
+   carries no display names, so registered accounts render as Invitee
+   and unregistered ones as their email. Every agency-side {name} /
+   {seeker_name} matrix slot resolves through here. */
+export function resolveInviteeName(params: {
+  email: string;
+  invited_user_id?: number | null;
+}): string {
+  return params.invited_user_id != null ? "Invitee" : params.email;
+}
+
+export function resolveInvitationRejectedAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `${name} rejected membership invitation. They can still apply to join any time.`;
 }
 
 /* Invitation per-tab contract ambients (Tier-1 invitations crossover).
@@ -178,18 +196,78 @@ export function resolveInvitationPendingAgencyText(params: {
   return `Invitation is pending a response from ${name}.`;
 }
 
-export function resolveInvitationPendingSeekerText(params: {
-  agencyName?: string | null;
-}): string {
-  const agency = params.agencyName ?? "The agency";
-  return `${agency} has invited you to join their agency. Find it in Pending.`;
-}
-
 export function resolveInvitationWithdrawnSeekerText(params: {
   agencyName?: string | null;
 }): string {
   const agency = params.agencyName ?? "The agency";
   return `${agency} has withdrawn their invitation to you. You can express interest.`;
+}
+
+export function resolveInvitationWithdrawnAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `${name} can see their withdrawn invitation. They can express interest.`;
+}
+
+export function resolveInvitationWithdrawnInterestAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `${name} has expressed interest in their withdrawn invitation. Respond to it in Review Requests.`;
+}
+
+export function resolveInvitationWithdrawnInterestSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `Your expression of interest is awaiting a response from ${agency}.`;
+}
+
+/* Expired matrix ambients (invitation contract): initial, requested
+   (own request outstanding), and offered (counterparty requested)
+   states per viewer, verbatim. Decided rows render no ambient — the
+   result row speaks. Text derives here only. */
+export function resolveInvitationExpiredSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `Your invitation from ${agency} has expired. You can request reactivation, or wait for them to reach out.`;
+}
+
+export function resolveInvitationExpiredAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `Invitation to ${name} has expired. Request them to reactivate it.`;
+}
+
+export function resolveInvitationExpiredRequestedSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `Your request is pending a response from ${agency}.`;
+}
+
+export function resolveInvitationExpiredRequestedAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `${name} has requested to reactivate their expired invitation. Respond to it in Review Requests.`;
+}
+
+export function resolveInvitationExpiredOfferedSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `${agency} has requested to reactivate your expired invitation. Respond to it in Pending.`;
+}
+
+export function resolveInvitationExpiredOfferedAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `Request is pending a response from ${name}.`;
 }
 
 /* Prior-outreach context line (rejected-then-apply, item 2): a derived
@@ -217,17 +295,6 @@ export function resolveJoinRequestAmbientMessage(
     return `Reactivation requested — awaiting applicant acceptance — ${fmtAmbientDate(request.reactivation_requested_at)}`;
   }
   return `${request.seeker_name ?? "Applicant"} requested reactivation — ${fmtAmbientDate(request.reactivation_requested_at)}`;
-}
-
-export function invitationHasPendingAction(
-  invitation: InvitationIdentity,
-  viewerUserId: number | null,
-): boolean {
-  if (invitation.reactivated_at) return false;
-  if (invitation.interest_expressed_at) return true;
-  return Boolean(
-    invitation.reactivation_requested_at && invitation.reactivation_requested_by === viewerUserId,
-  );
 }
 
 export function joinRequestHasPendingAction(

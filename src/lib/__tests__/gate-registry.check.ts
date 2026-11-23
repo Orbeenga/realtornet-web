@@ -318,7 +318,7 @@ for (const name of REGISTRY_HOOK_NAMES) {
 /* ------------------------------------------------------------------ */
 
 const specs = Object.values(GATE_REGISTRY);
-assert(specs.length === 19, `registry holds 19 actions (found ${specs.length})`);
+assert(specs.length === 21, `registry holds 21 actions (found ${specs.length})`);
 
 const stepIds = (spec: (typeof specs)[number]) => spec.steps.map((s) => s.id).join(",");
 const SEVERE = new Set(["block_membership", "revoke_membership", "suspend_membership"]);
@@ -463,8 +463,18 @@ assert(
   "copy: invitation reject body verbatim (terminal warning locked)",
 );
 assert(
+  stepBody(GATE_REGISTRY.invitation_reactivation_accept) ===
+    "Accept the reactivation request from {agency}?",
+  "copy: invitation reactivation accept body verbatim",
+);
+assert(
+  stepBody(GATE_REGISTRY.invitation_reactivation_reject) ===
+    "Reject the reactivation request from {agency}? Rejecting ends the invitation. You can still apply later.",
+  "copy: invitation reactivation reject body verbatim (terminal warning locked)",
+);
+assert(
   stepBody(GATE_REGISTRY.withdraw_invitation, "intent") ===
-    "Withdrawing invitations is permanent.",
+    "Withdrawing invitations is permanent. Confirm you want to proceed",
   "copy: withdraw intent body verbatim (permanent warning locked)",
 );
 assert(
@@ -548,7 +558,8 @@ for (const spec of specs) {
 
 // Migrated ratchet: steps 1-4 land 15 actions; U-053 adds invitation_accept
 // (Profile A + note, the only consumer of the new invitation note body);
-// the invitations crossover adds invitation_reject (Profile A confirm-only).
+// the invitations crossover adds invitation_reject (Profile A confirm-only)
+// plus the in-tab reactivation pair (accept with note, reject confirm-only).
 const migrated = specs.filter((s) => s.migrated).map((s) => s.action);
 for (const action of [
   "cancel_join",
@@ -568,12 +579,14 @@ for (const action of [
   "invitation_reactivation_request",
   "invitation_accept",
   "invitation_reject",
+  "invitation_reactivation_accept",
+  "invitation_reactivation_reject",
 ] as GateActionKind[]) {
   assert(migrated.includes(action), `migrated: ${action}`);
 }
 assert(
-  migrated.length === 17,
-  `exactly 17 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+  migrated.length === 19,
+  `exactly 19 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
 );
 assert(
   GATE_REGISTRY.apply.migrated === false,

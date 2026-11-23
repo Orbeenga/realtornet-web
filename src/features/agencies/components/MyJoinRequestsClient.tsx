@@ -26,6 +26,7 @@ import {
 import type { AgencyInvitationResponse } from "@/types";
 import {
   useAcceptAgencyInvitation,
+  useAcceptInvitationReactivation,
   useAcceptJoinRequestReactivation,
   useCancelAgencyJoinRequest,
   useCreateAgencyMembershipReviewRequest,
@@ -37,6 +38,7 @@ import {
   useMyAgencyMemberships,
   useReapplyAgencyJoinRequest,
   useRejectAgencyInvitation,
+  useRejectInvitationReactivation,
   useRejectJoinRequestReactivation,
   useRequestInvitationReactivation,
   useRequestJoinRequestReactivationAsApplicant,
@@ -45,14 +47,16 @@ import {
   ambientTextToneClass,
   hasExpiredHistory,
   hasWithdrawnHistory,
-  invitationHasPendingAction,
+  isAgencyRequestedExpiredInvitation,
   resolveCancelledApplicationAmbient,
-  resolveInvitationPendingSeekerText,
+  resolveInvitationExpiredOfferedSeekerText,
+  resolveInvitationExpiredRequestedSeekerText,
+  resolveInvitationExpiredSeekerText,
   resolveInvitationRejectedSeekerText,
+  resolveInvitationWithdrawnInterestSeekerText,
   resolveInvitationWithdrawnSeekerText,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
-  resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { notify } from "@/lib/toast";
@@ -184,11 +188,7 @@ function SeekerWithdrawnInvitationCard({
       <CardBody className="space-y-4">
         <TimelineHeader entity="agency" name={invitation.agency_name} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
-        {decided ? null : invitation.reactivated_at ? (
-          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-            Invitation reactivated — pending your response.
-          </p>
-        ) : !invitation.interest_expressed_at ? (
+        {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
           <div className="space-y-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
@@ -204,8 +204,120 @@ function SeekerWithdrawnInvitationCard({
           </div>
         ) : (
           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-            Interest expressed — awaiting agency response
+            {resolveInvitationWithdrawnInterestSeekerText({ agencyName: invitation.agency_name })}
           </p>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+/* Merged agency-requested expired row on seeker Pending (contract): the
+   invitee decides here — Accept creates membership at once, Reject is
+   terminal. Event line plus CTAs only (action-tab purity, no ambient).
+   Decided rows vanish here (the audit feed is the only decided signal);
+   the row keeps living on Expired with its result row. */
+function SeekerPendingExpiredCard({
+  invitation,
+  acceptLoading,
+  rejectLoading,
+  onAccept,
+  onReject,
+}: {
+  invitation: AgencyInvitationResponse;
+  acceptLoading: boolean;
+  rejectLoading: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const feed = useInvitationEvents(invitation.invitation_id, true);
+  const decided =
+    invitation.status === "accepted" ||
+    getInvitationDecisionResults(feed.data ?? []).some(
+      (entry) => entry.action === "reactivation_rejected",
+    );
+  if (feed.isLoading || decided) return null;
+  return (
+    <Card>
+      <CardBody className="space-y-4">
+        <TimelineHeader entity="agency" name={invitation.agency_name} />
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Reactivation requested
+          {invitation.reactivation_requested_at
+            ? ` ${formatDate(invitation.reactivation_requested_at)}`
+            : null}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" loading={acceptLoading} onClick={onAccept}>
+            Accept
+          </Button>
+          <Button type="button" size="sm" variant="secondary" loading={rejectLoading} onClick={onReject}>
+            Reject
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+/* Seeker Expired invitation card (per-tab contract): agency identity
+   block, column timeline (Sent, Expired) plus terminal results from the
+   audit feed. Ambient after the latest event, cleared once decided;
+   the only CTA is the initial Request Reactivation — requests are
+   decided in Pending (agency-requested) or Review Requests. */
+function SeekerExpiredInvitationCard({
+  invitation,
+  requestLoading,
+  onRequest,
+}: {
+  invitation: AgencyInvitationResponse;
+  requestLoading: boolean;
+  onRequest: () => void;
+}) {
+  const feed = useInvitationEvents(invitation.invitation_id, true);
+  const history = [
+    ...resolveInvitationColumnTimeline(invitation),
+    ...getInvitationDecisionResults(feed.data ?? []),
+  ];
+  const decided =
+    invitation.status === "accepted" ||
+    history.some((entry) => entry.action === "reactivation_rejected");
+  const inviteeId = invitation.invited_user_id;
+  const requestedBy = invitation.reactivation_requested_by;
+  const agencyRequested =
+    invitation.reactivation_requested_at != null &&
+    requestedBy != null &&
+    inviteeId != null &&
+    requestedBy !== inviteeId;
+  const ownRequest =
+    invitation.reactivation_requested_at != null && !agencyRequested;
+  return (
+    <Card>
+      <CardBody className="space-y-4">
+        <TimelineHeader entity="agency" name={invitation.agency_name} />
+        <MembershipTimeline tier="simple" history={history} showHeader={false} />
+        {decided || invitation.reactivated_at ? null : agencyRequested ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
+          </p>
+        ) : ownRequest ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {resolveInvitationExpiredRequestedSeekerText({ agencyName: invitation.agency_name })}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {resolveInvitationExpiredSeekerText({ agencyName: invitation.agency_name })}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              loading={requestLoading}
+              onClick={onRequest}
+            >
+              Request Reactivation
+            </Button>
+          </div>
         )}
       </CardBody>
     </Card>
@@ -243,6 +355,8 @@ export function MyJoinRequestsClient() {
   const acceptInvitation = useAcceptAgencyInvitation();
   const rejectInvitation = useRejectAgencyInvitation();
   const requestReactivation = useRequestInvitationReactivation();
+  const acceptInvitationReactivation = useAcceptInvitationReactivation();
+  const rejectInvitationReactivation = useRejectInvitationReactivation();
   const cancelJoinRequest = useCancelAgencyJoinRequest();
   const acceptReactivation = useAcceptJoinRequestReactivation();
   const reapplyJoinRequest = useReapplyAgencyJoinRequest();
@@ -351,6 +465,32 @@ export function MyJoinRequestsClient() {
     title: "Reject invitation",
     successToast: "Invitation rejected",
     errorFallback: "Could not reject invitation",
+  });
+
+  // Registry Profile A with optional note: in-tab accept of an
+  // agency-requested expired reactivation (seeker Pending merge). Single
+  // act to membership; blank note sends no body (backend backward compat).
+  const acceptInvitationReactivationGate = useGatedAction<number>("invitation_reactivation_accept", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (invitationId, values) => {
+      const note = values.note.trim();
+      return acceptInvitationReactivation.mutateAsync(
+        note ? { invitationId, message: note } : { invitationId },
+      );
+    },
+    title: "Accept reactivation",
+    successToast: "Invitation accepted",
+    errorFallback: "Could not accept reactivation",
+  });
+
+  // Registry Profile A confirm-only: in-tab reject, terminal for both
+  // sides (invitation-refusal exception — no reason field).
+  const rejectInvitationReactivationGate = useGatedAction<number>("invitation_reactivation_reject", {
+    buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
+    invoke: (invitationId) => rejectInvitationReactivation.mutateAsync(invitationId),
+    title: "Reject reactivation",
+    successToast: "Reactivation rejected",
+    errorFallback: "Could not reject reactivation",
   });
 
   // Registry Profile C, confirm-only variant (U-052 step 4): same-kind
@@ -531,6 +671,13 @@ export function MyJoinRequestsClient() {
   );
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
   const invitations = invitationsQuery.data ?? [];
+  /* Seeker Pending merges agency-requested expired rows (contract): the
+     invitee decides them here with Accept/Reject — the Expired tab only
+     points across. Decided rows are excluded inside the merged card (the
+     audit feed is the only decided signal). */
+  const pendingInvitations = invitations.filter(
+    (i) => i.status === "pending" || isAgencyRequestedExpiredInvitation(i, user?.user_id ?? null),
+  );
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
     { value: "agencies" as const, label: "Find an Agency" },
     ...(canViewAgencyInvitations
@@ -587,7 +734,7 @@ export function MyJoinRequestsClient() {
 
           <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
             {[
-              { value: "pending" as const, label: `Pending (${invitations.filter(i => i.status === "pending").length})` },
+              { value: "pending" as const, label: `Pending (${pendingInvitations.length})` },
               { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
               { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
               { value: "expired" as const, label: `Expired (${invitations.filter(hasExpiredHistory).length})` },
@@ -601,53 +748,71 @@ export function MyJoinRequestsClient() {
 
           {invitationSubTab === "pending" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "pending").length === 0 ? (
+              {pendingInvitations.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
                   <EmptyState title="No pending invitations" description="All invitations have been resolved." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "pending").map((invitation) => (
-                  <Card key={invitation.invitation_id}>
-                    <CardBody className="space-y-4">
-                      <TimelineHeader entity="agency" name={invitation.agency_name} />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invited {formatDate(invitation.created_at)}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {resolveInvitationPendingSeekerText({ agencyName: invitation.agency_name })}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          loading={
-                            acceptInvitation.isPending &&
-                            acceptInvitation.variables?.invitationId === invitation.invitation_id
-                          }
-                          onClick={() =>
-                            inviteAcceptGate.attempt(invitation.invitation_id)
-                          }
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          loading={
-                            rejectInvitation.isPending &&
-                            rejectInvitation.variables === invitation.invitation_id
-                          }
-                          onClick={() =>
-                            inviteRejectGate.attempt(invitation.invitation_id)
-                          }
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    </CardBody>
-                  </Card>
-                ))
+                pendingInvitations.map((invitation) =>
+                  invitation.status === "expired" ? (
+                    <SeekerPendingExpiredCard
+                      key={invitation.invitation_id}
+                      invitation={invitation}
+                      acceptLoading={
+                        acceptInvitationReactivation.isPending &&
+                        acceptInvitationReactivation.variables?.invitationId === invitation.invitation_id
+                      }
+                      rejectLoading={
+                        rejectInvitationReactivation.isPending &&
+                        rejectInvitationReactivation.variables === invitation.invitation_id
+                      }
+                      onAccept={() =>
+                        acceptInvitationReactivationGate.attempt(invitation.invitation_id)
+                      }
+                      onReject={() =>
+                        rejectInvitationReactivationGate.attempt(invitation.invitation_id)
+                      }
+                    />
+                  ) : (
+                    <Card key={invitation.invitation_id}>
+                      <CardBody className="space-y-4">
+                        <TimelineHeader entity="agency" name={invitation.agency_name} />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Invited {formatDate(invitation.created_at)}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              acceptInvitation.isPending &&
+                              acceptInvitation.variables?.invitationId === invitation.invitation_id
+                            }
+                            onClick={() =>
+                              inviteAcceptGate.attempt(invitation.invitation_id)
+                            }
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            loading={
+                              rejectInvitation.isPending &&
+                              rejectInvitation.variables === invitation.invitation_id
+                            }
+                            onClick={() =>
+                              inviteRejectGate.attempt(invitation.invitation_id)
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ),
+                )
               )}
             </div>
           ) : invitationSubTab === "accepted" ? (
@@ -711,11 +876,7 @@ export function MyJoinRequestsClient() {
                           >
                             {invitation.agency_name}
                           </Link>
-                          <Badge variant="danger">rejected</Badge>
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
-                        </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Sent {formatDate(invitation.created_at)}
                         </p>
@@ -729,6 +890,9 @@ export function MyJoinRequestsClient() {
                             Applied {formatDate(application.submitted_at)}
                           </p>
                         ))}
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
+                        </p>
                       </CardBody>
                     </Card>
                   );
@@ -742,59 +906,19 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No expired invitations" description="Invitations that ever passed through the expired state will appear here." />
                 </div>
               ) : (
-                invitations.filter(hasExpiredHistory).map((invitation) => {
-                  const hasPendingAction = invitationHasPendingAction(invitation, user?.user_id ?? null);
-                  const badge = resolveStatusBadge(invitation.status);
-                  return (
-                    <Card key={invitation.invitation_id}>
-                      <CardBody className="space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <Link
-                            href={`/agencies/${invitation.agency_id}`}
-                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                          >
-                            {invitation.agency_name}
-                          </Link>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Invitation from {invitation.agency_name} has expired.
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Sent {formatDate(invitation.created_at)}
-                        </p>
-                        {invitation.expires_at ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Expired {formatDate(invitation.expires_at)}
-                          </p>
-                        ) : null}
-                        {invitation.reactivated_at ? (
-                          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                            Invitation reactivated — pending your response.
-                          </p>
-                        ) : hasPendingAction ? (
-                          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            Reactivation requested — awaiting agency response
-                          </p>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            loading={
-                              requestReactivation.isPending &&
-                              requestReactivation.variables === invitation.invitation_id
-                            }
-                            onClick={() =>
-                              inviteReactivationGate.attempt(invitation.invitation_id)
-                            }
-                          >
-                            Request Reactivation
-                          </Button>
-                        )}
-                      </CardBody>
-                    </Card>
-                  );
-                })
+                invitations.filter(hasExpiredHistory).map((invitation) => (
+                  <SeekerExpiredInvitationCard
+                    key={invitation.invitation_id}
+                    invitation={invitation}
+                    requestLoading={
+                      requestReactivation.isPending &&
+                      requestReactivation.variables === invitation.invitation_id
+                    }
+                    onRequest={() =>
+                      inviteReactivationGate.attempt(invitation.invitation_id)
+                    }
+                  />
+                ))
               )}
             </div>
           ) : invitationSubTab === "withdrawn" ? (
@@ -1699,6 +1823,30 @@ export function MyJoinRequestsClient() {
             : {
                 agency:
                   invitations.find((i) => i.invitation_id === inviteRejectGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...acceptInvitationReactivationGate.dialogProps}
+        tokens={
+          acceptInvitationReactivationGate.seed === null
+            ? {}
+            : {
+                agency:
+                  invitations.find((i) => i.invitation_id === acceptInvitationReactivationGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
+      />
+      <ConfirmDestructiveDialog
+        {...rejectInvitationReactivationGate.dialogProps}
+        tokens={
+          rejectInvitationReactivationGate.seed === null
+            ? {}
+            : {
+                agency:
+                  invitations.find((i) => i.invitation_id === rejectInvitationReactivationGate.seed)
                     ?.agency_name ?? "the agency",
               }
         }

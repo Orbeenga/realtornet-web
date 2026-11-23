@@ -1685,13 +1685,65 @@ export interface paths {
         head?: never;
         /**
          * Reactivate Agency Invitation
-         * @description Agency owner reactivates an invitation that has been requested for reactivation.
+         * @description Agency owner requests reactivation of an expired invitation.
          *
-         *     Transitions the invitation back to `pending` with a fresh 30-day
-         *     `expires_at`. Preserves all prior timestamps. Writes a `reactivated` audit
-         *     event. Notifies the invitee.
+         *     Records an agency-side reactivation request (the row stays expired);
+         *     the invitee accepts (membership at once) or rejects (terminal) in their
+         *     Pending tab. Withdrawn invitations are NOT reactivatable by the agency
+         *     (consolidated dispatch ruling: the agency Withdrawn tab is record-only;
+         *     the invitee's interest-expression route is the only recovery path).
          */
         patch: operations["reactivate_agency_invitation_api_v1_agency_invitations__invitation_id__reactivate__patch"];
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/accept-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Accept Invitation Reactivation
+         * @description Accept an agency-requested reactivation on an expired invitation.
+         *
+         *     Invitee-only in-tab decision (seeker Pending): accept creates membership
+         *     + role at once via the canonical accept path. No pending round-trip.
+         *     Seeker-requested reactivation is NOT decidable here — it routes to the
+         *     agency Review Requests queue (consolidated dispatch ruling).
+         */
+        patch: operations["accept_invitation_reactivation_api_v1_agency_invitations__invitation_id__accept_reactivation__patch"];
+        trace?: never;
+    };
+    "/api/v1/agency-invitations/{invitation_id}/reject-reactivation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reject Invitation Reactivation
+         * @description Reject an agency-requested reactivation on an expired invitation.
+         *
+         *     Invitee-only in-tab decision: terminal for both sides. The row stays
+         *     expired and a reactivation_rejected audit row records the result.
+         *     Seeker-originated reason is optional (invitation-refusal exception,
+         *     U-052 addendum); person-written and persisted when present.
+         */
+        patch: operations["reject_invitation_reactivation_api_v1_agency_invitations__invitation_id__reject_reactivation__patch"];
         trace?: never;
     };
     "/api/v1/agency-invitations/{invitation_id}/events/": {
@@ -5022,6 +5074,19 @@ export interface components {
             /** Message */
             message?: string | null;
         };
+        /**
+         * AgencyInvitationReactivationRejectRequest
+         * @description Reject-reactivation body (unified endpoint, direction-dependent rule).
+         *
+         *     Optional at the schema level because the seeker direction is confirm-only
+         *     (invitation-refusal exception, U-052 addendum); the endpoint requires a
+         *     non-blank reason when the agency is the decider. A seeker-sent reason, if
+         *     any, is person-written and persisted (C1).
+         */
+        AgencyInvitationReactivationRejectRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** AgencyInvitationResponse */
         AgencyInvitationResponse: {
             /** Invitation Id */
@@ -5434,6 +5499,8 @@ export interface components {
             origin?: string | null;
             /** Interest Expressed At */
             interest_expressed_at?: string | null;
+            /** Reactivation Requested At */
+            reactivation_requested_at?: string | null;
             /** Requester Email */
             requester_email?: string | null;
             /** Requester Name */
@@ -10337,6 +10404,76 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_invitation_reactivation_api_v1_agency_invitations__invitation_id__accept_reactivation__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyInvitationAcceptRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyInvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_invitation_reactivation_api_v1_agency_invitations__invitation_id__reject_reactivation__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyInvitationReactivationRejectRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

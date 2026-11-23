@@ -58,12 +58,17 @@ import {
   hasWithdrawnHistory,
   ambientTextToneClass,
   resolveCooldownAmbient,
-  resolveInvitationAmbientMessage,
+  resolveInvitationExpiredAgencyText,
+  resolveInvitationExpiredOfferedAgencyText,
+  resolveInvitationExpiredRequestedAgencyText,
   resolveInvitationPendingAgencyText,
+  resolveInvitationRejectedAgencyText,
+  resolveInvitationWithdrawnAgencyText,
+  resolveInvitationWithdrawnInterestAgencyText,
+  resolveInviteeName,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
   resolvePriorInvitationContextLine,
-  resolveStatusBadge,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
@@ -322,12 +327,49 @@ interface AgencyHistoryMember {
 
 /* Agency Withdrawn invitation card (per-tab contract): invitee identity
    block, column timeline (Sent, Withdrawn, Interest) plus terminal
-   interest-path results from the per-invitation audit feed. No ambient —
-   the timeline plus the Review Requests decision surface only. Reactivate
-   renders on the proactive path only (no expressed interest, still
-   withdrawn): interest is decided in the queue, and a reactivated row is
-   pending again so the button would 400. */
+   interest-path results from the audit feed, then the matrix ambient.
+   Record-only: interest is decided in Review Requests, and proactive
+   reactivate is retired server-side — no buttons. Ambient clears once a
+   result row lands. */
 function AgencyWithdrawnInvitationCard({
+  invitation,
+}: {
+  invitation: AgencyInvitationResponse;
+}) {
+  const feed = useInvitationEvents(invitation.invitation_id, true);
+  const history = [
+    ...resolveInvitationColumnTimeline(invitation),
+    ...getInvitationDecisionResults(feed.data ?? []),
+  ];
+  const decided =
+    invitation.status === "accepted" ||
+    history.some((entry) => entry.action === "reactivation_rejected");
+  const name = resolveInviteeName(invitation);
+  return (
+    <div className="rounded-lg border border-border p-3 text-sm">
+      <TimelineHeader entity="person" name={invitation.email} />
+      <div className="mt-2">
+        <MembershipTimeline tier="simple" history={history} showHeader={false} />
+      </div>
+      {decided || invitation.reactivated_at ? null : invitation.interest_expressed_at ? (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {resolveInvitationWithdrawnInterestAgencyText({ name })}
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {resolveInvitationWithdrawnAgencyText({ name })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* Agency Expired invitation card (per-tab contract): invitee identity
+   block, column timeline (Sent, Expired) plus terminal results from the
+   audit feed, then the matrix ambient. The only CTA is the initial
+   Reactivate request — seeker requests are decided in Review Requests
+   and outstanding agency requests await the invitee. */
+function AgencyExpiredInvitationCard({
   invitation,
   reactivateLoading,
   onReactivate,
@@ -341,16 +383,38 @@ function AgencyWithdrawnInvitationCard({
     ...resolveInvitationColumnTimeline(invitation),
     ...getInvitationDecisionResults(feed.data ?? []),
   ];
-  const showReactivate =
-    invitation.status === "withdrawn" && !invitation.interest_expressed_at;
+  const decided =
+    invitation.status === "accepted" ||
+    history.some((entry) => entry.action === "reactivation_rejected");
+  const name = resolveInviteeName(invitation);
+  const requestedBy = invitation.reactivation_requested_by;
+  const inviteeId = invitation.invited_user_id;
+  const seekerRequested =
+    invitation.reactivation_requested_at != null &&
+    requestedBy != null &&
+    inviteeId != null &&
+    requestedBy === inviteeId;
+  const agencyRequested =
+    invitation.reactivation_requested_at != null && !seekerRequested;
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
       <TimelineHeader entity="person" name={invitation.email} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {showReactivate ? (
-        <div className="mt-2">
+      {decided || invitation.reactivated_at ? null : seekerRequested ? (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {resolveInvitationExpiredRequestedAgencyText({ name })}
+        </p>
+      ) : agencyRequested ? (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {resolveInvitationExpiredOfferedAgencyText({ name })}
+        </p>
+      ) : invitation.status === "expired" ? (
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {resolveInvitationExpiredAgencyText({ name })}
+          </p>
           <Button
             type="button"
             size="sm"
@@ -741,7 +805,7 @@ export function AgencyMembersClient() {
   const handleReactivateInvitation = async (invitationId: number) => {
     try {
       await reactivateInvitation.mutateAsync(invitationId);
-      notify.success("Invitation reactivated — back to pending.");
+      notify.success("Reactivation requested — awaiting invitee response.");
     } catch (error) {
       const detail = error instanceof ApiError ? error.detail : null;
       notify.error(typeof detail === "string" ? detail : "Could not reactivate invitation.");
@@ -1791,7 +1855,6 @@ export function AgencyMembersClient() {
                       <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                          <Badge variant="danger">rejected</Badge>
                         </div>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
                         {subsequent.map((application) => (
@@ -1799,6 +1862,9 @@ export function AgencyMembersClient() {
                             Applied {formatDate(application.submitted_at)}
                           </p>
                         ))}
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {resolveInvitationRejectedAgencyText({ name: resolveInviteeName(invitation) })}
+                        </p>
                       </div>
                     );
                   })
@@ -1809,36 +1875,17 @@ export function AgencyMembersClient() {
                 {invitations.filter(hasExpiredHistory).length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">No expired invitations.</p>
                 ) : (
-                  invitations.filter(hasExpiredHistory).map((invitation) => {
-                    const ambientMessage = resolveInvitationAmbientMessage(invitation, user?.user_id ?? null);
-                    const badge = resolveStatusBadge(invitation.status);
-                    return (
-                      <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
-                        {invitation.expires_at ? (
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Expired {formatDate(invitation.expires_at)}</p>
-                        ) : null}
-                        {ambientMessage ? (
-                          <div className="mt-2 space-y-2">
-                            <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              {ambientMessage}
-                            </p>
-                            <Button
-                              type="button" size="sm"
-                              loading={reactivateInvitation.isPending && reactivateInvitation.variables === invitation.invitation_id}
-                              onClick={() => void handleReactivateInvitation(invitation.invitation_id)}
-                            >
-                              Reactivate Invitation
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })
+                  invitations.filter(hasExpiredHistory).map((invitation) => (
+                    <AgencyExpiredInvitationCard
+                      key={invitation.invitation_id}
+                      invitation={invitation}
+                      reactivateLoading={
+                        reactivateInvitation.isPending &&
+                        reactivateInvitation.variables === invitation.invitation_id
+                      }
+                      onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
+                    />
+                  ))
                 )}
               </div>
             ) : invitationSubTab === "withdrawn" ? (
@@ -1850,11 +1897,6 @@ export function AgencyMembersClient() {
                     <AgencyWithdrawnInvitationCard
                       key={invitation.invitation_id}
                       invitation={invitation}
-                      reactivateLoading={
-                        reactivateInvitation.isPending &&
-                        reactivateInvitation.variables === invitation.invitation_id
-                      }
-                      onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
                     />
                   ))
                 )}
