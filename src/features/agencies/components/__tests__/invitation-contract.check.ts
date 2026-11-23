@@ -14,6 +14,7 @@ import {
   resolveInvitationExpiredRequestedAgencyText,
   resolveInvitationExpiredRequestedSeekerText,
   resolveInvitationExpiredSeekerText,
+  resolveInvitationPendingAgencyText,
   resolveInvitationRejectedAgencyText,
   resolveInvitationWithdrawnAgencyText,
   resolveInvitationWithdrawnInterestAgencyText,
@@ -64,8 +65,14 @@ function feedEntry(
   } as MembershipTimelineEntry;
 }
 
-// 1. Pending ambients removed on both sides: action tabs carry the
-//    event plus CTAs only, no ambient.
+// 1. Agency Pending keeps its ambient (contractual context: where the
+//    invitation went and the pending action). Seeker Pending stays bare:
+//    action tabs carry the event plus CTAs only, no ambient.
+assert(
+  resolveInvitationPendingAgencyText({ name: "seeker@example.com" }) ===
+    "Invitation is pending a response from seeker@example.com.",
+  "pending agency ambient is verbatim",
+);
 
 // 2. Withdrawn seeker ambient, verbatim.
 assert(
@@ -244,6 +251,21 @@ assert(
 assert(
   resolveInviteeName({ email: "a@example.com", invited_user_id: null }) === "a@example.com",
   "unregistered invitee renders as email",
+);
+assert(
+  resolveInviteeName({ email: "a@example.com", invited_user_id: 7, invitee_display_name: "Ada Obi" }) ===
+    "Ada Obi",
+  "served display name wins over Invitee",
+);
+assert(
+  resolveInviteeName({ email: "a@example.com", invited_user_id: 7, invitee_display_name: "" }) ===
+    "Invitee",
+  "blank display name falls back to Invitee",
+);
+assert(
+  resolveInviteeName({ email: "a@example.com", invited_user_id: 7, invitee_display_name: null }) ===
+    "Invitee",
+  "null display name falls back to Invitee",
 );
 
 // 8. Expired matrix ambients, per viewer and state, verbatim.

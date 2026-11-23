@@ -5102,6 +5102,8 @@ export interface components {
             email: string;
             /** Invited User Id */
             invited_user_id?: number | null;
+            /** Invitee Display Name */
+            invitee_display_name?: string | null;
             status: components["schemas"]["AgencyInvitationStatus"];
             /**
              * Created At

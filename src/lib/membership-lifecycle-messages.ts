@@ -166,14 +166,16 @@ export function resolveInvitationRejectedSeekerText(params: {
   return `you have rejected membership invitation from ${agency}. You can apply to join them any time from Find an Agency.`;
 }
 
-/* Invitee display name (invitation contract): the invitation payload
-   carries no display names, so registered accounts render as Invitee
-   and unregistered ones as their email. Every agency-side {name} /
-   {seeker_name} matrix slot resolves through here. */
+/* Invitee display name (invitation contract): the served display name
+   wins; registered accounts without one render as Invitee and
+   unregistered ones as their email. Every agency-side {name} /
+   {seeker_name} matrix slot and identity header resolves through here. */
 export function resolveInviteeName(params: {
   email: string;
   invited_user_id?: number | null;
+  invitee_display_name?: string | null;
 }): string {
+  if (params.invitee_display_name) return params.invitee_display_name;
   return params.invited_user_id != null ? "Invitee" : params.email;
 }
 
@@ -189,6 +191,13 @@ export function resolveInvitationRejectedAgencyText(params: {
    locked contract table. The agency Withdrawn card carries no ambient —
    timeline rows plus the Review Requests decision surface only. Events
    and dates never appear inside ambient strings. Text derives here only. */
+export function resolveInvitationPendingAgencyText(params: {
+  name?: string | null;
+}): string {
+  const name = params.name ?? "the invitee";
+  return `Invitation is pending a response from ${name}.`;
+}
+
 export function resolveInvitationWithdrawnSeekerText(params: {
   agencyName?: string | null;
 }): string {

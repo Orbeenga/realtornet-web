@@ -61,6 +61,7 @@ import {
   resolveInvitationExpiredAgencyText,
   resolveInvitationExpiredOfferedAgencyText,
   resolveInvitationExpiredRequestedAgencyText,
+  resolveInvitationPendingAgencyText,
   resolveInvitationRejectedAgencyText,
   resolveInvitationWithdrawnAgencyText,
   resolveInvitationWithdrawnInterestAgencyText,
@@ -346,7 +347,7 @@ function AgencyWithdrawnInvitationCard({
   const name = resolveInviteeName(invitation);
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={invitation.email} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -397,7 +398,7 @@ function AgencyExpiredInvitationCard({
     invitation.reactivation_requested_at != null && !seekerRequested;
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={invitation.email} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -1799,8 +1800,11 @@ export function AgencyMembersClient() {
                 ) : (
                   invitations.filter(i => i.status === "pending").map((invitation) => (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                      <TimelineHeader entity="person" name={invitation.email} />
+                      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} />
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {resolveInvitationPendingAgencyText({ name: resolveInviteeName(invitation) })}
+                      </p>
                       <div className="mt-2">
                         <Button
                           type="button"
@@ -1824,7 +1828,7 @@ export function AgencyMembersClient() {
                   invitations.filter(i => i.status === "accepted").map((invitation) => (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} />
                         <Badge variant="success">accepted</Badge>
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
@@ -1852,9 +1856,7 @@ export function AgencyMembersClient() {
                     );
                     return (
                       <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-medium text-gray-900 dark:text-white">{invitation.email}</p>
-                        </div>
+                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
                         {invitation.rejected_at ? (
                           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Rejected {formatDate(invitation.rejected_at)}</p>
