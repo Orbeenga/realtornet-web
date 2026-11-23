@@ -211,9 +211,9 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
    ONLY. review_request rows resolve by Q1b origin; join_request rows by the
    split rule (reactivation_requested_by set wins over reapplied_from);
    membership rows by served prior status (blocked has no return path, so no
-   badge); invitation rows render the served origin stem in full (the only
-   multi-word badge — the origin vocabulary for this family is the stem
-   itself, not a one-word compression). Two-word forms live everywhere else;
+   badge); invitation rows resolve by served origin (withdrawn_interest or
+   reactivation). The lifecycle narrative beside the badge lives in
+   reviewQueueNarrativeEvent. Two-word forms live everywhere else;
    never import this map outside the queue. Unlinked review rows and unknown
    prior states fall back to the generic word of their family — legacy data
    only, since conforming rows always link. */
@@ -236,20 +236,41 @@ export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string
     return "Reinstatement";
   }
   if (row.source_type === "invitation") {
-    if (row.origin === "withdrawn_interest") return "Reactivation of withdrawn invitation";
+    if (row.origin === "withdrawn_interest") return "Interest";
+    if (row.origin === "reactivation") return "Reactivation";
     return "Review";
   }
   return null;
 }
 
-/* Queue invitation rows are actionable at the interest moment, not the send
+/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 2, narrative event): the short
+   lifecycle sentence beside the one-word badge, Review Requests tab ONLY.
+   Invitation and application reactivations share the Reactivation badge,
+   so the event carries the lifecycle word that tells them apart. Rows
+   outside the reactivation family render no event. */
+export function reviewQueueNarrativeEvent(row: AgencyReviewRequestResponse): string | null {
+  if (row.source_type === "invitation") {
+    if (row.origin === "withdrawn_interest") return "Interest expressed";
+    if (row.origin === "reactivation") return "Invitation reactivation requested";
+    return null;
+  }
+  if (row.source_type === "join_request" && row.reactivation_requested_by != null) {
+    return "Application reactivation requested";
+  }
+  return null;
+}
+
+/* Queue invitation rows are actionable at the request moment, not the send
    date: the payload's created_at is the invitation's send time, while the
-   request the queue decides was created when interest was expressed. Every
-   queue date render and recency comparison for invitation rows must use
-   this — never created_at directly. */
+   request the queue decides was created when interest was expressed or
+   reactivation was requested. Every queue date render and recency
+   comparison for invitation rows must use this — never created_at
+   directly. */
 export function queueRowActionableAt(row: AgencyReviewRequestResponse): string {
-  if (row.source_type === "invitation" && row.interest_expressed_at) {
-    return row.interest_expressed_at;
+  if (row.source_type === "invitation") {
+    return (
+      row.reactivation_requested_at ?? row.interest_expressed_at ?? row.created_at
+    );
   }
   return row.created_at;
 }
@@ -1442,6 +1463,11 @@ export function AgencyMembersClient() {
                           <p className="font-medium text-gray-900 dark:text-white">
                             {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} {formatDate(queueRowActionableAt(primaryRequest))}
                           </p>
+                          {reviewQueueNarrativeEvent(primaryRequest) ? (
+                            <p className="text-gray-600 dark:text-gray-400">
+                              {reviewQueueNarrativeEvent(primaryRequest)}
+                            </p>
+                          ) : null}
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                               {primaryRequest.message}

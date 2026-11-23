@@ -10,6 +10,7 @@ import {
   groupAgencyReviewRequests,
   isQueueActionableRequest,
   queueRowActionableAt,
+  reviewQueueNarrativeEvent,
   reviewQueueSourceLabel,
 } from "../AgencyMembersClient";
 
@@ -109,17 +110,52 @@ assert(
   "unknown source yields no badge",
 );
 
-// 3b. Invitation origin: withdrawn-interest rows render the full stem;
-//     unknown invitation origins fall back to the family word.
+// 3b. Invitation origins render one-word labels; the narrative event
+//     beside them carries the lifecycle wording. Unknown invitation
+//     origins fall back to the family word.
 assert(
   reviewQueueSourceLabel(
     queueRow({ id: 13, source_type: "invitation", origin: "withdrawn_interest" }),
-  ) === "Reactivation of withdrawn invitation",
-  "withdrawn-interest rows render the full stem",
+  ) === "Interest",
+  "withdrawn-interest rows render Interest",
 );
 assert(
-  reviewQueueSourceLabel(queueRow({ id: 14, source_type: "invitation" })) === "Review",
+  reviewQueueSourceLabel(
+    queueRow({ id: 14, source_type: "invitation", origin: "reactivation" }),
+  ) === "Reactivation",
+  "invitation reactivation rows render Reactivation",
+);
+assert(
+  reviewQueueSourceLabel(queueRow({ id: 21, source_type: "invitation" })) === "Review",
   "unknown invitation origin falls back to Review",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 22, source_type: "invitation", origin: "withdrawn_interest" }),
+  ) === "Interest expressed",
+  "withdrawn-interest event is Interest expressed",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 23, source_type: "invitation", origin: "reactivation" }),
+  ) === "Invitation reactivation requested",
+  "invitation reactivation event names the lifecycle",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 24, source_type: "join_request", reactivation_requested_by: 7 }),
+  ) === "Application reactivation requested",
+  "application reactivation event names the lifecycle",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 25, source_type: "review_request", origin_status: "rejected" }),
+  ) === null,
+  "non-reactivation rows render no event",
+);
+assert(
+  reviewQueueNarrativeEvent(queueRow({ id: 26, source_type: "invitation" })) === null,
+  "unknown invitation origin renders no event",
 );
 
 // 3c. Invitation rows are actionable at the interest moment, not the send.
@@ -144,6 +180,18 @@ assert(
   queueRowActionableAt(queueRow({ id: 17, source_type: "join_request" })) ===
     "2026-09-06T10:00:00Z",
   "non-invitation rows keep created_at",
+);
+assert(
+  queueRowActionableAt(
+    queueRow({
+      id: 27,
+      source_type: "invitation",
+      origin: "reactivation",
+      created_at: "2026-08-01T10:00:00Z",
+      reactivation_requested_at: "2026-11-21T10:00:00Z",
+    }),
+  ) === "2026-11-21T10:00:00Z",
+  "invitation reactivation rows date at the request moment",
 );
 
 // 4. B2 actionability: pending as before; expired join rows only with a
