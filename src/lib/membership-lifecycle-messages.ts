@@ -189,13 +189,6 @@ export function resolveInvitationRejectedAgencyText(params: {
    locked contract table. The agency Withdrawn card carries no ambient —
    timeline rows plus the Review Requests decision surface only. Events
    and dates never appear inside ambient strings. Text derives here only. */
-export function resolveInvitationPendingAgencyText(params: {
-  name?: string | null;
-}): string {
-  const name = params.name ?? "the invitee";
-  return `Invitation is pending a response from ${name}.`;
-}
-
 export function resolveInvitationWithdrawnSeekerText(params: {
   agencyName?: string | null;
 }): string {

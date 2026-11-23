@@ -315,11 +315,11 @@ export function resolveRequestLifecycleTimeline(
    membershipHistory module). Synthesizes canonical audit_event rows from
    the invitation's own lifecycle columns — the reliable backbone the
    per-tab contract renders ("Sent", "Withdrawn", "Expired", "Interest
-   expressed"). Column truth, never feed-derived: the audit feed carries
-   lifecycle rows too, and merging both without this split duplicates.
-   The Expired row keys off live status (expires_at alone is a deadline,
-   not an event). Both invitation surfaces consume this — never hand-roll
-   invitation rows per card. */
+   expressed", "Reactivation requested"). Column truth, never feed-derived:
+   the audit feed carries lifecycle rows too, and merging both without this
+   split duplicates. The Expired row keys off live status (expires_at alone
+   is a deadline, not an event). Both invitation surfaces consume this —
+   never hand-roll invitation rows per card. */
 export function resolveInvitationColumnTimeline(
   invitation: Pick<
     AgencyInvitationResponse,
@@ -329,6 +329,8 @@ export function resolveInvitationColumnTimeline(
     | "expires_at"
     | "interest_expressed_at"
     | "invited_user_id"
+    | "reactivation_requested_at"
+    | "reactivation_requested_by"
     | "status"
     | "withdrawn_at"
   >,
@@ -371,6 +373,19 @@ export function resolveInvitationColumnTimeline(
       action: "interest_expressed",
       author_role: "seeker",
       timestamp: invitation.interest_expressed_at,
+      ...identity,
+    });
+  }
+  if (invitation.reactivation_requested_at) {
+    rows.push({
+      source_type: "audit_event",
+      action: "reactivation_requested",
+      author_role:
+        invitation.reactivation_requested_by != null &&
+        invitation.reactivation_requested_by === invitation.invited_user_id
+          ? "seeker"
+          : "agency",
+      timestamp: invitation.reactivation_requested_at,
       ...identity,
     });
   }

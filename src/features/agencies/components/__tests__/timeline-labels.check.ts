@@ -211,6 +211,11 @@ assert(
   "interest expressed renders Interest expressed",
 );
 assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "reactivation_requested" })) ===
+    "Reactivation requested",
+  "request renders Reactivation requested",
+);
+assert(
   resolveTimelineLabel(entry({ source_type: "audit_event", action: "reactivation_rejected" })) ===
     "Reactivation rejected",
   "declined interest renders Reactivation rejected",

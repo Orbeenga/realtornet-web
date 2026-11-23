@@ -14,7 +14,6 @@ import {
   resolveInvitationExpiredRequestedAgencyText,
   resolveInvitationExpiredRequestedSeekerText,
   resolveInvitationExpiredSeekerText,
-  resolveInvitationPendingAgencyText,
   resolveInvitationRejectedAgencyText,
   resolveInvitationWithdrawnAgencyText,
   resolveInvitationWithdrawnInterestAgencyText,
@@ -65,17 +64,10 @@ function feedEntry(
   } as MembershipTimelineEntry;
 }
 
-// 1. Pending ambients, per viewer, verbatim.
-assert(
-  resolveInvitationPendingAgencyText({ name: "seeker@example.com" }) ===
-    "Invitation is pending a response from seeker@example.com.",
-  "pending agency ambient is verbatim",
-);
-// Pending seeker ambient removed with the strip (step 2): action tabs
-// carry the event plus CTAs only, no ambient.
+// 1. Pending ambients removed on both sides: action tabs carry the
+//    event plus CTAs only, no ambient.
 
-// 2. Withdrawn seeker ambient, verbatim. The agency Withdrawn card carries
-//    no ambient — timeline rows plus the queue decision surface only.
+// 2. Withdrawn seeker ambient, verbatim.
 assert(
   resolveInvitationWithdrawnSeekerText({ agencyName: "Apine Real Estate" }) ===
     "Apine Real Estate has withdrawn their invitation to you. You can express interest.",
@@ -117,6 +109,35 @@ assert(
 assert(
   expiredRows[1]?.timestamp === "2026-10-31T10:00:00Z",
   "expired row carries the expiry timestamp",
+);
+const requestedRows = resolveInvitationColumnTimeline(
+  invitation({
+    invitation_id: 5,
+    status: "expired",
+    reactivation_requested_at: "2026-11-05T10:00:00Z",
+    reactivation_requested_by: 7,
+    invited_user_id: 7,
+  }),
+);
+assert(
+  requestedRows.map((r) => r.action).join(",") === "sent,expired,reactivation_requested",
+  "requested reactivation adds a Reactivation requested row",
+);
+assert(
+  requestedRows[2]?.author_role === "seeker",
+  "own request attributes the seeker",
+);
+assert(
+  resolveInvitationColumnTimeline(
+    invitation({
+      invitation_id: 6,
+      status: "expired",
+      reactivation_requested_at: "2026-11-05T10:00:00Z",
+      reactivation_requested_by: 2,
+      invited_user_id: 7,
+    }),
+  )[2]?.author_role === "agency",
+  "agency request attributes the agency",
 );
 
 // 4. Decision results: only terminal interest-path outcomes pass —
