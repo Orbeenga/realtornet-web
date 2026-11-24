@@ -142,6 +142,7 @@ function SeekerAgencyHistoryGroup({
         onRetry={() => {
           feed.refetch();
         }}
+        showLifecycleMarkers
         defaultUserDisplayName={agency.agency_name}
         expanded={expanded}
         onExpandedChange={setExpanded}
