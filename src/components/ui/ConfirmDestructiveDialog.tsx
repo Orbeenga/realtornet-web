@@ -122,17 +122,19 @@ export function ConfirmDestructiveDialog({
             ) : null}
           </div>
         ))}
-        {(step.echo ?? []).map((kind) => (
-          <div
-            key={kind}
-            className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300"
-          >
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {ECHO_LABEL[kind] ?? kind}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap">{values[kind].trim()}</p>
-          </div>
-        ))}
+        {(step.echo ?? [])
+          .filter((kind) => values[kind].trim() !== "")
+          .map((kind) => (
+            <div
+              key={kind}
+              className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300"
+            >
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                {ECHO_LABEL[kind] ?? kind}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap">{values[kind].trim()}</p>
+            </div>
+          ))}
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={onCancel}>
             {cancelLabel}

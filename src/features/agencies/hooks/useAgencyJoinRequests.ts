@@ -283,10 +283,12 @@ export function useRejectInvitationReactivation() {
       invitationId: number;
       reason: string;
     }) => {
-      const payload: AgencyInvitationReactivationRejectRequest = { reason };
+      const trimmed = reason.trim();
+      const payload: AgencyInvitationReactivationRejectRequest | undefined =
+        trimmed !== "" ? { reason: trimmed } : undefined;
       return apiClient<AgencyInvitationResponse>(
         `/api/v1/agency-invitations/${invitationId}/reject-reactivation/`,
-        { method: "PATCH", body: JSON.stringify(payload) },
+        payload ? { method: "PATCH", body: JSON.stringify(payload) } : { method: "PATCH" },
       );
     },
     onSuccess: async () => {

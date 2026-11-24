@@ -469,8 +469,8 @@ assert(
 );
 assert(
   stepBody(GATE_REGISTRY.invitation_reactivation_reject, "fields") ===
-    "Rejecting ends the invitation. A reason is required for rejecting your invitation and will be visible to {agency}.",
-  "copy: invitation reactivation reject step 1 verbatim (warning plus reason note)",
+    "Rejecting ends the invitation. Enter a reason for rejecting your invitation for {agency}.",
+  "copy: invitation reactivation reject step 1 verbatim (warning plus optional reason)",
 );
 assert(
   stepBody(GATE_REGISTRY.invitation_reactivation_reject, "review") ===

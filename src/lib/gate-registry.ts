@@ -213,11 +213,11 @@ const messageField = (label: string, placeholder: string): GateFieldSpec => ({
   blankError: "Enter a message before continuing.",
 });
 
-const reasonField = (label: string, placeholder: string): GateFieldSpec => ({
+const reasonField = (label: string, placeholder: string, required = true): GateFieldSpec => ({
   kind: "reason",
   label,
   placeholder,
-  required: true,
+  required,
   blankError: "Enter a reason before continuing.",
 });
 
@@ -366,8 +366,8 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     steps: [
       {
         id: "fields",
-        fields: [reasonField("Reason", "Reason for rejecting (required)")],
-        bodyTemplate: "Rejecting ends the invitation. A reason is required for rejecting your invitation and will be visible to {agency}.",
+        fields: [reasonField("Reason", "Reason for rejecting (optional)", false)],
+        bodyTemplate: "Rejecting ends the invitation. Enter a reason for rejecting your invitation for {agency}.",
         primaryLabel: "Proceed",
       },
       {
@@ -382,7 +382,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     destructive: true,
     confirmLabel: "Reject",
     migrated: true,
-    note: "Invitee-only in-tab decision, terminal for both sides. Plain-B mirror of decline_review: required reason on step 1, echo plus consequence line on step 2. Caller title carries (no titleTemplate).",
+    note: "Invitee-only in-tab decision, terminal for both sides. Plain-B mirror of decline_review with an optional reason (invitation-refusal exception: the invitee was solicited, so justification stays voluntary). Caller title carries (no titleTemplate).",
   },
   reject_join: {
     action: "reject_join",
