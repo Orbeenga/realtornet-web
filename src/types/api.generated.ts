@@ -1642,6 +1642,11 @@ export interface paths {
         /**
          * Reject My Agency Invitation
          * @description Reject a pending agency invitation for the authenticated user.
+         *
+         *     Profile A with a note (U-053): the optional body carries the invitee's
+         *     own note, persisted as a `rejected` audit row's reason when present.
+         *     Absent/blank preserves legacy behavior exactly (status flip only, no
+         *     audit row). Terminal either way (U-041).
          */
         patch: operations["reject_my_agency_invitation_api_v1_agency_invitations__invitation_id__reject__patch"];
         trace?: never;
@@ -4919,6 +4924,10 @@ export interface components {
             user_id: number;
             /** Agency Id */
             agency_id: number;
+            /** Profile Complete */
+            profile_complete: boolean;
+            /** Profile Missing Fields */
+            profile_missing_fields: string[];
             /** Membership Id */
             membership_id: number;
             membership_status: components["schemas"]["AgencyAgentMembershipStatus"];
@@ -5086,6 +5095,22 @@ export interface components {
         AgencyInvitationReactivationRejectRequest: {
             /** Reason */
             reason?: string | null;
+        };
+        /**
+         * AgencyInvitationRejectRequest
+         * @description Invitee-reject body (Profile A with a note, mirroring accept).
+         *
+         *     Optional applicant note persisted as the reject audit reason so it
+         *     renders beside the Rejected event. Entire body is optional for backward
+         *     compatibility (older callers send none, preserving legacy no-audit-row
+         *     behavior); blank normalizes to None. Never machine-filled (C1: only
+         *     person-written reasons render). Field is `message`, not `reason`: the
+         *     U-052 addendum stands unamended — invitation reject takes no required
+         *     reason; this is the applicant's own optional note.
+         */
+        AgencyInvitationRejectRequest: {
+            /** Message */
+            message?: string | null;
         };
         /** AgencyInvitationResponse */
         AgencyInvitationResponse: {
@@ -5825,6 +5850,10 @@ export interface components {
             website?: string | null;
             /** Company Name */
             company_name?: string | null;
+            /** Profile Complete */
+            profile_complete: boolean;
+            /** Profile Missing Fields */
+            profile_missing_fields: string[];
             /** Profile Id */
             profile_id: number;
             /**
@@ -10343,7 +10372,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgencyInvitationRejectRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -459,11 +459,17 @@ export function MyJoinRequestsClient() {
     errorFallback: "Could not accept invitation",
   });
 
-  // Registry Profile A (invitations crossover): terminal reject gains a
-  // confirm-only dialog with the locked terminal warning (was direct-fire).
+  // Registry Profile A with optional note (invitations crossover): terminal
+  // reject shows the locked warning plus a voluntary note; blank sends no
+  // body (was direct-fire, then confirm-only).
   const inviteRejectGate = useGatedAction<number>("invitation_reject", {
     buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
-    invoke: (invitationId) => rejectInvitation.mutateAsync(invitationId),
+    invoke: (invitationId, values) => {
+      const note = values.note.trim();
+      return rejectInvitation.mutateAsync(
+        note ? { invitationId, message: note } : { invitationId },
+      );
+    },
     title: "Reject invitation",
     successToast: "Invitation rejected",
     errorFallback: "Could not reject invitation",
@@ -807,7 +813,7 @@ export function MyJoinRequestsClient() {
                             variant="secondary"
                             loading={
                               rejectInvitation.isPending &&
-                              rejectInvitation.variables === invitation.invitation_id
+                              rejectInvitation.variables?.invitationId === invitation.invitation_id
                             }
                             onClick={() =>
                               inviteRejectGate.attempt(invitation.invitation_id)

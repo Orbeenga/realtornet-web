@@ -644,6 +644,14 @@ assert(
   "Gate 2: blank reason blocks with reason copy",
 );
 assert(
+  Object.keys(validateStepFields(fieldsOf("invitation_reject", "confirm"), EMPTY)).length === 0,
+  "Gate 2: blank inbox-reject note passes (optional)",
+);
+assert(
+  fieldsOf("invitation_reject", "confirm").some((f) => f.kind === "note" && !f.required),
+  "invitation reject carries the optional note field",
+);
+assert(
   Object.keys(
     validateStepFields(fieldsOf("reapply", "fields"), { ...EMPTY, message: " hi " }),
   ).length === 0,

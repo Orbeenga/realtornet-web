@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api/client";
 import type {
   AgencyInvitationAcceptRequest,
   AgencyInvitationReactivationRejectRequest,
+  AgencyInvitationRejectRequest,
   AgencyInviteCreate,
   AgencyInviteAcceptRequest,
   AgencyInviteAcceptResponse,
@@ -232,11 +233,20 @@ export function useRejectAgencyInvitation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (invitationId: number) =>
-      apiClient<AgencyInvitationResponse>(
+    mutationFn: ({
+      invitationId,
+      message,
+    }: {
+      invitationId: number;
+      message?: string | null;
+    }) => {
+      const payload: AgencyInvitationRejectRequest | undefined =
+        message != null && message !== "" ? { message } : undefined;
+      return apiClient<AgencyInvitationResponse>(
         `/api/v1/agency-invitations/${invitationId}/reject/`,
-        { method: "PATCH" },
-      ),
+        payload ? { method: "PATCH", body: JSON.stringify(payload) } : { method: "PATCH" },
+      );
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["myAgencyInvitations"] });
     },

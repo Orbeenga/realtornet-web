@@ -252,6 +252,10 @@ assert(
   "declined interest renders Reactivation rejected",
 );
 assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "rejected" })) === "Rejected",
+  "invitation rejected renders Rejected",
+);
+assert(
   resolveTimelineLabel(
     entry({ source_type: "audit_event", action: "joined", invitation_id: 9, user_id: 7, actor_id: 2 }),
   ) === "Restored",

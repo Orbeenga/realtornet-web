@@ -42,6 +42,7 @@ export type AgencyInvitationResponse = components["schemas"]["AgencyInvitationRe
 export type AgencyInvitationAcceptRequest = components["schemas"]["AgencyInvitationAcceptRequest"];
 export type AgencyInvitationReactivationRejectRequest =
   components["schemas"]["AgencyInvitationReactivationRejectRequest"];
+export type AgencyInvitationRejectRequest = components["schemas"]["AgencyInvitationRejectRequest"];
 export type AgencyInvitationStatus = components["schemas"]["AgencyInvitationStatus"];
 export type AgencyInviteAcceptRequest = components["schemas"]["AgencyInviteAcceptRequest"];
 export type AgencyInviteAcceptResponse = components["schemas"]["AgencyInviteAcceptResponse"];
