@@ -10,6 +10,8 @@ import {
   groupAgencyReviewRequests,
   isQueueActionableRequest,
   queueRowActionableAt,
+  resolveReviewQueuePresentation,
+  reviewQueueEventLine,
   reviewQueueNarrativeEvent,
   reviewQueueSourceLabel,
 } from "../AgencyMembersClient";
@@ -43,6 +45,14 @@ assert(
     queueRow({ id: 1, source_type: "review_request", join_request_id: 9, origin_status: "rejected" }),
   ) === "Reconsideration",
   "rejected-origin appeal labels Reconsideration",
+);
+assert(
+  JSON.stringify(
+    resolveReviewQueuePresentation(
+      queueRow({ id: 28, source_type: "invitation", origin: "withdrawn_interest" }),
+    ),
+  ) === JSON.stringify({ label: "Interest", narrativeEvent: "Interest expressed" }),
+  "shared resolver returns the complete withdrawn-interest presentation",
 );
 assert(
   reviewQueueSourceLabel(
@@ -150,12 +160,109 @@ assert(
 assert(
   reviewQueueNarrativeEvent(
     queueRow({ id: 25, source_type: "review_request", origin_status: "rejected" }),
-  ) === null,
-  "non-reactivation rows render no event",
+  ) === "Reconsideration requested",
+  "rejected-origin appeal event is Reconsideration requested",
 );
 assert(
-  reviewQueueNarrativeEvent(queueRow({ id: 26, source_type: "invitation" })) === null,
-  "unknown invitation origin renders no event",
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 26, source_type: "review_request", origin_status: "expired" }),
+  ) === "Application reactivation requested",
+  "expired-origin appeal shares the application event",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 39, source_type: "review_request", origin_status: null }),
+  ) === "Review requested",
+  "unknown review origin falls back to Review requested",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 29, source_type: "join_request", reapplied_from_request_id: 3 }),
+  ) === "Reapplication submitted",
+  "reapplication event is Reapplication submitted",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 30, source_type: "membership_review_request", prior_membership_status: "suspended" }),
+  ) === "Reinstatement requested",
+  "suspended appeal event is Reinstatement requested",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 31, source_type: "membership_review_request", prior_membership_status: "left" }),
+  ) === "Return requested",
+  "left appeal event is Return requested",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 32, source_type: "membership_review_request", prior_membership_status: "revoked" }),
+  ) === "Review requested",
+  "revoked appeal event is Review requested",
+);
+assert(
+  reviewQueueNarrativeEvent(
+    queueRow({ id: 33, source_type: "membership_review_request", prior_membership_status: "blocked" }),
+  ) === null,
+  "blocked origin renders no event (matches null badge)",
+);
+assert(
+  reviewQueueNarrativeEvent(queueRow({ id: 34, source_type: null })) === null,
+  "unknown source renders no event (matches null badge)",
+);
+assert(
+  reviewQueueNarrativeEvent(queueRow({ id: 40, source_type: "invitation" })) ===
+    "Review requested",
+  "unknown invitation origin falls back to Review requested",
+);
+assert(
+  reviewQueueNarrativeEvent(queueRow({ id: 41, source_type: "membership_review_request" })) ===
+    "Reinstatement requested",
+  "unknown prior status falls back to Reinstatement requested",
+);
+
+// 3d. Merged event lines: one self-explanatory "{narrative} {date}" row.
+// Dates render through the card's short-date format; expected values use
+// the identical formatter so the pin holds in any timezone.
+function expectedCardDate(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+assert(
+  reviewQueueEventLine(
+    queueRow({
+      id: 35,
+      source_type: "invitation",
+      origin: "withdrawn_interest",
+      interest_expressed_at: "2026-11-18T12:00:00Z",
+    }),
+  ) === `Interest expressed ${expectedCardDate("2026-11-18T12:00:00Z")}`,
+  "actionable rows merge event and date in one line",
+);
+assert(
+  reviewQueueEventLine(
+    queueRow({
+      id: 36,
+      source_type: "membership_review_request",
+      prior_membership_status: "blocked",
+      status: "pending",
+    }),
+  ) === `Requested ${expectedCardDate("2026-09-06T10:00:00Z")}`,
+  "null-event actionable rows keep the legacy Requested line",
+);
+assert(
+  reviewQueueEventLine(
+    queueRow({ id: 37, source_type: "join_request", status: "accepted" }),
+  ) === `Accepted ${expectedCardDate("2026-09-06T10:00:00Z")}`,
+  "decided rows keep the decision line",
+);
+assert(
+  reviewQueueEventLine(
+    queueRow({ id: 38, source_type: "review_request", origin_status: "rejected", status: "declined" }),
+  ) === `Declined ${expectedCardDate("2026-09-06T10:00:00Z")}`,
+  "declined rows keep the decision line",
 );
 
 // 3c. Invitation rows are actionable at the interest moment, not the send.

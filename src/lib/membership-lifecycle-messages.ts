@@ -198,6 +198,16 @@ export function resolveInvitationPendingAgencyText(params: {
   return `Invitation is pending a response from ${name}.`;
 }
 
+/* Seeker Pending description (invitation contract): the event restated
+   with its direction — who invited whom. Trimmed canonical form, no
+   trailing pointer. Text derives here only. */
+export function resolveInvitationPendingSeekerText(params: {
+  agencyName?: string | null;
+}): string {
+  const agency = params.agencyName ?? "The agency";
+  return `${agency} has invited you to join their agency.`;
+}
+
 export function resolveInvitationWithdrawnSeekerText(params: {
   agencyName?: string | null;
 }): string {

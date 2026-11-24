@@ -52,6 +52,7 @@ import {
   resolveInvitationExpiredOfferedSeekerText,
   resolveInvitationExpiredRequestedSeekerText,
   resolveInvitationExpiredSeekerText,
+  resolveInvitationPendingSeekerText,
   resolveInvitationRejectedSeekerText,
   resolveInvitationWithdrawnInterestSeekerText,
   resolveInvitationWithdrawnSeekerText,
@@ -483,11 +484,13 @@ export function MyJoinRequestsClient() {
     errorFallback: "Could not accept reactivation",
   });
 
-  // Registry Profile A confirm-only: in-tab reject, terminal for both
-  // sides (invitation-refusal exception — no reason field).
+  // Registry Profile B (plain-B mirror of decline_review): in-tab reject
+  // takes a required reason on step 1, echo plus consequence line on
+  // step 2. Terminal for both sides.
   const rejectInvitationReactivationGate = useGatedAction<number>("invitation_reactivation_reject", {
     buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
-    invoke: (invitationId) => rejectInvitationReactivation.mutateAsync(invitationId),
+    invoke: (invitationId, values) =>
+      rejectInvitationReactivation.mutateAsync({ invitationId, reason: values.reason }),
     title: "Reject reactivation",
     successToast: "Reactivation rejected",
     errorFallback: "Could not reject reactivation",
@@ -764,7 +767,7 @@ export function MyJoinRequestsClient() {
                       }
                       rejectLoading={
                         rejectInvitationReactivation.isPending &&
-                        rejectInvitationReactivation.variables === invitation.invitation_id
+                        rejectInvitationReactivation.variables?.invitationId === invitation.invitation_id
                       }
                       onAccept={() =>
                         acceptInvitationReactivationGate.attempt(invitation.invitation_id)
@@ -779,6 +782,9 @@ export function MyJoinRequestsClient() {
                         <TimelineHeader entity="agency" name={invitation.agency_name} />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invited {formatDate(invitation.created_at)}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {resolveInvitationPendingSeekerText({ agencyName: invitation.agency_name })}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           <Button
@@ -826,17 +832,9 @@ export function MyJoinRequestsClient() {
                   <Card key={invitation.invitation_id}>
                     <CardBody className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${invitation.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {invitation.agency_name}
-                        </Link>
+                        <TimelineHeader entity="agency" name={invitation.agency_name} />
                         <Badge variant="success">accepted</Badge>
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        You accepted the invitation to join {invitation.agency_name}.
-                      </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Invited {formatDate(invitation.created_at)}
                       </p>
@@ -845,6 +843,9 @@ export function MyJoinRequestsClient() {
                           Accepted {formatDate(invitation.accepted_at)}
                         </p>
                       ) : null}
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        You accepted the invitation to join {invitation.agency_name}.
+                      </p>
                     </CardBody>
                   </Card>
                 ))
@@ -869,14 +870,7 @@ export function MyJoinRequestsClient() {
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <Link
-                            href={`/agencies/${invitation.agency_id}`}
-                            className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                          >
-                            {invitation.agency_name}
-                          </Link>
-                        </div>
+                        <TimelineHeader entity="agency" name={invitation.agency_name} />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Sent {formatDate(invitation.created_at)}
                         </p>
@@ -1817,15 +1811,7 @@ export function MyJoinRequestsClient() {
       />
       <ConfirmDestructiveDialog
         {...inviteRejectGate.dialogProps}
-        tokens={
-          inviteRejectGate.seed === null
-            ? {}
-            : {
-                agency:
-                  invitations.find((i) => i.invitation_id === inviteRejectGate.seed)
-                    ?.agency_name ?? "the agency",
-              }
-        }
+        tokens={{}}
       />
       <ConfirmDestructiveDialog
         {...acceptInvitationReactivationGate.dialogProps}

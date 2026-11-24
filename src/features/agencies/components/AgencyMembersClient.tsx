@@ -217,47 +217,92 @@ function getMembershipDecisionLabel(action: MembershipDecisionAction) {
    never import this map outside the queue. Unlinked review rows and unknown
    prior states fall back to the generic word of their family — legacy data
    only, since conforming rows always link. */
-export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string | null {
-  if (row.source_type === "review_request") {
-    if (row.origin_status === "rejected") return "Reconsideration";
-    if (row.origin_status === "expired") return "Reactivation";
-    return "Review";
-  }
-  if (row.source_type === "join_request") {
-    if (row.reactivation_requested_by != null) return "Reactivation";
-    if (row.reapplied_from_request_id != null) return "Reapplication";
-    return "Reapplication";
-  }
-  if (row.source_type === "membership_review_request") {
-    if (row.prior_membership_status === "revoked") return "Review";
-    if (row.prior_membership_status === "suspended") return "Reinstatement";
-    if (row.prior_membership_status === "left") return "Return";
-    if (row.prior_membership_status === "blocked") return null;
-    return "Reinstatement";
-  }
-  if (row.source_type === "invitation") {
-    if (row.origin === "withdrawn_interest") return "Interest";
-    if (row.origin === "reactivation") return "Reactivation";
-    return "Review";
-  }
-  return null;
+export interface ReviewQueuePresentation {
+  label: string | null;
+  narrativeEvent: string | null;
 }
 
-/* DEF-U-REVIEWQUEUE-SOURCE-LABEL-001 (tier 2, narrative event): the short
-   lifecycle sentence beside the one-word badge, Review Requests tab ONLY.
-   Invitation and application reactivations share the Reactivation badge,
-   so the event carries the lifecycle word that tells them apart. Rows
-   outside the reactivation family render no event. */
-export function reviewQueueNarrativeEvent(row: AgencyReviewRequestResponse): string | null {
+/* The Review Requests card and its prior rows deliberately share this resolver:
+   a row's compact source label and its lifecycle sentence are one presentation
+   contract. Keeping them together prevents a primary-only event regression. */
+export function resolveReviewQueuePresentation(
+  row: AgencyReviewRequestResponse,
+): ReviewQueuePresentation {
+  let label: string | null = null;
+  if (row.source_type === "review_request") {
+    label = row.origin_status === "rejected"
+      ? "Reconsideration"
+      : row.origin_status === "expired"
+        ? "Reactivation"
+        : "Review";
+  } else if (row.source_type === "join_request") {
+    label = row.reactivation_requested_by != null ? "Reactivation" : "Reapplication";
+  } else if (row.source_type === "membership_review_request") {
+    label = row.prior_membership_status === "revoked"
+      ? "Review"
+      : row.prior_membership_status === "suspended"
+        ? "Reinstatement"
+        : row.prior_membership_status === "left"
+          ? "Return"
+          : row.prior_membership_status === "blocked"
+            ? null
+            : "Reinstatement";
+  } else if (row.source_type === "invitation") {
+    label = row.origin === "withdrawn_interest"
+      ? "Interest"
+      : row.origin === "reactivation"
+        ? "Reactivation"
+        : "Review";
+  }
+
+  /* Narrative events mirror the badge arms one for one (null badge ⟺
+     null event): invitation and application reactivations share the
+     Reactivation badge, so the event carries the lifecycle word that
+     tells them apart. */
+  let narrativeEvent: string | null = null;
   if (row.source_type === "invitation") {
-    if (row.origin === "withdrawn_interest") return "Interest expressed";
-    if (row.origin === "reactivation") return "Invitation reactivation requested";
-    return null;
+    if (row.origin === "withdrawn_interest") narrativeEvent = "Interest expressed";
+    else if (row.origin === "reactivation") narrativeEvent = "Invitation reactivation requested";
+    else narrativeEvent = "Review requested";
+  } else if (row.source_type === "join_request") {
+    narrativeEvent =
+      row.reactivation_requested_by != null
+        ? "Application reactivation requested"
+        : "Reapplication submitted";
+  } else if (row.source_type === "review_request") {
+    if (row.origin_status === "rejected") narrativeEvent = "Reconsideration requested";
+    else if (row.origin_status === "expired") narrativeEvent = "Application reactivation requested";
+    else narrativeEvent = "Review requested";
+  } else if (row.source_type === "membership_review_request") {
+    if (row.prior_membership_status === "suspended") narrativeEvent = "Reinstatement requested";
+    else if (row.prior_membership_status === "left") narrativeEvent = "Return requested";
+    else if (row.prior_membership_status === "revoked") narrativeEvent = "Review requested";
+    else if (row.prior_membership_status !== "blocked") narrativeEvent = "Reinstatement requested";
   }
-  if (row.source_type === "join_request" && row.reactivation_requested_by != null) {
-    return "Application reactivation requested";
+
+  return { label, narrativeEvent };
+}
+
+export function reviewQueueSourceLabel(row: AgencyReviewRequestResponse): string | null {
+  return resolveReviewQueuePresentation(row).label;
+}
+
+export function reviewQueueNarrativeEvent(row: AgencyReviewRequestResponse): string | null {
+  return resolveReviewQueuePresentation(row).narrativeEvent;
+}
+
+/* Merged queue event line lives HERE ONLY. One self-explanatory row per
+   queue entry: "{narrative} {actionable date}" for actionable rows, the
+   decision line for decided rows (the decision is the latest event), and
+   the legacy Requested line only where no event exists (null event rows
+   are legacy-only, since conforming rows always resolve). */
+export function reviewQueueEventLine(row: AgencyReviewRequestResponse): string {
+  const when = formatDate(queueRowActionableAt(row));
+  if (!isQueueActionableRequest(row)) {
+    return `${row.status === "accepted" ? "Accepted" : "Declined"} ${when}`;
   }
-  return null;
+  const event = reviewQueueNarrativeEvent(row);
+  return `${event ?? "Requested"} ${when}`;
 }
 
 /* Queue invitation rows are actionable at the request moment, not the send
@@ -711,6 +756,7 @@ export function AgencyMembersClient() {
     request: {
       id: number;
       source_type?: string | null;
+      origin?: string | null;
       join_request_id?: number | null;
       reapplied_from_request_id?: number | null;
       reactivation_requested_by?: number | null;
@@ -1441,6 +1487,7 @@ export function AgencyMembersClient() {
                   const priorRequests = group.requests.filter(
                     (request) => request.id !== primaryRequest.id,
                   );
+                  const primaryPresentation = resolveReviewQueuePresentation(primaryRequest);
 
                   return (
                   <div key={group.userId} className="rounded-lg border border-border p-4">
@@ -1450,9 +1497,9 @@ export function AgencyMembersClient() {
                           <p className="font-semibold text-gray-900 dark:text-white">
                             {group.requesterName}
                           </p>
-                          {reviewQueueSourceLabel(primaryRequest) ? (
+                          {primaryPresentation.label ? (
                             <Badge variant="outline">
-                              {reviewQueueSourceLabel(primaryRequest)}
+                              {primaryPresentation.label}
                             </Badge>
                           ) : null}
                         </div>
@@ -1461,13 +1508,8 @@ export function AgencyMembersClient() {
                         </p>
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {isQueueActionableRequest(primaryRequest) ? "Requested" : primaryRequest.status === "accepted" ? "Accepted" : "Declined"} {formatDate(queueRowActionableAt(primaryRequest))}
+                            {reviewQueueEventLine(primaryRequest)}
                           </p>
-                          {reviewQueueNarrativeEvent(primaryRequest) ? (
-                            <p className="text-gray-600 dark:text-gray-400">
-                              {reviewQueueNarrativeEvent(primaryRequest)}
-                            </p>
-                          ) : null}
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                               {primaryRequest.message}
@@ -1500,8 +1542,10 @@ export function AgencyMembersClient() {
                           Prior requests ({priorRequests.length})
                         </p>
                         <div className="space-y-1">
-                          {priorRequests.map((req, idx) => (
-                            <div
+                          {priorRequests.map((req, idx) => {
+                            const presentation = resolveReviewQueuePresentation(req);
+                            return (
+                              <div
                               key={`${req.source_type ?? "req"}-${req.id}`}
                               className={`rounded-md px-3 py-2 text-xs leading-5 ${timelineRowBandClass(idx)}`}
                             >
@@ -1509,16 +1553,11 @@ export function AgencyMembersClient() {
                                 <div>
                                   <div className="flex flex-wrap items-center gap-2 font-medium">
                                     <span className="text-gray-900 dark:text-white">
-                                      {isQueueActionableRequest(req)
-                                        ? "Requested"
-                                        : req.status === "accepted"
-                                          ? "Accepted"
-                                          : "Declined"}{" "}
-                                      {formatDate(queueRowActionableAt(req))}
+                                      {reviewQueueEventLine(req)}
                                     </span>
-                                    {reviewQueueSourceLabel(req) ? (
+                                    {presentation.label ? (
                                       <Badge variant="outline">
-                                        {reviewQueueSourceLabel(req)}
+                                        {presentation.label}
                                       </Badge>
                                     ) : null}
                                   </div>
@@ -1547,8 +1586,9 @@ export function AgencyMembersClient() {
                                   </div>
                                 ) : null}
                               </div>
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null}
@@ -2365,7 +2405,9 @@ export function AgencyMembersClient() {
       <ConfirmDestructiveDialog
         {...acceptReviewGate.dialogProps}
         tokens={
-          acceptReviewGate.seed === null ? {} : { name: acceptReviewGate.seed.requesterName }
+          acceptReviewGate.seed === null
+            ? {}
+            : { name: acceptReviewGate.seed.requesterName, kind: acceptReviewGate.seed.kind }
         }
       />
       <ConfirmDestructiveDialog

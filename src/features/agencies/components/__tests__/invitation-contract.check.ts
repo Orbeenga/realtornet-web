@@ -15,6 +15,7 @@ import {
   resolveInvitationExpiredRequestedSeekerText,
   resolveInvitationExpiredSeekerText,
   resolveInvitationPendingAgencyText,
+  resolveInvitationPendingSeekerText,
   resolveInvitationRejectedAgencyText,
   resolveInvitationWithdrawnAgencyText,
   resolveInvitationWithdrawnInterestAgencyText,
@@ -65,13 +66,17 @@ function feedEntry(
   } as MembershipTimelineEntry;
 }
 
-// 1. Agency Pending keeps its ambient (contractual context: where the
-//    invitation went and the pending action). Seeker Pending stays bare:
-//    action tabs carry the event plus CTAs only, no ambient.
+// 1. Pending descriptions, per viewer, verbatim: the event restated
+//    with its direction.
 assert(
   resolveInvitationPendingAgencyText({ name: "seeker@example.com" }) ===
     "Invitation is pending a response from seeker@example.com.",
   "pending agency ambient is verbatim",
+);
+assert(
+  resolveInvitationPendingSeekerText({ agencyName: "Apine Real Estate" }) ===
+    "Apine Real Estate has invited you to join their agency.",
+  "pending seeker description is verbatim",
 );
 
 // 2. Withdrawn seeker ambient, verbatim.

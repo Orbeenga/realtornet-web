@@ -459,8 +459,8 @@ assert(
 );
 assert(
   stepBody(GATE_REGISTRY.invitation_reject) ===
-    "Reject the invitation from {agency}? Rejecting ends the invitation. You can still apply later.",
-  "copy: invitation reject body verbatim (terminal warning locked)",
+    "Rejecting ends the invitation. You can still apply later.",
+  "copy: invitation reject body verbatim (bare canonical warning)",
 );
 assert(
   stepBody(GATE_REGISTRY.invitation_reactivation_accept) ===
@@ -468,9 +468,14 @@ assert(
   "copy: invitation reactivation accept body verbatim",
 );
 assert(
-  stepBody(GATE_REGISTRY.invitation_reactivation_reject) ===
-    "Reject the reactivation request from {agency}? Rejecting ends the invitation. You can still apply later.",
-  "copy: invitation reactivation reject body verbatim (terminal warning locked)",
+  stepBody(GATE_REGISTRY.invitation_reactivation_reject, "fields") ===
+    "Rejecting ends the invitation. A reason is required for rejecting your invitation and will be visible to {agency}.",
+  "copy: invitation reactivation reject step 1 verbatim (warning plus reason note)",
+);
+assert(
+  stepBody(GATE_REGISTRY.invitation_reactivation_reject, "review") ===
+    "Invitation from {agency} will be rejected.",
+  "copy: invitation reactivation reject step 2 verbatim (consequence line)",
 );
 assert(
   stepBody(GATE_REGISTRY.withdraw_invitation, "intent") ===
@@ -511,8 +516,13 @@ assert(
     stepBody(GATE_REGISTRY.decline_review, "fields") ===
       "Confirm decline for {name}'s {kind}. A reason is required for decline and will be visible in membership history." &&
     stepTitle(GATE_REGISTRY.decline_review, "review") === "Decline {kind}" &&
-    stepBody(GATE_REGISTRY.decline_review, "review") === "Confirm decline for {name}'s {kind}.",
-  "copy: decline event-aware title+bodies verbatim",
+    stepBody(GATE_REGISTRY.decline_review, "review") === "{name}'s {kind} will be declined.",
+  "copy: decline event-aware title+bodies verbatim (review states the consequence)",
+);
+assert(
+  stepTitle(GATE_REGISTRY.accept_review) === "Accept {kind}" &&
+    stepBody(GATE_REGISTRY.accept_review) === "Confirm membership for {name}.",
+  "copy: accept title names the kind, body the outcome",
 );
 assert(
   declineRequestKind({ source_type: "review_request", join_request_id: 9 }) ===
@@ -537,6 +547,20 @@ assert(
 assert(
   declineRequestKind({ source_type: "membership_review_request" }) === "review request",
   "kind: membership rows fall back to review request",
+);
+assert(
+  declineRequestKind({ source_type: "invitation", origin: "withdrawn_interest" }) ===
+    "interest request",
+  "kind: withdrawn-interest rows name the interest",
+);
+assert(
+  declineRequestKind({ source_type: "invitation", origin: "reactivation" }) ===
+    "invitation reactivation request",
+  "kind: invitation reactivation rows name the lifecycle",
+);
+assert(
+  declineRequestKind({ source_type: "invitation" }) === "review request",
+  "kind: unknown invitation origin falls back to review request",
 );
 
 // Message blank copy stays canonical (single source in messages lib).

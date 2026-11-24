@@ -291,7 +291,15 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useAcceptAgencyReviewRequest"],
     endpoint: "PATCH /api/v1/agencies/{agencyId}/review-requests/{requestId}/accept",
     gate1: [],
-    steps: [confirmStep("Accept", [noteField], "Confirm membership for {name}.")],
+    steps: [
+      {
+        id: "confirm",
+        titleTemplate: "Accept {kind}",
+        fields: [noteField],
+        bodyTemplate: "Confirm membership for {name}.",
+        primaryLabel: "Accept",
+      },
+    ],
     dialog: true,
     confirmLabel: "Accept",
     migrated: true,
@@ -330,12 +338,12 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     hooks: ["useRejectAgencyInvitation"],
     endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/reject/",
     gate1: [],
-    steps: [confirmStep("Reject", [], "Reject the invitation from {agency}? Rejecting ends the invitation. You can still apply later.")],
+    steps: [confirmStep("Reject", [], "Rejecting ends the invitation. You can still apply later.")],
     dialog: true,
     destructive: true,
     confirmLabel: "Reject",
     migrated: true,
-    note: "No note field: endpoint takes no body. Terminal per U-041; warning copy locked.",
+    note: "No note field: endpoint takes no body. Terminal per U-041; body is the bare canonical warning (no leading question).",
   },
   invitation_reactivation_accept: {
     action: "invitation_reactivation_accept",
@@ -351,16 +359,30 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
   },
   invitation_reactivation_reject: {
     action: "invitation_reactivation_reject",
-    profile: "A",
+    profile: "B",
     hooks: ["useRejectInvitationReactivation"],
     endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/reject-reactivation/",
     gate1: [],
-    steps: [confirmStep("Reject", [], "Reject the reactivation request from {agency}? Rejecting ends the invitation. You can still apply later.")],
+    steps: [
+      {
+        id: "fields",
+        fields: [reasonField("Reason", "Reason for rejecting (required)")],
+        bodyTemplate: "Rejecting ends the invitation. A reason is required for rejecting your invitation and will be visible to {agency}.",
+        primaryLabel: "Proceed",
+      },
+      {
+        id: "review",
+        fields: [],
+        echo: ["reason"],
+        bodyTemplate: "Invitation from {agency} will be rejected.",
+        primaryLabel: "Reject",
+      },
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Reject",
     migrated: true,
-    note: "Invitee-only in-tab decision, terminal for both sides. No note field: the optional server reason stays unwired (invitation-refusal exception, same as invitation_reject).",
+    note: "Invitee-only in-tab decision, terminal for both sides. Plain-B mirror of decline_review: required reason on step 1, echo plus consequence line on step 2. Caller title carries (no titleTemplate).",
   },
   reject_join: {
     action: "reject_join",
@@ -396,7 +418,7 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
         titleTemplate: "Decline {kind}",
         fields: [],
         echo: ["reason"],
-        bodyTemplate: "Confirm decline for {name}'s {kind}.",
+        bodyTemplate: "{name}'s {kind} will be declined.",
         primaryLabel: "Decline",
       },
     ],
@@ -600,10 +622,13 @@ for (const spec of Object.values(GATE_REGISTRY)) {
 
 /* Decline kind word for event-aware copy: what is being declined, in the
    row's own terms. Linked review rows are reconsideration appeals;
-   join rows split by their markers; everything else is a review request
-   (the decision frame — always safe, never wrong). */
+   invitation rows resolve by served origin (the lifecycle word matters —
+   an invitation reactivation is not a review request); join rows split
+   by their markers; everything else is a review request (the decision
+   frame — always safe, never wrong). */
 export interface DeclineKindRow {
   source_type?: string | null;
+  origin?: string | null;
   join_request_id?: number | null;
   reapplied_from_request_id?: number | null;
   reactivation_requested_by?: number | null;
@@ -612,6 +637,11 @@ export interface DeclineKindRow {
 export function declineRequestKind(row: DeclineKindRow): string {
   if (row.source_type === "review_request" && row.join_request_id != null) {
     return "reconsideration request";
+  }
+  if (row.source_type === "invitation") {
+    if (row.origin === "withdrawn_interest") return "interest request";
+    if (row.origin === "reactivation") return "invitation reactivation request";
+    return "review request";
   }
   if (row.reactivation_requested_by != null) return "reactivation";
   if (row.reapplied_from_request_id != null) return "reapplication";
