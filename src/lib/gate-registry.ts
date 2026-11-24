@@ -334,16 +334,30 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
   },
   invitation_reject: {
     action: "invitation_reject",
-    profile: "A",
+    profile: "B",
     hooks: ["useRejectAgencyInvitation"],
     endpoint: "PATCH /api/v1/agency-invitations/{invitationId}/reject/",
     gate1: [],
-    steps: [confirmStep("Reject", [noteField], "Rejecting ends the invitation. You can still apply later.")],
+    steps: [
+      {
+        id: "fields",
+        fields: [reasonField("Reason", "Reason for rejecting (optional)", false)],
+        bodyTemplate: "Rejecting ends the invitation. Enter a reason for rejecting your invitation for {agency}.",
+        primaryLabel: "Proceed",
+      },
+      {
+        id: "review",
+        fields: [],
+        echo: ["reason"],
+        bodyTemplate: "Invitation from {agency} will be rejected.",
+        primaryLabel: "Reject",
+      },
+    ],
     dialog: true,
     destructive: true,
     confirmLabel: "Reject",
     migrated: true,
-    note: "Optional note persists via the invitation-reject body; blank sends no body. Terminal per U-041; body is the bare canonical warning (no leading question).",
+    note: "Invitee-only inbox decision, terminal per U-041. Plain-B mirror of invitation_reactivation_reject: optional reason on step 1 (blank sends no body), echo plus consequence line on step 2. Caller title carries (no titleTemplate).",
   },
   invitation_reactivation_accept: {
     action: "invitation_reactivation_accept",

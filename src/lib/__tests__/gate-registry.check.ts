@@ -458,9 +458,21 @@ assert(
   "copy: revoke renamed (Remove from agency is gone)",
 );
 assert(
-  stepBody(GATE_REGISTRY.invitation_reject) ===
-    "Rejecting ends the invitation. You can still apply later.",
-  "copy: invitation reject body verbatim (bare canonical warning)",
+  stepBody(GATE_REGISTRY.invitation_reject, "fields") ===
+    "Rejecting ends the invitation. Enter a reason for rejecting your invitation for {agency}.",
+  "copy: invitation reject step 1 verbatim (warning plus optional reason)",
+);
+assert(
+  stepBody(GATE_REGISTRY.invitation_reject, "review") ===
+    "Invitation from {agency} will be rejected.",
+  "copy: invitation reject step 2 verbatim (consequence line)",
+);
+assert(
+  stepBody(GATE_REGISTRY.invitation_reject, "fields") ===
+    stepBody(GATE_REGISTRY.invitation_reactivation_reject, "fields") &&
+    stepBody(GATE_REGISTRY.invitation_reject, "review") ===
+      stepBody(GATE_REGISTRY.invitation_reactivation_reject, "review"),
+  "copy: inbox and reactivation reject flows stay identical",
 );
 assert(
   stepBody(GATE_REGISTRY.invitation_reactivation_accept) ===
@@ -644,12 +656,12 @@ assert(
   "Gate 2: blank reason blocks with reason copy",
 );
 assert(
-  Object.keys(validateStepFields(fieldsOf("invitation_reject", "confirm"), EMPTY)).length === 0,
-  "Gate 2: blank inbox-reject note passes (optional)",
+  Object.keys(validateStepFields(fieldsOf("invitation_reject", "fields"), EMPTY)).length === 0,
+  "Gate 2: blank inbox-reject reason passes (optional)",
 );
 assert(
-  fieldsOf("invitation_reject", "confirm").some((f) => f.kind === "note" && !f.required),
-  "invitation reject carries the optional note field",
+  fieldsOf("invitation_reject", "fields").some((f) => f.kind === "reason" && !f.required),
+  "invitation reject carries the optional reason field",
 );
 assert(
   Object.keys(

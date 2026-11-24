@@ -459,15 +459,15 @@ export function MyJoinRequestsClient() {
     errorFallback: "Could not accept invitation",
   });
 
-  // Registry Profile A with optional note (invitations crossover): terminal
-  // reject shows the locked warning plus a voluntary note; blank sends no
-  // body (was direct-fire, then confirm-only).
+  // Registry Profile B (plain-B mirror of invitation_reactivation_reject):
+  // terminal reject takes an optional reason on step 1, echo plus
+  // consequence line on step 2; blank sends no body.
   const inviteRejectGate = useGatedAction<number>("invitation_reject", {
     buildContext: () => emptyGate1Context(user?.user_id ?? null, true),
     invoke: (invitationId, values) => {
-      const note = values.note.trim();
+      const reason = values.reason.trim();
       return rejectInvitation.mutateAsync(
-        note ? { invitationId, message: note } : { invitationId },
+        reason ? { invitationId, message: reason } : { invitationId },
       );
     },
     title: "Reject invitation",
@@ -1818,7 +1818,15 @@ export function MyJoinRequestsClient() {
       />
       <ConfirmDestructiveDialog
         {...inviteRejectGate.dialogProps}
-        tokens={{}}
+        tokens={
+          inviteRejectGate.seed === null
+            ? {}
+            : {
+                agency:
+                  invitations.find((i) => i.invitation_id === inviteRejectGate.seed)
+                    ?.agency_name ?? "the agency",
+              }
+        }
       />
       <ConfirmDestructiveDialog
         {...acceptInvitationReactivationGate.dialogProps}
