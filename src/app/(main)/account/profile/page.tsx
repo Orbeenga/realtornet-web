@@ -19,6 +19,11 @@ import {
   useUploadMyAvatar,
   useUpsertMyProfile,
 } from "@/features/profile/hooks";
+import { useAgentProfileByUser } from "@/features/properties/hooks";
+import {
+  AgentProfileRepairForm,
+  ProfileCompletionPrompt,
+} from "@/features/agents/components";
 import { PostRevocationDashboard } from "@/features/agencies/components";
 import { notify } from "@/lib/toast";
 
@@ -46,6 +51,9 @@ function buildDefaultValues(input: {
 export default function AccountProfilePage() {
   const userQuery = useUserProfile();
   const profileQuery = useMyProfile(Boolean(userQuery.data));
+  const agentProfileQuery = useAgentProfileByUser(
+    userQuery.data?.user_role === "agent" ? userQuery.data.user_id : undefined,
+  );
   const upsertProfile = useUpsertMyProfile();
   const uploadAvatar = useUploadMyAvatar();
   const deleteAvatar = useDeleteMyAvatar();
@@ -162,6 +170,23 @@ export default function AccountProfilePage() {
       </div>
 
       <PostRevocationDashboard />
+
+      {agentProfileQuery.data ? (
+        <ProfileCompletionPrompt
+          profileComplete={agentProfileQuery.data.profile_complete}
+          missingFields={agentProfileQuery.data.profile_missing_fields}
+          showProfileLink={false}
+        />
+      ) : null}
+
+      {userQuery.data.user_role === "agent" && !agentProfileQuery.isLoading ? (
+        <section id="agent-profile-repair" aria-label="Complete your profile">
+          <AgentProfileRepairForm
+            user={userQuery.data}
+            agentProfile={agentProfileQuery.data ?? null}
+          />
+        </section>
+      ) : null}
 
       <Card>
         <CardHeader>

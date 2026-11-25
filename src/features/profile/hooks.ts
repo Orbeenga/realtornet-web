@@ -27,6 +27,33 @@ export function useMyProfile(enabled = true) {
   });
 }
 
+export function useUpdateUserMe() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      first_name: string;
+      last_name: string;
+      phone_number?: string;
+    }) =>
+      apiClient<components["schemas"]["UserResponse"]>("/api/v1/users/me", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    // FE-001: names/phone display on the account surfaces, the B3 signal,
+    // the owner roster, and the public directory (B3b visibility flips here).
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] }),
+        queryClient.invalidateQueries({ queryKey: ["agentProfileByUser"] }),
+        queryClient.invalidateQueries({ queryKey: ["agencyAgents"] }),
+        queryClient.invalidateQueries({ queryKey: ["agent"] }),
+        queryClient.invalidateQueries({ queryKey: ["agentDirectory"] }),
+      ]);
+    },
+  });
+}
+
 export function useUpsertMyProfile() {
   const queryClient = useQueryClient();
 

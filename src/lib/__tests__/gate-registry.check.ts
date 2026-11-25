@@ -218,6 +218,8 @@ const UNGATED_ALLOWLIST: Record<string, string> = {
   useMarkNotificationRead: "notification flag, ungated",
   useMarkAllNotificationsRead: "notification flag, ungated",
   useUpsertMyProfile: "settings form CRUD, ungated",
+  useUpdateUserMe: "B3 repair form CRUD (own names/phone), ungated",
+  useUpdateAgentProfile: "B3 repair form CRUD (own company/specialization), ungated",
   useUploadMyAvatar: "settings CRUD, ungated",
   useDeleteMyAvatar: "settings-scoped delete with own confirm; classify if registry widens to settings",
   // Properties domain (U-052 profiles membership actions only).

@@ -1643,6 +1643,11 @@ export function AgencyMembersClient() {
                             `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
                           ]}
                         />
+                        {agent.profile_complete === false ? (
+                          <div className="pt-1">
+                            <Badge variant="warning">Profile incomplete</Badge>
+                          </div>
+                        ) : null}
                   {agent.pending_review_request_id ? (
                             <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                               <p className="font-medium">Review requested</p>

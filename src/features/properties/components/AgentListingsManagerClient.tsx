@@ -41,6 +41,7 @@ import {
   useInstructAgent,
 } from "@/features/properties/hooks";
 import { notify } from "@/lib/toast";
+import { ProfileCompletionPrompt } from "@/features/agents/components";
 import { resolveListingDisplayName } from "@/lib/listing-display";
 import {
   MODERATION_STATUS,
@@ -536,6 +537,13 @@ export function AgentListingsManagerClient() {
             </Button>
           ))}
         </div>
+      ) : null}
+
+      {!isAgencyOwner && !gate.isAdmin && agentProfileQuery.data ? (
+        <ProfileCompletionPrompt
+          profileComplete={agentProfileQuery.data.profile_complete}
+          missingFields={agentProfileQuery.data.profile_missing_fields}
+        />
       ) : null}
 
       {!isAgencyOwner && !gate.isAdmin ? (

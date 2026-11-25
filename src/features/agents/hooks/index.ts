@@ -1,5 +1,6 @@
 export { useAgentDirectory, useVisibleAgentStats } from "./useAgentDirectory";
 export { useAgentProfile } from "./useAgentProfile";
+export { useUpdateAgentProfile } from "./useUpdateAgentProfile";
 export { useAgentListings } from "./useAgentListings";
 export { useAgentStats, type AgentStats } from "./useAgentStats";
 export { useAgentPersonalStats, type AgentPersonalStats } from "./useAgentPersonalStats";
