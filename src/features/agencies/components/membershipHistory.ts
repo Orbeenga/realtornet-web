@@ -462,6 +462,68 @@ export function getInvitationSubsequentApplications(
     );
 }
 
+/* U-030: accepted-invitation downstream events live HERE ONLY (extension
+   of the U-026 shape to the invitations lifecycle). An accepted
+   invitation's card already carries its own lifecycle as Sent/Accepted
+   date lines, so this selector returns ONLY the subsequent
+   membership-level events (revoked, reinstated) on the membership the
+   acceptance created — matched by (agency_id, user_id) strictly after
+   accepted_at, never by email. Invitation-lifecycle rows stay out: the
+   card dates speak for them, and admitting them would render every event
+   twice. No accepted_at, no downstream. The agency view requires the
+   stamped invitee pair; the applicant view trusts own-feed membership, so
+   NULLs attest (same rule as getInvitationSubsequentApplications). */
+export interface AcceptedInvitationMatch {
+  agency_id?: number | null;
+  invited_user_id?: number | null;
+  accepted_at?: string | null;
+}
+
+const ACCEPTED_DOWNSTREAM_ACTIONS: ReadonlySet<string> = new Set([
+  "revoked",
+  "reinstated",
+]);
+
+export function getAcceptedInvitationDownstreamEvents(
+  history: MembershipTimelineEntry[],
+  invitation: AcceptedInvitationMatch,
+  viewer: { viewerUserId: number | null; viewerIsApplicant: boolean },
+): MembershipTimelineEntry[] {
+  if (!invitation.accepted_at) return [];
+  const acceptedTime = new Date(invitation.accepted_at).getTime();
+  return history
+    .filter((entry) => {
+      if (entry.source_type !== "audit_event") return false;
+      if (entry.action == null || !ACCEPTED_DOWNSTREAM_ACTIONS.has(entry.action)) {
+        return false;
+      }
+      if (new Date(entry.timestamp).getTime() <= acceptedTime) return false;
+      if (
+        invitation.agency_id != null &&
+        entry.agency_id != null &&
+        entry.agency_id !== invitation.agency_id
+      ) {
+        return false;
+      }
+      if (viewer.viewerIsApplicant) {
+        if (viewer.viewerUserId == null) return false;
+        const inviteeIsViewer =
+          invitation.invited_user_id == null ||
+          invitation.invited_user_id === viewer.viewerUserId;
+        const subjectIsViewer =
+          entry.user_id == null || entry.user_id === viewer.viewerUserId;
+        return inviteeIsViewer && subjectIsViewer;
+      }
+      return (
+        invitation.invited_user_id != null &&
+        entry.user_id === invitation.invited_user_id
+      );
+    })
+    .sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+}
+
 /* Shared Expired-tab narration lives HERE ONLY (canonical membershipHistory module).
    U-022d + expired-tab incident fix (2026-08-29): the Expired tab narrates its
    ENTIRE lifecycle as ONE chronological stream — submitted, expired, reactivation

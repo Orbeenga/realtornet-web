@@ -11,6 +11,7 @@ import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDire
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
+  getAcceptedInvitationDownstreamEvents,
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -852,6 +853,24 @@ export function MyJoinRequestsClient() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         You accepted the invitation to join {invitation.agency_name}.
                       </p>
+                      {(() => {
+                        // U-018: identity already renders once via the
+                        // TimelineHeader above, so the appended downstream
+                        // timeline carries no header of its own.
+                        const invitationHistory = getAcceptedInvitationDownstreamEvents(
+                          historyQuery.data ?? [],
+                          invitation,
+                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                        );
+                        if (invitationHistory.length === 0) return null;
+                        return (
+                          <MembershipTimeline
+                            tier="simple"
+                            history={invitationHistory}
+                            showHeader={false}
+                          />
+                        );
+                      })()}
                     </CardBody>
                   </Card>
                 ))

@@ -72,6 +72,7 @@ import {
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  getAcceptedInvitationDownstreamEvents,
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -692,6 +693,18 @@ export function AgencyMembersClient() {
   );
   const rejectedHistoryByUserId = new Map(
     rejectedHistoryUserIds.map((userId, index) => [userId, rejectedHistoryQueries[index]?.data ?? []] as const),
+  );
+
+  // U-030: per-invitee history for the Accepted invitations tab (same
+  // per-member feed + scoped filter shape as Approved/Revoked/Left/...).
+  const acceptedInvitations = invitationsQuery.data?.filter((i) => i.status === "accepted") ?? [];
+  const acceptedHistoryQueries = useAgencyMembershipHistories(
+    agencyId,
+    acceptedInvitations.map((i) => i.invited_user_id),
+    Boolean(agencyId) && acceptedInvitations.length > 0,
+  );
+  const acceptedHistoryByInvitationId = new Map(
+    acceptedInvitations.map((invitation, index) => [invitation.invitation_id, acceptedHistoryQueries[index]?.data ?? []] as const),
   );
 
   const approveJoinRequest = useApproveAgencyJoinRequest(agencyId);
@@ -1906,6 +1919,24 @@ export function AgencyMembersClient() {
                       {invitation.accepted_at ? (
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Accepted {formatDate(invitation.accepted_at)}</p>
                       ) : null}
+                      {(() => {
+                        // U-018: identity already renders once via the
+                        // TimelineHeader above, so the appended downstream
+                        // timeline carries no header of its own.
+                        const invitationHistory = getAcceptedInvitationDownstreamEvents(
+                          acceptedHistoryByInvitationId.get(invitation.invitation_id) ?? [],
+                          invitation,
+                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                        );
+                        if (invitationHistory.length === 0) return null;
+                        return (
+                          <MembershipTimeline
+                            tier="simple"
+                            history={invitationHistory}
+                            showHeader={false}
+                          />
+                        );
+                      })()}
                     </div>
                   ))
                 )}

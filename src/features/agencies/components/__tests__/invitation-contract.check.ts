@@ -25,6 +25,7 @@ import {
   resolvePriorInvitationContextLine,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  getAcceptedInvitationDownstreamEvents,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
   resolveInvitationColumnTimeline,
@@ -366,6 +367,83 @@ assert(
 assert(
   isAgencyRequestedExpiredInvitation(agencyReqRow, 9) === false,
   "no merge for other viewers",
+);
+
+// 12. U-030 Accepted downstream: ONLY revoked/reinstated strictly after
+//     accepted_at, ascending. The card dates already speak for the
+//     invitation lifecycle, so lifecycle rows stay out (no repetition).
+//     Agency view requires the stamped invitee pair; applicant view
+//     trusts own-feed membership so NULLs attest.
+const acceptedInvitation = invitation({
+  invitation_id: 11,
+  agency_id: 467,
+  invited_user_id: 7,
+  status: "accepted",
+  accepted_at: "2026-11-20T10:00:00Z",
+});
+const acceptedFeed = [
+  feedEntry({ id: 1, action: "invited", invitation_id: 11, timestamp: "2026-11-18T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 2, action: "joined", invitation_id: 11, timestamp: "2026-11-20T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 4, action: "revoked", timestamp: "2026-11-22T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 5, action: "reinstated", timestamp: "2026-11-23T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 6, action: "revoked", timestamp: "2026-11-19T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 7, action: "cancelled", timestamp: "2026-11-24T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 8, action: "revoked", timestamp: "2026-11-22T10:00:00Z", agency_id: 999, user_id: 7 }),
+  feedEntry({ id: 9, action: "revoked", timestamp: "2026-11-22T10:00:00Z", agency_id: 467, user_id: 8 }),
+];
+const AGENCY_VIEWER = { viewerUserId: 2, viewerIsApplicant: false };
+assert(
+  getAcceptedInvitationDownstreamEvents(acceptedFeed, acceptedInvitation, AGENCY_VIEWER)
+    .map((e) => e.action)
+    .join(",") === "revoked,reinstated",
+  "agency downstream shows post-accept revoked/reinstated only, ascending",
+);
+assert(
+  getAcceptedInvitationDownstreamEvents(
+    acceptedFeed.filter((e) => e.invitation_id === 11),
+    acceptedInvitation,
+    AGENCY_VIEWER,
+  ).length === 0,
+  "invitation-lifecycle rows never render twice (card dates speak)",
+);
+assert(
+  getAcceptedInvitationDownstreamEvents(
+    acceptedFeed,
+    { ...acceptedInvitation, invited_user_id: null },
+    AGENCY_VIEWER,
+  ).length === 0,
+  "agency view needs the stamped invitee pair for downstream",
+);
+assert(
+  getAcceptedInvitationDownstreamEvents(
+    acceptedFeed,
+    { ...acceptedInvitation, accepted_at: null },
+    AGENCY_VIEWER,
+  ).length === 0,
+  "no accepted_at means no downstream",
+);
+assert(
+  getAcceptedInvitationDownstreamEvents(
+    [
+      feedEntry({ id: 10, action: "revoked", timestamp: "2026-11-22T10:00:00Z", agency_id: 467 }),
+      feedEntry({ id: 11, action: "revoked", timestamp: "2026-11-22T10:00:00Z", agency_id: 467, user_id: 8 }),
+    ],
+    acceptedInvitation,
+    { viewerUserId: 7, viewerIsApplicant: true },
+  ).length === 1,
+  "applicant view attests NULL subjects but excludes other users",
+);
+assert(
+  getAcceptedInvitationDownstreamEvents(
+    acceptedFeed,
+    acceptedInvitation,
+    { viewerUserId: null, viewerIsApplicant: true },
+  ).length === 0,
+  "applicant downstream needs a viewer",
+);
+assert(
+  getAcceptedInvitationDownstreamEvents([], acceptedInvitation, AGENCY_VIEWER).length === 0,
+  "empty feed yields no timeline",
 );
 
 if (failures > 0) {
