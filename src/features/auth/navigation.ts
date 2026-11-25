@@ -44,6 +44,19 @@ export function normalizeAppRole(role: string | null | undefined): AppRole | nul
   return null;
 }
 
+/* Post-signup routing (register-loop repair): invite-token signups resume
+   into the accept page with the token preserved; plain signups keep the
+   role-home routing. */
+export function getPostSignupPath(params: {
+  inviteToken?: string | null;
+  role: string | null | undefined;
+}): string {
+  if (params.inviteToken) {
+    return `/agencies/accept-invite?token=${encodeURIComponent(params.inviteToken)}`;
+  }
+  return getPostLoginPath(params.role);
+}
+
 export function getPostLoginPath(role: string | null | undefined) {
   const normalizedRole = normalizeAppRole(role);
 

@@ -11,7 +11,7 @@ import { ApiError } from "@/lib/api/client";
 export function AgencyInviteAcceptClient() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const acceptInvite = useAcceptAgencyInvite();
   const hasSubmittedRef = useRef(false);
 
@@ -45,7 +45,7 @@ export function AgencyInviteAcceptClient() {
             Sign in to accept invite
           </h1>
           <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
-            Use the account that should join this agency roster.
+            Sign in to continue — this invite link decides which account joins the roster.
           </p>
           <Link
             href={`/login?next=${encodeURIComponent(`/agencies/accept-invite?token=${token}`)}`}
@@ -104,6 +104,54 @@ export function AgencyInviteAcceptClient() {
   }
 
   const redirectUrl = acceptInvite.data?.redirect_url ?? "/account/listings";
+
+  if (acceptInvite.data?.status === "registration_required") {
+    const inviteEmail = acceptInvite.data.email ?? null;
+    return (
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Create your account to accept
+          </h1>
+          <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+            {inviteEmail
+              ? `This invitation was sent to ${inviteEmail}. Create that account to accept it.`
+              : "This invitation was sent to an address with no account yet. Create it to accept."}
+          </p>
+          <Link
+            href={`/register?invite_token=${token}`}
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            Create account
+          </Link>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const inviteEmail = acceptInvite.data?.email ?? null;
+  if (inviteEmail != null && user.email !== inviteEmail) {
+    return (
+      <Card>
+        <CardBody className="space-y-5 p-8">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Invite accepted for a different account
+          </h1>
+          <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+            This invitation belongs to {inviteEmail}; you are signed in as {user.email}.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => window.location.assign(redirectUrl)}>
+              Continue
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void signOut()}>
+              Sign out
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
 
   return (
     <Card>
