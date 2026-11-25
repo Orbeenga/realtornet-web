@@ -484,6 +484,24 @@ const ACCEPTED_DOWNSTREAM_ACTIONS: ReadonlySet<string> = new Set([
   "reinstated",
 ]);
 
+/* Invitee header qualifiers live HERE ONLY (Rule 20 SSOT / Rule 24 — one
+   component, one resolver). Given an invitee key, return the shared
+   member-header qualifier lines from whatever member record exists, else
+   nothing: invitees who never joined have no roster record, so their
+   headers correctly stay name-and-email only. Every invitation header on
+   every tab calls this — nothing resolves invitee qualifiers inline. */
+export interface HeaderQualifierRecord {
+  qualifiers?: string[] | undefined;
+}
+
+export function resolveInviteeHeaderQualifiers(
+  memberById: ReadonlyMap<number, HeaderQualifierRecord>,
+  invitedUserId?: number | null,
+): string[] | undefined {
+  if (invitedUserId == null) return undefined;
+  return memberById.get(invitedUserId)?.qualifiers;
+}
+
 export function getAcceptedInvitationDownstreamEvents(
   history: MembershipTimelineEntry[],
   invitation: AcceptedInvitationMatch,

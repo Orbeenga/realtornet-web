@@ -29,6 +29,7 @@ import {
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
   resolveInvitationColumnTimeline,
+  resolveInviteeHeaderQualifiers,
 } from "../membershipHistory";
 import type { AgencyInvitationResponse, MembershipTimelineEntry } from "@/types";
 
@@ -444,6 +445,32 @@ assert(
 assert(
   getAcceptedInvitationDownstreamEvents([], acceptedInvitation, AGENCY_VIEWER).length === 0,
   "empty feed yields no timeline",
+);
+
+// 13. Invitee header qualifiers (Rule 20/24): one resolver over the
+//     shared member map. Record present returns its lines; missing key
+//     or missing invitee returns nothing (name-and-email headers stay).
+const qualifierMembers = new Map([
+  [7, { qualifiers: ["Sales", "2 active listings."] }],
+  [9, { qualifiers: [] }],
+]);
+assert(
+  JSON.stringify(resolveInviteeHeaderQualifiers(qualifierMembers, 7)) ===
+    JSON.stringify(["Sales", "2 active listings."]),
+  "member record returns its qualifier lines",
+);
+assert(
+  resolveInviteeHeaderQualifiers(qualifierMembers, 42) === undefined,
+  "unknown invitee returns nothing",
+);
+assert(
+  resolveInviteeHeaderQualifiers(qualifierMembers, null) === undefined,
+  "legacy invitee without a user id returns nothing",
+);
+assert(
+  JSON.stringify(resolveInviteeHeaderQualifiers(qualifierMembers, 9)) ===
+    JSON.stringify([]),
+  "applicant-only record returns its empty lines",
 );
 
 if (failures > 0) {
