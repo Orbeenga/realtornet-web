@@ -8,7 +8,7 @@
  *
  * Run: pnpm exec tsx src/features/agencies/components/__tests__/timeline-labels.check.ts
  */
-import { resolveTimelineLabel, resolveTimelineLifecycleMarker } from "../MembershipHistoryList";
+import { resolveTimelineLabel } from "../MembershipHistoryList";
 import {
   annotateApprovalOrigins,
   resolveApprovalOrigin,
@@ -64,37 +64,6 @@ assert(
 assert(
   resolveTimelineLabel(entry({ source_type: "audit_event" })) === "Event",
   "unknown shape still falls back to Event",
-);
-
-// History lifecycle markers (step 4): lifecycle nouns, never event verbs,
-// so they cannot duplicate the row label. Invitation linkage is decisive;
-// application-side covers request sources plus linked audit rows.
-assert(
-  resolveTimelineLifecycleMarker(entry({ source_type: "audit_event", invitation_id: 7 })) ===
-    "Invitation",
-  "invitation-linked rows mark Invitation",
-);
-assert(
-  resolveTimelineLifecycleMarker(entry({ source_type: "join_request" })) === "Application",
-  "join rows mark Application",
-);
-assert(
-  resolveTimelineLifecycleMarker(entry({ source_type: "review_request" })) === "Application",
-  "review rows mark Application",
-);
-assert(
-  resolveTimelineLifecycleMarker(entry({ source_type: "membership_review_request" })) ===
-    "Application",
-  "membership-appeal rows mark Application",
-);
-assert(
-  resolveTimelineLifecycleMarker(entry({ source_type: "audit_event", join_request_id: 9 })) ===
-    "Application",
-  "linked audit rows mark Application",
-);
-assert(
-  resolveTimelineLifecycleMarker(entry({ source_type: "audit_event" })) === null,
-  "unlinked audit rows stay unmarked (nothing inferred)",
 );
 
 // U-053 verb rule: agency-decides renders Approved (+ stem), never bare Accepted.

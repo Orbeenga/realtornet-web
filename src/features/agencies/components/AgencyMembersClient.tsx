@@ -530,7 +530,6 @@ function AgencyMemberHistoryGroup({
         isLoading={feed.isLoading}
         isError={feed.isError}
         onRetry={() => { feed.refetch(); }}
-        showLifecycleMarkers
         defaultUserDisplayName={member.displayName}
         role={member.role}
         status={member.status}

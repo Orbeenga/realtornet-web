@@ -61,11 +61,6 @@ interface MembershipTimelineProps {
       canonical). All other consumers omit this — canonical rendering
       everywhere else. */
   pendingReviewHighlight?: boolean;
-  /** OPT-IN, unified History surfaces ONLY: renders the lifecycle marker
-      badge (Invitation/Application) beside each linked row's label.
-      Single-lifecycle surfaces omit this — the marker answers "which
-      lifecycle" only where both lifecycles intermingle. */
-  showLifecycleMarkers?: boolean;
   /** Optional controlled reveal state (rich tier). When provided, the parent
       owns expanded/collapsed and internal state is bypassed — enabling parents
       to gate fetch-more controls behind the reveal (disclosure sequencing:
@@ -162,24 +157,6 @@ export function resolveTimelineLabel(
     return entry.join_request_id != null ? "Reconsideration requested" : "Review requested";
   }
   return "Event";
-}
-
-/* History-only lifecycle marker (step 4): lifecycle nouns, never event
-   verbs, so the marker cannot duplicate the row label. Invitation linkage
-   is decisive; application-side covers request sources plus linked audit
-   rows. Generic audit rows stay unmarked — the payload does not identify
-   their origin, and nothing is inferred. */
-export function resolveTimelineLifecycleMarker(entry: MembershipTimelineEntry): string | null {
-  if (entry.invitation_id != null) return "Invitation";
-  if (
-    entry.source_type === "join_request" ||
-    entry.source_type === "review_request" ||
-    entry.source_type === "membership_review_request" ||
-    entry.join_request_id != null
-  ) {
-    return "Application";
-  }
-  return null;
 }
 
 // Keyed off the same action/source_type shapes resolveTimelineLabel consumes (U-019).
@@ -349,7 +326,6 @@ export function MembershipTimeline({
   avatarUrl,
   qualifiers,
   pendingReviewHighlight,
-  showLifecycleMarkers,
   expanded: expandedProp,
   onExpandedChange,
   pendingReapplyNotice,
@@ -597,11 +573,6 @@ export function MembershipTimeline({
                      "Review declined"). */
                   <Badge variant={timelineActionBadgeVariant(entry)}>
                     {label}
-                  </Badge>
-                ) : null}
-                {showLifecycleMarkers && resolveTimelineLifecycleMarker(entry) ? (
-                  <Badge variant="outline">
-                    {resolveTimelineLifecycleMarker(entry)}
                   </Badge>
                 ) : null}
               </div>
