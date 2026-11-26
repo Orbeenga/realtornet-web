@@ -900,9 +900,10 @@ export function timelineEntryKey(entry: {
    membershipHistory module). Groups are anchored by users carrying the
    given anchor; member rows follow the anchor kind: cancelled/rejected
    keep all rows (the cumulative emitter filters each group's rows to its
-   own lineage downstream); expired-history keeps expired-history rows
-   only (Expired narrative blocks are per-row self-contained).
-   Consumers: Cancelled + Rejected + Expired sub-tabs. */
+   own lineage downstream); every other anchor keeps anchor rows only
+   (Expired narrative blocks and Approved per-request sections are
+   per-row self-contained).
+   Consumers: Cancelled + Rejected + Expired + Approved sub-tabs. */
 export interface AgencyRequestCycleGroup {
   userId: number;
   seekerName: string;
@@ -910,7 +911,7 @@ export interface AgencyRequestCycleGroup {
   requests: AgencyJoinRequestResponse[];
 }
 
-export type AgencyRequestCycleAnchor = "cancelled" | "rejected" | "expired-history";
+export type AgencyRequestCycleAnchor = "cancelled" | "rejected" | "expired-history" | "approved";
 
 export function groupAgencyRequestCycles(
   requests: AgencyJoinRequestResponse[],
@@ -927,7 +928,7 @@ export function groupAgencyRequestCycles(
 
   for (const request of requests) {
     if (!userIdsWithAnchor.has(request.user_id)) continue;
-    if (anchor === "expired-history" && !hasExpiredHistory(request)) continue;
+    if (anchor !== "cancelled" && anchor !== "rejected" && !isAnchorRow(request)) continue;
     const current = groups.get(request.user_id);
     if (current) {
       current.requests.push(request);
@@ -954,9 +955,9 @@ export function groupAgencyRequestCycles(
 
 /* Shared seeker request-cycle grouping lives HERE ONLY (canonical
    membershipHistory module). One group per agency; cancelledRequests,
-   expiredRequests and rejectedRequests subsets ride along; the anchor
-   selects which subset admits the group. Consumers: Cancelled + Expired +
-   Rejected sub-tabs. */
+   expiredRequests, rejectedRequests and approvedRequests subsets ride
+   along; the anchor selects which subset admits the group. Consumers:
+   Cancelled + Expired + Rejected + Approved sub-tabs. */
 export interface MyJoinRequestCycleGroup {
   agencyId: number;
   agencyName: string;
@@ -964,9 +965,10 @@ export interface MyJoinRequestCycleGroup {
   cancelledRequests: MyAgencyJoinRequestResponse[];
   expiredRequests: MyAgencyJoinRequestResponse[];
   rejectedRequests: MyAgencyJoinRequestResponse[];
+  approvedRequests: MyAgencyJoinRequestResponse[];
 }
 
-export type MyJoinRequestCycleAnchor = "cancelled" | "expired-history" | "rejected";
+export type MyJoinRequestCycleAnchor = "cancelled" | "expired-history" | "rejected" | "approved";
 
 export function groupMyJoinRequestCycles(
   requests: MyAgencyJoinRequestResponse[],
@@ -982,12 +984,16 @@ export function groupMyJoinRequestCycles(
     // Rejected anchor admits ONLY rejected rows (card content and the
     // latest-rejection payload for reconsideration stay exact).
     if (anchor === "rejected" && request.status !== "rejected") continue;
+    // Approved anchor admits ONLY approved rows (per-request sections
+    // inside one pair card render their own lifecycle each).
+    if (anchor === "approved" && request.status !== "approved") continue;
     const current = groups.get(request.agency_id);
     if (current) {
       current.requests.push(request);
       if (request.status === "cancelled") current.cancelledRequests.push(request);
       if (hasExpiredHistory(request)) current.expiredRequests.push(request);
       if (request.status === "rejected") current.rejectedRequests.push(request);
+      if (request.status === "approved") current.approvedRequests.push(request);
       continue;
     }
 
@@ -998,11 +1004,18 @@ export function groupMyJoinRequestCycles(
       cancelledRequests: request.status === "cancelled" ? [request] : [],
       expiredRequests: hasExpiredHistory(request) ? [request] : [],
       rejectedRequests: request.status === "rejected" ? [request] : [],
+      approvedRequests: request.status === "approved" ? [request] : [],
     });
   }
 
   const subsetKey =
-    anchor === "expired-history" ? "expiredRequests" : anchor === "rejected" ? "rejectedRequests" : "cancelledRequests";
+    anchor === "expired-history"
+      ? "expiredRequests"
+      : anchor === "rejected"
+        ? "rejectedRequests"
+        : anchor === "approved"
+          ? "approvedRequests"
+          : "cancelledRequests";
   const bySubmittedAt = (
     first: MyAgencyJoinRequestResponse,
     second: MyAgencyJoinRequestResponse,

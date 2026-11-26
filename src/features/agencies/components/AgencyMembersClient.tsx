@@ -89,6 +89,7 @@ import {
 } from "./membershipHistory";
 import {
   MembershipTimeline,
+  resolvePersonProfileHref,
   TimelineHeader,
   timelineRowBandClass,
 } from "@/features/agencies/components/MembershipHistoryList";
@@ -392,6 +393,7 @@ interface AgencyHistoryMember {
      license, decision reason) — derived here from the roster record and passed
      through the shared MembershipTimeline/TimelineHeader SSOT. */
   qualifiers?: string[];
+  profileId?: number | null;
 }
 
 /* Agency Withdrawn invitation card (per-tab contract): invitee identity
@@ -420,7 +422,7 @@ function AgencyWithdrawnInvitationCard({
   const name = resolveInviteeName(invitation);
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} eventCount={history.length} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} eventCount={history.length} href={resolvePersonProfileHref(member?.profileId)} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -475,7 +477,7 @@ function AgencyExpiredInvitationCard({
     invitation.reactivation_requested_at != null && !seekerRequested;
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} eventCount={history.length} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} eventCount={history.length} href={resolvePersonProfileHref(member?.profileId)} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -542,6 +544,7 @@ function AgencyMemberHistoryGroup({
         isError={feed.isError}
         onRetry={() => { feed.refetch(); }}
         defaultUserDisplayName={member.displayName}
+        href={resolvePersonProfileHref(member.profileId)}
         role={member.role}
         status={member.status}
         email={member.email}
@@ -600,6 +603,9 @@ export function AgencyMembersClient() {
     agencyId,
     approvedRequests.map((r) => r.user_id),
     Boolean(agencyId) && approvedRequests.length > 0,
+  );
+  const approvedHistoryByRequestId = new Map(
+    approvedRequests.map((request, index) => [request.join_request_id, approvedHistoryQueries[index]?.data ?? []] as const),
   );
 
   // U-028 + DEF-U-AGENCY-HISTORY-TAB-001 fix: the Revoked tab's card list uses
@@ -1008,6 +1014,7 @@ export function AgencyMembersClient() {
         email: a.phone_number ? `${a.email} - ${a.phone_number}` : a.email,
         avatarUrl: a.profile_image_url,
         lastSeen: a.last_login ? fmtTimeAgo(a.last_login) : "Never logged in",
+        profileId: a.profile_id ?? null,
         qualifiers: [
           // Profile context only. Role/status already render in TimelineHeader's
           // identity slots; decision metadata (status_reason / status_decided_at)
@@ -1042,6 +1049,7 @@ export function AgencyMembersClient() {
   // Rejected sub-tab entity groups (grouped by user_id) — one cumulative card
   // per applicant, mirroring the Cancelled tab (U-028/U-009).
   const rejectedCycleGroups = groupAgencyRequestCycles(joinRequests, "rejected");
+  const approvedCycleGroups = groupAgencyRequestCycles(joinRequests, "approved");
   // Expired sub-tab entity groups (grouped by user_id) — one cumulative card
   // per applicant, mirroring the Cancelled tab (answer 4: grouping global).
   const expiredCycleGroups = groupAgencyRequestCycles(joinRequests, "expired-history");
@@ -1107,7 +1115,7 @@ export function AgencyMembersClient() {
             <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
               {[
                 { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length})` },
-                { value: "approved" as const, label: `Approved (${joinRequests.filter(r => r.status === "approved").length})` },
+                { value: "approved" as const, label: `Approved (${approvedCycleGroups.length})` },
                 { value: "rejected" as const, label: `Rejected (${rejectedCycleGroups.length})` },
                 { value: "expired" as const, label: `Expired (${expiredCycleGroups.length})` },
                 { value: "cancelled" as const, label: `Cancelled (${cancelledCycleGroups.length})` },
@@ -1154,6 +1162,7 @@ export function AgencyMembersClient() {
                               qualifiers={member?.qualifiers}
                               verified={request.is_verified}
                               applicationStatus="pending"
+                              href={resolvePersonProfileHref(member?.profileId)}
                             />
                             {request.prior_invitation ? (
                               <Badge variant="outline">Invited</Badge>
@@ -1203,35 +1212,43 @@ export function AgencyMembersClient() {
               </>
             ) : requestSubTab === "approved" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && approvedRequests.length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && approvedCycleGroups.length === 0 ? (
                   <EmptyState title="No approved requests" description="Approved join requests will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && approvedRequests.length > 0 ? (
+                {!joinRequestsQuery.isLoading && approvedCycleGroups.length > 0 ? (
                   <div className="space-y-4">
-                    {approvedRequests.map((request, index) => {
-                      const agent = agents.find((a) => a.user_id === request.user_id);
-                      const liveStatus = agent?.membership_status ?? request.status;
-                      const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
+                    {approvedCycleGroups.map((group) => {
+                      const member = historyMemberById.get(group.userId);
+                      // U-054: one card per (user, agency) pair with a
+                      // per-request section each; the count equals all rows.
+                      const requestTimelines = group.requests.map((request) => ({
+                        request,
+                        history: getApprovedRequestCycleHistory(approvedHistoryByRequestId.get(request.join_request_id) ?? [], request),
+                        reactivationStage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false),
+                      }));
+                      const rowTotal = requestTimelines.reduce((n, t) => n + t.history.length, 0);
                       return (
-                      <div key={request.join_request_id} className="rounded-lg border border-border p-4">
-                        {(() => {
-                          const requestHistory = getApprovedRequestCycleHistory(approvedHistoryQueries[index]?.data ?? [], request);
-                          if (requestHistory.length === 0) return null;
-                          return (
+                      <div key={group.userId} className="rounded-lg border border-border p-4">
+                        <TimelineHeader
+                          entity="person"
+                          name={member?.displayName ?? group.seekerName}
+                          email={member?.email ?? group.seekerEmail ?? undefined}
+                          avatarUrl={member?.avatarUrl}
+                          role={member?.role}
+                          status={member?.status}
+                          lastSeen={member?.lastSeen}
+                          qualifiers={member?.qualifiers}
+                          applicationStatus="approved"
+                          eventCount={rowTotal}
+                          href={resolvePersonProfileHref(member?.profileId)}
+                        />
+                        {requestTimelines.map(({ request, history, reactivationStage }) => (
+                          <div key={request.join_request_id} className="mt-3 space-y-2">
                             <MembershipTimeline
                               tier="simple"
-                              history={requestHistory}
-                              emptyTitle="No events"
-                              emptyDescription=""
-                              entity="person"
-                               defaultUserDisplayName={request.seeker_name ?? request.seeker_email ?? "Seeker"}
-                               role={agent?.user_role}
-                              status={liveStatus}
-                              applicationStatus={request.status}
-                              lastSeen={agent?.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                              history={history}
+                              showHeader={false}
                             />
-                          );
-                        })()}
                         {reactivationStage !== "terminal" ? (
                          <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-950/40">
                            {resolveJoinRequestReactivationTrace(request, user?.user_id ?? null, false).map((event) => (
@@ -1242,6 +1259,8 @@ export function AgencyMembersClient() {
                          </div>
                             ) : null}
                           </div>
+                        ))}
+                      </div>
                       );
                     })}
                  </div>
@@ -1289,6 +1308,7 @@ export function AgencyMembersClient() {
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="rejected"
                           eventCount={cumulative.entries.length + appealRows.length}
+                          href={resolvePersonProfileHref(member?.profileId)}
                         />
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
@@ -1351,6 +1371,7 @@ export function AgencyMembersClient() {
                           qualifiers={member?.qualifiers}
                           applicationStatus="expired"
                           eventCount={narrativeRowTotal > 0 ? narrativeRowTotal : undefined}
+                          href={resolvePersonProfileHref(member?.profileId)}
                         />
                         {group.requests.map((request, requestIndex) => {
                           // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
@@ -1452,6 +1473,7 @@ export function AgencyMembersClient() {
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
                           eventCount={cumulative.entries.length}
+                          href={resolvePersonProfileHref(member?.profileId)}
                         />
                         {cooldownDate ? (
                           (() => {
@@ -1550,6 +1572,7 @@ export function AgencyMembersClient() {
                           status={member?.status}
                           lastSeen={member?.lastSeen}
                           qualifiers={member?.qualifiers}
+                          href={resolvePersonProfileHref(member?.profileId)}
                         />
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
                           <div className="flex flex-wrap items-center gap-2 font-medium">
@@ -1686,6 +1709,7 @@ export function AgencyMembersClient() {
                           status={formatMembershipStatus(agent.membership_status)}
                           email={agent.phone_number ? `${agent.email} - ${agent.phone_number}` : agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          href={resolvePersonProfileHref(agent.profile_id)}
                           qualifiers={[
                             ...(agent.specialization ? [agent.specialization] : []),
                             ...(agent.years_experience != null ? [`${agent.years_experience} years experience`] : []),
@@ -1835,6 +1859,7 @@ export function AgencyMembersClient() {
                           role={agent.user_role}
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          href={resolvePersonProfileHref(agent.profile_id)}
                           qualifiers={[
                             `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
                           ]}
@@ -1919,9 +1944,11 @@ export function AgencyMembersClient() {
                 {invitations.filter(i => i.status === "pending").length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">No pending invitations.</p>
                 ) : (
-                  invitations.filter(i => i.status === "pending").map((invitation) => (
+                  invitations.filter(i => i.status === "pending").map((invitation) => {
+                    const member = invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined;
+                    return (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} />
+                      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} href={resolvePersonProfileHref(member?.profileId)} />
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {resolveInvitationPendingAgencyText({ name: resolveInviteeName(invitation) })}
@@ -1938,7 +1965,8 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             ) : invitationSubTab === "accepted" ? (
@@ -1959,7 +1987,7 @@ export function AgencyMembersClient() {
                     const member = invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined;
                     return (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} eventCount={invitationHistory.length} applicationStatus="accepted" />
+                      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} eventCount={invitationHistory.length} applicationStatus="accepted" href={resolvePersonProfileHref(member?.profileId)} />
                       <MembershipTimeline
                         tier="simple"
                         history={invitationHistory}
@@ -1991,7 +2019,7 @@ export function AgencyMembersClient() {
                     const member = invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined;
                     return (
                       <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} eventCount={invitationHistory.length} />
+                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} eventCount={invitationHistory.length} href={resolvePersonProfileHref(member?.profileId)} />
                         <MembershipTimeline
                           tier="simple"
                           history={invitationHistory}
@@ -2089,6 +2117,7 @@ export function AgencyMembersClient() {
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
                           eventCount={suspendedEvents.length > 0 ? suspendedEvents.length : undefined}
+                          href={resolvePersonProfileHref(agent.profile_id)}
                           qualifiers={[
                             ...(agent.status_decided_at ? [`Suspended ${formatDate(agent.status_decided_at)}`] : []),
                             ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
@@ -2160,6 +2189,7 @@ export function AgencyMembersClient() {
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
                           eventCount={leftEvents.length > 0 ? leftEvents.length : undefined}
+                          href={resolvePersonProfileHref(agent.profile_id)}
                           qualifiers={[
                             ...(agent.status_decided_at ? [`Left ${formatDate(agent.status_decided_at)}`] : []),
                             ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
@@ -2237,6 +2267,7 @@ export function AgencyMembersClient() {
                   email={agent.email}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
                   qualifiers={historyMemberById.get(agent.user_id)?.qualifiers}
+                  href={resolvePersonProfileHref(agent.profile_id)}
                   pendingReviewHighlight
                 />
               );
@@ -2295,6 +2326,7 @@ export function AgencyMembersClient() {
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
                           eventCount={blockedEvents.length > 0 ? blockedEvents.length : undefined}
+                          href={resolvePersonProfileHref(agent.profile_id)}
                           qualifiers={[
                             ...(agent.status_decided_at ? [`Blocked ${formatDate(agent.status_decided_at)}`] : []),
                             ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),

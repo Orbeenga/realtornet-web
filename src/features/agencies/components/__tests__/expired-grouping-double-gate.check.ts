@@ -144,6 +144,43 @@ assert(
   "seeker expired requests sort ascending by submitted_at",
 );
 
+// 5b. Approved anchor (U-054 addendum): groups admit users/agencies with
+// >=1 approved row and hold ONLY approved rows (per-request sections).
+const approvedAgency = groupAgencyRequestCycles(
+  [
+    agencyRequest({ join_request_id: 51, user_id: 7, seeker_name: "Zed", status: "approved" }),
+    agencyRequest({ join_request_id: 52, user_id: 7, seeker_name: "Zed", status: "pending" }),
+    agencyRequest({ join_request_id: 53, user_id: 9, seeker_name: "Amy", status: "pending" }),
+  ],
+  "approved",
+);
+assert(
+  approvedAgency.length === 1 && approvedAgency[0]?.userId === 7,
+  "agency approved anchor admits only users with an approved row",
+);
+assert(
+  approvedAgency[0]?.requests.length === 1 && approvedAgency[0]?.requests[0]?.join_request_id === 51,
+  "agency approved group holds ONLY approved rows",
+);
+const approvedSeeker = groupMyJoinRequestCycles(
+  [
+    seekerRequest({ join_request_id: 61, agency_id: 2, agency_name: "Beta", status: "approved" }),
+    seekerRequest({ join_request_id: 62, agency_id: 2, agency_name: "Beta", status: "pending" }),
+    seekerRequest({ join_request_id: 63, agency_id: 1, agency_name: "Alpha", status: "pending" }),
+  ],
+  "approved",
+);
+assert(
+  approvedSeeker.length === 1 && approvedSeeker[0]?.agencyId === 2,
+  "seeker approved anchor admits only agencies with an approved row",
+);
+assert(
+  approvedSeeker[0]?.requests.length === 1 &&
+    approvedSeeker[0]?.approvedRequests.length === 1 &&
+    approvedSeeker[0]?.requests[0]?.join_request_id === 61,
+  "seeker approved group holds ONLY approved rows (subset consistent)",
+);
+
 // 6. Default (cancelled) anchor is untouched.
 const seekerCancelled = groupMyJoinRequestCycles(
   [seekerRequest({ join_request_id: 51, status: "cancelled" })],

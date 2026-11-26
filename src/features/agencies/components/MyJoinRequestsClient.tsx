@@ -8,7 +8,7 @@ import { useGatedAction } from "@/hooks/useGatedAction";
 import { emptyGate1Context, type GateFieldValues } from "@/lib/gate-registry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline, resolveAgencyHref, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   getApprovedRequestCycleHistory,
@@ -130,6 +130,7 @@ function SeekerAgencyHistoryGroup({
           feed.refetch();
         }}
         defaultUserDisplayName={agency.agency_name}
+        href={resolveAgencyHref(agency.agency_id)}
         expanded={expanded}
         onExpandedChange={setExpanded}
       />
@@ -176,7 +177,7 @@ function SeekerWithdrawnInvitationCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} href={resolveAgencyHref(invitation.agency_id)} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
         {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
           <div className="space-y-3">
@@ -232,7 +233,7 @@ function SeekerPendingExpiredCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} href={resolveAgencyHref(invitation.agency_id)} />
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Reactivation requested
           {invitation.reactivation_requested_at
@@ -288,7 +289,7 @@ function SeekerExpiredInvitationCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} href={resolveAgencyHref(invitation.agency_id)} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
         {decided || invitation.reactivated_at ? null : agencyRequested ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -669,6 +670,9 @@ export function MyJoinRequestsClient() {
   // Rejected sub-tab entity groups (grouped by agency_id) — one cumulative card
   // per agency via the shared grouper, mirroring Cancelled/Expired (U-034b).
   const rejectedRequestGroups = groupMyJoinRequestCycles(requests, "rejected");
+  // Approved sub-tab entity groups (U-054 addendum): one card per agency
+  // with a per-request section each, mirroring Expired.
+  const approvedRequestGroups = groupMyJoinRequestCycles(requests, "approved");
   const memberships = membershipsQuery.data ?? [];
   const activeMemberships = memberships.filter(m => m.status === "active");
   const suspendedMemberships = memberships.filter(m => m.status === "suspended");
@@ -788,7 +792,7 @@ export function MyJoinRequestsClient() {
                   ) : (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} />
+                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} href={resolveAgencyHref(invitation.agency_id)} />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invited {formatDate(invitation.created_at)}
                         </p>
@@ -849,7 +853,7 @@ export function MyJoinRequestsClient() {
                   return (
                   <Card key={invitation.invitation_id}>
                     <CardBody className="space-y-4">
-                      <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} applicationStatus="accepted" />
+                      <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} applicationStatus="accepted" href={resolveAgencyHref(invitation.agency_id)} />
                       <MembershipTimeline
                         tier="simple"
                         history={invitationHistory}
@@ -884,7 +888,7 @@ export function MyJoinRequestsClient() {
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} />
+                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} href={resolveAgencyHref(invitation.agency_id)} />
                         <MembershipTimeline
                           tier="simple"
                           history={invitationHistory}
@@ -994,7 +998,7 @@ export function MyJoinRequestsClient() {
                 activeMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
-                      <TimelineHeader entity="agency" name={membership.agency_name} verified={membership.is_verified} applicationStatus={membership.status} />
+                      <TimelineHeader entity="agency" name={membership.agency_name} verified={membership.is_verified} applicationStatus={membership.status} href={resolveAgencyHref(membership.agency_id)} />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {membership.listing_count} active listing{membership.listing_count !== 1 ? "s" : ""} under this agency.
                       </p>
@@ -1036,6 +1040,7 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
+                            href={resolveAgencyHref(membership.agency_id)}
                           />
                         );
                       })()}
@@ -1091,6 +1096,7 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
+                            href={resolveAgencyHref(membership.agency_id)}
                           />
                         );
                       })()}
@@ -1154,6 +1160,7 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
+                            href={resolveAgencyHref(membership.agency_id)}
                           />
                         ) : null}
                         {!reinstatementEvent ? (
@@ -1209,6 +1216,7 @@ export function MyJoinRequestsClient() {
                             entity="agency"
                             defaultUserDisplayName={membership.agency_name}
                             verified={membership.is_verified}
+                            href={resolveAgencyHref(membership.agency_id)}
                           />
                         );
                       })()}
@@ -1262,7 +1270,7 @@ export function MyJoinRequestsClient() {
         <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
           {[
             { value: "pending" as const, label: `Pending (${requests.filter(r => r.status === "pending").length})` },
-            { value: "approved" as const, label: `Approved (${requests.filter(r => r.status === "approved").length})` },
+            { value: "approved" as const, label: `Approved (${approvedRequestGroups.length})` },
             { value: "rejected" as const, label: `Rejected (${rejectedRequestGroups.length})` },
             { value: "expired" as const, label: `Expired (${expiredRequestGroups.length})` },
             { value: "cancelled" as const, label: `Cancelled (${cancelledRequestGroups.length})` },
@@ -1288,7 +1296,7 @@ export function MyJoinRequestsClient() {
                 return (
                 <Card key={request.join_request_id}>
                   <CardBody className="space-y-4">
-                    <TimelineHeader entity="agency" name={request.agency_name} verified={request.is_verified} applicationStatus="pending" />
+                    <TimelineHeader entity="agency" name={request.agency_name} verified={request.is_verified} applicationStatus="pending" href={resolveAgencyHref(request.agency_id)} />
                     {/* DEF-U-REAPPLY-BADGE-001: surface reapplication lineage on pending cards */}
                     {request.reapplied_from_request_id != null ? (
                       <Badge variant="outline">reapplied</Badge>
@@ -1332,57 +1340,56 @@ export function MyJoinRequestsClient() {
           </div>
         ) : requestSubTab === "approved" ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {requests.filter(r => r.status === "approved").length === 0 ? (
+            {approvedRequestGroups.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
                 <EmptyState title="No accepted requests" description="Approved join requests will appear here." />
               </div>
             ) : (
-              requests.filter(r => r.status === "approved").map((request) => {
-                const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                /* U-021/U-023d parity: the Approved-tab badge stays bound to the
-                   application status (request.status) below, but the live
-                   membership STANDING (this membership's status, e.g. revoked/
-                   suspended) is surfaced as the header qualifier — mirroring the
-                   agency Approved card's liveStatus (AgencyMembersClient). */
-                const liveStatus =
-                  memberships.find((m) => m.agency_id === request.agency_id)?.status ??
-                  request.status;
+              approvedRequestGroups.map((group) => {
+                // U-054: one card per (user, agency) pair with a per-request
+                // section each; the count equals all rows.
+                const requestTimelines = group.requests.map((request) => ({
+                  request,
+                  history: getApprovedRequestCycleHistory(historyQuery.data ?? [], request),
+                  reactivationStage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true),
+                }));
+                const rowTotal = requestTimelines.reduce((n, t) => n + t.history.length, 0);
                 return (
-                    <Card key={request.join_request_id}>
+                    <Card key={group.agencyId}>
                       <CardBody className="space-y-4">
-                        {(() => {
-                          const requestHistory = getApprovedRequestCycleHistory(historyQuery.data ?? [], request);
-                          if (requestHistory.length === 0) return null;
-                          return (
-                             <MembershipTimeline
-                               tier="simple"
-                               history={requestHistory}
-                               emptyTitle="No events"
-                               emptyDescription=""
-                               entity="agency"
-                               defaultUserDisplayName={request.agency_name}
-                               verified={request.is_verified}
-                               status={liveStatus}
-                               applicationStatus={request.status}
-                             />
-                          );
-                        })()}
-                        {reactivationStage !== "terminal" ? (
-                        <div className="space-y-1.5 pt-1">
-                          {(() => {
-                            const reactivationEvents = resolveJoinRequestReactivationTrace(
-                              request,
-                              user?.user_id ?? null,
-                              true,
-                            );
-                            return reactivationEvents.map((event) => (
-                              <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
-                                {event.text} — {formatDate(event.at!)}
-                              </p>
-                            ));
-                          })()}
-                        </div>
-                      ) : null}
+                        <TimelineHeader
+                          entity="agency"
+                          name={group.agencyName}
+                          verified={group.requests[0]?.is_verified}
+                          applicationStatus="approved"
+                          eventCount={rowTotal}
+                          href={resolveAgencyHref(group.agencyId)}
+                        />
+                        {requestTimelines.map(({ request, history, reactivationStage }) => (
+                          <div key={request.join_request_id} className="mt-3 space-y-2">
+                            <MembershipTimeline
+                              tier="simple"
+                              history={history}
+                              showHeader={false}
+                            />
+                            {reactivationStage !== "terminal" ? (
+                            <div className="space-y-1.5 pt-1">
+                              {(() => {
+                                const reactivationEvents = resolveJoinRequestReactivationTrace(
+                                  request,
+                                  user?.user_id ?? null,
+                                  true,
+                                );
+                                return reactivationEvents.map((event) => (
+                                  <p key={`${event.at ?? ""}-${event.text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                    {event.text} — {formatDate(event.at!)}
+                                  </p>
+                                ));
+                              })()}
+                            </div>
+                          ) : null}
+                          </div>
+                        ))}
                     </CardBody>
                   </Card>
                 );
@@ -1433,6 +1440,7 @@ export function MyJoinRequestsClient() {
                       verified={latestRequest?.is_verified}
                       applicationStatus="rejected"
                       eventCount={cumulative.entries.length + appealRows.length}
+                      href={resolveAgencyHref(group.agencyId)}
                     />
                     <MembershipTimeline
                       tier="rich"
@@ -1501,6 +1509,7 @@ export function MyJoinRequestsClient() {
                         verified={latestRequest?.is_verified}
                         applicationStatus="expired"
                         eventCount={narrativeRowTotal > 0 ? narrativeRowTotal : undefined}
+                        href={resolveAgencyHref(group.agencyId)}
                       />
                       {group.requests.map((request, requestIndex) => {
                         // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
@@ -1618,6 +1627,7 @@ export function MyJoinRequestsClient() {
                       verified={group.requests[0]?.is_verified}
                       eventCount={cumulative.entries.length}
                       applicationStatus="cancelled"
+                      href={resolveAgencyHref(group.agencyId)}
                     />
                     {(() => {
                       const ambient = resolveCancelledApplicationAmbient({

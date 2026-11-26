@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import Link from "next/link";
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components";
 import {
   ambientTextToneClass,
@@ -34,6 +35,8 @@ interface MembershipTimelineProps {
   showHeader?: boolean;
   /** Header contract discriminator (U-019): person = name|role|status|event_count|last_seen, agency = name|verified|event_count */
   entity?: "person" | "agency";
+  /** Optional entity link for the header name, passed through. */
+  href?: string;
   /** The member's own fixed role. Never derive from entry.author_role (event author ≠ member). */
   role?: string;
   status?: string;
@@ -191,6 +194,22 @@ function statusTextClass(variant: "default" | "warning" | "success" | "danger" |
   return "text-gray-500 dark:text-gray-400";
 }
 
+/* Header link targets live HERE ONLY (Rule 20 — one resolver per
+   entity, beside their consumer). Agency headers link the agency page;
+   person headers link the public agent profile where one exists, else
+   nothing (TimelineHeader then falls back to a mailto name link when the
+   header carries an email). Every header on every tab calls these —
+   nothing builds profile links inline. */
+export function resolveAgencyHref(agencyId?: number | null): string | undefined {
+  if (agencyId == null) return undefined;
+  return `/agencies/${agencyId}`;
+}
+
+export function resolvePersonProfileHref(profileId?: number | null): string | undefined {
+  if (profileId == null) return undefined;
+  return `/agents/${profileId}`;
+}
+
 export function TimelineHeader({
   entity = "person",
   name,
@@ -203,6 +222,7 @@ export function TimelineHeader({
   email,
   avatarUrl,
   qualifiers,
+  href,
 }: {
   entity?: "person" | "agency";
   name: string;
@@ -224,12 +244,23 @@ export function TimelineHeader({
       decision reason, ...). Rendered as small gray lines after the
       status/event-count row, before Last seen. */
   qualifiers?: string[];
+  /** Optional entity link for the name (agency page, public agent
+      profile). Person names without one fall back to a mailto link when
+      the header carries an email, else plain text. */
+  href?: string;
 }) {
   const initials = name
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+  // Mailto fallback: first whitespace-delimited token, since member email
+  // lines may carry a phone suffix ("email - phone"). Agency names never
+  // mailto (no agency email concept).
+  const mailtoTarget =
+    entity === "person" && !href && email ? email.split(/\s/)[0] : undefined;
+  const mailtoHref =
+    mailtoTarget != null && mailtoTarget.includes("@") ? `mailto:${mailtoTarget}` : undefined;
   /* CANONICAL SEPARATION (two distinct items, deliberately not merged):
      1. ENTITY HEADER  — name/role|verified, email, membership status,
         event count, qualifiers, last seen. Describes WHO the record is.
@@ -266,7 +297,17 @@ export function TimelineHeader({
       <div className={`min-w-0 space-y-1 text-sm text-gray-600 dark:text-gray-400${applicationStatus ? " pr-24" : ""}`}>
         <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
           <div className="flex flex-wrap items-center gap-x-2">
-            <span className="font-medium text-gray-900 dark:text-white">{name}</span>
+            {href ? (
+              <Link href={href} className="font-medium text-gray-900 hover:underline dark:text-white">
+                {name}
+              </Link>
+            ) : mailtoHref ? (
+              <a href={mailtoHref} className="font-medium text-gray-900 hover:underline dark:text-white">
+                {name}
+              </a>
+            ) : (
+              <span className="font-medium text-gray-900 dark:text-white">{name}</span>
+            )}
             {entity === "person" && role ? (
               <span className="text-xs lowercase text-blue-700 dark:text-blue-300">{role}</span>
             ) : null}
@@ -325,6 +366,7 @@ export function MembershipTimeline({
   email,
   avatarUrl,
   qualifiers,
+  href,
   pendingReviewHighlight,
   expanded: expandedProp,
   onExpandedChange,
@@ -387,6 +429,7 @@ export function MembershipTimeline({
             email={email}
             avatarUrl={avatarUrl}
             qualifiers={qualifiers}
+            href={href}
           />
         ) : null}
         {visible.map((entry, index) => (
@@ -441,6 +484,7 @@ export function MembershipTimeline({
           email={email}
           avatarUrl={avatarUrl}
           qualifiers={qualifiers}
+          href={href}
         />
       ) : null}
       {visibleEntries.map((entry, index) => {

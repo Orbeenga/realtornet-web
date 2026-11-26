@@ -8,7 +8,11 @@
  *
  * Run: pnpm exec tsx src/features/agencies/components/__tests__/timeline-labels.check.ts
  */
-import { resolveTimelineLabel } from "../MembershipHistoryList";
+import {
+  resolveAgencyHref,
+  resolvePersonProfileHref,
+  resolveTimelineLabel,
+} from "../MembershipHistoryList";
 import {
   annotateApprovalOrigins,
   resolveApprovalOrigin,
@@ -228,6 +232,13 @@ assert(
   resolveTimelineLabel(entry({ source_type: "audit_event", action: "applied" })) === "Applied",
   "subsequent application renders Applied",
 );
+
+// Header link targets (Rule 20): one resolver per entity. Missing ids
+// yield nothing (plain or mailto name), never a broken link.
+assert(resolveAgencyHref(467) === "/agencies/467", "agency id resolves its page");
+assert(resolveAgencyHref(null) === undefined, "missing agency id yields no link");
+assert(resolvePersonProfileHref(11) === "/agents/11", "profile id resolves its page");
+assert(resolvePersonProfileHref(undefined) === undefined, "missing profile yields no link");
 assert(
   resolveTimelineLabel(
     entry({ source_type: "audit_event", action: "joined", invitation_id: 9, user_id: 7, actor_id: 2 }),
