@@ -202,7 +202,6 @@ const UNGATED_ALLOWLIST: Record<string, string> = {
   // Membership consent + restorative (profiles unassigned in U-052).
   useRejectJoinRequestReactivation: "seeker consent reject carries no reason ({requestId} only); profile unassigned in U-052",
   useUnblockAgencyMembership: "restorative; Profile A candidate",
-  useCreateAgencyMembershipReviewRequest: "request-creating but unlisted in U-052 Gate-1 scope; 409 string-sniff retained",
   // Dedicated forms owning their own validation (not gate dialogs).
   useUpdateAgencyProfile: "settings form CRUD, ungated",
   useTransferOwnership: "dedicated multi-field form (new owner + reason + demote flag); owns its validation",
@@ -320,7 +319,7 @@ for (const name of REGISTRY_HOOK_NAMES) {
 /* ------------------------------------------------------------------ */
 
 const specs = Object.values(GATE_REGISTRY);
-assert(specs.length === 21, `registry holds 21 actions (found ${specs.length})`);
+assert(specs.length === 22, `registry holds 22 actions (found ${specs.length})`);
 
 const stepIds = (spec: (typeof specs)[number]) => spec.steps.map((s) => s.id).join(",");
 const SEVERE = new Set(["block_membership", "revoke_membership", "suspend_membership"]);
@@ -597,7 +596,9 @@ for (const spec of specs) {
 // Migrated ratchet: steps 1-4 land 15 actions; U-053 adds invitation_accept
 // (Profile A + note, the only consumer of the new invitation note body);
 // the invitations crossover adds invitation_reject (Profile A confirm-only)
-// plus the in-tab reactivation pair (accept with note, reject confirm-only).
+// plus the in-tab reactivation pair (accept with note, reject confirm-only);
+// membership review requests migrate as Profile C (message+review, pending
+// Gate-1, titles per tab).
 const migrated = specs.filter((s) => s.migrated).map((s) => s.action);
 for (const action of [
   "cancel_join",
@@ -619,12 +620,13 @@ for (const action of [
   "invitation_reject",
   "invitation_reactivation_accept",
   "invitation_reactivation_reject",
+  "membership_review_request",
 ] as GateActionKind[]) {
   assert(migrated.includes(action), `migrated: ${action}`);
 }
 assert(
-  migrated.length === 19,
-  `exactly 19 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
+  migrated.length === 20,
+  `exactly 20 migrated actions (found ${migrated.length}) — flip flags only at their migration step`,
 );
 assert(
   GATE_REGISTRY.apply.migrated === false,
@@ -785,6 +787,36 @@ assert(
   assert(
     runGate1Checks(spec, { ...base, invitations: [] }) === null,
     "Gate 1: missing target is clear (server authoritative)",
+  );
+}
+/* Membership-review Gate-1 pending check (target-only; the button stays
+   clickable and the runner toasts on click, so this path is spec-covered,
+   not browser-covered). */
+{
+  const spec = GATE_REGISTRY.membership_review_request;
+  const base: Gate1Context = {
+    joinRequests: [],
+    invitations: [],
+    reviewRequests: [],
+    viewerUserId: 1,
+    viewerIsApplicant: true,
+    counterpartyName: "Acme",
+    includeCooldownCheck: false,
+    pendingMembershipReviewId: null,
+  };
+  assert(
+    runGate1Checks(spec, { ...base, pendingMembershipReviewId: 9 }) ===
+      "Review request already submitted - waiting for agency response.",
+    "Gate 1: pending review blocks with pending toast",
+  );
+  assert(
+    runGate1Checks(spec, base) === null,
+    "Gate 1: fresh membership is clear",
+  );
+  assert(
+    spec.steps.map((s) => s.id).join(",") === "fields,review" &&
+      spec.confirmLabel === "Send request",
+    "membership review: Profile C message-plus-review shape",
   );
 }
 assert(

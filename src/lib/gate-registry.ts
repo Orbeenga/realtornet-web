@@ -60,6 +60,7 @@ export interface Gate1Context {
   viewerIsApplicant: boolean;
   counterpartyName: string;
   includeCooldownCheck: boolean;
+  pendingMembershipReviewId?: number | null;
 }
 
 /* Empty context for actions without Gate-1 checks (profiles A/B/D).
@@ -77,6 +78,7 @@ export function emptyGate1Context(
     viewerIsApplicant,
     counterpartyName: "",
     includeCooldownCheck: false,
+    pendingMembershipReviewId: null,
   };
 }
 
@@ -159,6 +161,7 @@ export type GateActionKind =
   | "reconsideration_request"
   | "reactivation_request"
   | "invitation_reactivation_request"
+  | "membership_review_request"
   | "block_membership";
 
 export interface ActionGateSpec {
@@ -202,6 +205,14 @@ const invitationReactivationPendingCheck: Gate1Check = {
   run: (ctx) =>
     ctx.invitations.some((i) => i.reactivation_requested_at != null)
       ? doubleGateOrderedToast("reactivation", ctx.counterpartyName)
+      : null,
+};
+
+const membershipReviewPendingCheck: Gate1Check = {
+  id: "membership-review-pending",
+  run: (ctx) =>
+    ctx.pendingMembershipReviewId != null
+      ? "Review request already submitted - waiting for agency response."
       : null,
 };
 
@@ -595,6 +606,21 @@ export const GATE_REGISTRY: Record<GateActionKind, ActionGateSpec> = {
     confirmLabel: "Send request",
     migrated: true,
     note: "Same-kind pending check over the TARGET invitation only (callers pass ctx.invitations: [target]): the server guards per-invitation, so a pair-wide check would false-block legitimate requests (UI-008). No message — the endpoint takes no body.",
+  },
+  membership_review_request: {
+    action: "membership_review_request",
+    profile: "C",
+    hooks: ["useCreateAgencyMembershipReviewRequest"],
+    endpoint: "POST /api/v1/agencies/{agencyId}/agents/{membershipId}/review-request/",
+    gate1: [membershipReviewPendingCheck],
+    steps: [
+      fieldsStep([messageField("Message", "Explain why this decision should be reviewed")]),
+      reviewStep("Send request", ["message"]),
+    ],
+    dialog: true,
+    confirmLabel: "Send request",
+    migrated: true,
+    note: "Seeker review requests on Suspended/Left/Revoked tabs (Profile C per lead ruling; mirrors reconsideration_request). Client pending-id Gate-1; server 409/400 pending-sniff stays as mapError backstop (no structured pending_exists on this endpoint — backend item logged). No nudgeNoun: stale-view mapping only fires on pending_exists signals the backend does not emit here.",
   },
   block_membership: {
     action: "block_membership",

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Badge, Button, Card, CardBody, EmptyState, ErrorState, LoadingState } from "@/components";
 import { normalizeAppRole } from "@/features/auth/navigation";
 import { useGatedAction } from "@/hooks/useGatedAction";
-import { emptyGate1Context } from "@/lib/gate-registry";
+import { emptyGate1Context, type GateFieldValues } from "@/lib/gate-registry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
@@ -326,8 +326,13 @@ function SeekerExpiredInvitationCard({
   );
 }
 
+interface MembershipReviewSeed {
+  agencyId: number;
+  membershipId: number;
+  pendingReviewRequestId?: number | null;
+}
+
 export function MyJoinRequestsClient() {
-  const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [membershipSubTab, setMembershipSubTab] = useState<"active" | "suspended" | "left" | "revoked" | "blocked" | "history">("active");
   const [requestSubTab, setRequestSubTab] = useState<"pending" | "approved" | "rejected" | "expired" | "cancelled">("pending");
   const [invitationSubTab, setInvitationSubTab] = useState<"pending" | "accepted" | "rejected" | "expired" | "withdrawn">("pending");
@@ -397,52 +402,6 @@ export function MyJoinRequestsClient() {
   });
 
   const cooldownCutoff = useState(() => Date.now() - COOLDOWN_WINDOW_DAYS * 86_400_000)[0];
-
-  const handleReviewRequest = async (
-    agencyId: number,
-    membershipId: number,
-    pendingReviewRequestId?: number | null,
-  ) => {
-    // UI-008 gate order: the pending-review check must short-circuit FIRST,
-    // before any reason-field validation (mirrors the registry Gate-1-first
-    // shape); the server 409 path below stays as the defensive second layer.
-    if (pendingReviewRequestId != null) {
-      notify.info("Review request already submitted - waiting for agency response.");
-      return;
-    }
-    const message = reviewReasons[membershipId]?.trim();
-    if (!message) {
-      notify.error("Please provide a reason before submitting a review request.");
-      return;
-    }
-    try {
-      await createReviewRequest.mutateAsync({
-        agencyId,
-        membershipId,
-        reason: message,
-      });
-      notify.success("Your request has been submitted.");
-      setReviewReasons((current) => {
-        const next = { ...current };
-        delete next[membershipId];
-        return next;
-      });
-    } catch (error) {
-      const detail = error instanceof ApiError ? error.detail : null;
-      const text = typeof detail === "string" ? detail.toLowerCase() : "";
-
-      if (
-        error instanceof ApiError &&
-        (error.status === 409 || error.status === 400) &&
-        (text.includes("pending") || text.includes("already"))
-      ) {
-        notify.info("Review request already submitted - waiting for agency response.");
-        return;
-      }
-
-      notify.error("Could not submit review request");
-    }
-  };
 
   // Registry Profile A with optional note (U-053): confirm + note on one
   // dialog, no gate. Blank note sends no body (backend backward compat).
@@ -602,6 +561,56 @@ export function MyJoinRequestsClient() {
       errorFallback: "Could not request reconsideration",
     },
   );
+
+  // Membership review requests (Suspended/Left/Revoked tabs) on the registry
+  // (Profile C): exactly one button per card → Gate 1 (pending check) →
+  // message dialog → POST. Titles differ per tab (organogram CTA labels);
+  // context, invoke, and the 409/400 backstop are shared. No pre-rendered
+  // box: the dialog owns the message field.
+  const buildMembershipReviewContext = (seed: MembershipReviewSeed) => ({
+    joinRequests: [],
+    invitations: [],
+    reviewRequests: [],
+    viewerUserId: user?.user_id ?? null,
+    viewerIsApplicant: true,
+    counterpartyName: "",
+    includeCooldownCheck: false,
+    pendingMembershipReviewId: seed.pendingReviewRequestId ?? null,
+  });
+  const invokeMembershipReviewRequest = (seed: MembershipReviewSeed, values: GateFieldValues) =>
+    createReviewRequest.mutateAsync({
+      agencyId: seed.agencyId,
+      membershipId: seed.membershipId,
+      reason: values.message,
+    });
+  const mapMembershipReviewError = (error: unknown): string | null => {
+    const detail = error instanceof ApiError ? error.detail : null;
+    const text = typeof detail === "string" ? detail.toLowerCase() : "";
+    if (
+      error instanceof ApiError &&
+      (error.status === 409 || error.status === 400) &&
+      (text.includes("pending") || text.includes("already"))
+    ) {
+      return "Review request already submitted - waiting for agency response.";
+    }
+    return null;
+  };
+  const membershipReviewGate = useGatedAction<MembershipReviewSeed>("membership_review_request", {
+    buildContext: buildMembershipReviewContext,
+    invoke: invokeMembershipReviewRequest,
+    title: "Request review",
+    successToast: "Your request has been submitted.",
+    errorFallback: "Could not submit review request",
+    mapError: mapMembershipReviewError,
+  });
+  const reinstatementGate = useGatedAction<MembershipReviewSeed>("membership_review_request", {
+    buildContext: buildMembershipReviewContext,
+    invoke: invokeMembershipReviewRequest,
+    title: "Request reinstatement",
+    successToast: "Your request has been submitted.",
+    errorFallback: "Could not submit review request",
+    mapError: mapMembershipReviewError,
+  });
 
   const handleRejectReactivation = async (requestId: number) => {
     try {
@@ -1066,43 +1075,19 @@ export function MyJoinRequestsClient() {
                           />
                         );
                       })()}
-                      {membership.pending_review_request_id ? (
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
-                          Review requested
-                        </p>
-                      ) : (
-                        <div className="space-y-3">
-                          <textarea
-                            rows={3}
-                            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                            placeholder="Explain why this decision should be reviewed"
-                            value={reviewReasons[membership.membership_id] ?? ""}
-                            onChange={(event) =>
-                              setReviewReasons((current) => ({
-                                ...current,
-                                [membership.membership_id]: event.target.value,
-                              }))
-                            }
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            loading={
-                              createReviewRequest.isPending &&
-                              createReviewRequest.variables?.agencyId === membership.agency_id
-                            }
-                            onClick={() =>
-                              void handleReviewRequest(
-                                membership.agency_id,
-                                membership.membership_id,
-                                membership.pending_review_request_id,
-                              )
-                            }
-                          >
-                            Request Review
-                          </Button>
-                        </div>
-                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() =>
+                          membershipReviewGate.attempt({
+                            agencyId: membership.agency_id,
+                            membershipId: membership.membership_id,
+                            pendingReviewRequestId: membership.pending_review_request_id,
+                          })
+                        }
+                      >
+                        Request Review
+                      </Button>
                     </CardBody>
                   </Card>
                 ))
@@ -1145,43 +1130,19 @@ export function MyJoinRequestsClient() {
                           />
                         );
                       })()}
-                      {membership.pending_review_request_id ? (
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
-                          Reinstatement requested
-                        </p>
-                      ) : (
-                        <div className="space-y-3">
-                          <textarea
-                            rows={3}
-                            className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                            placeholder="Explain why this decision should be reviewed"
-                            value={reviewReasons[membership.membership_id] ?? ""}
-                            onChange={(event) =>
-                              setReviewReasons((current) => ({
-                                ...current,
-                                [membership.membership_id]: event.target.value,
-                              }))
-                            }
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            loading={
-                              createReviewRequest.isPending &&
-                              createReviewRequest.variables?.agencyId === membership.agency_id
-                            }
-                            onClick={() =>
-                              void handleReviewRequest(
-                                membership.agency_id,
-                                membership.membership_id,
-                                membership.pending_review_request_id,
-                              )
-                            }
-                          >
-                            Request Reinstatement
-                          </Button>
-                        </div>
-                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() =>
+                          reinstatementGate.attempt({
+                            agencyId: membership.agency_id,
+                            membershipId: membership.membership_id,
+                            pendingReviewRequestId: membership.pending_review_request_id,
+                          })
+                        }
+                      >
+                        Request Reinstatement
+                      </Button>
                     </CardBody>
                   </Card>
                 ))
@@ -1231,40 +1192,20 @@ export function MyJoinRequestsClient() {
                             verified={membership.is_verified}
                           />
                         ) : null}
-                        {/* UI-008: button stays clickable while a review is pending;
-                            the existing handleReviewRequest 409 -> notify.info path explains. */}
                         {!reinstatementEvent ? (
-                          <div className="space-y-3">
-                            <textarea
-                              rows={3}
-                              className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                              placeholder="Explain why this decision should be reviewed"
-                              value={reviewReasons[membership.membership_id] ?? ""}
-                              onChange={(event) =>
-                                setReviewReasons((current) => ({
-                                  ...current,
-                                  [membership.membership_id]: event.target.value,
-                                }))
-                              }
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              loading={
-                                createReviewRequest.isPending &&
-                                createReviewRequest.variables?.agencyId === membership.agency_id
-                              }
-                              onClick={() =>
-                                void handleReviewRequest(
-                                  membership.agency_id,
-                                  membership.membership_id,
-                                  membership.pending_review_request_id,
-                                )
-                              }
-                            >
-                              Request Review
-                            </Button>
-                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() =>
+                              membershipReviewGate.attempt({
+                                agencyId: membership.agency_id,
+                                membershipId: membership.membership_id,
+                                pendingReviewRequestId: membership.pending_review_request_id,
+                              })
+                            }
+                          >
+                            Request Review
+                          </Button>
                         ) : null}
                       </CardBody>
                     </Card>
@@ -1773,6 +1714,8 @@ export function MyJoinRequestsClient() {
             : `Ask ${rejectedRequestGroups.find((g) => g.agencyId === reconsiderGate.seed?.agencyId)?.agencyName ?? "the agency"} to reconsider your rejected application. Include a message — they'll see it with your request.`
         }
       />
+      <ConfirmDestructiveDialog {...membershipReviewGate.dialogProps} tokens={{}} />
+      <ConfirmDestructiveDialog {...reinstatementGate.dialogProps} tokens={{}} />
       <ConfirmDestructiveDialog
         {...cancelGate.dialogProps}
         tokens={{}}
