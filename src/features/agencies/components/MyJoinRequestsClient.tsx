@@ -17,6 +17,7 @@ import {
   getMembershipHistoryByAction,
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
+  groupMyInvitationCycles,
   groupMyJoinRequestCycles,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
@@ -26,7 +27,7 @@ import {
   resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
 } from "./membershipHistory";
-import type { AgencyInvitationResponse } from "@/types";
+import type { AgencyInvitationResponse, MembershipTimelineEntry } from "@/types";
 import {
   useAcceptAgencyInvitation,
   useAcceptInvitationReactivation,
@@ -34,7 +35,7 @@ import {
   useCancelAgencyJoinRequest,
   useCreateAgencyMembershipReviewRequest,
   useCreateAgencyReviewRequest,
-  useInvitationEvents,
+  useInvitationEventsBatch,
   useMembershipHistory,
   useMyAgencyInvitations,
   useMyAgencyJoinRequests,
@@ -48,9 +49,6 @@ import {
 } from "@/features/agencies/hooks";
 import {
   ambientTextToneClass,
-  hasExpiredHistory,
-  hasWithdrawnHistory,
-  isAgencyRequestedExpiredInvitation,
   resolveCancelledApplicationAmbient,
   resolveInvitationExpiredOfferedSeekerText,
   resolveInvitationExpiredRequestedSeekerText,
@@ -155,51 +153,47 @@ function SeekerAgencyHistoryGroup({
    renders lifecycle rows (the columns carry those) — results only. A
    decided interest (declined, or accepted via the queue) renders terminal:
    the result row speaks, with no ambient and no CTA. */
-function SeekerWithdrawnInvitationCard({
+/* Seeker Withdrawn invitation section (per-tab contract, U-054 pair
+   card): one invitation's rows — column timeline plus terminal
+   results, then the ambient or the Express Interest CTA. Pure: the
+   pair card owns the feed. */
+function SeekerWithdrawnInvitationSection({
   invitation,
+  history,
   expressLoading,
   onExpressInterest,
-  verified,
 }: {
   invitation: AgencyInvitationResponse;
+  history: MembershipTimelineEntry[];
   expressLoading: boolean;
   onExpressInterest: () => void;
-  verified?: boolean;
 }) {
-  const feed = useInvitationEvents(invitation.invitation_id, true);
-  const history = [
-    ...resolveInvitationColumnTimeline(invitation),
-    ...getInvitationDecisionResults(feed.data ?? []),
-  ];
   const decided =
     invitation.status === "accepted" ||
     history.some((entry) => entry.action === "reactivation_rejected");
   return (
-    <Card>
-      <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} href={resolveAgencyHref(invitation.agency_id)} />
-        <MembershipTimeline tier="simple" history={history} showHeader={false} />
-        {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              loading={expressLoading}
-              onClick={onExpressInterest}
-            >
-              Express Interest
-            </Button>
-          </div>
-        ) : (
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-            {resolveInvitationWithdrawnInterestSeekerText({ agencyName: invitation.agency_name })}
+    <>
+      <MembershipTimeline tier="simple" history={history} showHeader={false} />
+      {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
           </p>
-        )}
-      </CardBody>
-    </Card>
+          <Button
+            type="button"
+            size="sm"
+            loading={expressLoading}
+            onClick={onExpressInterest}
+          >
+            Express Interest
+          </Button>
+        </div>
+      ) : (
+        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          {resolveInvitationWithdrawnInterestSeekerText({ agencyName: invitation.agency_name })}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -207,73 +201,58 @@ function SeekerWithdrawnInvitationCard({
    invitee decides here — Accept creates membership at once, Reject is
    terminal. Event line plus CTAs only (action-tab purity, no ambient).
    Decided rows vanish here (the audit feed is the only decided signal);
-   the row keeps living on Expired with its result row. */
-function SeekerPendingExpiredCard({
+   the row keeps living on Expired with its result row. Pure section of
+   the U-054 pair card: visibility is decided by the caller. */
+function SeekerPendingExpiredSection({
   invitation,
   acceptLoading,
   rejectLoading,
   onAccept,
   onReject,
-  verified,
 }: {
   invitation: AgencyInvitationResponse;
   acceptLoading: boolean;
   rejectLoading: boolean;
   onAccept: () => void;
   onReject: () => void;
-  verified?: boolean;
 }) {
-  const feed = useInvitationEvents(invitation.invitation_id, true);
-  const decided =
-    invitation.status === "accepted" ||
-    getInvitationDecisionResults(feed.data ?? []).some(
-      (entry) => entry.action === "reactivation_rejected",
-    );
-  if (feed.isLoading || decided) return null;
   return (
-    <Card>
-      <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} href={resolveAgencyHref(invitation.agency_id)} />
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Reactivation requested
-          {invitation.reactivation_requested_at
-            ? ` ${formatDate(invitation.reactivation_requested_at)}`
-            : null}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" loading={acceptLoading} onClick={onAccept}>
-            Accept
-          </Button>
-          <Button type="button" size="sm" variant="secondary" loading={rejectLoading} onClick={onReject}>
-            Reject
-          </Button>
-        </div>
-      </CardBody>
-    </Card>
+    <>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Reactivation requested
+        {invitation.reactivation_requested_at
+          ? ` ${formatDate(invitation.reactivation_requested_at)}`
+          : null}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" loading={acceptLoading} onClick={onAccept}>
+          Accept
+        </Button>
+        <Button type="button" size="sm" variant="secondary" loading={rejectLoading} onClick={onReject}>
+          Reject
+        </Button>
+      </div>
+    </>
   );
 }
 
-/* Seeker Expired invitation card (per-tab contract): agency identity
-   block, column timeline (Sent, Expired) plus terminal results from the
-   audit feed. Ambient after the latest event, cleared once decided;
-   the only CTA is the initial Request Reactivation — requests are
-   decided in Pending (agency-requested) or Review Requests. */
-function SeekerExpiredInvitationCard({
+/* Seeker Expired invitation section (per-tab contract, U-054 pair
+   card): one invitation's rows — column timeline (Sent, Expired) plus
+   terminal results. Ambient after the latest event, cleared once
+   decided; the only CTA is the initial Request Reactivation —
+   requests are decided in Pending (agency-requested) or Review
+   Requests. Pure: the pair card owns the feed. */
+function SeekerExpiredInvitationSection({
   invitation,
+  history,
   requestLoading,
   onRequest,
-  verified,
 }: {
   invitation: AgencyInvitationResponse;
+  history: MembershipTimelineEntry[];
   requestLoading: boolean;
   onRequest: () => void;
-  verified?: boolean;
 }) {
-  const feed = useInvitationEvents(invitation.invitation_id, true);
-  const history = [
-    ...resolveInvitationColumnTimeline(invitation),
-    ...getInvitationDecisionResults(feed.data ?? []),
-  ];
   const decided =
     invitation.status === "accepted" ||
     history.some((entry) => entry.action === "reactivation_rejected");
@@ -287,35 +266,32 @@ function SeekerExpiredInvitationCard({
   const ownRequest =
     invitation.reactivation_requested_at != null && !agencyRequested;
   return (
-    <Card>
-      <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} href={resolveAgencyHref(invitation.agency_id)} />
-        <MembershipTimeline tier="simple" history={history} showHeader={false} />
-        {decided || invitation.reactivated_at ? null : agencyRequested ? (
+    <>
+      <MembershipTimeline tier="simple" history={history} showHeader={false} />
+      {decided || invitation.reactivated_at ? null : agencyRequested ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
+        </p>
+      ) : ownRequest ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {resolveInvitationExpiredRequestedSeekerText({ agencyName: invitation.agency_name })}
+        </p>
+      ) : (
+        <div className="space-y-3">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
+            {resolveInvitationExpiredSeekerText({ agencyName: invitation.agency_name })}
           </p>
-        ) : ownRequest ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredRequestedSeekerText({ agencyName: invitation.agency_name })}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {resolveInvitationExpiredSeekerText({ agencyName: invitation.agency_name })}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              loading={requestLoading}
-              onClick={onRequest}
-            >
-              Request Reactivation
-            </Button>
-          </div>
-        )}
-      </CardBody>
-    </Card>
+          <Button
+            type="button"
+            size="sm"
+            loading={requestLoading}
+            onClick={onRequest}
+          >
+            Request Reactivation
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -615,6 +591,43 @@ export function MyJoinRequestsClient() {
     }
   };
 
+  const invitations = invitationsQuery.data ?? [];
+  // U-054: one card per agency per invitation tab (pair groups); tab
+  // counters read groups, never rows. The pending anchor merges
+  // agency-requested expired rows per contract (the grouper owns the
+  // viewer-relative predicate); decided rows hide per section below.
+  const pendingInvitationGroups = groupMyInvitationCycles(invitations, "pending", user?.user_id ?? null);
+  const acceptedInvitationGroups = groupMyInvitationCycles(invitations, "accepted");
+  const rejectedInvitationGroups = groupMyInvitationCycles(invitations, "rejected");
+  const expiredInvitationGroups = groupMyInvitationCycles(invitations, "expired-history");
+  const withdrawnInvitationGroups = groupMyInvitationCycles(invitations, "withdrawn-history");
+  // Pair-card event feeds (Expired/Withdrawn/Pending-expired rows):
+  // batched so header totals cover every row's decision results. The
+  // expired batch also feeds Pending's merged rows (shared keys).
+  const expiredInvitationEventIds = expiredInvitationGroups.flatMap((group) =>
+    group.invitations.map((invitation) => invitation.invitation_id),
+  );
+  const expiredInvitationEventQueries = useInvitationEventsBatch(
+    expiredInvitationEventIds,
+    activeTab === "invitations",
+  );
+  const expiredInvitationEventsById = new Map(
+    expiredInvitationEventIds.map((invitationId, index) => [invitationId, expiredInvitationEventQueries[index]?.data ?? []] as const),
+  );
+  const expiredInvitationLoadingById = new Map(
+    expiredInvitationEventIds.map((invitationId, index) => [invitationId, expiredInvitationEventQueries[index]?.isLoading ?? false] as const),
+  );
+  const withdrawnInvitationEventIds = withdrawnInvitationGroups.flatMap((group) =>
+    group.invitations.map((invitation) => invitation.invitation_id),
+  );
+  const withdrawnInvitationEventQueries = useInvitationEventsBatch(
+    withdrawnInvitationEventIds,
+    activeTab === "invitations",
+  );
+  const withdrawnInvitationEventsById = new Map(
+    withdrawnInvitationEventIds.map((invitationId, index) => [invitationId, withdrawnInvitationEventQueries[index]?.data ?? []] as const),
+  );
+
   if (authLoading) {
     return <LoadingState />;
   }
@@ -685,14 +698,6 @@ export function MyJoinRequestsClient() {
     ),
   );
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
-  const invitations = invitationsQuery.data ?? [];
-  /* Seeker Pending merges agency-requested expired rows (contract): the
-     invitee decides them here with Accept/Reject — the Expired tab only
-     points across. Decided rows are excluded inside the merged card (the
-     audit feed is the only decided signal). */
-  const pendingInvitations = invitations.filter(
-    (i) => i.status === "pending" || isAgencyRequestedExpiredInvitation(i, user?.user_id ?? null),
-  );
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
     { value: "agencies" as const, label: "Find an Agency" },
     ...(canViewAgencyInvitations
@@ -749,11 +754,11 @@ export function MyJoinRequestsClient() {
 
           <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
             {[
-              { value: "pending" as const, label: `Pending (${pendingInvitations.length})` },
-              { value: "accepted" as const, label: `Accepted (${invitations.filter(i => i.status === "accepted").length})` },
-              { value: "rejected" as const, label: `Rejected (${invitations.filter(i => i.status === "rejected").length})` },
-              { value: "expired" as const, label: `Expired (${invitations.filter(hasExpiredHistory).length})` },
-              { value: "withdrawn" as const, label: `Withdrawn (${invitations.filter(hasWithdrawnHistory).length})` },
+              { value: "pending" as const, label: `Pending (${pendingInvitationGroups.length})` },
+              { value: "accepted" as const, label: `Accepted (${acceptedInvitationGroups.length})` },
+              { value: "rejected" as const, label: `Rejected (${rejectedInvitationGroups.length})` },
+              { value: "expired" as const, label: `Expired (${expiredInvitationGroups.length})` },
+              { value: "withdrawn" as const, label: `Withdrawn (${withdrawnInvitationGroups.length})` },
             ].map(({ value, label }) => (
               <Button key={value} type="button" variant={invitationSubTab === value ? "primary" : "ghost"} size="sm" onClick={() => setInvitationSubTab(value)}>
                 {label}
@@ -763,102 +768,134 @@ export function MyJoinRequestsClient() {
 
           {invitationSubTab === "pending" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {pendingInvitations.length === 0 ? (
+              {pendingInvitationGroups.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
                   <EmptyState title="No pending invitations" description="All invitations have been resolved." />
                 </div>
               ) : (
-                pendingInvitations.map((invitation) =>
-                  invitation.status === "expired" ? (
-                    <SeekerPendingExpiredCard
-                      key={invitation.invitation_id}
-                      invitation={invitation}
-                      verified={resolveAgencyIsVerified(memberships, invitation.agency_id)}
-                      acceptLoading={
-                        acceptInvitationReactivation.isPending &&
-                        acceptInvitationReactivation.variables?.invitationId === invitation.invitation_id
-                      }
-                      rejectLoading={
-                        rejectInvitationReactivation.isPending &&
-                        rejectInvitationReactivation.variables?.invitationId === invitation.invitation_id
-                      }
-                      onAccept={() =>
-                        acceptInvitationReactivationGate.attempt(invitation.invitation_id)
-                      }
-                      onReject={() =>
-                        rejectInvitationReactivationGate.attempt(invitation.invitation_id)
-                      }
-                    />
-                  ) : (
-                    <Card key={invitation.invitation_id}>
-                      <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} href={resolveAgencyHref(invitation.agency_id)} />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Invited {formatDate(invitation.created_at)}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {resolveInvitationPendingSeekerText({ agencyName: invitation.agency_name })}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            loading={
-                              acceptInvitation.isPending &&
-                              acceptInvitation.variables?.invitationId === invitation.invitation_id
-                            }
-                            onClick={() =>
-                              inviteAcceptGate.attempt(invitation.invitation_id)
-                            }
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            loading={
-                              rejectInvitation.isPending &&
-                              rejectInvitation.variables?.invitationId === invitation.invitation_id
-                            }
-                            onClick={() =>
-                              inviteRejectGate.attempt(invitation.invitation_id)
-                            }
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  ),
-                )
+                pendingInvitationGroups.map((group) => {
+                  // Merged expired rows vanish once decided or while their
+                  // feed loads (the feed is the only decided signal); live
+                  // pendings always show. Groups left with no visible row
+                  // render nothing, as their cards did before grouping.
+                  const visibleRows = group.invitations.filter((invitation) => {
+                    if (invitation.status !== "expired") return true;
+                    if (expiredInvitationLoadingById.get(invitation.invitation_id)) return false;
+                    // Widened: the pending anchor admits pendings and
+                    // expired rows only, but the decided rule stays
+                    // verbatim with the pre-grouping card.
+                    const status: string = invitation.status;
+                    const decided =
+                      status === "accepted" ||
+                      getInvitationDecisionResults(
+                        expiredInvitationEventsById.get(invitation.invitation_id) ?? [],
+                      ).some((entry) => entry.action === "reactivation_rejected");
+                    return !decided;
+                  });
+                  if (visibleRows.length === 0) return null;
+                  return (
+                  <Card key={group.agencyId}>
+                    <CardBody className="space-y-4">
+                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} href={resolveAgencyHref(group.agencyId)} />
+                      {visibleRows.map((invitation) =>
+                        invitation.status === "expired" ? (
+                          <div key={invitation.invitation_id} className="mt-3 space-y-2">
+                            <SeekerPendingExpiredSection
+                              invitation={invitation}
+                              acceptLoading={
+                                acceptInvitationReactivation.isPending &&
+                                acceptInvitationReactivation.variables?.invitationId === invitation.invitation_id
+                              }
+                              rejectLoading={
+                                rejectInvitationReactivation.isPending &&
+                                rejectInvitationReactivation.variables?.invitationId === invitation.invitation_id
+                              }
+                              onAccept={() =>
+                                acceptInvitationReactivationGate.attempt(invitation.invitation_id)
+                              }
+                              onReject={() =>
+                                rejectInvitationReactivationGate.attempt(invitation.invitation_id)
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <div key={invitation.invitation_id} className="mt-3 space-y-2">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Invited {formatDate(invitation.created_at)}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {resolveInvitationPendingSeekerText({ agencyName: invitation.agency_name })}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                loading={
+                                  acceptInvitation.isPending &&
+                                  acceptInvitation.variables?.invitationId === invitation.invitation_id
+                                }
+                                onClick={() =>
+                                  inviteAcceptGate.attempt(invitation.invitation_id)
+                                }
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                loading={
+                                  rejectInvitation.isPending &&
+                                  rejectInvitation.variables?.invitationId === invitation.invitation_id
+                                }
+                                onClick={() =>
+                                  inviteRejectGate.attempt(invitation.invitation_id)
+                                }
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </CardBody>
+                  </Card>
+                  );
+                })
               )}
             </div>
           ) : invitationSubTab === "accepted" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "accepted").length === 0 ? (
+              {acceptedInvitationGroups.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
                   <EmptyState title="No accepted invitations" description="Accepted invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "accepted").map((invitation) => {
-                  // U-018: identity renders once via the TimelineHeader
-                  // below, so the full timeline carries no header of its
-                  // own. Dates are rows; the count equals them.
-                  const invitationHistory = resolveAcceptedInvitationTimeline(
+                acceptedInvitationGroups.map((group) => {
+                  // U-054: one card per agency with a per-invitation
+                  // section each; the count equals all rows.
+                  const invitationTimelines = group.invitations.map((invitation) => ({
                     invitation,
-                    historyQuery.data ?? [],
-                    { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                  );
+                    history: resolveAcceptedInvitationTimeline(
+                      invitation,
+                      historyQuery.data ?? [],
+                      { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                    ),
+                  }));
+                  const rowTotal = invitationTimelines.reduce((n, t) => n + t.history.length, 0);
                   return (
-                  <Card key={invitation.invitation_id}>
+                  <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
-                      <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} applicationStatus="accepted" href={resolveAgencyHref(invitation.agency_id)} />
-                      <MembershipTimeline
-                        tier="simple"
-                        history={invitationHistory}
-                        showHeader={false}
-                      />
+                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} applicationStatus="accepted" href={resolveAgencyHref(group.agencyId)} />
+                      {invitationTimelines.map(({ invitation, history }) => (
+                        <div key={invitation.invitation_id} className="mt-3 space-y-2">
+                          <MembershipTimeline
+                            tier="simple"
+                            history={history}
+                            showHeader={false}
+                          />
+                        </div>
+                      ))}
                     </CardBody>
                   </Card>
                   );
@@ -867,36 +904,45 @@ export function MyJoinRequestsClient() {
             </div>
           ) : invitationSubTab === "rejected" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(i => i.status === "rejected").length === 0 ? (
+              {rejectedInvitationGroups.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
                   <EmptyState title="No rejected invitations" description="Rejected invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "rejected").map((invitation) => {
-                  const subsequent = getInvitationSubsequentApplications(
-                    invitation,
-                    requests.map((request) => ({
-                      agency_id: request.agency_id,
-                      submitted_at: request.submitted_at,
-                    })),
-                    { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                  );
-                  // Dates are rows (column lifecycle plus subsequent
-                  // applications as canonical rows); the count equals them.
-                  // The ambient sentence is locked and stays outside rows.
-                  const invitationHistory = resolveRejectedInvitationTimeline(invitation, subsequent);
+                rejectedInvitationGroups.map((group) => {
+                  // U-054: one card per agency with a per-invitation
+                  // section each; the count equals all rows.
+                  const invitationTimelines = group.invitations.map((invitation) => {
+                    const subsequent = getInvitationSubsequentApplications(
+                      invitation,
+                      requests.map((request) => ({
+                        agency_id: request.agency_id,
+                        submitted_at: request.submitted_at,
+                      })),
+                      { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                    );
+                    return {
+                      invitation,
+                      history: resolveRejectedInvitationTimeline(invitation, subsequent),
+                    };
+                  });
+                  const rowTotal = invitationTimelines.reduce((n, t) => n + t.history.length, 0);
                   return (
-                    <Card key={invitation.invitation_id}>
+                    <Card key={group.agencyId}>
                       <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} href={resolveAgencyHref(invitation.agency_id)} />
-                        <MembershipTimeline
-                          tier="simple"
-                          history={invitationHistory}
-                          showHeader={false}
-                        />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
-                        </p>
+                        <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
+                        {invitationTimelines.map(({ invitation, history }) => (
+                          <div key={invitation.invitation_id} className="mt-3 space-y-2">
+                            <MembershipTimeline
+                              tier="simple"
+                              history={history}
+                              showHeader={false}
+                            />
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
+                            </p>
+                          </div>
+                        ))}
                       </CardBody>
                     </Card>
                   );
@@ -905,48 +951,88 @@ export function MyJoinRequestsClient() {
             </div>
           ) : invitationSubTab === "expired" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(hasExpiredHistory).length === 0 ? (
+              {expiredInvitationGroups.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
                   <EmptyState title="No expired invitations" description="Invitations that ever passed through the expired state will appear here." />
                 </div>
               ) : (
-                invitations.filter(hasExpiredHistory).map((invitation) => (
-                  <SeekerExpiredInvitationCard
-                    key={invitation.invitation_id}
-                    invitation={invitation}
-                    verified={resolveAgencyIsVerified(memberships, invitation.agency_id)}
-                    requestLoading={
-                      requestReactivation.isPending &&
-                      requestReactivation.variables === invitation.invitation_id
-                    }
-                    onRequest={() =>
-                      inviteReactivationGate.attempt(invitation.invitation_id)
-                    }
-                  />
-                ))
+                expiredInvitationGroups.map((group) => {
+                  // U-054: one card per agency with a per-invitation
+                  // section each; the count equals all rows.
+                  const invitationHistories = group.invitations.map((invitation) => ({
+                    invitation,
+                    history: [
+                      ...resolveInvitationColumnTimeline(invitation),
+                      ...getInvitationDecisionResults(expiredInvitationEventsById.get(invitation.invitation_id) ?? []),
+                    ],
+                  }));
+                  const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
+                  return (
+                  <Card key={group.agencyId}>
+                    <CardBody className="space-y-4">
+                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
+                      {invitationHistories.map(({ invitation, history }) => (
+                        <div key={invitation.invitation_id} className="mt-3 space-y-2">
+                          <SeekerExpiredInvitationSection
+                            invitation={invitation}
+                            history={history}
+                            requestLoading={
+                              requestReactivation.isPending &&
+                              requestReactivation.variables === invitation.invitation_id
+                            }
+                            onRequest={() =>
+                              inviteReactivationGate.attempt(invitation.invitation_id)
+                            }
+                          />
+                        </div>
+                      ))}
+                    </CardBody>
+                  </Card>
+                  );
+                })
               )}
             </div>
           ) : invitationSubTab === "withdrawn" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {invitations.filter(hasWithdrawnHistory).length === 0 ? (
+              {withdrawnInvitationGroups.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3">
                   <EmptyState title="No withdrawn invitations" description="Invitations that ever passed through the withdrawn state will appear here." />
                 </div>
               ) : (
-                invitations.filter(hasWithdrawnHistory).map((invitation) => (
-                  <SeekerWithdrawnInvitationCard
-                    key={invitation.invitation_id}
-                    invitation={invitation}
-                    verified={resolveAgencyIsVerified(memberships, invitation.agency_id)}
-                    expressLoading={
-                      requestReactivation.isPending &&
-                      requestReactivation.variables === invitation.invitation_id
-                    }
-                    onExpressInterest={() =>
-                      inviteReactivationGate.attempt(invitation.invitation_id)
-                    }
-                  />
-                ))
+                withdrawnInvitationGroups.map((group) => {
+                  // U-054: one card per agency with a per-invitation
+                  // section each; the count equals all rows.
+                  const invitationHistories = group.invitations.map((invitation) => ({
+                    invitation,
+                    history: [
+                      ...resolveInvitationColumnTimeline(invitation),
+                      ...getInvitationDecisionResults(withdrawnInvitationEventsById.get(invitation.invitation_id) ?? []),
+                    ],
+                  }));
+                  const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
+                  return (
+                  <Card key={group.agencyId}>
+                    <CardBody className="space-y-4">
+                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
+                      {invitationHistories.map(({ invitation, history }) => (
+                        <div key={invitation.invitation_id} className="mt-3 space-y-2">
+                          <SeekerWithdrawnInvitationSection
+                            invitation={invitation}
+                            history={history}
+                            expressLoading={
+                              requestReactivation.isPending &&
+                              requestReactivation.variables === invitation.invitation_id
+                            }
+                            onExpressInterest={() =>
+                              inviteReactivationGate.attempt(invitation.invitation_id)
+                            }
+                          />
+                        </div>
+                      ))}
+                    </CardBody>
+                  </Card>
+                  );
+                })
               )}
             </div>
           ) : (

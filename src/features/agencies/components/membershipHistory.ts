@@ -1,4 +1,9 @@
-import { hasExpiredHistory } from "@/lib/membership-lifecycle-messages";
+import {
+  hasExpiredHistory,
+  hasWithdrawnHistory,
+  isAgencyRequestedExpiredInvitation,
+  resolveInviteeName,
+} from "@/lib/membership-lifecycle-messages";
 import type {
   AgencyInvitationResponse,
   AgencyJoinRequestResponse,
@@ -1032,6 +1037,154 @@ export function groupMyJoinRequestCycles(
       rejectedRequests: [...group.rejectedRequests].sort(bySubmittedAt),
     }))
     .sort((first, second) => first.agencyName.localeCompare(second.agencyName));
+}
+
+/* Invitee email normalization lives HERE ONLY (Rule 20 SSOT — one
+   normalizer). Email-only invitees (NULL invited_user_id) group by this
+   key until the registration stamp lands a user id; stamped rows group
+   by user id and never merge into an email-keyed group (no matching by
+   email across tables). */
+export function normalizeInviteeEmail(email?: string | null): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+/* Shared agency invitation-cycle grouping lives HERE ONLY (canonical
+   membershipHistory module, U-054). One group per invitee: stamped rows
+   key on invited_user_id, email-only rows on the normalized email.
+   Admission is anchor-rows-only per tab (own lifecycle, U-031); cards
+   order latest-activity-first with a key tiebreak, sections ascend.
+   Consumers: agency Pending/Accepted/Rejected/Expired/Withdrawn tabs. */
+export interface AgencyInvitationCycleGroup {
+  key: string;
+  userId: number | null;
+  inviteeName: string;
+  inviteeEmail: string | null;
+  invitations: AgencyInvitationResponse[];
+}
+
+export type InvitationCycleAnchor =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "expired-history"
+  | "withdrawn-history";
+
+const byInvitationCreatedAt = (
+  first: AgencyInvitationResponse,
+  second: AgencyInvitationResponse,
+) =>
+  new Date(first.created_at).getTime() - new Date(second.created_at).getTime() ||
+  first.invitation_id - second.invitation_id;
+
+function latestInvitationCreatedAt(group: { invitations: AgencyInvitationResponse[] }): number {
+  return group.invitations.reduce(
+    (max, invitation) => Math.max(max, new Date(invitation.created_at).getTime()),
+    0,
+  );
+}
+
+function isAnchorInvitation(
+  invitation: AgencyInvitationResponse,
+  anchor: InvitationCycleAnchor,
+  viewerUserId: number | null,
+): boolean {
+  if (anchor === "expired-history") return hasExpiredHistory(invitation);
+  if (anchor === "withdrawn-history") return hasWithdrawnHistory(invitation);
+  if (anchor === "pending") {
+    // Seeker Pending merges agency-requested expired rows (contract);
+    // agency Pending admits live pendings only (the merge predicate is
+    // invitee-relative, so agency callers pass no viewer).
+    return (
+      invitation.status === "pending" ||
+      isAgencyRequestedExpiredInvitation(invitation, viewerUserId)
+    );
+  }
+  return invitation.status === anchor;
+}
+
+export function groupAgencyInvitationCycles(
+  invitations: AgencyInvitationResponse[],
+  anchor: InvitationCycleAnchor,
+) {
+  const groups = new Map<string, AgencyInvitationCycleGroup>();
+
+  for (const invitation of invitations) {
+    if (!isAnchorInvitation(invitation, anchor, null)) continue;
+    const userId = invitation.invited_user_id ?? null;
+    const key =
+      userId != null
+        ? `user:${userId}`
+        : `email:${normalizeInviteeEmail(invitation.email)}`;
+    const current = groups.get(key);
+    if (current) {
+      current.invitations.push(invitation);
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      userId,
+      inviteeName: resolveInviteeName(invitation),
+      inviteeEmail: invitation.email ?? null,
+      invitations: [invitation],
+    });
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      invitations: [...group.invitations].sort(byInvitationCreatedAt),
+    }))
+    .sort(
+      (first, second) =>
+        latestInvitationCreatedAt(second) - latestInvitationCreatedAt(first) ||
+        (first.key < second.key ? -1 : first.key > second.key ? 1 : 0),
+    );
+}
+
+/* Shared seeker invitation-cycle grouping lives HERE ONLY (canonical
+   membershipHistory module, U-054). One group per agency; the pending
+   anchor merges agency-requested expired rows per the viewer-relative
+   contract (viewerUserId required for that anchor only). Consumers:
+   seeker Pending/Accepted/Rejected/Expired/Withdrawn tabs. */
+export interface MyInvitationCycleGroup {
+  agencyId: number;
+  agencyName: string;
+  invitations: AgencyInvitationResponse[];
+}
+
+export function groupMyInvitationCycles(
+  invitations: AgencyInvitationResponse[],
+  anchor: InvitationCycleAnchor,
+  viewerUserId: number | null = null,
+) {
+  const groups = new Map<number, MyInvitationCycleGroup>();
+
+  for (const invitation of invitations) {
+    if (!isAnchorInvitation(invitation, anchor, viewerUserId)) continue;
+    const current = groups.get(invitation.agency_id);
+    if (current) {
+      current.invitations.push(invitation);
+      continue;
+    }
+
+    groups.set(invitation.agency_id, {
+      agencyId: invitation.agency_id,
+      agencyName: invitation.agency_name,
+      invitations: [invitation],
+    });
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      invitations: [...group.invitations].sort(byInvitationCreatedAt),
+    }))
+    .sort(
+      (first, second) =>
+        latestInvitationCreatedAt(second) - latestInvitationCreatedAt(first) ||
+        first.agencyId - second.agencyId,
+    );
 }
 
 export function resolveCumulativeRequestLifecycleTimeline(

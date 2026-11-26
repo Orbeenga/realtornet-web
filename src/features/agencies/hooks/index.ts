@@ -1,7 +1,7 @@
 export { useAgencyProfile, useUpdateAgencyProfile } from "./useAgencyProfile";
 export { useAgencyAgents } from "./useAgencyAgents";
 export { useAgencyListings } from "./useAgencyListings";
-export { useAgencyMembershipHistory, useAgencyMembershipHistories, useInvitationEvents } from "./useAgencyMembershipHistory";
+export { useAgencyMembershipHistory, useAgencyMembershipHistories, useInvitationEvents, useInvitationEventsBatch } from "./useAgencyMembershipHistory";
 export {
   useAgentMembershipStatus,
   useAgencyMemberHistory,

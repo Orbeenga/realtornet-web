@@ -111,6 +111,30 @@ export function useInvitationEvents(
   );
 }
 
+/* Batch per-invitation event feeds (U-054 pair cards): one useQueries call
+   over a tab's invitation ids so group cards compute every row's history
+   (and the header total) with no per-row hooks. First page only — pair
+   cards never load more (same bound as the per-row feeds they replace).
+   The "first-page" key suffix keeps clear of the useInfiniteQuery
+   single-feed keys (same convention as useAgencyMembershipHistories).
+   Result order matches invitationIds. */
+export function useInvitationEventsBatch(
+  invitationIds: Array<number | null | undefined> = [],
+  enabled = true,
+) {
+  return useQueries({
+    queries: invitationIds.map((invitationId) => ({
+      queryKey: ["invitationEvents", invitationId, "first-page"],
+      queryFn: () =>
+        apiClient<MembershipTimelinePage | MembershipTimelineEntry[]>(
+          `/api/v1/agency-invitations/${invitationId}/events/`,
+        ).then(normalizeMembershipHistoryPage).then((page) => page.items),
+      staleTime: 30_000,
+      enabled: enabled && invitationId != null,
+    })),
+  });
+}
+
 /**
  * Batch per-user membership histories for an agency. Keeps the per-user fetch
  * (no cross-user fan-out) while exposing a single data-fetch pattern so callers

@@ -28,6 +28,9 @@ import {
   getAcceptedInvitationDownstreamEvents,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
+  groupAgencyInvitationCycles,
+  groupMyInvitationCycles,
+  normalizeInviteeEmail,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveInvitationColumnTimeline,
@@ -590,6 +593,94 @@ assert(
     { agency_id: 42, user_id: 7, submitted_at: "2026-11-25T10:00:00Z" },
   ]).find((e) => e.action === "applied")?.timestamp === "2026-11-25T10:00:00Z",
   "applied rows carry the application submit time",
+);
+
+// 17. Agency pair grouping (U-054): stamped rows key on invited_user_id,
+//     email-only rows on the normalized email; anchors admit own rows only.
+assert(normalizeInviteeEmail("  Seeker@Example.com ") === "seeker@example.com", "email key trims and lowercases");
+assert(normalizeInviteeEmail(null) === "", "missing email normalizes empty");
+const pairFeed = [
+  invitation({ invitation_id: 51, status: "pending", invited_user_id: 7, email: "zed@example.com", created_at: "2026-11-10T10:00:00Z" }),
+  invitation({ invitation_id: 52, status: "pending", invited_user_id: 7, email: "zed@example.com", created_at: "2026-11-12T10:00:00Z" }),
+  invitation({ invitation_id: 53, status: "pending", invited_user_id: null, email: "Amy@Example.com", created_at: "2026-11-11T10:00:00Z" }),
+  invitation({ invitation_id: 54, status: "pending", invited_user_id: null, email: " amy@example.com ", created_at: "2026-11-13T10:00:00Z" }),
+  invitation({ invitation_id: 55, status: "expired", invited_user_id: 7, email: "zed@example.com", created_at: "2026-11-14T10:00:00Z" }),
+];
+const pendingPairs = groupAgencyInvitationCycles(pairFeed, "pending");
+assert(
+  pendingPairs.length === 2 &&
+    pendingPairs[0]?.key === "email:amy@example.com" &&
+    pendingPairs[0]?.invitations.map((i) => i.invitation_id).join(",") === "53,54" &&
+    pendingPairs[1]?.key === "user:7" &&
+    pendingPairs[1]?.invitations.map((i) => i.invitation_id).join(",") === "51,52",
+  "pending groups by stamped user and normalized email, sections ascending",
+);
+assert(
+  groupAgencyInvitationCycles(pairFeed, "expired-history").length === 1 &&
+    groupAgencyInvitationCycles(pairFeed, "expired-history")[0]?.invitations.length === 1,
+  "expired-history admits only expired rows (no pending leak)",
+);
+const splitFeed = [
+  invitation({ invitation_id: 61, status: "pending", invited_user_id: 9, email: "split@example.com" }),
+  invitation({ invitation_id: 62, status: "pending", invited_user_id: null, email: "split@example.com" }),
+];
+assert(
+  groupAgencyInvitationCycles(splitFeed, "pending").length === 2,
+  "stamped and email-only rows for one address never merge (no email matching)",
+);
+const orderFeed = [
+  invitation({ invitation_id: 71, status: "pending", invited_user_id: 7, created_at: "2026-11-10T10:00:00Z" }),
+  invitation({ invitation_id: 72, status: "pending", invited_user_id: 8, created_at: "2026-11-15T10:00:00Z" }),
+];
+assert(
+  groupAgencyInvitationCycles(orderFeed, "pending").map((g) => g.key).join(",") === "user:8,user:7",
+  "cards order latest-activity-first",
+);
+
+// 18. Seeker pair grouping (U-054): one group per agency; the pending
+//     anchor merges agency-requested expired rows for the viewer only.
+const seekerFeed = [
+  invitation({ invitation_id: 81, agency_id: 2, agency_name: "Beta", status: "pending", invited_user_id: 5 }),
+  invitation({
+    invitation_id: 82,
+    agency_id: 2,
+    agency_name: "Beta",
+    status: "expired",
+    invited_user_id: 5,
+    reactivation_requested_at: "2026-11-20T10:00:00Z",
+    reactivation_requested_by: 99,
+  }),
+  invitation({
+    invitation_id: 83,
+    agency_id: 3,
+    agency_name: "Gamma",
+    status: "expired",
+    invited_user_id: 5,
+    reactivation_requested_at: "2026-11-20T10:00:00Z",
+    reactivation_requested_by: 5,
+  }),
+  invitation({ invitation_id: 84, agency_id: 3, agency_name: "Gamma", status: "accepted", invited_user_id: 5 }),
+];
+const seekerPending = groupMyInvitationCycles(seekerFeed, "pending", 5);
+assert(
+  seekerPending.length === 1 &&
+    seekerPending[0]?.agencyId === 2 &&
+    seekerPending[0]?.invitations.map((i) => i.invitation_id).join(",") === "81,82",
+  "seeker pending merges the agency-requested expired row, drops self-requested",
+);
+assert(
+  groupMyInvitationCycles(seekerFeed, "pending", null).length === 1 &&
+    groupMyInvitationCycles(seekerFeed, "pending", null)[0]?.invitations.length === 1,
+  "pending merge needs a viewer (no viewer, live pendings only)",
+);
+assert(
+  groupMyInvitationCycles(seekerFeed, "accepted").length === 1 &&
+    groupMyInvitationCycles(seekerFeed, "accepted")[0]?.agencyId === 3,
+  "accepted admits accepted rows only, keyed by agency",
+);
+assert(
+  groupMyInvitationCycles(seekerFeed, "expired-history").length === 2,
+  "expired-history admits every expired row across agencies",
 );
 
 if (failures > 0) {
