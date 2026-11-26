@@ -72,22 +72,6 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function getStatusVariant(status: string) {
-  if (status === "approved" || status === "active") {
-    return "success" as const;
-  }
-
-  if (status === "rejected" || status === "blocked" || status === "inactive" || status === "revoked") {
-    return "danger" as const;
-  }
-
-  return "warning" as const;
-}
-
-function displayMembershipStatus(status: string) {
-  return status;
-}
-
 type MyAgenciesTab = "agencies" | "invitations" | "memberships" | "requests";
 
 const COOLDOWN_WINDOW_DAYS = 30;
@@ -192,7 +176,7 @@ function SeekerWithdrawnInvitationCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
         {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
           <div className="space-y-3">
@@ -304,7 +288,7 @@ function SeekerExpiredInvitationCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} eventCount={history.length} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
         {decided || invitation.reactivated_at ? null : agencyRequested ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1010,17 +994,7 @@ export function MyJoinRequestsClient() {
                 activeMemberships.map((membership) => (
                   <Card key={membership.membership_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <Link
-                          href={`/agencies/${membership.agency_id}`}
-                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          {membership.agency_name}
-                        </Link>
-                        <Badge variant={getStatusVariant(membership.status)}>
-                          {displayMembershipStatus(membership.status)}
-                        </Badge>
-                      </div>
+                      <TimelineHeader entity="agency" name={membership.agency_name} verified={membership.is_verified} applicationStatus={membership.status} />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {membership.listing_count} active listing{membership.listing_count !== 1 ? "s" : ""} under this agency.
                       </p>
@@ -1314,21 +1288,11 @@ export function MyJoinRequestsClient() {
                 return (
                 <Card key={request.join_request_id}>
                   <CardBody className="space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <Link
-                        href={`/agencies/${request.agency_id}`}
-                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                      >
-                        {request.agency_name}
-                      </Link>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="warning">pending</Badge>
-                        {/* DEF-U-REAPPLY-BADGE-001: surface reapplication lineage on pending cards */}
-                        {request.reapplied_from_request_id != null ? (
-                          <Badge variant="outline">reapplied</Badge>
-                        ) : null}
-                      </div>
-                    </div>
+                    <TimelineHeader entity="agency" name={request.agency_name} verified={request.is_verified} applicationStatus="pending" />
+                    {/* DEF-U-REAPPLY-BADGE-001: surface reapplication lineage on pending cards */}
+                    {request.reapplied_from_request_id != null ? (
+                      <Badge variant="outline">reapplied</Badge>
+                    ) : null}
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Submitted {formatDate(request.submitted_at)}
                     </p>
@@ -1468,6 +1432,7 @@ export function MyJoinRequestsClient() {
                       name={group.agencyName}
                       verified={latestRequest?.is_verified}
                       applicationStatus="rejected"
+                      eventCount={cumulative.entries.length + appealRows.length}
                     />
                     <MembershipTimeline
                       tier="rich"
@@ -1512,6 +1477,18 @@ export function MyJoinRequestsClient() {
             ) : (
               expiredRequestGroups.map((group) => {
                 const latestRequest = group.requests[0];
+                // Count rule: the header count equals the narrative rows
+                // displayed beneath it, summed across the group's requests.
+                const narrativeRowTotal = group.requests.reduce(
+                  (total, request) =>
+                    total +
+                    resolveExpiredNarrativeTimeline(
+                      historyQuery.data ?? [],
+                      request,
+                      { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                    ).length,
+                  0,
+                );
                 return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
@@ -1523,6 +1500,7 @@ export function MyJoinRequestsClient() {
                         name={group.agencyName}
                         verified={latestRequest?.is_verified}
                         applicationStatus="expired"
+                        eventCount={narrativeRowTotal > 0 ? narrativeRowTotal : undefined}
                       />
                       {group.requests.map((request, requestIndex) => {
                         // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
@@ -1638,7 +1616,7 @@ export function MyJoinRequestsClient() {
                       entity="agency"
                       name={group.agencyName}
                       verified={group.requests[0]?.is_verified}
-                      eventCount={group.requests.length}
+                      eventCount={cumulative.entries.length}
                       applicationStatus="cancelled"
                     />
                     {(() => {

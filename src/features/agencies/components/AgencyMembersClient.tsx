@@ -420,7 +420,7 @@ function AgencyWithdrawnInvitationCard({
   const name = resolveInviteeName(invitation);
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} eventCount={history.length} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -475,7 +475,7 @@ function AgencyExpiredInvitationCard({
     invitation.reactivation_requested_at != null && !seekerRequested;
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} eventCount={history.length} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -1137,21 +1137,29 @@ export function AgencyMembersClient() {
                 ) : null}
                 {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).map((request) => (
+                    {joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).map((request) => {
+                      const member = historyMemberById.get(request.user_id);
+                      return (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
                         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                           <div className="space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-gray-900 dark:text-white">
-                                {request.seeker_name ?? "Seeker"}
-                              </p>
-                              <Badge variant="warning">pending</Badge>
-                              {request.prior_invitation ? (
-                                <Badge variant="outline">Invited</Badge>
-                              ) : null}
-                            </div>
+                            <TimelineHeader
+                              entity="person"
+                              name={member?.displayName ?? request.seeker_name ?? "Seeker"}
+                              email={member?.email ?? request.seeker_email ?? undefined}
+                              avatarUrl={member?.avatarUrl}
+                              role={member?.role}
+                              status={member?.status}
+                              lastSeen={member?.lastSeen}
+                              qualifiers={member?.qualifiers}
+                              verified={request.is_verified}
+                              applicationStatus="pending"
+                            />
+                            {request.prior_invitation ? (
+                              <Badge variant="outline">Invited</Badge>
+                            ) : null}
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {request.seeker_email ?? "Email unavailable"} - {formatDate(request.created_at)}
+                              Submitted {formatDate(request.created_at)}
                             </p>
                             {request.prior_invitation ? (
                               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1188,7 +1196,8 @@ export function AgencyMembersClient() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 ) : null}
               </>
@@ -1279,6 +1288,7 @@ export function AgencyMembersClient() {
                           qualifiers={member?.qualifiers}
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="rejected"
+                          eventCount={cumulative.entries.length + appealRows.length}
                         />
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
@@ -1312,6 +1322,18 @@ export function AgencyMembersClient() {
                   <div className="space-y-4">
                     {expiredCycleGroups.map((group) => {
                       const member = historyMemberById.get(group.userId);
+                      // Count rule: the header count equals the narrative rows
+                      // displayed beneath it, summed across the group's requests.
+                      const narrativeRowTotal = group.requests.reduce(
+                        (total, request) =>
+                          total +
+                          resolveExpiredNarrativeTimeline(
+                            expiredHistoryByRequestId.get(request.join_request_id) ?? [],
+                            request,
+                            { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                          ).length,
+                        0,
+                      );
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         {/* Rich person header via the shared TimelineHeader SSOT
@@ -1328,6 +1350,7 @@ export function AgencyMembersClient() {
                           lastSeen={member?.lastSeen}
                           qualifiers={member?.qualifiers}
                           applicationStatus="expired"
+                          eventCount={narrativeRowTotal > 0 ? narrativeRowTotal : undefined}
                         />
                         {group.requests.map((request, requestIndex) => {
                           // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
@@ -1428,6 +1451,7 @@ export function AgencyMembersClient() {
                           qualifiers={member?.qualifiers}
                           verified={group.requests[0]?.is_verified}
                           applicationStatus="cancelled"
+                          eventCount={cumulative.entries.length}
                         />
                         {cooldownDate ? (
                           (() => {
@@ -1511,28 +1535,33 @@ export function AgencyMembersClient() {
                     (request) => request.id !== primaryRequest.id,
                   );
                   const primaryPresentation = resolveReviewQueuePresentation(primaryRequest);
+                  const member = historyMemberById.get(group.userId);
 
                   return (
                   <div key={group.userId} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                       <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {group.requesterName}
-                          </p>
-                          {primaryPresentation.label ? (
-                            <Badge variant="outline">
-                              {primaryPresentation.label}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {group.requesterEmail ?? "Email unavailable"}
-                        </p>
+                        <TimelineHeader
+                          entity="person"
+                          name={member?.displayName ?? group.requesterName}
+                          email={member?.email ?? group.requesterEmail ?? undefined}
+                          avatarUrl={member?.avatarUrl}
+                          role={member?.role}
+                          status={member?.status}
+                          lastSeen={member?.lastSeen}
+                          qualifiers={member?.qualifiers}
+                        />
                         <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 dark:bg-gray-950/40">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {reviewQueueEventLine(primaryRequest)}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2 font-medium">
+                            <p className="text-gray-900 dark:text-white">
+                              {reviewQueueEventLine(primaryRequest)}
+                            </p>
+                            {primaryPresentation.label ? (
+                              <Badge variant="outline">
+                                {primaryPresentation.label}
+                              </Badge>
+                            ) : null}
+                          </div>
                           {primaryRequest.message ? (
                             <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                               {primaryRequest.message}
@@ -2038,7 +2067,16 @@ export function AgencyMembersClient() {
             ) : null}
             {!agentsQuery.isLoading && suspendedAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {suspendedAgents.map((agent, index) => (
+                {suspendedAgents.map((agent, index) => {
+                  // U-035-parity: this member's suspension lifecycle renders
+                  // via the shared scoped filter (SSOT) + canonical rich tier —
+                  // Shows 2 / expand accordion, same as Left/Revoked.
+                  const suspendedEvents = getMembershipHistoryByAction(
+                    suspendedHistoryQueries[index]?.data ?? [],
+                    { user_id: agent.user_id, agency_id: agent.agency_id },
+                    "suspended",
+                  );
+                  return (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -2050,6 +2088,7 @@ export function AgencyMembersClient() {
                           status={formatMembershipStatus(agent.membership_status)}
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          eventCount={suspendedEvents.length > 0 ? suspendedEvents.length : undefined}
                           qualifiers={[
                             ...(agent.status_decided_at ? [`Suspended ${formatDate(agent.status_decided_at)}`] : []),
                             ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
@@ -2058,31 +2097,21 @@ export function AgencyMembersClient() {
                         />
                       </div>
                     </div>
-                    {(() => {
-                      // U-035-parity: this member's suspension lifecycle renders
-                      // via the shared scoped filter (SSOT) + canonical rich tier —
-                      // Shows 2 / expand accordion, same as Left/Revoked.
-                      const suspendedEvents = getMembershipHistoryByAction(
-                        suspendedHistoryQueries[index]?.data ?? [],
-                        { user_id: agent.user_id, agency_id: agent.agency_id },
-                        "suspended",
-                      );
-                      if (suspendedEvents.length === 0) return null;
-                      return (
-                        <MembershipTimeline
-                          tier="rich"
-                          history={suspendedEvents}
-                          showHeader={false}
-                          entity="person"
-                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
-                          role={agent.user_role}
-                        />
-                      );
-                    })()}
+                    {suspendedEvents.length === 0 ? null : (
+                      <MembershipTimeline
+                        tier="rich"
+                        history={suspendedEvents}
+                        showHeader={false}
+                        entity="person"
+                        defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                        role={agent.user_role}
+                      />
+                    )}
                     {/* Decision reason captured in the confirmation dialog only —
                         inline input removed (duplicated the dialog's field). */}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
           </CardBody>
@@ -2110,7 +2139,15 @@ export function AgencyMembersClient() {
             ) : null}
             {!agentsQuery.isLoading && leftAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {leftAgents.map((agent, index) => (
+                {leftAgents.map((agent, index) => {
+                  // U-028: cumulative card — this member's 'left' events render
+                  // inside the card via the shared scoped filter (SSOT).
+                  const leftEvents = getMembershipHistoryByAction(
+                    leftHistoryQueries[index]?.data ?? [],
+                    { user_id: agent.user_id, agency_id: agent.agency_id },
+                    "left",
+                  );
+                  return (
                   <div key={agent.user_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -2122,6 +2159,7 @@ export function AgencyMembersClient() {
                           status={formatMembershipStatus(agent.membership_status)}
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          eventCount={leftEvents.length > 0 ? leftEvents.length : undefined}
                           qualifiers={[
                             ...(agent.status_decided_at ? [`Left ${formatDate(agent.status_decided_at)}`] : []),
                             ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
@@ -2130,32 +2168,23 @@ export function AgencyMembersClient() {
                         />
                       </div>
                     </div>
-                    {/* U-028: cumulative card — this member's 'left' events render
-                        inside the card via the shared scoped filter (SSOT). */}
-                    {(() => {
-                      const leftEvents = getMembershipHistoryByAction(
-                        leftHistoryQueries[index]?.data ?? [],
-                        { user_id: agent.user_id, agency_id: agent.agency_id },
-                        "left",
-                      );
-                      if (leftEvents.length === 0) return null;
-                      return (
-                        <MembershipTimeline
-                          tier="rich"
-                          history={leftEvents}
-                          showHeader={false}
-                          entity="person"
-                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
-                          role={agent.user_role}
-                          status={formatMembershipStatus(agent.membership_status)}
-                          lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
-                        />
-                      );
-                    })()}
+                    {leftEvents.length === 0 ? null : (
+                      <MembershipTimeline
+                        tier="rich"
+                        history={leftEvents}
+                        showHeader={false}
+                        entity="person"
+                        defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                        role={agent.user_role}
+                        status={formatMembershipStatus(agent.membership_status)}
+                        lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                      />
+                    )}
                     {/* Decision reason captured in the confirmation dialog only —
                         inline input removed (duplicated the dialog's field). */}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
           </CardBody>
@@ -2207,6 +2236,7 @@ export function AgencyMembersClient() {
                   status={formatMembershipStatus(agent.membership_status)}
                   email={agent.email}
                   lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : undefined}
+                  qualifiers={historyMemberById.get(agent.user_id)?.qualifiers}
                   pendingReviewHighlight
                 />
               );
@@ -2243,7 +2273,16 @@ export function AgencyMembersClient() {
             ) : null}
             {!agentsQuery.isLoading && blockedAgents.length > 0 ? (
               <div className="divide-y divide-border">
-                {blockedAgents.map((agent, index) => (
+                {blockedAgents.map((agent, index) => {
+                  // U-028 family: this member's block lifecycle renders via the
+                  // shared scoped filter (SSOT) + canonical rich accordion —
+                  // same as Suspended/Left/Revoked.
+                  const blockedEvents = getMembershipHistoryByAction(
+                    blockedHistoryQueries[index]?.data ?? [],
+                    { user_id: agent.user_id, agency_id: agent.agency_id },
+                    "blocked",
+                  );
+                  return (
                   <div key={agent.membership_id} className="space-y-4 py-4">
                     <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                       <div className="min-w-0 flex-1">
@@ -2255,6 +2294,7 @@ export function AgencyMembersClient() {
                           status={formatMembershipStatus(agent.membership_status)}
                           email={agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
+                          eventCount={blockedEvents.length > 0 ? blockedEvents.length : undefined}
                           qualifiers={[
                             ...(agent.status_decided_at ? [`Blocked ${formatDate(agent.status_decided_at)}`] : []),
                             ...(agent.status_reason ? [`Reason: ${agent.status_reason}`] : []),
@@ -2275,30 +2315,19 @@ export function AgencyMembersClient() {
                         </Button>
                       </div>
                     </div>
-                    {(() => {
-                      // U-028 family: this member's block lifecycle renders via the
-                      // shared scoped filter (SSOT) + canonical rich accordion —
-                      // same as Suspended/Left/Revoked. showHeader={false}: identity
-                      // already renders once via the TimelineHeader above (U-018).
-                      const blockedEvents = getMembershipHistoryByAction(
-                        blockedHistoryQueries[index]?.data ?? [],
-                        { user_id: agent.user_id, agency_id: agent.agency_id },
-                        "blocked",
-                      );
-                      if (blockedEvents.length === 0) return null;
-                      return (
-                        <MembershipTimeline
-                          tier="rich"
-                          history={blockedEvents}
-                          showHeader={false}
-                          entity="person"
-                          defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
-                          role={agent.user_role}
-                        />
-                      );
-                    })()}
+                    {blockedEvents.length === 0 ? null : (
+                      <MembershipTimeline
+                        tier="rich"
+                        history={blockedEvents}
+                        showHeader={false}
+                        entity="person"
+                        defaultUserDisplayName={agent.display_name || agent.company_name || "Listing agent"}
+                        role={agent.user_role}
+                      />
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
           </CardBody>
