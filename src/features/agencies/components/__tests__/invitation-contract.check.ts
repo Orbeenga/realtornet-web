@@ -32,6 +32,7 @@ import {
   groupAgencyInvitationCycles,
   groupMyInvitationCycles,
   normalizeInviteeEmail,
+  pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveInvitationColumnTimeline,
@@ -706,6 +707,16 @@ assert(
   "broad seeker counter reads 2 agencies for 3 rows across 2 tabs",
 );
 assert(countDistinctEntities([]) === 0, "empty union counts zero");
+
+// 20. Pair-section ambient gate (U-054 single bottom slot): a pair with
+//     two qualifying rows renders one ambient, on the latest section.
+const pairAmbientShown = [true, true].map((qualifies, index) =>
+  pairSectionShowsAmbient(index === 1, qualifies),
+);
+assert(
+  pairAmbientShown.join(",") === "false,true",
+  "pair with two qualifying rows renders one ambient, on the latest",
+);
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

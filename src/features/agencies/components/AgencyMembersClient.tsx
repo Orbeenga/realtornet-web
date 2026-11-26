@@ -80,6 +80,7 @@ import {
   getRevokedMembershipHistory,
   groupAgencyInvitationCycles,
   groupAgencyRequestCycles,
+  pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
@@ -407,28 +408,33 @@ interface AgencyHistoryMember {
 function AgencyWithdrawnInvitationSection({
   invitation,
   history,
+  isLatest,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
+  isLatest: boolean;
 }) {
   const decided =
     invitation.status === "accepted" ||
     history.some((entry) => entry.action === "reactivation_rejected");
   const name = resolveInviteeName(invitation);
+  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
   return (
     <>
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {decided || invitation.reactivated_at ? null : invitation.interest_expressed_at ? (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {resolveInvitationWithdrawnInterestAgencyText({ name })}
-        </p>
-      ) : (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {resolveInvitationWithdrawnAgencyText({ name })}
-        </p>
-      )}
+      {ambientVisible ? (
+        invitation.interest_expressed_at ? (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {resolveInvitationWithdrawnInterestAgencyText({ name })}
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {resolveInvitationWithdrawnAgencyText({ name })}
+          </p>
+        )
+      ) : null}
     </>
   );
 }
@@ -444,11 +450,13 @@ function AgencyExpiredInvitationSection({
   history,
   reactivateLoading,
   onReactivate,
+  isLatest,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   reactivateLoading: boolean;
   onReactivate: () => void;
+  isLatest: boolean;
 }) {
   const decided =
     invitation.status === "accepted" ||
@@ -463,33 +471,36 @@ function AgencyExpiredInvitationSection({
     requestedBy === inviteeId;
   const agencyRequested =
     invitation.reactivation_requested_at != null && !seekerRequested;
+  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
   return (
     <>
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {decided || invitation.reactivated_at ? null : seekerRequested ? (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {resolveInvitationExpiredRequestedAgencyText({ name })}
-        </p>
-      ) : agencyRequested ? (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {resolveInvitationExpiredOfferedAgencyText({ name })}
-        </p>
-      ) : invitation.status === "expired" ? (
-        <div className="mt-2 space-y-2">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredAgencyText({ name })}
+      {ambientVisible ? (
+        seekerRequested ? (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {resolveInvitationExpiredRequestedAgencyText({ name })}
           </p>
-          <Button
-            type="button"
-            size="sm"
-            loading={reactivateLoading}
-            onClick={onReactivate}
-          >
-            Reactivate Invitation
-          </Button>
-        </div>
+        ) : agencyRequested ? (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {resolveInvitationExpiredOfferedAgencyText({ name })}
+          </p>
+        ) : invitation.status === "expired" ? (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {resolveInvitationExpiredAgencyText({ name })}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              loading={reactivateLoading}
+              onClick={onReactivate}
+            >
+              Reactivate Invitation
+            </Button>
+          </div>
+        ) : null
       ) : null}
     </>
   );
@@ -2102,7 +2113,7 @@ export function AgencyMembersClient() {
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                       <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
-                      {invitationHistories.map(({ invitation, history }) => (
+                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <AgencyExpiredInvitationSection
                             invitation={invitation}
@@ -2112,6 +2123,7 @@ export function AgencyMembersClient() {
                               reactivateInvitation.variables === invitation.invitation_id
                             }
                             onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
+                            isLatest={sectionIndex === invitationHistories.length - 1}
                           />
                         </div>
                       ))}
@@ -2140,11 +2152,12 @@ export function AgencyMembersClient() {
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                       <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
-                      {invitationHistories.map(({ invitation, history }) => (
+                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <AgencyWithdrawnInvitationSection
                             invitation={invitation}
                             history={history}
+                            isLatest={sectionIndex === invitationHistories.length - 1}
                           />
                         </div>
                       ))}

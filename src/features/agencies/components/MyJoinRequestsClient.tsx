@@ -20,6 +20,7 @@ import {
   getRevokedMembershipHistory,
   groupMyInvitationCycles,
   groupMyJoinRequestCycles,
+  pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveCumulativeRequestLifecycleTimeline,
@@ -163,37 +164,42 @@ function SeekerWithdrawnInvitationSection({
   history,
   expressLoading,
   onExpressInterest,
+  isLatest,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   expressLoading: boolean;
   onExpressInterest: () => void;
+  isLatest: boolean;
 }) {
   const decided =
     invitation.status === "accepted" ||
     history.some((entry) => entry.action === "reactivation_rejected");
+  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
   return (
     <>
       <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
+      {ambientVisible ? (
+        !invitation.interest_expressed_at ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              loading={expressLoading}
+              onClick={onExpressInterest}
+            >
+              Express Interest
+            </Button>
+          </div>
+        ) : (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            {resolveInvitationWithdrawnInterestSeekerText({ agencyName: invitation.agency_name })}
           </p>
-          <Button
-            type="button"
-            size="sm"
-            loading={expressLoading}
-            onClick={onExpressInterest}
-          >
-            Express Interest
-          </Button>
-        </div>
-      ) : (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          {resolveInvitationWithdrawnInterestSeekerText({ agencyName: invitation.agency_name })}
-        </p>
-      )}
+        )
+      ) : null}
     </>
   );
 }
@@ -248,11 +254,13 @@ function SeekerExpiredInvitationSection({
   history,
   requestLoading,
   onRequest,
+  isLatest,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   requestLoading: boolean;
   onRequest: () => void;
+  isLatest: boolean;
 }) {
   const decided =
     invitation.status === "accepted" ||
@@ -266,32 +274,35 @@ function SeekerExpiredInvitationSection({
     requestedBy !== inviteeId;
   const ownRequest =
     invitation.reactivation_requested_at != null && !agencyRequested;
+  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
   return (
     <>
       <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      {decided || invitation.reactivated_at ? null : agencyRequested ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
-        </p>
-      ) : ownRequest ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {resolveInvitationExpiredRequestedSeekerText({ agencyName: invitation.agency_name })}
-        </p>
-      ) : (
-        <div className="space-y-3">
+      {ambientVisible ? (
+        agencyRequested ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredSeekerText({ agencyName: invitation.agency_name })}
+            {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
           </p>
-          <Button
-            type="button"
-            size="sm"
-            loading={requestLoading}
-            onClick={onRequest}
-          >
-            Request Reactivation
-          </Button>
-        </div>
-      )}
+        ) : ownRequest ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {resolveInvitationExpiredRequestedSeekerText({ agencyName: invitation.agency_name })}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {resolveInvitationExpiredSeekerText({ agencyName: invitation.agency_name })}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              loading={requestLoading}
+              onClick={onRequest}
+            >
+              Request Reactivation
+            </Button>
+          </div>
+        )
+      ) : null}
     </>
   );
 }
@@ -987,7 +998,7 @@ export function MyJoinRequestsClient() {
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
                       <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
-                      {invitationHistories.map(({ invitation, history }) => (
+                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <SeekerExpiredInvitationSection
                             invitation={invitation}
@@ -999,6 +1010,7 @@ export function MyJoinRequestsClient() {
                             onRequest={() =>
                               inviteReactivationGate.attempt(invitation.invitation_id)
                             }
+                            isLatest={sectionIndex === invitationHistories.length - 1}
                           />
                         </div>
                       ))}
@@ -1030,7 +1042,7 @@ export function MyJoinRequestsClient() {
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
                       <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
-                      {invitationHistories.map(({ invitation, history }) => (
+                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <SeekerWithdrawnInvitationSection
                             invitation={invitation}
@@ -1042,6 +1054,7 @@ export function MyJoinRequestsClient() {
                             onExpressInterest={() =>
                               inviteReactivationGate.attempt(invitation.invitation_id)
                             }
+                            isLatest={sectionIndex === invitationHistories.length - 1}
                           />
                         </div>
                       ))}

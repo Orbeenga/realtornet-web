@@ -451,8 +451,8 @@ export function MembershipTimeline({
 
   // Single uniform chronological sort by each row's OWN timestamp — U-035:
   // request and resolution are independent entries with genuine timestamps;
-  // no resolvedAt substitution, identical to History. Direction defaults to
-  // descending (newest first); cumulative narrative cards pass "asc".
+  // no resolvedAt substitution, identical to History. Direction is always
+  // descending (newest first); no per-consumer direction.
   const sortedHistory = [...entries].sort((first, second) => {
     const diff =
       new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime();
