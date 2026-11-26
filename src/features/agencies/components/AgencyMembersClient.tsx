@@ -402,9 +402,11 @@ interface AgencyHistoryMember {
 function AgencyWithdrawnInvitationCard({
   invitation,
   qualifiers,
+  member,
 }: {
   invitation: AgencyInvitationResponse;
   qualifiers?: string[];
+  member?: AgencyHistoryMember;
 }) {
   const feed = useInvitationEvents(invitation.invitation_id, true);
   const history = [
@@ -417,7 +419,7 @@ function AgencyWithdrawnInvitationCard({
   const name = resolveInviteeName(invitation);
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} qualifiers={qualifiers} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -444,11 +446,13 @@ function AgencyExpiredInvitationCard({
   reactivateLoading,
   onReactivate,
   qualifiers,
+  member,
 }: {
   invitation: AgencyInvitationResponse;
   reactivateLoading: boolean;
   onReactivate: () => void;
   qualifiers?: string[];
+  member?: AgencyHistoryMember;
 }) {
   const feed = useInvitationEvents(invitation.invitation_id, true);
   const history = [
@@ -470,7 +474,7 @@ function AgencyExpiredInvitationCard({
     invitation.reactivation_requested_at != null && !seekerRequested;
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
-      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} qualifiers={qualifiers} />
+      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={qualifiers} />
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
@@ -1996,6 +2000,7 @@ export function AgencyMembersClient() {
                       }
                       onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
                       qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)}
+                      member={invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined}
                     />
                   ))
                 )}
@@ -2010,6 +2015,7 @@ export function AgencyMembersClient() {
                       key={invitation.invitation_id}
                       invitation={invitation}
                       qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)}
+                      member={invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined}
                     />
                   ))
                 )}

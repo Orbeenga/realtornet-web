@@ -19,6 +19,7 @@ import {
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupMyJoinRequestCycles,
+  resolveAgencyIsVerified,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
   resolveInvitationColumnTimeline,
@@ -172,10 +173,12 @@ function SeekerWithdrawnInvitationCard({
   invitation,
   expressLoading,
   onExpressInterest,
+  verified,
 }: {
   invitation: AgencyInvitationResponse;
   expressLoading: boolean;
   onExpressInterest: () => void;
+  verified?: boolean;
 }) {
   const feed = useInvitationEvents(invitation.invitation_id, true);
   const history = [
@@ -188,7 +191,7 @@ function SeekerWithdrawnInvitationCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
         {decided || invitation.reactivated_at ? null : !invitation.interest_expressed_at ? (
           <div className="space-y-3">
@@ -225,12 +228,14 @@ function SeekerPendingExpiredCard({
   rejectLoading,
   onAccept,
   onReject,
+  verified,
 }: {
   invitation: AgencyInvitationResponse;
   acceptLoading: boolean;
   rejectLoading: boolean;
   onAccept: () => void;
   onReject: () => void;
+  verified?: boolean;
 }) {
   const feed = useInvitationEvents(invitation.invitation_id, true);
   const decided =
@@ -242,7 +247,7 @@ function SeekerPendingExpiredCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} />
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Reactivation requested
           {invitation.reactivation_requested_at
@@ -271,10 +276,12 @@ function SeekerExpiredInvitationCard({
   invitation,
   requestLoading,
   onRequest,
+  verified,
 }: {
   invitation: AgencyInvitationResponse;
   requestLoading: boolean;
   onRequest: () => void;
+  verified?: boolean;
 }) {
   const feed = useInvitationEvents(invitation.invitation_id, true);
   const history = [
@@ -296,7 +303,7 @@ function SeekerExpiredInvitationCard({
   return (
     <Card>
       <CardBody className="space-y-4">
-        <TimelineHeader entity="agency" name={invitation.agency_name} />
+        <TimelineHeader entity="agency" name={invitation.agency_name} verified={verified} />
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
         {decided || invitation.reactivated_at ? null : agencyRequested ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -777,6 +784,7 @@ export function MyJoinRequestsClient() {
                     <SeekerPendingExpiredCard
                       key={invitation.invitation_id}
                       invitation={invitation}
+                      verified={resolveAgencyIsVerified(memberships, invitation.agency_id)}
                       acceptLoading={
                         acceptInvitationReactivation.isPending &&
                         acceptInvitationReactivation.variables?.invitationId === invitation.invitation_id
@@ -795,7 +803,7 @@ export function MyJoinRequestsClient() {
                   ) : (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} />
+                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Invited {formatDate(invitation.created_at)}
                         </p>
@@ -938,6 +946,7 @@ export function MyJoinRequestsClient() {
                   <SeekerExpiredInvitationCard
                     key={invitation.invitation_id}
                     invitation={invitation}
+                    verified={resolveAgencyIsVerified(memberships, invitation.agency_id)}
                     requestLoading={
                       requestReactivation.isPending &&
                       requestReactivation.variables === invitation.invitation_id
@@ -960,6 +969,7 @@ export function MyJoinRequestsClient() {
                   <SeekerWithdrawnInvitationCard
                     key={invitation.invitation_id}
                     invitation={invitation}
+                    verified={resolveAgencyIsVerified(memberships, invitation.agency_id)}
                     expressLoading={
                       requestReactivation.isPending &&
                       requestReactivation.variables === invitation.invitation_id

@@ -28,6 +28,7 @@ import {
   getAcceptedInvitationDownstreamEvents,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
+  resolveAgencyIsVerified,
   resolveInvitationColumnTimeline,
   resolveInviteeHeaderQualifiers,
 } from "../membershipHistory";
@@ -473,6 +474,29 @@ assert(
   "applicant-only record returns its empty lines",
 );
 
+// 14. Agency verification lookup (Rule 20): membership match returns its
+//     flag; missing agency or missing membership returns nothing (the
+//     header line stays off).
+const verificationMemberships = [
+  { agency_id: 467, is_verified: true },
+  { agency_id: 468, is_verified: false },
+];
+assert(
+  resolveAgencyIsVerified(verificationMemberships, 467) === true,
+  "member agency returns its verified flag",
+);
+assert(
+  resolveAgencyIsVerified(verificationMemberships, 468) === false,
+  "unverified member agency returns false (renders Unverified)",
+);
+assert(
+  resolveAgencyIsVerified(verificationMemberships, 999) === undefined,
+  "no membership returns nothing",
+);
+assert(
+  resolveAgencyIsVerified(verificationMemberships, null) === undefined,
+  "no agency id returns nothing",
+);
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);

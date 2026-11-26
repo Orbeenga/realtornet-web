@@ -502,6 +502,25 @@ export function resolveInviteeHeaderQualifiers(
   return memberById.get(invitedUserId)?.qualifiers;
 }
 
+/* Agency verification lookup lives HERE ONLY (Rule 20 SSOT — one
+   resolver). Given a membership list, return the agency's verified flag
+   for agency-entity header display, else undefined (TimelineHeader then
+   omits the line): pending invitees hold no membership yet, so their
+   headers correctly show no verification state. Every agency-entity
+   invitation header calls this — nothing looks it up inline. */
+export interface AgencyVerificationRecord {
+  agency_id?: number | null;
+  is_verified?: boolean | null;
+}
+
+export function resolveAgencyIsVerified(
+  memberships: ReadonlyArray<AgencyVerificationRecord>,
+  agencyId?: number | null,
+): boolean | undefined {
+  if (agencyId == null) return undefined;
+  return memberships.find((m) => m.agency_id === agencyId)?.is_verified ?? undefined;
+}
+
 export function getAcceptedInvitationDownstreamEvents(
   history: MembershipTimelineEntry[],
   invitation: AcceptedInvitationMatch,
