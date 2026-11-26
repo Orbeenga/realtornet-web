@@ -6,6 +6,8 @@
  */
 import {
   resolveCumulativeRequestLifecycleTimeline,
+  resolveExpiredNarrativeTimeline,
+  resolveExpiredPairBadgeStatus,
   timelineEntryKey,
   type CumulativeRequestMatch,
 } from "../membershipHistory";
@@ -185,6 +187,45 @@ const rejectedNoSynthesize = resolveCumulativeRequestLifecycleTimeline(
 assert(
   rejectedNoSynthesize.entries.every((e) => e.action !== "reconsideration_requested"),
   "emitter never synthesizes appeal rows",
+);
+
+// U-054 Expired conversion: the U-022d wording rides narrative_text
+// verbatim while rows carry canonical action/source/identity fields.
+const narrativeRows = resolveExpiredNarrativeTimeline(
+  [],
+  {
+    status: "expired",
+    submitted_at: "2026-09-01T10:00:00Z",
+    created_at: "2026-09-01T10:00:00Z",
+    originally_expired_at: "2026-09-05T10:00:00Z",
+    reactivation_requested_at: "2026-09-06T10:00:00Z",
+    reactivation_requested_by: 7,
+    agency_id: 42,
+    agency_name: "Staging Test Agency",
+    user_id: 7,
+    seeker_name: "Zed",
+  },
+  { viewerUserId: 7, viewerIsApplicant: true },
+);
+assert(
+  narrativeRows.map((e) => `${e.action ?? "submitted"}:${e.narrative_text}`).join(" | ") ===
+    "submitted:You submitted application | expired:Application expired | reactivation_requested:You requested to reactivate application" &&
+    narrativeRows.every((e) => e.source_type === "join_request" || e.source_type === "audit_event") &&
+    narrativeRows.every((e) => e.agency_id === 42 && e.user_id === 7),
+  "narrative rows keep verbatim wording with canonical action/source/identity",
+);
+
+// Expired pair header badge (U-021): latest request expired shows
+// expired; otherwise the live membership status wins, falling back to
+// the live application status.
+const badgeCases = [
+  resolveExpiredPairBadgeStatus("expired", "revoked") === "expired",
+  resolveExpiredPairBadgeStatus("pending", "revoked") === "revoked",
+  resolveExpiredPairBadgeStatus("pending", null) === "pending",
+];
+assert(
+  badgeCases.every(Boolean),
+  `expired pair badge resolves from the live record (${badgeCases.map(String).join(",")})`,
 );
 
 if (failures > 0) {

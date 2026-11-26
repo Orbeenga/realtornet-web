@@ -84,6 +84,7 @@ import {
   resolveAcceptedInvitationTimeline,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  resolveExpiredPairBadgeStatus,
   resolveInvitationColumnTimeline,
   resolveInviteeHeaderQualifiers,
   resolveRejectedInvitationTimeline,
@@ -1382,24 +1383,26 @@ export function AgencyMembersClient() {
                   <div className="space-y-4">
                     {expiredCycleGroups.map((group) => {
                       const member = historyMemberById.get(group.userId);
-                      // Count rule: the header count equals the narrative rows
-                      // displayed beneath it, summed across the group's requests.
-                      const narrativeRowTotal = group.requests.reduce(
-                        (total, request) =>
-                          total +
-                          resolveExpiredNarrativeTimeline(
-                            expiredHistoryByRequestId.get(request.join_request_id) ?? [],
-                            request,
-                            { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
-                          ).length,
-                        0,
-                      );
+                      // U-054: one card per applicant with a per-request
+                      // timeline each; the count equals all rows. Sections
+                      // ascend, so the badge reads the last request.
+                      const requestTimelines = group.requests.map((request) => ({
+                        request,
+                        history: resolveExpiredNarrativeTimeline(
+                          expiredHistoryByRequestId.get(request.join_request_id) ?? [],
+                          request,
+                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                        ),
+                        reactivationStage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false),
+                      }));
+                      const rowTotal = requestTimelines.reduce((n, t) => n + t.history.length, 0);
+                      const latestRequest = group.requests[group.requests.length - 1];
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         {/* Rich person header via the shared TimelineHeader SSOT
                             (same identity the History member blocks use). The
-                            expired application badge is the canonical
-                            applicationStatus (top-right), not a hand-rolled Badge. */}
+                            badge resolves from the live record (U-021), not a
+                            static per-tab status. */}
                         <TimelineHeader
                           entity="person"
                           name={member?.displayName ?? group.seekerName}
@@ -1409,34 +1412,19 @@ export function AgencyMembersClient() {
                           status={member?.status}
                           lastSeen={member?.lastSeen}
                           qualifiers={member?.qualifiers}
-                          applicationStatus="expired"
-                          eventCount={narrativeRowTotal > 0 ? narrativeRowTotal : undefined}
+                          applicationStatus={resolveExpiredPairBadgeStatus(latestRequest?.status, member?.status)}
+                          eventCount={rowTotal}
                           href={resolvePersonProfileHref(member?.profileId)}
                         />
-                        {group.requests.map((request, requestIndex) => {
-                          // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
-                          // chronological stream via resolveExpiredNarrativeTimeline
-                          // (single sorted array, single banded loop - no second list).
-                          const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false);
-                          const narrativeEvents = resolveExpiredNarrativeTimeline(
-                            expiredHistoryByRequestId.get(request.join_request_id) ?? [],
-                            request,
-                            { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
-                          );
-                          return (
-                          <div key={request.join_request_id} className={requestIndex === 0 ? "mt-2 space-y-2" : "mt-4 space-y-2 border-t border-border pt-4"}>
-                          {narrativeEvents.length > 0 ? (
-                            <div className="space-y-1">
-                              {narrativeEvents.map((event, index) => (
-                                <p
-                                  key={`${event.at}-${event.text}`}
-                                  className={`px-2 py-1 text-sm leading-6 text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}
-                                >
-                                  {event.text} — {formatDate(event.at)}
-                                </p>
-                              ))}
-                            </div>
-                          ) : null}
+                        {requestTimelines.map(({ request, history, reactivationStage }) => (
+                          <div key={request.join_request_id} className="mt-3 space-y-2">
+                            <MembershipTimeline
+                              tier="rich"
+                              history={history}
+                              showHeader={false}
+                              emptyTitle="No events"
+                              emptyDescription=""
+                            />
                            {reactivationStage === "agency_accepted" ? (
                             <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                               Request is pending. Approve in Review Requests.
@@ -1462,9 +1450,8 @@ export function AgencyMembersClient() {
                               </Button>
                             </div>
                           ) : null}
-                        </div>
-                        );
-                      })}
+                          </div>
+                        ))}
                       </div>
                     );
                     })}

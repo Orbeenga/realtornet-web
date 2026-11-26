@@ -8,7 +8,7 @@ import { useGatedAction } from "@/hooks/useGatedAction";
 import { emptyGate1Context, type GateFieldValues } from "@/lib/gate-registry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipTimeline, resolveAgencyHref, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline, resolveAgencyHref, TimelineHeader } from "@/features/agencies/components/MembershipHistoryList";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   countDistinctEntities,
@@ -25,6 +25,7 @@ import {
   resolveAgencyIsVerified,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
+  resolveExpiredPairBadgeStatus,
   resolveInvitationColumnTimeline,
   resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
@@ -1599,66 +1600,51 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               expiredRequestGroups.map((group) => {
-                const latestRequest = group.requests[0];
-                // Count rule: the header count equals the narrative rows
-                // displayed beneath it, summed across the group's requests.
-                const narrativeRowTotal = group.requests.reduce(
-                  (total, request) =>
-                    total +
-                    resolveExpiredNarrativeTimeline(
-                      historyQuery.data ?? [],
-                      request,
-                      { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                    ).length,
-                  0,
-                );
+                const firstRequest = group.requests[0];
+                // U-054: one card per agency with a per-request timeline
+                // each; the count equals all rows. Sections ascend, so the
+                // badge reads the last request.
+                const requestTimelines = group.requests.map((request) => ({
+                  request,
+                  history: resolveExpiredNarrativeTimeline(
+                    historyQuery.data ?? [],
+                    request,
+                    { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                  ),
+                  reactivationStage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true),
+                }));
+                const rowTotal = requestTimelines.reduce((n, t) => n + t.history.length, 0);
+                const latestRequest = group.requests[group.requests.length - 1];
+                const memberStatus = historyAgencies.find((m) => m.agency_id === group.agencyId)?.status;
                 return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
                       {/* Agency header via the shared TimelineHeader SSOT. The
-                          expired application badge is the canonical
-                          applicationStatus, not a hand-rolled Badge. */}
+                          badge resolves from the live record (U-021), not a
+                          static per-tab status. */}
                       <TimelineHeader
                         entity="agency"
                         name={group.agencyName}
-                        verified={latestRequest?.is_verified}
-                        applicationStatus="expired"
-                        eventCount={narrativeRowTotal > 0 ? narrativeRowTotal : undefined}
+                        verified={firstRequest?.is_verified}
+                        applicationStatus={resolveExpiredPairBadgeStatus(latestRequest?.status, memberStatus)}
+                        eventCount={rowTotal}
                         href={resolveAgencyHref(group.agencyId)}
                       />
-                      {group.requests.map((request, requestIndex) => {
-                        // U-022d: the Expired tab narrates its ENTIRE lifecycle as ONE
-                        // chronological stream. resolveExpiredNarrativeTimeline merges all
-                        // events (submitted, expired, reactivation, approval, downstream
-                        // revoked/reinstated) into a single sorted array with real
-                        // timestamps — never two separately-rendered lists, which is what
-                        // previously produced out-of-order rows and broken banding.
-                        const reactivationStage = resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true);
-                        const narrativeEvents = resolveExpiredNarrativeTimeline(
-                          historyQuery.data ?? [],
-                          request,
-                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                        );
-                        return (
-                          <div key={request.join_request_id} className={requestIndex === 0 ? "space-y-4" : "space-y-4 border-t border-border pt-4"}>
-                      {request.cover_note ? (
-                        <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
-                          <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
-                          <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
-                        </div>
-                      ) : null}
-                      {narrativeEvents.length > 0 ? (
-                        <div className="space-y-2">
-                          {narrativeEvents.map((event, index) => (
-                            <p
-                              key={`${event.at}-${event.text}`}
-                              className={`px-2 py-1 text-sm leading-6 text-gray-700 dark:text-gray-300 ${timelineRowBandClass(index)}`}
-                            >
-                              {event.text} — {formatDate(event.at)}
-                            </p>
-                          ))}
-                        </div>
-                      ) : null}
+                      {requestTimelines.map(({ request, history, reactivationStage }) => (
+                        <div key={request.join_request_id} className="mt-3 space-y-2">
+                          {request.cover_note ? (
+                            <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
+                              <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
+                              <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
+                            </div>
+                          ) : null}
+                          <MembershipTimeline
+                            tier="rich"
+                            history={history}
+                            showHeader={false}
+                            emptyTitle="No events"
+                            emptyDescription=""
+                          />
                       {reactivationStage === "agency_accepted" ? (
                         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
                           Request is pending. Find it in the Pending tab.
@@ -1702,9 +1688,8 @@ export function MyJoinRequestsClient() {
                           </Button>
                         </div>
                       ) : null}
-                          </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </CardBody>
                   </Card>
                 );

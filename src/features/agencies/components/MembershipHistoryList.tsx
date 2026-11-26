@@ -19,6 +19,7 @@ import {
   type ApprovalOrigin,
   type ApprovalOriginRow,
   type CumulativeRequestLifecycleEntry,
+  type ExpiredNarrativeEntry,
   type MembershipTimelineEntryWithResolution,
 } from "./membershipHistory";
 import type { MembershipTimelineEntry } from "@/types";
@@ -620,6 +621,12 @@ export function MembershipTimeline({
                   </Badge>
                 ) : null}
               </div>
+              {/* U-054 Expired conversion: the U-022d narrative wording rides
+                  narrative_text verbatim as the row's primary text, beside
+                  the canonical badge. */}
+              {(entry as ExpiredNarrativeEntry).narrative_text ? (
+                <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{(entry as ExpiredNarrativeEntry).narrative_text}</p>
+              ) : null}
               {entry.reason && !isLegacyMachineReason(entry.reason) ? (
                 <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{entry.reason}</p>
               ) : null}
