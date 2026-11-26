@@ -225,6 +225,10 @@ assert(
   "invitation rejected renders Rejected",
 );
 assert(
+  resolveTimelineLabel(entry({ source_type: "audit_event", action: "applied" })) === "Applied",
+  "subsequent application renders Applied",
+);
+assert(
   resolveTimelineLabel(
     entry({ source_type: "audit_event", action: "joined", invitation_id: 9, user_id: 7, actor_id: 2 }),
   ) === "Restored",

@@ -28,9 +28,11 @@ import {
   getAcceptedInvitationDownstreamEvents,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
+  resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveInvitationColumnTimeline,
   resolveInviteeHeaderQualifiers,
+  resolveRejectedInvitationTimeline,
 } from "../membershipHistory";
 import type { AgencyInvitationResponse, MembershipTimelineEntry } from "@/types";
 
@@ -497,6 +499,99 @@ assert(
   resolveAgencyIsVerified(verificationMemberships, null) === undefined,
   "no agency id returns nothing",
 );
+
+// 15. Column rejected arm: status-gated like the expired arm. Rejected
+//     invitations render Sent, Rejected; every other status stays silent
+//     even with a stray rejected_at (no ripple to live tabs).
+const rejectedColumnRows = resolveInvitationColumnTimeline(
+  invitation({ invitation_id: 21, status: "rejected", rejected_at: "2026-10-20T10:00:00Z" }),
+);
+assert(
+  rejectedColumnRows.map((r) => r.action).join(",") === "sent,rejected",
+  "rejected invitation yields Sent, Rejected",
+);
+assert(
+  resolveInvitationColumnTimeline(
+    invitation({ invitation_id: 22, status: "pending", rejected_at: "2026-10-20T10:00:00Z" }),
+  ).every((r) => r.action !== "rejected"),
+  "rejected arm never fires off-status",
+);
+assert(
+  resolveInvitationColumnTimeline(
+    invitation({ invitation_id: 23, status: "rejected", rejected_at: null }),
+  ).every((r) => r.action !== "rejected"),
+  "rejected arm needs its date",
+);
+
+// 16. Full-timeline composers (Option A): dates are rows, count equals
+//     rows. Sources are action-disjoint by construction, so nothing
+//     renders twice; legacy acceptances without a joined audit row
+//     synthesize it from accepted_at (invitation-linked, canonical map
+//     renders Accepted).
+const acceptedFull = invitation({
+  invitation_id: 31,
+  agency_id: 467,
+  invited_user_id: 7,
+  status: "accepted",
+  created_at: "2026-11-12T10:00:00Z",
+  accepted_at: "2026-11-13T10:00:00Z",
+});
+const acceptedFullFeed = [
+  feedEntry({ id: 31, action: "invited", invitation_id: 31, timestamp: "2026-11-12T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 32, action: "joined", invitation_id: 31, timestamp: "2026-11-13T10:00:00Z", agency_id: 467, user_id: 7 }),
+  feedEntry({ id: 33, action: "revoked", timestamp: "2026-11-25T10:00:00Z", agency_id: 467, user_id: 7 }),
+];
+assert(
+  resolveAcceptedInvitationTimeline(acceptedFull, acceptedFullFeed, AGENCY_VIEWER)
+    .map((e) => e.action)
+    .join(",") === "sent,joined,revoked",
+  "accepted composes column plus decision plus downstream, ascending",
+);
+const legacyRows = resolveAcceptedInvitationTimeline(
+  acceptedFull,
+  acceptedFullFeed.filter((e) => e.action !== "joined"),
+  AGENCY_VIEWER,
+);
+assert(
+  legacyRows.map((e) => e.action).join(",") === "sent,joined,revoked" &&
+    legacyRows.find((e) => e.action === "joined")?.timestamp === "2026-11-13T10:00:00Z" &&
+    legacyRows.find((e) => e.action === "joined")?.invitation_id === 31,
+  "legacy acceptance synthesizes one invitation-linked joined row from accepted_at",
+);
+assert(
+  resolveAcceptedInvitationTimeline(acceptedFull, acceptedFullFeed, AGENCY_VIEWER).filter(
+    (e) => e.action === "joined",
+  ).length === 1,
+  "synthesis never doubles a real joined row",
+);
+const rejectedFull = invitation({
+  invitation_id: 41,
+  status: "rejected",
+  created_at: "2026-11-12T10:00:00Z",
+  rejected_at: "2026-11-14T10:00:00Z",
+});
+assert(
+  resolveRejectedInvitationTimeline(rejectedFull, [
+    { agency_id: 42, user_id: 7, submitted_at: "2026-11-28T10:00:00Z" },
+    { agency_id: 42, user_id: 7, submitted_at: "2026-11-25T10:00:00Z" },
+  ])
+    .map((e) => e.action)
+    .join(",") === "sent,rejected,applied,applied",
+  "rejected composes column plus applied rows, ascending",
+);
+assert(
+  resolveRejectedInvitationTimeline(rejectedFull, [])
+    .map((e) => e.action)
+    .join(",") === "sent,rejected",
+  "rejected without applications renders lifecycle only",
+);
+assert(
+  resolveRejectedInvitationTimeline(rejectedFull, [
+    { agency_id: 42, user_id: 7, submitted_at: "2026-11-25T10:00:00Z" },
+  ]).find((e) => e.action === "applied")?.timestamp === "2026-11-25T10:00:00Z",
+  "applied rows carry the application submit time",
+);
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);

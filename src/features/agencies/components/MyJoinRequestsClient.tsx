@@ -11,7 +11,6 @@ import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDire
 import { MembershipTimeline, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
-  getAcceptedInvitationDownstreamEvents,
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -19,10 +18,12 @@ import {
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupMyJoinRequestCycles,
+  resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
   resolveInvitationColumnTimeline,
+  resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
 } from "./membershipHistory";
 import type { AgencyInvitationResponse } from "@/types";
@@ -852,45 +853,28 @@ export function MyJoinRequestsClient() {
                   <EmptyState title="No accepted invitations" description="Accepted invitations will appear here." />
                 </div>
               ) : (
-                invitations.filter(i => i.status === "accepted").map((invitation) => (
+                invitations.filter(i => i.status === "accepted").map((invitation) => {
+                  // U-018: identity renders once via the TimelineHeader
+                  // below, so the full timeline carries no header of its
+                  // own. Dates are rows; the count equals them.
+                  const invitationHistory = resolveAcceptedInvitationTimeline(
+                    invitation,
+                    historyQuery.data ?? [],
+                    { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
+                  );
+                  return (
                   <Card key={invitation.invitation_id}>
                     <CardBody className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} />
-                        <Badge variant="success">accepted</Badge>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Invited {formatDate(invitation.created_at)}
-                      </p>
-                      {invitation.accepted_at ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Accepted {formatDate(invitation.accepted_at)}
-                        </p>
-                      ) : null}
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        You accepted the invitation to join {invitation.agency_name}.
-                      </p>
-                      {(() => {
-                        // U-018: identity already renders once via the
-                        // TimelineHeader above, so the appended downstream
-                        // timeline carries no header of its own.
-                        const invitationHistory = getAcceptedInvitationDownstreamEvents(
-                          historyQuery.data ?? [],
-                          invitation,
-                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
-                        );
-                        if (invitationHistory.length === 0) return null;
-                        return (
-                          <MembershipTimeline
-                            tier="simple"
-                            history={invitationHistory}
-                            showHeader={false}
-                          />
-                        );
-                      })()}
+                      <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} applicationStatus="accepted" />
+                      <MembershipTimeline
+                        tier="simple"
+                        history={invitationHistory}
+                        showHeader={false}
+                      />
                     </CardBody>
                   </Card>
-                ))
+                  );
+                })
               )}
             </div>
           ) : invitationSubTab === "rejected" ? (
@@ -909,23 +893,19 @@ export function MyJoinRequestsClient() {
                     })),
                     { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
                   );
+                  // Dates are rows (column lifecycle plus subsequent
+                  // applications as canonical rows); the count equals them.
+                  // The ambient sentence is locked and stays outside rows.
+                  const invitationHistory = resolveRejectedInvitationTimeline(invitation, subsequent);
                   return (
                     <Card key={invitation.invitation_id}>
                       <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={invitation.agency_name} />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Sent {formatDate(invitation.created_at)}
-                        </p>
-                        {invitation.rejected_at ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Rejected {formatDate(invitation.rejected_at)}
-                          </p>
-                        ) : null}
-                        {subsequent.map((application) => (
-                          <p key={application.submitted_at} className="text-sm text-gray-500 dark:text-gray-400">
-                            Applied {formatDate(application.submitted_at)}
-                          </p>
-                        ))}
+                        <TimelineHeader entity="agency" name={invitation.agency_name} verified={resolveAgencyIsVerified(memberships, invitation.agency_id)} eventCount={invitationHistory.length} />
+                        <MembershipTimeline
+                          tier="simple"
+                          history={invitationHistory}
+                          showHeader={false}
+                        />
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
                         </p>

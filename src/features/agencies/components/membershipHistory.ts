@@ -331,6 +331,7 @@ export function resolveInvitationColumnTimeline(
     | "invited_user_id"
     | "reactivation_requested_at"
     | "reactivation_requested_by"
+    | "rejected_at"
     | "status"
     | "withdrawn_at"
   >,
@@ -364,6 +365,18 @@ export function resolveInvitationColumnTimeline(
       action: "expired",
       author_role: "system",
       timestamp: invitation.expires_at,
+      ...identity,
+    });
+  }
+  // Status-gated like the expired arm above: only rejected invitations
+  // render the rejection moment, so Pending/Expired/Withdrawn/Accepted
+  // compositions are untouched.
+  if (invitation.status === "rejected" && invitation.rejected_at) {
+    rows.push({
+      source_type: "audit_event",
+      action: "rejected",
+      author_role: "seeker",
+      timestamp: invitation.rejected_at,
       ...identity,
     });
   }
@@ -559,6 +572,95 @@ export function getAcceptedInvitationDownstreamEvents(
     .sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
+}
+
+/* Accepted-invitation full timeline lives HERE ONLY (U-030 as ruled:
+   header plus full timeline; dates are rows, count equals rows). Column
+   lifecycle rows plus invitation-scoped audit decision rows plus the
+   downstream membership events. The three sources are action-disjoint by
+   construction (column never emits joined/revoked/reinstated; decision
+   admits only reactivation_rejected/joined; downstream admits only
+   revoked/reinstated), so no dedup pass is needed. The accept moment
+   itself comes from the joined audit row; legacy acceptances without one
+   synthesize it from accepted_at (invitation_id set, so the canonical
+   map renders Accepted, never a bare verb) — mutually exclusive with the
+   real row, so synthesis can never double-render. */
+export interface AcceptedInvitationTimeline {
+  invitation_id: number;
+  agency_id: number;
+  agency_name: string;
+  invited_user_id?: number | null;
+  accepted_at?: string | null;
+  created_at: string;
+  expires_at: string;
+  interest_expressed_at?: string | null;
+  reactivation_requested_at?: string | null;
+  reactivation_requested_by?: number | null;
+  status: AgencyInvitationResponse["status"];
+  withdrawn_at?: string | null;
+}
+
+export function resolveAcceptedInvitationTimeline(
+  invitation: AcceptedInvitationTimeline,
+  history: MembershipTimelineEntry[],
+  viewer: { viewerUserId: number | null; viewerIsApplicant: boolean },
+): MembershipTimelineEntry[] {
+  const rows = [
+    ...resolveInvitationColumnTimeline(invitation),
+    ...getInvitationDecisionResults(
+      history.filter((entry) => entry.invitation_id === invitation.invitation_id),
+    ),
+    ...getAcceptedInvitationDownstreamEvents(history, invitation, viewer),
+  ];
+  if (invitation.accepted_at && !rows.some((entry) => entry.action === "joined")) {
+    rows.push({
+      source_type: "audit_event",
+      action: "joined",
+      author_role: "seeker",
+      timestamp: invitation.accepted_at,
+      agency_id: invitation.agency_id ?? undefined,
+      agency_name: invitation.agency_name ?? undefined,
+      user_id: invitation.invited_user_id ?? undefined,
+      invitation_id: invitation.invitation_id,
+    });
+  }
+  return rows.sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+}
+
+/* Rejected-invitation full timeline lives HERE ONLY (same ruling).
+   Column lifecycle rows (sent plus the status-gated rejected arm) plus
+   subsequent applications mapped to canonical rows, ascending. The
+   card's ambient sentence is not an event and stays outside the rows. */
+export function resolveRejectedInvitationTimeline(
+  invitation: Pick<
+    AgencyInvitationResponse,
+    | "agency_id"
+    | "agency_name"
+    | "created_at"
+    | "expires_at"
+    | "interest_expressed_at"
+    | "invited_user_id"
+    | "reactivation_requested_at"
+    | "reactivation_requested_by"
+    | "rejected_at"
+    | "status"
+    | "withdrawn_at"
+  >,
+  applications: InvitationApplicationCandidate[],
+): MembershipTimelineEntry[] {
+  return [
+    ...resolveInvitationColumnTimeline(invitation),
+    ...applications.map((application) => ({
+      source_type: "audit_event",
+      action: "applied",
+      author_role: "seeker",
+      timestamp: application.submitted_at,
+      agency_id: application.agency_id ?? undefined,
+      user_id: application.user_id ?? undefined,
+    })),
+  ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
 /* Shared Expired-tab narration lives HERE ONLY (canonical membershipHistory module).

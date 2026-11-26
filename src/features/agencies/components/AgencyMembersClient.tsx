@@ -72,7 +72,6 @@ import {
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
-  getAcceptedInvitationDownstreamEvents,
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -80,10 +79,12 @@ import {
   getRejectedAppealHistory,
   getRevokedMembershipHistory,
   groupAgencyRequestCycles,
+  resolveAcceptedInvitationTimeline,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
   resolveInvitationColumnTimeline,
   resolveInviteeHeaderQualifiers,
+  resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
 } from "./membershipHistory";
 import {
@@ -1916,36 +1917,28 @@ export function AgencyMembersClient() {
                 {invitations.filter(i => i.status === "accepted").length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">No accepted invitations.</p>
                 ) : (
-                  invitations.filter(i => i.status === "accepted").map((invitation) => (
+                  invitations.filter(i => i.status === "accepted").map((invitation) => {
+                    // U-018: identity renders once via the TimelineHeader
+                    // below, so the full timeline carries no header of its
+                    // own. Dates are rows (column lifecycle plus audit
+                    // decision and downstream events); the count equals them.
+                    const invitationHistory = resolveAcceptedInvitationTimeline(
+                      invitation,
+                      acceptedHistoryByInvitationId.get(invitation.invitation_id) ?? [],
+                      { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
+                    );
+                    const member = invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined;
+                    return (
                     <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} />
-                        <Badge variant="success">accepted</Badge>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
-                      {invitation.accepted_at ? (
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Accepted {formatDate(invitation.accepted_at)}</p>
-                      ) : null}
-                      {(() => {
-                        // U-018: identity already renders once via the
-                        // TimelineHeader above, so the appended downstream
-                        // timeline carries no header of its own.
-                        const invitationHistory = getAcceptedInvitationDownstreamEvents(
-                          acceptedHistoryByInvitationId.get(invitation.invitation_id) ?? [],
-                          invitation,
-                          { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
-                        );
-                        if (invitationHistory.length === 0) return null;
-                        return (
-                          <MembershipTimeline
-                            tier="simple"
-                            history={invitationHistory}
-                            showHeader={false}
-                          />
-                        );
-                      })()}
+                      <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} eventCount={invitationHistory.length} applicationStatus="accepted" />
+                      <MembershipTimeline
+                        tier="simple"
+                        history={invitationHistory}
+                        showHeader={false}
+                      />
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             ) : invitationSubTab === "rejected" ? (
@@ -1963,18 +1956,18 @@ export function AgencyMembersClient() {
                       })),
                       { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
                     );
+                    // Dates are rows (column lifecycle plus subsequent
+                    // applications as canonical rows); the count equals them.
+                    const invitationHistory = resolveRejectedInvitationTimeline(invitation, subsequent);
+                    const member = invitation.invited_user_id != null ? historyMemberById.get(invitation.invited_user_id) : undefined;
                     return (
                       <div key={invitation.invitation_id} className="rounded-lg border border-border p-3 text-sm">
-                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} />
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sent {formatDate(invitation.created_at)}</p>
-                        {invitation.rejected_at ? (
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Rejected {formatDate(invitation.rejected_at)}</p>
-                        ) : null}
-                        {subsequent.map((application) => (
-                          <p key={application.submitted_at} className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Applied {formatDate(application.submitted_at)}
-                          </p>
-                        ))}
+                        <TimelineHeader entity="person" name={resolveInviteeName(invitation)} email={invitation.email} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, invitation.invited_user_id)} eventCount={invitationHistory.length} />
+                        <MembershipTimeline
+                          tier="simple"
+                          history={invitationHistory}
+                          showHeader={false}
+                        />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {resolveInvitationRejectedAgencyText({ name: resolveInviteeName(invitation) })}
                         </p>
