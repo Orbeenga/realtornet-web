@@ -875,9 +875,12 @@ export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
   reapplied_from_request_id?: number | null;
 };
 
-/* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Entries
-   carrying a backend id key on it; synthesized entries without one fall
-   back to source+action+timestamp so same-timestamp rows (e.g. a
+/* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Backend
+   ids collide across the three source tables (U-033 found the same
+   collision on queue rows), so id-carrying entries key on
+   source_type:id, never the bare id — multi-source timelines now put two
+   sources on one list. Synthesized entries without an id fall back to
+   source+action+timestamp so same-timestamp rows (e.g. a
    null-decided_at cancel sharing its submitted anchor's timestamp) never
    collide as React keys. */
 export function timelineEntryKey(entry: {
@@ -887,7 +890,7 @@ export function timelineEntryKey(entry: {
   timestamp: string;
 }): string {
   if (entry.id != null) {
-    return String(entry.id);
+    return `${entry.source_type}:${entry.id}`;
   }
 
   return `${entry.source_type}:${entry.action ?? "row"}:${entry.timestamp}`;

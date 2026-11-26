@@ -391,7 +391,7 @@ export function MembershipTimeline({
         ) : null}
         {visible.map((entry, index) => (
           <p
-            key={entry.id ?? entry.timestamp}
+            key={timelineEntryKey(entry)}
             className={`text-sm leading-6 text-gray-700 dark:text-gray-300 ${
               timelineRowBandClass(index)
             }`}

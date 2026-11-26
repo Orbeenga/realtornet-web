@@ -139,7 +139,12 @@ assert(
 
 // 9. Timeline keys stay unique without backend ids (null-decided_at cancel
 //    shares its submitted anchor's timestamp and must not collide).
-assert(timelineEntryKey({ id: 7, source_type: "audit_event", timestamp: "2026-09-02T10:00:00Z" }) === "7", "id-carrying entries key on the id");
+assert(timelineEntryKey({ id: 7, source_type: "audit_event", timestamp: "2026-09-02T10:00:00Z" }) === "audit_event:7", "id-carrying entries key on source-qualified id, never bare id (U-033 collision)");
+assert(
+  timelineEntryKey({ id: 7, source_type: "audit_event", timestamp: "2026-09-02T10:00:00Z" }) !==
+    timelineEntryKey({ id: 7, source_type: "join_request", timestamp: "2026-09-02T10:00:00Z" }),
+  "same id from different sources produces distinct keys",
+);
 const anchorKey = timelineEntryKey({ source_type: "join_request", timestamp: "2026-09-10T10:00:00Z" });
 const decisionKey = timelineEntryKey({ source_type: "audit_event", action: "cancelled", timestamp: "2026-09-10T10:00:00Z" });
 assert(anchorKey !== decisionKey, "same-timestamp anchor/decision rows get distinct keys");
