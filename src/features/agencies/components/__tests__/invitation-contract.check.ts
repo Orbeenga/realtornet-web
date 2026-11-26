@@ -25,6 +25,7 @@ import {
   resolvePriorInvitationContextLine,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  countDistinctEntities,
   getAcceptedInvitationDownstreamEvents,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -682,6 +683,29 @@ assert(
   groupMyInvitationCycles(seekerFeed, "expired-history").length === 2,
   "expired-history admits every expired row across agencies",
 );
+
+// 19. Broad-tab entity parity: container tabs count each entity once
+//     across sub-tabs (a pair may sit on several tabs, U-031).
+const broadFeed = [
+  invitation({ invitation_id: 91, status: "pending", invited_user_id: 7, agency_id: 2, agency_name: "Beta" }),
+  invitation({ invitation_id: 92, status: "expired", invited_user_id: 7, agency_id: 2, agency_name: "Beta" }),
+  invitation({ invitation_id: 93, status: "pending", invited_user_id: null, email: "solo@example.com", agency_id: 3, agency_name: "Gamma" }),
+];
+const broadKeys = (["pending", "accepted", "rejected", "expired-history", "withdrawn-history"] as const).flatMap(
+  (anchor) => groupAgencyInvitationCycles(broadFeed, anchor).map((g) => g.key),
+);
+assert(
+  broadFeed.length === 3 && countDistinctEntities(broadKeys) === 2,
+  "broad agency counter reads 2 entities for 3 rows across 2 tabs",
+);
+const broadAgencyIds = (["pending", "accepted", "rejected", "expired-history", "withdrawn-history"] as const).flatMap(
+  (anchor) => groupMyInvitationCycles(broadFeed, anchor, 7).map((g) => g.agencyId),
+);
+assert(
+  countDistinctEntities(broadAgencyIds) === 2,
+  "broad seeker counter reads 2 agencies for 3 rows across 2 tabs",
+);
+assert(countDistinctEntities([]) === 0, "empty union counts zero");
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

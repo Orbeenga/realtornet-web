@@ -11,6 +11,7 @@ import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDire
 import { MembershipTimeline, resolveAgencyHref, TimelineHeader, timelineRowBandClass } from "@/features/agencies/components/MembershipHistoryList";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
+  countDistinctEntities,
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -698,15 +699,30 @@ export function MyJoinRequestsClient() {
     ),
   );
   const blockedMemberships = memberships.filter(m => m.status === "blocked");
+  // History renders one group per agency (the feed is agency-scoped), so
+  // the tab dedupes membership rows by agency first — last row wins, the
+  // same Map convention as the agency lifecycle lists. Counter, empty
+  // state, and body all read this set (agency_id keys stay unique).
+  const historyAgencies = [...new Map(memberships.map((m) => [m.agency_id, m])).values()];
+  // Broad badges count distinct agencies (U-054 counters): invitees may
+  // sit on several invitation sub-tabs, so the union counts each once.
   const availableTabs: Array<{ value: MyAgenciesTab; label: string; count?: number }> = [
     { value: "agencies" as const, label: "Find an Agency" },
     ...(canViewAgencyInvitations
-      ? [{ value: "invitations" as const, label: "Invitations", count: invitations.length }]
+      ? [{
+        value: "invitations" as const,
+        label: "Invitations",
+        count: countDistinctEntities(
+          [pendingInvitationGroups, acceptedInvitationGroups, rejectedInvitationGroups, expiredInvitationGroups, withdrawnInvitationGroups].flatMap((groups) =>
+            groups.map((group) => group.agencyId),
+          ),
+        ),
+      }]
       : []),
     ...(canViewAgencyMemberships
-      ? [{ value: "memberships" as const, label: "Memberships", count: memberships.length }]
+      ? [{ value: "memberships" as const, label: "Memberships", count: countDistinctEntities(memberships.map((m) => m.agency_id)) }]
       : []),
-    { value: "requests" as const, label: "Sent requests", count: requests.length },
+    { value: "requests" as const, label: "Sent requests", count: countDistinctEntities(requests.map((r) => r.agency_id)) },
   ];
 
   return (
@@ -1063,7 +1079,7 @@ export function MyJoinRequestsClient() {
               { value: "left" as const, label: `Left (${leftMemberships.length})` },
               { value: "revoked" as const, label: `Revoked (${revokedMemberships.length})` },
               { value: "blocked" as const, label: `Blocked (${blockedMemberships.length})` },
-              { value: "history" as const, label: `History (${memberships.length})` },
+              { value: "history" as const, label: `History (${historyAgencies.length})` },
             ].filter(t => {
               if (t.value === "history") return memberships.length > 0 || membershipSubTab === "history";
               return true;
@@ -1322,13 +1338,13 @@ export function MyJoinRequestsClient() {
                gated "Load more" (U-036). The legacy merged historyQuery remains
                for the Approved/Revoked/Suspended/Left card consumers below. */
             <div className="space-y-4">
-              {memberships.length === 0 ? (
+              {historyAgencies.length === 0 ? (
                 <EmptyState
                   title="No membership history"
                   description="Agency membership events will appear here when they exist."
                 />
               ) : (
-                memberships.map((membership) => (
+                historyAgencies.map((membership) => (
                   <SeekerAgencyHistoryGroup
                     key={membership.agency_id}
                     agency={{

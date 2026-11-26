@@ -1187,6 +1187,15 @@ export function groupMyInvitationCycles(
     );
 }
 
+/* Distinct-entity counting lives HERE ONLY (Rule 20 SSOT — one
+   counter). Broad container tabs count each entity once even when it
+   appears in several sub-tabs (U-031 fixed placement allows that);
+   sub-tab counters read their own group's length. Callers pass the
+   union of visible group keys — never raw rows. */
+export function countDistinctEntities(keys: Array<string | number>): number {
+  return new Set(keys).size;
+}
+
 export function resolveCumulativeRequestLifecycleTimeline(
   requests: CumulativeRequestMatch[],
   entity: { kind: "cancelled" | "rejected" },

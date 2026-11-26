@@ -71,6 +71,7 @@ import {
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
+  countDistinctEntities,
   getApprovedRequestCycleHistory,
   getInvitationDecisionResults,
   getInvitationSubsequentApplications,
@@ -1016,6 +1017,10 @@ export function AgencyMembersClient() {
 
   const joinRequests = joinRequestsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
+  // Pending join rows for this surface (reactivation-accepted and reapplied
+  // rows route to Review Requests instead). Shared by the broad badge, the
+  // Pending sub-tab counter, and its body — one predicate, one set.
+  const pendingJoinRows = joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id));
   // Membership history tab: PER-MEMBER cursor pagination (lead decision — not
   // per-tab). Grouped by user_id; every member block is always visible and each
   // runs its own cursor feed via useAgencyMembershipHistory inside
@@ -1073,15 +1078,23 @@ export function AgencyMembersClient() {
   const reviewRequests = reviewRequestsQuery.data ?? [];
   const reviewRequestGroups = groupAgencyReviewRequests(reviewRequests);
   const tabCounts: Record<AgencyOwnerTab, number | undefined> = {
-    joinRequests: joinRequests.filter(r => r.status === "pending").length,
+    // Broad badges count distinct entities (U-054 counters): pending
+    // applicants in this surface (queue-routed rows live under Review
+    // Requests), invitees across all invitation sub-tabs, and the same
+    // deduped member lists the lifecycle bodies render.
+    joinRequests: countDistinctEntities(pendingJoinRows.map(r => r.user_id)),
     reviewRequests: reviewRequestGroups.length,
     agents: agentsQuery.isSuccess ? agents.filter(a => a.membership_status === "active").length : undefined,
     inactive: agentsQuery.isSuccess ? agents.filter(isAgentInactive).length : undefined,
-    invitations: invitations.length,
-    suspended: agents.filter(a => a.membership_status === "suspended").length,
-    leftCancelled: agents.filter(a => a.membership_status === "left").length,
+    invitations: countDistinctEntities(
+      [pendingInvitationGroups, acceptedInvitationGroups, rejectedInvitationGroups, expiredInvitationGroups, withdrawnInvitationGroups].flatMap((groups) =>
+        groups.map((group) => group.key),
+      ),
+    ),
+    suspended: suspendedAgents.length,
+    leftCancelled: leftAgents.length,
     revoked: revokedRenderedAgents.length,
-    blocked: agents.filter(a => a.membership_status === "blocked").length,
+    blocked: blockedAgents.length,
     /* History tab counter = count of UNIQUE members/applicants surfaced in it
        (same derived set the tab renders). Not a hardcoded value. */
     history: historyMembers.length,
@@ -1130,7 +1143,7 @@ export function AgencyMembersClient() {
             </div>
             <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1.5 dark:border-gray-800 dark:bg-gray-900">
               {[
-                { value: "pending" as const, label: `Pending (${joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length})` },
+                { value: "pending" as const, label: `Pending (${pendingJoinRows.length})` },
                 { value: "approved" as const, label: `Approved (${approvedCycleGroups.length})` },
                 { value: "rejected" as const, label: `Rejected (${rejectedCycleGroups.length})` },
                 { value: "expired" as const, label: `Expired (${expiredCycleGroups.length})` },
@@ -1156,12 +1169,12 @@ export function AgencyMembersClient() {
             ) : null}
             {requestSubTab === "pending" ? (
               <>
-                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length === 0 ? (
+                {!joinRequestsQuery.isLoading && !joinRequestsQuery.isError && pendingJoinRows.length === 0 ? (
                   <EmptyState title="No pending requests" description="New requests and decision history will appear here." />
                 ) : null}
-                {!joinRequestsQuery.isLoading && joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).length > 0 ? (
+                {!joinRequestsQuery.isLoading && pendingJoinRows.length > 0 ? (
                   <div className="space-y-4">
-                    {joinRequests.filter(r => r.status === "pending" && !(r.reactivation_accepted_at || r.reapplied_from_request_id)).map((request) => {
+                    {pendingJoinRows.map((request) => {
                       const member = historyMemberById.get(request.user_id);
                       return (
                       <div key={request.join_request_id} className="rounded-lg border border-border p-4">
