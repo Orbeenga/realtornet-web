@@ -1657,11 +1657,9 @@ export function AgencyMembersClient() {
                           email={agent.phone_number ? `${agent.email} - ${agent.phone_number}` : agent.email}
                           lastSeen={agent.last_login ? fmtTimeAgo(agent.last_login) : "Never logged in"}
                           qualifiers={[
-                            agent.specialization ?? "Real estate agent",
+                            ...(agent.specialization ? [agent.specialization] : []),
                             ...(agent.years_experience != null ? [`${agent.years_experience} years experience`] : []),
                             ...(agent.license_number ? [`License ${agent.license_number}`] : []),
-                            ...(agent.status_reason ? [`Decision reason: ${agent.status_reason}`] : []),
-                            ...(agent.status_decided_at ? [`Last decision ${formatOptionalDate(agent.status_decided_at)}`] : []),
                             `${agent.listing_count} active listing${agent.listing_count !== 1 ? "s" : ""}.`,
                           ]}
                         />
