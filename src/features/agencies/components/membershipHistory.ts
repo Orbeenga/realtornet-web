@@ -1305,17 +1305,6 @@ export function countDistinctEntities(keys: Array<string | number>): number {
   return new Set(keys).size;
 }
 
-/* Pair-section ambient/action gate lives HERE ONLY (Rule 20 SSOT — one
-   gate). U-054 pair cards carry the ambient plus the single bottom
-   action slot on the LATEST section only; older sections render rows
-   only (a latest decided-quiet plus older pending-noisy pair renders
-   all-quiet by ruling — the backend multipath unit owns clearing the
-   older row). Pending rows keep per-row context beside their CTAs
-   (lead scope: Withdrawn/Expired invitation pairs). */
-export function pairSectionShowsAmbient(isLatest: boolean, rowQualifies: boolean): boolean {
-  return isLatest && rowQualifies;
-}
-
 export function resolveCumulativeRequestLifecycleTimeline(
   requests: CumulativeRequestMatch[],
   entity: { kind: "cancelled" | "rejected" },
