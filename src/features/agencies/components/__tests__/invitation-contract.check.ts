@@ -26,7 +26,9 @@ import {
   resolveInviteeName,
   resolveMultipathResolvedCopy,
   resolvePairAmbient,
+  resolvePairAmbientForRecords,
   resolvePriorInvitationContextLine,
+  type PairAmbientInput,
 } from "@/lib/membership-lifecycle-messages";
 import {
   countDistinctEntities,
@@ -840,6 +842,21 @@ assert(
     agencyName: "Beta",
   })?.text === "Beta can see your cancelled applications.",
   "cancelled plain ambient is verbatim",
+);
+
+// Fallback: a quiet latest falls back to the newest actionable row —
+// one ambient plus one action slot still hold (a single value comes
+// back with its row).
+const fallbackRows: PairAmbientInput[] = [
+  { kind: "reactivation", viewerIsApplicant: false, stage: "terminal", seekerName: "Zed" },
+  { kind: "reactivation", viewerIsApplicant: false, stage: "initial", seekerName: "Zed" },
+];
+const fallbackResolved = resolvePairAmbientForRecords(fallbackRows, (input) => input);
+assert(
+  fallbackResolved?.ambient.text ===
+    "Application from Zed has expired. Request them to reactivate the application." &&
+    fallbackResolved?.row.stage === "initial",
+  "fallback resolves the newest actionable row with its ambient",
 );
 
 // 21. Multipath supersession (U-055): the locked marker set matches

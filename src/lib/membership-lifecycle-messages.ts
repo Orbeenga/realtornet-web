@@ -641,6 +641,24 @@ export interface PairAmbientInput {
   resolution?: MultipathCopyResolution | null;
 }
 
+/* Latest-actionable fallback lives HERE ONLY (one scan). Callers pass
+   their rows newest-first with a per-row input builder; the first row
+   that resolves an ambient wins, and its row comes back with it so the
+   action slot derives from the same record. A quiet latest therefore
+   falls back to older actionable rows instead of silencing the pair —
+   while a pair with nothing to say still resolves null (one ambient
+   per pair holds: exactly one value comes back). */
+export function resolvePairAmbientForRecords<T>(
+  rows: T[],
+  buildInput: (row: T) => PairAmbientInput,
+): { ambient: { text: string; tone: AmbientTextTone }; row: T } | null {
+  for (const row of rows) {
+    const ambient = resolvePairAmbient(buildInput(row));
+    if (ambient != null) return { ambient, row };
+  }
+  return null;
+}
+
 export function resolvePairAmbient(input: PairAmbientInput): { text: string; tone: AmbientTextTone } | null {
   const agency = input.agencyName ?? "The agency";
   const seeker = input.seekerName ?? "Seeker";

@@ -56,6 +56,7 @@ import {
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
   resolvePairAmbient,
+  resolvePairAmbientForRecords,
 } from "@/lib/membership-lifecycle-messages";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
@@ -871,40 +872,43 @@ export function MyJoinRequestsClient() {
                   // status (history rows may outlive their tab status).
                   const invitationHistories = group.invitations.map((invitation) => {
                     const feed = expiredInvitationEventsById.get(invitation.invitation_id) ?? [];
+                    const history = [
+                      ...resolveInvitationColumnTimeline(invitation),
+                      ...getInvitationDecisionResults(feed),
+                    ];
                     return {
                       invitation,
-                      history: [
-                        ...resolveInvitationColumnTimeline(invitation),
-                        ...getInvitationDecisionResults(feed),
-                      ],
+                      history,
                       multipathResolution: resolveInvitationMultipathResolution(feed),
+                      decided:
+                        invitation.status === "accepted" ||
+                        history.some((entry) => entry.action === "reactivation_rejected"),
                     };
                   });
                   const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
-                  const latest = invitationHistories[0];
-                  const latestDecided = latest != null && (
-                    latest.invitation.status === "accepted" ||
-                    latest.history.some((entry) => entry.action === "reactivation_rejected")
+                  const resolved = resolvePairAmbientForRecords(
+                    invitationHistories,
+                    ({ invitation, multipathResolution, decided }) =>
+                      multipathResolution
+                        ? {
+                            kind: "resolved",
+                            viewerIsApplicant: true,
+                            rowKind: "invitation",
+                            resolution: multipathResolution,
+                            agencyName: group.agencyName,
+                          }
+                        : {
+                            kind: "invitation-expired",
+                            viewerIsApplicant: true,
+                            agencyName: group.agencyName,
+                            requestedAt: invitation.reactivation_requested_at,
+                            requestedBy: invitation.reactivation_requested_by,
+                            inviteeId: invitation.invited_user_id,
+                            reactivatedAt: invitation.reactivated_at,
+                            decided,
+                          },
                   );
-                  const latestRequested = latest?.invitation.reactivation_requested_at != null;
-                  const ambient = latest?.multipathResolution
-                    ? resolvePairAmbient({
-                        kind: "resolved",
-                        viewerIsApplicant: true,
-                        rowKind: "invitation",
-                        resolution: latest.multipathResolution,
-                        agencyName: group.agencyName,
-                      })
-                    : resolvePairAmbient({
-                        kind: "invitation-expired",
-                        viewerIsApplicant: true,
-                        agencyName: group.agencyName,
-                        requestedAt: latest?.invitation.reactivation_requested_at,
-                        requestedBy: latest?.invitation.reactivation_requested_by,
-                        inviteeId: latest?.invitation.invited_user_id,
-                        reactivatedAt: latest?.invitation.reactivated_at,
-                        decided: latestDecided,
-                      });
+                  const ambient = resolved?.ambient ?? null;
                   return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
@@ -917,20 +921,20 @@ export function MyJoinRequestsClient() {
                           <MembershipTimeline tier="simple" history={history} showHeader={false} />
                         </div>
                       ))}
-                      {latest != null &&
-                      latest.multipathResolution == null &&
-                      !latestDecided &&
-                      !latest.invitation.reactivated_at &&
-                      !latestRequested ? (
+                      {resolved != null &&
+                      resolved.row.multipathResolution == null &&
+                      !resolved.row.decided &&
+                      !resolved.row.invitation.reactivated_at &&
+                      resolved.row.invitation.reactivation_requested_at == null ? (
                         <Button
                           type="button"
                           size="sm"
                           loading={
                             requestReactivation.isPending &&
-                            requestReactivation.variables === latest.invitation.invitation_id
+                            requestReactivation.variables === resolved.row.invitation.invitation_id
                           }
                           onClick={() =>
-                            inviteReactivationGate.attempt(latest.invitation.invitation_id)
+                            inviteReactivationGate.attempt(resolved.row.invitation.invitation_id)
                           }
                         >
                           Request Reactivation
@@ -956,37 +960,41 @@ export function MyJoinRequestsClient() {
                   // status (history rows may outlive their tab status).
                   const invitationHistories = group.invitations.map((invitation) => {
                     const feed = withdrawnInvitationEventsById.get(invitation.invitation_id) ?? [];
+                    const history = [
+                      ...resolveInvitationColumnTimeline(invitation),
+                      ...getInvitationDecisionResults(feed),
+                    ];
                     return {
                       invitation,
-                      history: [
-                        ...resolveInvitationColumnTimeline(invitation),
-                        ...getInvitationDecisionResults(feed),
-                      ],
+                      history,
                       multipathResolution: resolveInvitationMultipathResolution(feed),
+                      decided:
+                        invitation.status === "accepted" ||
+                        history.some((entry) => entry.action === "reactivation_rejected"),
                     };
                   });
                   const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
-                  const latest = invitationHistories[0];
-                  const latestDecided = latest != null && (
-                    latest.invitation.status === "accepted" ||
-                    latest.history.some((entry) => entry.action === "reactivation_rejected")
+                  const resolved = resolvePairAmbientForRecords(
+                    invitationHistories,
+                    ({ invitation, multipathResolution, decided }) =>
+                      multipathResolution
+                        ? {
+                            kind: "resolved",
+                            viewerIsApplicant: true,
+                            rowKind: "invitation",
+                            resolution: multipathResolution,
+                            agencyName: group.agencyName,
+                          }
+                        : {
+                            kind: "invitation-withdrawn",
+                            viewerIsApplicant: true,
+                            agencyName: group.agencyName,
+                            interestAt: invitation.interest_expressed_at,
+                            reactivatedAt: invitation.reactivated_at,
+                            decided,
+                          },
                   );
-                  const ambient = latest?.multipathResolution
-                    ? resolvePairAmbient({
-                        kind: "resolved",
-                        viewerIsApplicant: true,
-                        rowKind: "invitation",
-                        resolution: latest.multipathResolution,
-                        agencyName: group.agencyName,
-                      })
-                    : resolvePairAmbient({
-                        kind: "invitation-withdrawn",
-                        viewerIsApplicant: true,
-                        agencyName: group.agencyName,
-                        interestAt: latest?.invitation.interest_expressed_at,
-                        reactivatedAt: latest?.invitation.reactivated_at,
-                        decided: latestDecided,
-                      });
+                  const ambient = resolved?.ambient ?? null;
                   return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
@@ -999,20 +1007,20 @@ export function MyJoinRequestsClient() {
                           <MembershipTimeline tier="simple" history={history} showHeader={false} />
                         </div>
                       ))}
-                      {latest != null &&
-                      latest.multipathResolution == null &&
-                      !latestDecided &&
-                      !latest.invitation.reactivated_at &&
-                      !latest.invitation.interest_expressed_at ? (
+                      {resolved != null &&
+                      resolved.row.multipathResolution == null &&
+                      !resolved.row.decided &&
+                      !resolved.row.invitation.reactivated_at &&
+                      !resolved.row.invitation.interest_expressed_at ? (
                         <Button
                           type="button"
                           size="sm"
                           loading={
                             requestReactivation.isPending &&
-                            requestReactivation.variables === latest.invitation.invitation_id
+                            requestReactivation.variables === resolved.row.invitation.invitation_id
                           }
                           onClick={() =>
-                            inviteReactivationGate.attempt(latest.invitation.invitation_id)
+                            inviteReactivationGate.attempt(resolved.row.invitation.invitation_id)
                           }
                         >
                           Express Interest
@@ -1579,10 +1587,11 @@ export function MyJoinRequestsClient() {
             ) : (
               expiredRequestGroups.map((group) => {
                 // U-054: one card, one merged timeline (single reveal),
-                // one ambient, one action slot — all from the latest
-                // record (requests ascend, so the last owns them). Rows
-                // are expired-lifecycle scoped (U-054 §2); the cover note
-                // rides its submitted anchor via the shared tier slot.
+                // one ambient, one action slot — from the latest
+                // ACTIONABLE record (group order ascends, so the scan
+                // runs newest-first explicitly). Rows are expired-lifecycle
+                // scoped (U-054 §2); the cover note rides its submitted
+                // anchor via the shared tier slot.
                 const history = group.requests.flatMap((request) =>
                   resolveExpiredNarrativeTimeline(
                     request,
@@ -1590,15 +1599,17 @@ export function MyJoinRequestsClient() {
                   ),
                 );
                 const latestRequest = group.requests[group.requests.length - 1];
-                const latestStage = latestRequest
-                  ? resolveJoinRequestReactivationStage(latestRequest, user?.user_id ?? null, true)
-                  : "terminal";
-                const ambient = resolvePairAmbient({
+                const orderedStages = [...group.requests].reverse().map((request) => ({
+                  request,
+                  stage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true),
+                }));
+                const resolved = resolvePairAmbientForRecords(orderedStages, ({ request, stage }) => ({
                   kind: "reactivation",
                   viewerIsApplicant: true,
-                  stage: latestStage,
-                  agencyName: latestRequest?.agency_name,
-                });
+                  stage,
+                  agencyName: request.agency_name,
+                }));
+                const ambient = resolved?.ambient ?? null;
                 return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
@@ -1623,27 +1634,27 @@ export function MyJoinRequestsClient() {
                         emptyTitle="No events"
                         emptyDescription=""
                       />
-                      {latestRequest && latestStage === "agency_requested" ? (
+                      {resolved != null && resolved.row.stage === "agency_requested" ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             type="button" size="sm"
-                            loading={acceptReactivation.isPending && acceptReactivation.variables === latestRequest.join_request_id}
-                            onClick={() => acceptReactivationGate.attempt(latestRequest.join_request_id)}
+                            loading={acceptReactivation.isPending && acceptReactivation.variables === resolved.row.request.join_request_id}
+                            onClick={() => acceptReactivationGate.attempt(resolved.row.request.join_request_id)}
                           >
                             Accept Reactivation
                           </Button>
                           <Button
                             type="button" size="sm" variant="ghost"
-                            loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === latestRequest.join_request_id}
-                            onClick={() => void handleRejectReactivation(latestRequest.join_request_id)}
+                            loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === resolved.row.request.join_request_id}
+                            onClick={() => void handleRejectReactivation(resolved.row.request.join_request_id)}
                           >
                             Reject
                           </Button>
                         </div>
-                      ) : latestRequest && latestStage === "initial" ? (
+                      ) : resolved != null && resolved.row.stage === "initial" ? (
                         <Button
                           type="button" size="sm"
-                          onClick={() => reactivationGate.attempt(latestRequest.join_request_id)}
+                          onClick={() => reactivationGate.attempt(resolved.row.request.join_request_id)}
                         >
                           Request Reactivation
                         </Button>
