@@ -17,7 +17,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ApiError } from "@/lib/api/client";
 import {
-  doubleGateOrderedToast,
+  pendingDuplicateNounForKind,
+  resolvePendingDuplicateToast,
   validateDoubleGateMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
@@ -737,17 +738,20 @@ assert(
 assert(extractPendingExists(new Error("boom")) === null, "extract: non-ApiError is not a signal");
 
 for (const spec of specs.filter((s) => s.profile === "C" && s.migrated)) {
-  for (const kind of ["join_request", "review_request", "reactivation"] as const) {
-    const toast = resolveStaleViewToast(spec, kind, "Acme");
-    const expected = doubleGateOrderedToast(
-      kind === "join_request" ? (spec.nudgeNoun ?? "reapplication") : kind === "review_request" ? "reconsideration" : "reactivation",
-      "Acme",
+  for (const kind of ["join_request", "review_request", "reactivation", "invitation"] as const) {
+    const noun = pendingDuplicateNounForKind(kind)!;
+    assert(
+      resolveStaleViewToast(spec, kind, "Acme", true) === resolvePendingDuplicateToast(true, noun, "Acme"),
+      `stale-view: ${spec.action} + ${kind} maps to Gate-1 toast`,
     );
-    assert(toast === expected, `stale-view: ${spec.action} + ${kind} maps to Gate-1 toast`);
+    assert(
+      resolveStaleViewToast(spec, kind, "Zed", false) === resolvePendingDuplicateToast(false, noun, "Zed"),
+      `stale-view: ${spec.action} + ${kind} renders the agency variant`,
+    );
   }
 }
 assert(
-  resolveStaleViewToast(GATE_REGISTRY.apply, "join_request", "Acme") === null,
+  resolveStaleViewToast(GATE_REGISTRY.apply, "join_request", "Acme", true) === null,
   "stale-view: unmigrated apply falls back to server-verbatim",
 );
 
@@ -774,7 +778,7 @@ assert(
     runGate1Checks(spec, {
       ...base,
       invitations: [{ status: "expired", reactivation_requested_at: "2026-11-19T00:00:00Z" }],
-    }) === "A reactivation is already pending with Acme",
+    }) === "You already have a pending reactivation request with Acme.",
     "Gate 1: requested invitation blocks with reactivation toast",
   );
   assert(
@@ -820,7 +824,7 @@ assert(
   );
 }
 assert(
-  resolveStaleViewToast(GATE_REGISTRY.cancel_join, "join_request", "Acme") === null,
+  resolveStaleViewToast(GATE_REGISTRY.cancel_join, "join_request", "Acme", true) === null,
   "stale-view: non-C actions fall back to server-verbatim",
 );
 

@@ -6,8 +6,8 @@
  * Run: pnpm exec tsx src/features/agencies/components/__tests__/expired-grouping-double-gate.check.ts
  */
 import {
-  doubleGateOrderedToast,
   resolveNudgePendingSides,
+  resolvePendingDuplicateToast,
   runNudgeGateChecks,
   validateDoubleGateMessage,
 } from "@/lib/membership-lifecycle-messages";
@@ -191,18 +191,44 @@ assert(
   "seeker cancelled anchor still groups by live status",
 );
 
-// 7. U-050 Gate-1 exact toast template: never paraphrased (no trailing period).
+// 7. U-055 pending-duplicate toast: exact template per viewer, never
+//    paraphrased (trailing periods are verbatim).
 assert(
-  doubleGateOrderedToast("reactivation", "Beta") === "A reactivation is already pending with Beta",
-  "Gate-1 toast copy is exact for reactivation",
+  resolvePendingDuplicateToast(true, "application", "Beta") ===
+    "You already have a pending application with Beta.",
+  "duplicate toast is exact for seeker application",
 );
 assert(
-  doubleGateOrderedToast("reapplication", "Beta") === "A reapplication is already pending with Beta",
-  "Gate-1 toast copy is exact for reapplication",
+  resolvePendingDuplicateToast(true, "reactivation request", "Beta") ===
+    "You already have a pending reactivation request with Beta.",
+  "duplicate toast is exact for seeker reactivation",
 );
 assert(
-  doubleGateOrderedToast("reconsideration", "Beta") === "A reconsideration is already pending with Beta",
-  "Gate-1 toast copy is exact for reconsideration",
+  resolvePendingDuplicateToast(true, "reconsideration", "Beta") ===
+    "You already have a pending reconsideration with Beta.",
+  "duplicate toast is exact for seeker reconsideration",
+);
+assert(
+  resolvePendingDuplicateToast(true, "invitation", "Beta") ===
+    "You already have a pending invitation with Beta.",
+  "duplicate toast is exact for seeker invitation",
+);
+assert(
+  resolvePendingDuplicateToast(false, "application", "Zed") === "Zed already has a pending application.",
+  "duplicate toast is exact for agency application",
+);
+assert(
+  resolvePendingDuplicateToast(false, "reactivation request", "Zed") ===
+    "Zed already has a pending reactivation request.",
+  "duplicate toast is exact for agency reactivation",
+);
+assert(
+  resolvePendingDuplicateToast(false, "reconsideration", "Zed") === "Zed already has a pending reconsideration.",
+  "duplicate toast is exact for agency reconsideration",
+);
+assert(
+  resolvePendingDuplicateToast(false, "invitation", "Zed") === "Zed already has a pending invitation.",
+  "duplicate toast is exact for agency invitation",
 );
 
 // 8. Gate-2 message validation: blank blocked, non-blank passes.
@@ -238,16 +264,16 @@ assert(
     action: "reactivation", requests: [agencyInitiated],
     viewerUserId: applicantId, viewerIsApplicant: true,
     counterpartyName: "Beta", includeCooldownCheck: false,
-  }) === "A reactivation is already pending with you",
-  "seeker view: this-side toast addresses the viewer as you",
+  }) === "You already have a pending reactivation request with Beta.",
+  "seeker view: this-side block renders the unified duplicate toast",
 );
 assert(
   runNudgeGateChecks({
     action: "reactivation", requests: [seekerInitiated],
     viewerUserId: applicantId, viewerIsApplicant: true,
     counterpartyName: "Beta", includeCooldownCheck: false,
-  }) === "A reactivation is already pending with Beta",
-  "seeker view: other-side toast names the agency",
+  }) === "You already have a pending reactivation request with Beta.",
+  "seeker view: other-side block renders the unified duplicate toast",
 );
 
 // 10. U-050 checks 1-2, reactivation, agency view: mirrored sides.
@@ -256,28 +282,28 @@ assert(
     action: "reactivation", requests: [agencyInitiated],
     viewerUserId: ownerId, viewerIsApplicant: false,
     counterpartyName: "Seeker Alpha", includeCooldownCheck: false,
-  }) === "A reactivation is already pending with Seeker Alpha",
-  "agency view: applicant-must-accept is other-side",
+  }) === "Seeker Alpha already has a pending reactivation request.",
+  "agency view: applicant-must-accept renders the agency duplicate toast",
 );
 assert(
   runNudgeGateChecks({
     action: "reactivation", requests: [seekerInitiated],
     viewerUserId: ownerId, viewerIsApplicant: false,
     counterpartyName: "Seeker Alpha", includeCooldownCheck: false,
-  }) === "A reactivation is already pending with you",
-  "agency view: must-decide-in-queue is this-side",
+  }) === "Seeker Alpha already has a pending reactivation request.",
+  "agency view: must-decide-in-queue renders the agency duplicate toast",
 );
 
-// 11. U-050 order: check 1 (other side) wins when both sides pend; initial,
-//     terminal, and empty groups are clear.
+// 11. U-050 order: either side pending blocks (the unified sentence no
+//     longer varies by side); initial, terminal, and empty groups are clear.
 const bothSides = [agencyInitiated, seekerInitiated];
 assert(
   runNudgeGateChecks({
     action: "reactivation", requests: bothSides,
     viewerUserId: applicantId, viewerIsApplicant: true,
     counterpartyName: "Beta", includeCooldownCheck: false,
-  }) === "A reactivation is already pending with Beta",
-  "check order: other-side toast wins when both sides pend",
+  }) === "You already have a pending reactivation request with Beta.",
+  "check order: either side pending blocks with the unified toast",
 );
 assert(
   runNudgeGateChecks({
@@ -312,8 +338,8 @@ assert(
     requests: [{ status: "rejected", pending_appeal: { review_request_id: 5, created_at: "2026-09-06T10:00:00Z" } }],
     viewerUserId: applicantId, viewerIsApplicant: true,
     counterpartyName: "Beta", includeCooldownCheck: false,
-  }) === "A reconsideration is already pending with Beta",
-  "reconsideration: pending appeal blocks other-side",
+  }) === "You already have a pending reconsideration with Beta.",
+  "reconsideration: pending appeal blocks with the unified toast",
 );
 assert(
   runNudgeGateChecks({
@@ -333,8 +359,8 @@ assert(
     requests: [{ status: "pending", reapplication_message: "again" }],
     viewerUserId: applicantId, viewerIsApplicant: true,
     counterpartyName: "Beta", includeCooldownCheck: true,
-  }) === "A reapplication is already pending with Beta",
-  "reapply: pending reapplication blocks other-side",
+  }) === "You already have a pending application with Beta.",
+  "reapply: pending reapplication blocks with the unified toast",
 );
 const cooldownToast = runNudgeGateChecks({
   action: "reapplication",

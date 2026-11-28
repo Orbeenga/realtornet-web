@@ -8,6 +8,7 @@
  */
 import {
   isAgencyRequestedExpiredInvitation,
+  pendingDuplicateNounForKind,
   resolveInvitationExpiredAgencyText,
   resolveInvitationExpiredOfferedAgencyText,
   resolveInvitationExpiredOfferedSeekerText,
@@ -22,6 +23,7 @@ import {
   resolveInvitationWithdrawnInterestSeekerText,
   resolveInvitationWithdrawnSeekerText,
   resolveInviteeName,
+  resolveMultipathResolvedCopy,
   resolvePriorInvitationContextLine,
 } from "@/lib/membership-lifecycle-messages";
 import {
@@ -31,12 +33,15 @@ import {
   getInvitationSubsequentApplications,
   groupAgencyInvitationCycles,
   groupMyInvitationCycles,
+  isMultipathSupersededReason,
   normalizeInviteeEmail,
   pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveInvitationColumnTimeline,
+  resolveInvitationMultipathResolution,
   resolveInviteeHeaderQualifiers,
+  resolveMultipathResolution,
   resolveRejectedInvitationTimeline,
 } from "../membershipHistory";
 import type { AgencyInvitationResponse, MembershipTimelineEntry } from "@/types";
@@ -716,6 +721,79 @@ const pairAmbientShown = [true, true].map((qualifies, index) =>
 assert(
   pairAmbientShown.join(",") === "false,true",
   "pair with two qualifying rows renders one ambient, on the latest",
+);
+
+// 21. Multipath supersession (U-055): the locked marker set matches
+//     exactly, resolutions map per resolver, and the resolved-elsewhere
+//     copy is verbatim per viewer.
+const RESOLVED_MARKER = "Auto-closed: membership resolved through another path.";
+const APPROVED_MARKER = "Auto-closed: membership approved through another path.";
+assert(
+  isMultipathSupersededReason(RESOLVED_MARKER) &&
+    isMultipathSupersededReason(APPROVED_MARKER) &&
+    !isMultipathSupersededReason("Agency withdrew the invitation") &&
+    !isMultipathSupersededReason(null),
+  "marker set matches exactly the two locked reasons",
+);
+assert(
+  resolveMultipathResolution(RESOLVED_MARKER) === "accepted" &&
+    resolveMultipathResolution(APPROVED_MARKER) === "approved" &&
+    resolveMultipathResolution("No fit") === null,
+  "marker resolves to its winning resolver (accept vs approve)",
+);
+assert(
+  resolveInvitationMultipathResolution([
+    feedEntry({ id: 1, action: "withdrawn", reason: APPROVED_MARKER }),
+  ]) === "approved" &&
+    resolveInvitationMultipathResolution([
+      feedEntry({ id: 2, action: "withdrawn", reason: "Agency withdrew the invitation" }),
+    ]) === null &&
+    resolveInvitationMultipathResolution([]) === null,
+  "invitation scan reads the marker off the withdrawn audit row only",
+);
+assert(
+  resolveMultipathResolvedCopy({
+    viewerIsApplicant: true,
+    kind: "invitation",
+    resolution: "accepted",
+    agencyName: "Beta",
+  }) === "This invitation was resolved in Accepted. Beta accepted your membership.",
+  "resolved copy is verbatim for seeker accept",
+);
+assert(
+  resolveMultipathResolvedCopy({
+    viewerIsApplicant: true,
+    kind: "application",
+    resolution: "approved",
+    agencyName: "Beta",
+  }) === "This application was resolved in Approved. Beta approved your membership.",
+  "resolved copy is verbatim for seeker approve",
+);
+assert(
+  resolveMultipathResolvedCopy({
+    viewerIsApplicant: false,
+    kind: "invitation",
+    resolution: "accepted",
+    seekerName: "Zed",
+  }) === "This invitation was resolved in Accepted. Zed is now a member.",
+  "resolved copy is verbatim for agency accept",
+);
+assert(
+  resolveMultipathResolvedCopy({
+    viewerIsApplicant: false,
+    kind: "application",
+    resolution: "approved",
+    seekerName: "Zed",
+  }) === "This application was resolved in Approved. Zed is now a member.",
+  "resolved copy is verbatim for agency approve",
+);
+assert(
+  pendingDuplicateNounForKind("join_request") === "application" &&
+    pendingDuplicateNounForKind("review_request") === "reconsideration" &&
+    pendingDuplicateNounForKind("reactivation") === "reactivation request" &&
+    pendingDuplicateNounForKind("invitation") === "invitation" &&
+    pendingDuplicateNounForKind("nope") === null,
+  "pending kinds map straight to nouns (no second classifier)",
 );
 
 if (failures > 0) {

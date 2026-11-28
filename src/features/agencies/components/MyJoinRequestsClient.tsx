@@ -20,6 +20,7 @@ import {
   getRevokedMembershipHistory,
   groupMyInvitationCycles,
   groupMyJoinRequestCycles,
+  isMultipathSupersededReason,
   pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
@@ -27,8 +28,10 @@ import {
   resolveExpiredNarrativeTimeline,
   resolveExpiredPairBadgeStatus,
   resolveInvitationColumnTimeline,
+  resolveInvitationMultipathResolution,
   resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
+  type MultipathResolution,
 } from "./membershipHistory";
 import type { AgencyInvitationResponse, MembershipTimelineEntry } from "@/types";
 import {
@@ -62,6 +65,7 @@ import {
   resolveInvitationWithdrawnSeekerText,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
+  resolveMultipathResolvedCopy,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import { notify } from "@/lib/toast";
@@ -166,12 +170,14 @@ function SeekerWithdrawnInvitationSection({
   expressLoading,
   onExpressInterest,
   isLatest,
+  multipathResolution,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   expressLoading: boolean;
   onExpressInterest: () => void;
   isLatest: boolean;
+  multipathResolution: MultipathResolution | null;
 }) {
   const decided =
     invitation.status === "accepted" ||
@@ -180,7 +186,16 @@ function SeekerWithdrawnInvitationSection({
   return (
     <>
       <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      {ambientVisible ? (
+      {multipathResolution ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {resolveMultipathResolvedCopy({
+            viewerIsApplicant: true,
+            kind: "invitation",
+            resolution: multipathResolution,
+            agencyName: invitation.agency_name,
+          })}
+        </p>
+      ) : ambientVisible ? (
         !invitation.interest_expressed_at ? (
           <div className="space-y-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -256,12 +271,14 @@ function SeekerExpiredInvitationSection({
   requestLoading,
   onRequest,
   isLatest,
+  multipathResolution,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   requestLoading: boolean;
   onRequest: () => void;
   isLatest: boolean;
+  multipathResolution: MultipathResolution | null;
 }) {
   const decided =
     invitation.status === "accepted" ||
@@ -279,7 +296,16 @@ function SeekerExpiredInvitationSection({
   return (
     <>
       <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      {ambientVisible ? (
+      {multipathResolution ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {resolveMultipathResolvedCopy({
+            viewerIsApplicant: true,
+            kind: "invitation",
+            resolution: multipathResolution,
+            agencyName: invitation.agency_name,
+          })}
+        </p>
+      ) : ambientVisible ? (
         agencyRequested ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
@@ -987,19 +1013,23 @@ export function MyJoinRequestsClient() {
                 expiredInvitationGroups.map((group) => {
                   // U-054: one card per agency with a per-invitation
                   // section each; the count equals all rows.
-                  const invitationHistories = group.invitations.map((invitation) => ({
-                    invitation,
-                    history: [
-                      ...resolveInvitationColumnTimeline(invitation),
-                      ...getInvitationDecisionResults(expiredInvitationEventsById.get(invitation.invitation_id) ?? []),
-                    ],
-                  }));
+                  const invitationHistories = group.invitations.map((invitation) => {
+                    const feed = expiredInvitationEventsById.get(invitation.invitation_id) ?? [];
+                    return {
+                      invitation,
+                      history: [
+                        ...resolveInvitationColumnTimeline(invitation),
+                        ...getInvitationDecisionResults(feed),
+                      ],
+                      multipathResolution: resolveInvitationMultipathResolution(feed),
+                    };
+                  });
                   const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
                   return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
                       <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
-                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
+                      {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <SeekerExpiredInvitationSection
                             invitation={invitation}
@@ -1012,6 +1042,7 @@ export function MyJoinRequestsClient() {
                               inviteReactivationGate.attempt(invitation.invitation_id)
                             }
                             isLatest={sectionIndex === invitationHistories.length - 1}
+                            multipathResolution={multipathResolution}
                           />
                         </div>
                       ))}
@@ -1031,19 +1062,23 @@ export function MyJoinRequestsClient() {
                 withdrawnInvitationGroups.map((group) => {
                   // U-054: one card per agency with a per-invitation
                   // section each; the count equals all rows.
-                  const invitationHistories = group.invitations.map((invitation) => ({
-                    invitation,
-                    history: [
-                      ...resolveInvitationColumnTimeline(invitation),
-                      ...getInvitationDecisionResults(withdrawnInvitationEventsById.get(invitation.invitation_id) ?? []),
-                    ],
-                  }));
+                  const invitationHistories = group.invitations.map((invitation) => {
+                    const feed = withdrawnInvitationEventsById.get(invitation.invitation_id) ?? [];
+                    return {
+                      invitation,
+                      history: [
+                        ...resolveInvitationColumnTimeline(invitation),
+                        ...getInvitationDecisionResults(feed),
+                      ],
+                      multipathResolution: resolveInvitationMultipathResolution(feed),
+                    };
+                  });
                   const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
                   return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
                       <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
-                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
+                      {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <SeekerWithdrawnInvitationSection
                             invitation={invitation}
@@ -1056,6 +1091,7 @@ export function MyJoinRequestsClient() {
                               inviteReactivationGate.attempt(invitation.invitation_id)
                             }
                             isLatest={sectionIndex === invitationHistories.length - 1}
+                            multipathResolution={multipathResolution}
                           />
                         </div>
                       ))}
@@ -1530,9 +1566,15 @@ export function MyJoinRequestsClient() {
                   groupRequests,
                   { kind: "rejected" },
                 );
-                const latestRequest = [...groupRequests].sort(
+                // U-055: superseded rows carry no actions — the reconsider
+                // slot seeds from the latest live request, and vanishes
+                // when none remains.
+                const liveRequests = groupRequests.filter(
+                  (request) => !isMultipathSupersededReason(request.rejection_reason),
+                );
+                const latestRequest = [...liveRequests].sort(
                   (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
-                )[groupRequests.length - 1];
+                )[liveRequests.length - 1];
                 // Live appeal state (A2 persistence fix): the ambient derives
                 // from the row's pending_appeal, never ephemeral submit state,
                 // so it survives reload and discharges on resolution.
@@ -1553,7 +1595,7 @@ export function MyJoinRequestsClient() {
                     <TimelineHeader
                       entity="agency"
                       name={group.agencyName}
-                      verified={latestRequest?.is_verified}
+                      verified={latestRequest?.is_verified ?? groupRequests[0]?.is_verified}
                       applicationStatus="rejected"
                       eventCount={cumulative.entries.length + appealRows.length}
                       href={resolveAgencyHref(group.agencyId)}
@@ -1562,6 +1604,10 @@ export function MyJoinRequestsClient() {
                       tier="rich"
                       history={[...cumulative.entries, ...appealRows]}
                       showHeader={false}
+                      multipathResolvedNotice={{
+                        viewerIsApplicant: true,
+                        agencyName: group.agencyName,
+                      }}
                       emptyTitle="No rejected requests"
                       emptyDescription="You have no rejected join requests."
                     />
@@ -1570,7 +1616,7 @@ export function MyJoinRequestsClient() {
                         {resolveTerminalReactivationRejectionMessage()}
                       </p>
                     ) : null}
-                    {!cumulative.terminal ? (
+                    {!cumulative.terminal && latestRequest ? (
                       <div className="space-y-3 pt-2">
                         {hasLiveAppeal ? (
                           <p className="text-sm text-gray-500 dark:text-gray-400">

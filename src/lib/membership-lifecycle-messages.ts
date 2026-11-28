@@ -525,7 +525,7 @@ export function resolveCooldownAmbient(params: {
 }
 
 /* Canonical U-050 ordered-check copy + predicates live HERE ONLY
-   (NudgeActionNoun, doubleGateOrderedToast, resolveNudgePendingSides,
+   (NudgeActionNoun, resolvePendingDuplicateToast, resolveNudgePendingSides,
    runNudgeGateChecks, validateDoubleGateMessage). Consumed by the shared
    ConfirmDestructiveDialog (message-required + confirm-only variants).
    Gate 1 runs checks 1→2→3 before the dialog opens and toasts the exact
@@ -534,8 +534,69 @@ export function resolveCooldownAmbient(params: {
    server stays authoritative for both. */
 export type NudgeActionNoun = "reapplication" | "reactivation" | "reconsideration";
 
-export function doubleGateOrderedToast(noun: NudgeActionNoun, name: string): string {
-  return `A ${noun} is already pending with ${name}`;
+/* Pending-duplicate nouns live HERE ONLY (one table). Backend
+   pending_exists kinds map straight to nouns — never re-derived from
+   frontend state (no second classifier). The invitation arm has no
+   producer yet (the invite endpoint emits no pending_exists); it exists
+   so the lead's noun list is complete when one lands. */
+export type PendingDuplicateNoun = "application" | "reactivation request" | "reconsideration" | "invitation";
+
+export function pendingDuplicateNounForKind(kind: string): PendingDuplicateNoun | null {
+  switch (kind) {
+    case "join_request":
+      return "application";
+    case "review_request":
+      return "reconsideration";
+    case "reactivation":
+      return "reactivation request";
+    case "invitation":
+      return "invitation";
+    default:
+      return null;
+  }
+}
+
+/* Pending-duplicate toast lives HERE ONLY (U-055 copy, verbatim with
+   trailing periods). One viewer-aware sentence: the seeker is told what
+   pends with their agency, the agency side is told what pends for the
+   named counterparty. Consumed by Gate-1 client toasts and the
+   pending_exists stale-view path alike. */
+export function resolvePendingDuplicateToast(
+  viewerIsApplicant: boolean,
+  noun: PendingDuplicateNoun,
+  counterpartyName: string,
+): string {
+  return viewerIsApplicant
+    ? `You already have a pending ${noun} with ${counterpartyName}.`
+    : `${counterpartyName} already has a pending ${noun}.`;
+}
+
+/* Resolved-elsewhere copy lives HERE ONLY (U-055). Rows the multipath
+   closer retired render this instead of any ambient or CTA. The table
+   names the resolving tab from the resolution (never parsed text);
+   verbs follow U-053 (agency decides approved, seeker agrees accepted).
+   Restoration ("reinstated") has no marker producer — reinstatement
+   paths are not multipath triggers — so no arm exists yet; add one with
+   its marker if that ever changes. */
+export type MultipathResolvedKind = "application" | "invitation" | "reconsideration";
+export type MultipathCopyResolution = "accepted" | "approved";
+
+const MULTIPATH_RESOLUTION_COPY: Record<MultipathCopyResolution, { tab: string; verb: string }> = {
+  accepted: { tab: "Accepted", verb: "accepted" },
+  approved: { tab: "Approved", verb: "approved" },
+};
+
+export function resolveMultipathResolvedCopy(params: {
+  viewerIsApplicant: boolean;
+  kind: MultipathResolvedKind;
+  resolution: MultipathCopyResolution;
+  agencyName?: string | null;
+  seekerName?: string | null;
+}): string {
+  const { tab, verb } = MULTIPATH_RESOLUTION_COPY[params.resolution];
+  return params.viewerIsApplicant
+    ? `This ${params.kind} was resolved in ${tab}. ${params.agencyName ?? "The agency"} ${verb} your membership.`
+    : `This ${params.kind} was resolved in ${tab}. ${params.seekerName ?? "This seeker"} is now a member.`;
 }
 
 // Check 3 (Cancelled reapply only): UI-008 requires the known unblock date
@@ -605,8 +666,20 @@ export function runNudgeGateChecks(params: {
     params.viewerUserId,
     params.viewerIsApplicant,
   );
-  if (sides.otherSide) return doubleGateOrderedToast(params.action, params.counterpartyName);
-  if (sides.thisSide) return doubleGateOrderedToast(params.action, "you");
+  // U-055 copy: one viewer-aware sentence regardless of side (the
+  // side checks still order other-side-first for block precedence; only
+  // the rendered sentence unified). Action nouns align to duplicate
+  // nouns here — vocabulary, not classification (Gate-1 actions carry
+  // no backend kind).
+  if (sides.otherSide || sides.thisSide) {
+    const noun: PendingDuplicateNoun =
+      params.action === "reapplication"
+        ? "application"
+        : params.action === "reactivation"
+          ? "reactivation request"
+          : "reconsideration";
+    return resolvePendingDuplicateToast(params.viewerIsApplicant, noun, params.counterpartyName);
+  }
   if (params.includeCooldownCheck) {
     const unlocks = params.requests
       .map((r) => r.cooldown_unlock_at)

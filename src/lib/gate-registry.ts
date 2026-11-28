@@ -15,7 +15,8 @@
 
 import { ApiError } from "@/lib/api/client";
 import {
-  doubleGateOrderedToast,
+  pendingDuplicateNounForKind,
+  resolvePendingDuplicateToast,
   runNudgeGateChecks,
   validateDoubleGateMessage,
   type NudgeActionNoun,
@@ -23,7 +24,7 @@ import {
 
 export type GateProfile = "A" | "B" | "C" | "D";
 export type GateFieldKind = "message" | "reason" | "typename" | "note";
-export type PendingExistsKind = "join_request" | "review_request" | "reactivation";
+export type PendingExistsKind = "join_request" | "review_request" | "reactivation" | "invitation";
 export type GateStepId = "intent" | "fields" | "review" | "confirm";
 
 /* Structural screen-state slices for Gate 1. JoinRequestIdentity in
@@ -204,7 +205,7 @@ const invitationReactivationPendingCheck: Gate1Check = {
   id: "invitation-reactivation-pending",
   run: (ctx) =>
     ctx.invitations.some((i) => i.reactivation_requested_at != null)
-      ? doubleGateOrderedToast("reactivation", ctx.counterpartyName)
+      ? resolvePendingDuplicateToast(ctx.viewerIsApplicant, "reactivation request", ctx.counterpartyName)
       : null,
 };
 
@@ -774,7 +775,12 @@ export function extractPendingExists(error: unknown): PendingExistsSignal | null
   for (const layer of layers) {
     const rec = asRecord(layer);
     if (rec?.code !== "pending_exists") continue;
-    if (rec.kind !== "join_request" && rec.kind !== "review_request" && rec.kind !== "reactivation") {
+    if (
+      rec.kind !== "join_request" &&
+      rec.kind !== "review_request" &&
+      rec.kind !== "reactivation" &&
+      rec.kind !== "invitation"
+    ) {
       return null;
     }
     return {
@@ -786,22 +792,19 @@ export function extractPendingExists(error: unknown): PendingExistsSignal | null
 }
 
 /* Stale-view mapping: a pending_exists from a Gate-1-guarded create resolves
-   to the action's Gate-1 toast. The noun names what is actually pending: the
-   action's own noun for join_request conflicts, the kind noun otherwise.
-   Returns null when no locked copy exists (caller surfaces server-verbatim). */
+   to the action's Gate-1 toast. Copy follows the backend kind straight to
+   its noun (no second classifier); the sentence is viewer-aware. Returns
+   null when no locked copy exists (caller surfaces server-verbatim). */
 export function resolveStaleViewToast(
   spec: ActionGateSpec,
   kind: PendingExistsKind,
   counterpartyName: string,
+  viewerIsApplicant: boolean,
 ): string | null {
   if (spec.profile !== "C" || !spec.migrated) return null;
-  const noun: NudgeActionNoun =
-    kind === "join_request"
-      ? (spec.nudgeNoun ?? "reapplication")
-      : kind === "review_request"
-        ? "reconsideration"
-        : "reactivation";
-  return doubleGateOrderedToast(noun, counterpartyName);
+  const noun = pendingDuplicateNounForKind(kind);
+  if (noun == null) return null;
+  return resolvePendingDuplicateToast(viewerIsApplicant, noun, counterpartyName);
 }
 
 /* Flat hook-name index for the enforcement spec. */

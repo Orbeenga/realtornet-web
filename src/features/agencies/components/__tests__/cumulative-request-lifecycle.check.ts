@@ -228,6 +228,59 @@ assert(
   `expired pair badge resolves from the live record (${badgeCases.map(String).join(",")})`,
 );
 
+// U-055 multipath exclusion: superseded rows keep their audit rows but
+// never count as rejections, carry no machine reason, and annotate
+// their resolution for the tier notice.
+const SUPERSEDED_REASON = "Auto-closed: membership resolved through another path.";
+const mixedRejected = resolveCumulativeRequestLifecycleTimeline(
+  [
+    request({ join_request_id: 70, status: "rejected", rejection_reason: "No fit", decided_at: "2026-09-02T10:00:00Z" }),
+    request({
+      join_request_id: 71,
+      status: "rejected",
+      rejection_reason: SUPERSEDED_REASON,
+      submitted_at: "2026-09-10T10:00:00Z",
+      created_at: "2026-09-10T10:00:00Z",
+      decided_at: "2026-09-11T10:00:00Z",
+      reactivation_requested_at: "2026-09-10T12:00:00Z",
+    }),
+  ],
+  { kind: "rejected" },
+);
+assert(mixedRejected.terminal === false, "superseded second rejection stays non-terminal");
+assert(
+  mixedRejected.hasReturningAppealRejection === false,
+  "superseded rows never trip the returning-appeal flag",
+);
+const supersededRow = mixedRejected.entries.find((e) => e.action === "rejected" && e.timestamp === "2026-09-11T10:00:00Z");
+assert(supersededRow?.reason == null, "superseded decision row suppresses the machine reason");
+assert(
+  (supersededRow as { multipathResolution?: string }).multipathResolution === "accepted",
+  "superseded decision row annotates its resolution",
+);
+assert(
+  mixedRejected.entries.filter((e) => e.source_type === "join_request").length === 2,
+  "superseded cycles keep their submitted anchors",
+);
+const cancelledImmune = resolveCumulativeRequestLifecycleTimeline(
+  [
+    request({ join_request_id: 72, status: "cancelled", decided_at: "2026-09-02T10:00:00Z" }),
+    request({
+      join_request_id: 73,
+      status: "rejected",
+      rejection_reason: SUPERSEDED_REASON,
+      submitted_at: "2026-09-10T10:00:00Z",
+      created_at: "2026-09-10T10:00:00Z",
+      decided_at: "2026-09-11T10:00:00Z",
+    }),
+  ],
+  { kind: "cancelled" },
+);
+assert(
+  cancelledImmune.entries.every((e) => (e as { multipathResolution?: string }).multipathResolution == null),
+  "superseded rejected rows never enter cancelled lineage",
+);
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);

@@ -6,6 +6,7 @@ import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/component
 import {
   ambientTextToneClass,
   isLegacyMachineReason,
+  resolveMultipathResolvedCopy,
   resolveReapplyPendingNotice,
   resolveReapplyPendingSeekerAmbient,
   resolveReconsiderationPendingNotice,
@@ -89,6 +90,16 @@ interface MembershipTimelineProps {
       cumulative emitter, U-035 family, Revoked-mechanism reuse). Caller-gated:
       only the agency Rejected card passes this — never the seeker view. */
   pendingReconsiderationNotice?: {
+    seekerName?: string | null;
+  };
+  /** OPT-IN, Rejected cards both sides: renders the resolved-elsewhere
+      notice above decision rows the multipath closer retired (entries
+      annotated `multipathResolution` by the cumulative emitter, U-055).
+      Permanent (the row stays resolved), so no "New" marker — the copy
+      names the resolving tab. */
+  multipathResolvedNotice?: {
+    viewerIsApplicant: boolean;
+    agencyName?: string | null;
     seekerName?: string | null;
   };
 }
@@ -373,6 +384,7 @@ export function MembershipTimeline({
   onExpandedChange,
   pendingReapplyNotice,
   pendingReconsiderationNotice,
+  multipathResolvedNotice,
 }: MembershipTimelineProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expandedProp ?? internalExpanded;
@@ -581,6 +593,25 @@ export function MembershipTimeline({
             </p>
           </div>
         ) : null;
+        // Multipath resolved-elsewhere notice (U-055): superseded decision
+        // rows keep their row (audit trail) with the machine reason
+        // suppressed; this sibling line names where the pair resolved.
+        // Permanent — no "New" marker (resolved, not pending).
+        const multipathResolution = (entry as CumulativeRequestLifecycleEntry).multipathResolution;
+        const multipathNoticeBlock =
+          multipathResolvedNotice != null && multipathResolution != null ? (
+            <div className="mb-2 space-y-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {resolveMultipathResolvedCopy({
+                  viewerIsApplicant: multipathResolvedNotice.viewerIsApplicant,
+                  kind: "application",
+                  resolution: multipathResolution,
+                  agencyName: multipathResolvedNotice.agencyName,
+                  seekerName: multipathResolvedNotice.seekerName,
+                })}
+              </p>
+            </div>
+          ) : null;
 
         return (
           <Fragment key={entryId}>
@@ -600,6 +631,7 @@ export function MembershipTimeline({
               ? reapplyNoticeBlock
               : null}
             {reconsiderNoticeBlock}
+            {multipathNoticeBlock}
             <div
               // Shared zebra banding (grey/white alternating), no borders — same
               // pairing as the simple tier, defined here only (canonical component).

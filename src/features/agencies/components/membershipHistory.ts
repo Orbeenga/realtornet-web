@@ -913,6 +913,44 @@ export interface CumulativeRequestMatch {
   cycle_number?: number | null;
 }
 
+/* Multipath supersession markers (U-055 cross-repo contract — exact
+   strings copied from backend agencies.py MULTIPATH_CLOSE_REASON and
+   MULTIPATH_CLOSE_REASON_APPROVE). Every row closed by
+   _close_multipath_pending_rows carries exactly one: the plain reason
+   when invitation-accept resolved the pair, the approve reason when
+   join-approve did. Frontend exact-matches the set (isLegacyMachineReason
+   precedent) to exclude superseded rows from U-034b counting and CTAs.
+   Never reword without a coordinated change. */
+const MULTIPATH_SUPERSEDED_REASONS: ReadonlySet<string> = new Set([
+  "Auto-closed: membership resolved through another path.",
+  "Auto-closed: membership approved through another path.",
+]);
+
+export function isMultipathSupersededReason(reason: string | null | undefined): boolean {
+  return reason != null && MULTIPATH_SUPERSEDED_REASONS.has(reason);
+}
+
+export type MultipathResolution = "accepted" | "approved";
+
+export function resolveMultipathResolution(reason: string | null | undefined): MultipathResolution | null {
+  if (reason == null || !MULTIPATH_SUPERSEDED_REASONS.has(reason)) return null;
+  return reason === "Auto-closed: membership approved through another path." ? "approved" : "accepted";
+}
+
+/* Multipath invitation scan lives HERE ONLY (one scan). Invitations carry
+   no reason column, so supersession is read off the withdrawn audit row
+   in the invitation's events feed (exact marker match). Marker wins over
+   status: a pending-status row carrying the marker is already closed
+   server-side (stale view), so it renders superseded. */
+export function resolveInvitationMultipathResolution(
+  feed: MembershipTimelineEntry[],
+): MultipathResolution | null {
+  const closing = feed.find(
+    (entry) => entry.action === "withdrawn" && isMultipathSupersededReason(entry.reason),
+  );
+  return closing ? resolveMultipathResolution(closing.reason) : null;
+}
+
 export interface CumulativeRequestLifecycle {
   entries: CumulativeRequestLifecycleEntry[];
   /** U-034b group terminality (rejected groups only; always false for
@@ -944,6 +982,11 @@ export type CumulativeRequestLifecycleEntry = MembershipTimelineEntry & {
   /** Carried for the shared label map: submitted anchors of reapply rows
       render "Reapplied" instead of "Submitted" (U-017 extension). */
   reapplied_from_request_id?: number | null;
+  /** Multipath supersession (U-055): set on decision rows whose rejection
+      reason is a locked close marker. The row renders with the
+      resolved-elsewhere notice and no machine reason, and never counts
+      toward the U-034b terminal discriminator. */
+  multipathResolution?: MultipathResolution | null;
 };
 
 /* Shared timeline-entry key lives HERE ONLY (timelineEntryKey). Backend
@@ -1301,10 +1344,11 @@ export function resolveCumulativeRequestLifecycleTimeline(
 
   // U-034b terminal discriminator. Returning-appeal rejections (U-013:
   // reactivation_requested_at set) are terminal immediately; fresh requests
-  // stay actionable until a second rejection lands.
+  // stay actionable until a second rejection lands. Multipath-superseded
+  // rows (U-055 locked marker) are not real rejections and never count.
   const rejectedRows =
     entity.kind === "rejected"
-      ? lineage
+      ? lineage.filter((request) => !isMultipathSupersededReason(request.rejection_reason))
       : [];
   const hasReturningAppealRejection = rejectedRows.some(
     (request) => request.reactivation_requested_at != null,
@@ -1354,13 +1398,18 @@ export function resolveCumulativeRequestLifecycleTimeline(
       });
     }
     if (entity.kind === "rejected" && request.status === "rejected") {
+      // U-055: superseded rows keep their decision row (audit trail) but the
+      // machine reason never renders (U-053) — the tier shows the
+      // resolved-elsewhere notice from the annotation instead.
+      const multipathResolution = resolveMultipathResolution(request.rejection_reason);
       entries.push({
         source_type: "audit_event",
         author_role: "agency",
         action: "rejected",
         timestamp: request.decided_at ?? submittedAt,
-        reason: request.rejection_reason ?? null,
+        reason: multipathResolution ? null : (request.rejection_reason ?? null),
         cycle_number: request.cycle_number ?? null,
+        multipathResolution,
         ...identity,
       });
     }

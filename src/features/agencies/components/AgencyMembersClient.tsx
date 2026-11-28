@@ -67,6 +67,7 @@ import {
   resolveInviteeName,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
+  resolveMultipathResolvedCopy,
   resolvePriorInvitationContextLine,
   resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
@@ -86,9 +87,11 @@ import {
   resolveExpiredNarrativeTimeline,
   resolveExpiredPairBadgeStatus,
   resolveInvitationColumnTimeline,
+  resolveInvitationMultipathResolution,
   resolveInviteeHeaderQualifiers,
   resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
+  type MultipathResolution,
 } from "./membershipHistory";
 import {
   MembershipTimeline,
@@ -410,10 +413,12 @@ function AgencyWithdrawnInvitationSection({
   invitation,
   history,
   isLatest,
+  multipathResolution,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   isLatest: boolean;
+  multipathResolution: MultipathResolution | null;
 }) {
   const decided =
     invitation.status === "accepted" ||
@@ -425,7 +430,16 @@ function AgencyWithdrawnInvitationSection({
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {ambientVisible ? (
+      {multipathResolution ? (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {resolveMultipathResolvedCopy({
+            viewerIsApplicant: false,
+            kind: "invitation",
+            resolution: multipathResolution,
+            seekerName: name,
+          })}
+        </p>
+      ) : ambientVisible ? (
         invitation.interest_expressed_at ? (
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {resolveInvitationWithdrawnInterestAgencyText({ name })}
@@ -452,12 +466,14 @@ function AgencyExpiredInvitationSection({
   reactivateLoading,
   onReactivate,
   isLatest,
+  multipathResolution,
 }: {
   invitation: AgencyInvitationResponse;
   history: MembershipTimelineEntry[];
   reactivateLoading: boolean;
   onReactivate: () => void;
   isLatest: boolean;
+  multipathResolution: MultipathResolution | null;
 }) {
   const decided =
     invitation.status === "accepted" ||
@@ -478,7 +494,16 @@ function AgencyExpiredInvitationSection({
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {ambientVisible ? (
+      {multipathResolution ? (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {resolveMultipathResolvedCopy({
+            viewerIsApplicant: false,
+            kind: "invitation",
+            resolution: multipathResolution,
+            seekerName: name,
+          })}
+        </p>
+      ) : ambientVisible ? (
         seekerRequested ? (
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {resolveInvitationExpiredRequestedAgencyText({ name })}
@@ -1359,6 +1384,10 @@ export function AgencyMembersClient() {
                             pendingReconsiderationNotice={{
                               seekerName: member?.displayName ?? group.seekerName,
                             }}
+                            multipathResolvedNotice={{
+                              viewerIsApplicant: false,
+                              seekerName: member?.displayName ?? group.seekerName,
+                            }}
                             emptyTitle="No rejected requests"
                             emptyDescription="Rejected join requests will appear here."
                           />
@@ -2089,18 +2118,22 @@ export function AgencyMembersClient() {
                     const member = group.userId != null ? historyMemberById.get(group.userId) : undefined;
                     // U-054: one card per invitee with a per-invitation
                     // section each; the count equals all rows.
-                    const invitationHistories = group.invitations.map((invitation) => ({
-                      invitation,
-                      history: [
-                        ...resolveInvitationColumnTimeline(invitation),
-                        ...getInvitationDecisionResults(expiredInvitationEventsById.get(invitation.invitation_id) ?? []),
-                      ],
-                    }));
+                    const invitationHistories = group.invitations.map((invitation) => {
+                      const feed = expiredInvitationEventsById.get(invitation.invitation_id) ?? [];
+                      return {
+                        invitation,
+                        history: [
+                          ...resolveInvitationColumnTimeline(invitation),
+                          ...getInvitationDecisionResults(feed),
+                        ],
+                        multipathResolution: resolveInvitationMultipathResolution(feed),
+                      };
+                    });
                     const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                       <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
-                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
+                      {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <AgencyExpiredInvitationSection
                             invitation={invitation}
@@ -2111,6 +2144,7 @@ export function AgencyMembersClient() {
                             }
                             onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
                             isLatest={sectionIndex === invitationHistories.length - 1}
+                            multipathResolution={multipathResolution}
                           />
                         </div>
                       ))}
@@ -2128,23 +2162,28 @@ export function AgencyMembersClient() {
                     const member = group.userId != null ? historyMemberById.get(group.userId) : undefined;
                     // U-054: one card per invitee with a per-invitation
                     // section each; the count equals all rows.
-                    const invitationHistories = group.invitations.map((invitation) => ({
-                      invitation,
-                      history: [
-                        ...resolveInvitationColumnTimeline(invitation),
-                        ...getInvitationDecisionResults(withdrawnInvitationEventsById.get(invitation.invitation_id) ?? []),
-                      ],
-                    }));
+                    const invitationHistories = group.invitations.map((invitation) => {
+                      const feed = withdrawnInvitationEventsById.get(invitation.invitation_id) ?? [];
+                      return {
+                        invitation,
+                        history: [
+                          ...resolveInvitationColumnTimeline(invitation),
+                          ...getInvitationDecisionResults(feed),
+                        ],
+                        multipathResolution: resolveInvitationMultipathResolution(feed),
+                      };
+                    });
                     const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                       <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
-                      {invitationHistories.map(({ invitation, history }, sectionIndex) => (
+                      {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <AgencyWithdrawnInvitationSection
                             invitation={invitation}
                             history={history}
                             isLatest={sectionIndex === invitationHistories.length - 1}
+                            multipathResolution={multipathResolution}
                           />
                         </div>
                       ))}

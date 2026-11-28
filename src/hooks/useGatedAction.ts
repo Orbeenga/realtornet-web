@@ -204,7 +204,7 @@ export function useGatedAction<Seed>(
         const signal = extractPendingExists(error);
         if (signal) {
           const ctx = current.buildContext(activeSeed);
-          const mappedToast = resolveStaleViewToast(spec, signal.kind, ctx.counterpartyName);
+          const mappedToast = resolveStaleViewToast(spec, signal.kind, ctx.counterpartyName, ctx.viewerIsApplicant);
           notify.error(mappedToast ?? current.errorFallback);
           return;
         }
