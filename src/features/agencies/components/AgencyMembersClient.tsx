@@ -2079,12 +2079,12 @@ export function AgencyMembersClient() {
                     const rowTotal = invitationTimelines.reduce((n, t) => n + t.history.length, 0);
                     return (
                       <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
-                        <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
+                        <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} applicationStatus="rejected" href={resolvePersonProfileHref(member?.profileId)} />
                         {invitationTimelines.map(({ invitation, history }, sectionIndex) => {
                           const ambient = resolvePairAmbient({
                             kind: "invitation-rejected",
                             viewerIsApplicant: false,
-                            isLatest: sectionIndex === invitationTimelines.length - 1,
+                            isLatest: sectionIndex === 0,
                             inviteeName: resolveInviteeName(invitation),
                           });
                           return (
@@ -2113,7 +2113,9 @@ export function AgencyMembersClient() {
                   expiredInvitationGroups.map((group) => {
                     const member = group.userId != null ? historyMemberById.get(group.userId) : undefined;
                     // U-054: one card per invitee with a per-invitation
-                    // section each; the count equals all rows.
+                    // section each; the count equals all rows. Sections run
+                    // newest-first, so the badge reads the first row's live
+                    // status (history rows may outlive their tab status).
                     const invitationHistories = group.invitations.map((invitation) => {
                       const feed = expiredInvitationEventsById.get(invitation.invitation_id) ?? [];
                       return {
@@ -2128,7 +2130,7 @@ export function AgencyMembersClient() {
                     const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
-                      <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
+                      <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} applicationStatus={group.invitations[0]?.status} href={resolvePersonProfileHref(member?.profileId)} />
                       {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <AgencyExpiredInvitationSection
@@ -2139,7 +2141,7 @@ export function AgencyMembersClient() {
                               reactivateInvitation.variables === invitation.invitation_id
                             }
                             onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
-                            isLatest={sectionIndex === invitationHistories.length - 1}
+                            isLatest={sectionIndex === 0}
                             multipathResolution={multipathResolution}
                           />
                         </div>
@@ -2157,7 +2159,9 @@ export function AgencyMembersClient() {
                   withdrawnInvitationGroups.map((group) => {
                     const member = group.userId != null ? historyMemberById.get(group.userId) : undefined;
                     // U-054: one card per invitee with a per-invitation
-                    // section each; the count equals all rows.
+                    // section each; the count equals all rows. Sections run
+                    // newest-first, so the badge reads the first row's live
+                    // status (history rows may outlive their tab status).
                     const invitationHistories = group.invitations.map((invitation) => {
                       const feed = withdrawnInvitationEventsById.get(invitation.invitation_id) ?? [];
                       return {
@@ -2172,13 +2176,13 @@ export function AgencyMembersClient() {
                     const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
-                      <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
+                      <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} applicationStatus={group.invitations[0]?.status} href={resolvePersonProfileHref(member?.profileId)} />
                       {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <AgencyWithdrawnInvitationSection
                             invitation={invitation}
                             history={history}
-                            isLatest={sectionIndex === invitationHistories.length - 1}
+                            isLatest={sectionIndex === 0}
                             multipathResolution={multipathResolution}
                           />
                         </div>

@@ -1143,12 +1143,14 @@ export type InvitationCycleAnchor =
   | "expired-history"
   | "withdrawn-history";
 
-const byInvitationCreatedAt = (
+/* Invitation sections render newest-first (U-054 §3); the ambient
+   slot sits with the latest (first) section. */
+const byInvitationCreatedAtDesc = (
   first: AgencyInvitationResponse,
   second: AgencyInvitationResponse,
 ) =>
-  new Date(first.created_at).getTime() - new Date(second.created_at).getTime() ||
-  first.invitation_id - second.invitation_id;
+  new Date(second.created_at).getTime() - new Date(first.created_at).getTime() ||
+  second.invitation_id - first.invitation_id;
 
 function latestInvitationCreatedAt(group: { invitations: AgencyInvitationResponse[] }): number {
   return group.invitations.reduce(
@@ -1207,7 +1209,7 @@ export function groupAgencyInvitationCycles(
   return [...groups.values()]
     .map((group) => ({
       ...group,
-      invitations: [...group.invitations].sort(byInvitationCreatedAt),
+      invitations: [...group.invitations].sort(byInvitationCreatedAtDesc),
     }))
     .sort(
       (first, second) =>
@@ -1252,7 +1254,7 @@ export function groupMyInvitationCycles(
   return [...groups.values()]
     .map((group) => ({
       ...group,
-      invitations: [...group.invitations].sort(byInvitationCreatedAt),
+      invitations: [...group.invitations].sort(byInvitationCreatedAtDesc),
     }))
     .sort(
       (first, second) =>

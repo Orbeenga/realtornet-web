@@ -618,10 +618,10 @@ const pendingPairs = groupAgencyInvitationCycles(pairFeed, "pending");
 assert(
   pendingPairs.length === 2 &&
     pendingPairs[0]?.key === "email:amy@example.com" &&
-    pendingPairs[0]?.invitations.map((i) => i.invitation_id).join(",") === "53,54" &&
+    pendingPairs[0]?.invitations.map((i) => i.invitation_id).join(",") === "54,53" &&
     pendingPairs[1]?.key === "user:7" &&
-    pendingPairs[1]?.invitations.map((i) => i.invitation_id).join(",") === "51,52",
-  "pending groups by stamped user and normalized email, sections ascending",
+    pendingPairs[1]?.invitations.map((i) => i.invitation_id).join(",") === "52,51",
+  "pending groups by stamped user and normalized email, sections newest-first",
 );
 assert(
   groupAgencyInvitationCycles(pairFeed, "expired-history").length === 1 &&
@@ -673,8 +673,8 @@ const seekerPending = groupMyInvitationCycles(seekerFeed, "pending", 5);
 assert(
   seekerPending.length === 1 &&
     seekerPending[0]?.agencyId === 2 &&
-    seekerPending[0]?.invitations.map((i) => i.invitation_id).join(",") === "81,82",
-  "seeker pending merges the agency-requested expired row, drops self-requested",
+    seekerPending[0]?.invitations.map((i) => i.invitation_id).join(",") === "82,81",
+  "seeker pending merges the agency-requested expired row, drops self-requested, sections newest-first",
 );
 assert(
   groupMyInvitationCycles(seekerFeed, "pending", null).length === 1 &&

@@ -981,12 +981,12 @@ export function MyJoinRequestsClient() {
                   return (
                     <Card key={group.agencyId}>
                       <CardBody className="space-y-4">
-                        <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
+                        <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} applicationStatus="rejected" href={resolveAgencyHref(group.agencyId)} />
                         {invitationTimelines.map(({ invitation, history }, sectionIndex) => {
                           const ambient = resolvePairAmbient({
                             kind: "invitation-rejected",
                             viewerIsApplicant: true,
-                            isLatest: sectionIndex === invitationTimelines.length - 1,
+                            isLatest: sectionIndex === 0,
                             agencyName: invitation.agency_name,
                           });
                           return (
@@ -1017,7 +1017,9 @@ export function MyJoinRequestsClient() {
               ) : (
                 expiredInvitationGroups.map((group) => {
                   // U-054: one card per agency with a per-invitation
-                  // section each; the count equals all rows.
+                  // section each; the count equals all rows. Sections run
+                  // newest-first, so the badge reads the first row's live
+                  // status (history rows may outlive their tab status).
                   const invitationHistories = group.invitations.map((invitation) => {
                     const feed = expiredInvitationEventsById.get(invitation.invitation_id) ?? [];
                     return {
@@ -1033,7 +1035,7 @@ export function MyJoinRequestsClient() {
                   return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
-                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
+                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} applicationStatus={group.invitations[0]?.status} href={resolveAgencyHref(group.agencyId)} />
                       {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <SeekerExpiredInvitationSection
@@ -1046,7 +1048,7 @@ export function MyJoinRequestsClient() {
                             onRequest={() =>
                               inviteReactivationGate.attempt(invitation.invitation_id)
                             }
-                            isLatest={sectionIndex === invitationHistories.length - 1}
+                            isLatest={sectionIndex === 0}
                             multipathResolution={multipathResolution}
                           />
                         </div>
@@ -1066,7 +1068,9 @@ export function MyJoinRequestsClient() {
               ) : (
                 withdrawnInvitationGroups.map((group) => {
                   // U-054: one card per agency with a per-invitation
-                  // section each; the count equals all rows.
+                  // section each; the count equals all rows. Sections run
+                  // newest-first, so the badge reads the first row's live
+                  // status (history rows may outlive their tab status).
                   const invitationHistories = group.invitations.map((invitation) => {
                     const feed = withdrawnInvitationEventsById.get(invitation.invitation_id) ?? [];
                     return {
@@ -1082,7 +1086,7 @@ export function MyJoinRequestsClient() {
                   return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
-                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
+                      <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} applicationStatus={group.invitations[0]?.status} href={resolveAgencyHref(group.agencyId)} />
                       {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
                           <SeekerWithdrawnInvitationSection
@@ -1095,7 +1099,7 @@ export function MyJoinRequestsClient() {
                             onExpressInterest={() =>
                               inviteReactivationGate.attempt(invitation.invitation_id)
                             }
-                            isLatest={sectionIndex === invitationHistories.length - 1}
+                            isLatest={sectionIndex === 0}
                             multipathResolution={multipathResolution}
                           />
                         </div>
