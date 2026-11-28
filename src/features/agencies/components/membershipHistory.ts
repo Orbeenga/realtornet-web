@@ -674,19 +674,22 @@ export function resolveRejectedInvitationTimeline(
    requested/accepted, approval, and downstream revoked/reinstated (U-026) — merged
    into a single array carrying real timestamps, sorted ascending, rendered as one
    banded loop. Never two separate lists (that produced out-of-order rows). */
-/* Expired-narrative row entries (U-054 conversion): the U-022d wording
-   rides narrative_text verbatim while canonical action/source_type/
-   identity fields let rows render through the shared timeline
-   (badge map, keys, reveal, banding) instead of a hand loop. */
+/* Expired-narrative row entries (U-054 conversion, U-022d shape):
+   reactivation sub-events ride narrative_text verbatim (actor-labeled
+   sentences); submitted/expired render as canonical rows. Canonical
+   action/source_type/identity fields let rows render through the shared
+   timeline (badge map, keys, reveal, banding) instead of a hand loop.
+   Lifecycle-scoped (U-054 §2): approved and downstream membership
+   moments belong to other tabs and are never emitted here. */
 export type ExpiredNarrativeEntry = MembershipTimelineEntry & {
-  narrative_text: string;
+  narrative_text?: string;
 };
 
 export function resolveExpiredNarrativeTimeline(
-  history: MembershipTimelineEntry[],
   request: RequestLifecycleMatch & {
     seeker_name?: string | null;
     reactivation_requested_by?: number | null;
+    cover_note?: string | null;
   },
   viewer: { viewerUserId: number | null; viewerIsApplicant: boolean },
 ): ExpiredNarrativeEntry[] {
@@ -720,7 +723,7 @@ export function resolveExpiredNarrativeTimeline(
       source_type: "join_request",
       author_role: "seeker",
       timestamp: submittedAt,
-      narrative_text: viewerIsApplicant ? "You submitted application" : `${seekerName} submitted application`,
+      ...(request.cover_note ? { cover_note: request.cover_note } : {}),
       ...identity,
     });
   }
@@ -731,7 +734,6 @@ export function resolveExpiredNarrativeTimeline(
       action: "expired",
       author_role: "system",
       timestamp: request.originally_expired_at,
-      narrative_text: "Application expired",
       ...identity,
     });
   }
@@ -768,60 +770,23 @@ export function resolveExpiredNarrativeTimeline(
     });
   }
 
-  if (request.decided_at && (request.status === "approved" || request.status === "reactivated")) {
-    events.push({
-      source_type: "audit_event",
-      action: "approved",
-      author_role: "agency",
-      timestamp: request.decided_at,
-      narrative_text: viewerIsApplicant
-        ? `${agencyName} approved application`
-        : `You approved ${seekerName}'s application`,
-      ...identity,
-    });
-  }
-
-  // U-026 downstream membership events (revoked/reinstated) tied to the
-  // membership this request created, timestamped strictly after approval.
-  // The real audit rows pass through (label, badge, keys all real) with
-  // the narrative wording attached.
-  const decidedTime = request.decided_at ? new Date(request.decided_at).getTime() : null;
-  if (decidedTime != null) {
-    const downstream = history.filter(
-      (entry) =>
-        entry.source_type === "audit_event" &&
-        (entry.action === "revoked" || entry.action === "reinstated") &&
-        new Date(entry.timestamp).getTime() > decidedTime &&
-        !(request.agency_id != null && entry.agency_id != null && entry.agency_id !== request.agency_id) &&
-        !(request.user_id != null && entry.user_id != null && entry.user_id !== request.user_id),
-    );
-    for (const entry of downstream) {
-      const pastTense = entry.action === "revoked" ? "revoked" : "reinstated";
-      events.push({
-        ...entry,
-        narrative_text: viewerIsApplicant
-          ? `${agencyName} ${pastTense} membership`
-          : `You ${pastTense} ${seekerName}'s membership`,
-      });
-    }
-  }
+  // U-054 §2 lifecycle scope ends here: approved and downstream
+  // membership (revoked/reinstated) moments belong to the Approved and
+  // Revoked/History tabs and are never emitted on Expired.
 
   return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
 /* Expired pair header badge lives HERE ONLY (Rule 20 SSOT — one
-   resolver). U-021: a static "expired" badge conflates when the pair's
-   lifecycle moved on (e.g. ends at a revoked membership). Where the
-   pair's latest request is expired, show expired; otherwise show the
-   live membership status, falling back to the live application status.
-   All inputs and outputs are raw status strings (the shared badge map
-   formats). */
+   resolver). U-021: the badge names the pair's live APPLICATION
+   standing (the membership standing, if any, rides the status
+   qualifier — never the badge). Membership input was removed after it
+   surfaced foreign-lifecycle standing here. Raw strings in and out
+   (the shared badge map formats). */
 export function resolveExpiredPairBadgeStatus(
   latestRequestStatus?: string | null,
-  memberStatus?: string | null,
 ): string {
-  if (latestRequestStatus === "expired") return "expired";
-  return memberStatus ?? latestRequestStatus ?? "expired";
+  return latestRequestStatus ?? "expired";
 }
 
 /* Shared tab-scoped membership-history filter lives HERE ONLY (canonical

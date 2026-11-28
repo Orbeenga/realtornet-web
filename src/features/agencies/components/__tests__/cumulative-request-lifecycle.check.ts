@@ -189,17 +189,19 @@ assert(
   "emitter never synthesizes appeal rows",
 );
 
-// U-054 Expired conversion: the U-022d wording rides narrative_text
-// verbatim while rows carry canonical action/source/identity fields.
+// U-054 Expired conversion (U-022d shape): reactivation sub-events ride
+// narrative_text verbatim; submitted/expired render canonical. Approved
+// and downstream membership moments never emit here (U-054 §2 scope).
 const narrativeRows = resolveExpiredNarrativeTimeline(
-  [],
   {
-    status: "expired",
+    status: "approved",
     submitted_at: "2026-09-01T10:00:00Z",
     created_at: "2026-09-01T10:00:00Z",
     originally_expired_at: "2026-09-05T10:00:00Z",
     reactivation_requested_at: "2026-09-06T10:00:00Z",
     reactivation_requested_by: 7,
+    reactivation_accepted_at: "2026-09-07T10:00:00Z",
+    decided_at: "2026-09-08T10:00:00Z",
     agency_id: 42,
     agency_name: "Staging Test Agency",
     user_id: 7,
@@ -208,20 +210,23 @@ const narrativeRows = resolveExpiredNarrativeTimeline(
   { viewerUserId: 7, viewerIsApplicant: true },
 );
 assert(
-  narrativeRows.map((e) => `${e.action ?? "submitted"}:${e.narrative_text}`).join(" | ") ===
-    "submitted:You submitted application | expired:Application expired | reactivation_requested:You requested to reactivate application" &&
-    narrativeRows.every((e) => e.source_type === "join_request" || e.source_type === "audit_event") &&
+  narrativeRows.map((e) => e.action ?? "submitted").join(",") ===
+    "submitted,expired,reactivation_requested,reactivation_accepted" &&
+    narrativeRows.filter((e) => e.narrative_text != null).length === 2 &&
+    narrativeRows.find((e) => e.action === "reactivation_requested")?.narrative_text ===
+      "You requested to reactivate application" &&
     narrativeRows.every((e) => e.agency_id === 42 && e.user_id === 7),
-  "narrative rows keep verbatim wording with canonical action/source/identity",
+  "expired rows scope to the expired lifecycle with U-022d narrative wins",
 );
 
-// Expired pair header badge (U-021): latest request expired shows
-// expired; otherwise the live membership status wins, falling back to
-// the live application status.
+// Expired pair header badge (U-021): names the pair's live application
+// standing only — membership standing rides the qualifier, never the
+// badge (foreign lifecycles must not surface here).
 const badgeCases = [
-  resolveExpiredPairBadgeStatus("expired", "revoked") === "expired",
-  resolveExpiredPairBadgeStatus("pending", "revoked") === "revoked",
-  resolveExpiredPairBadgeStatus("pending", null) === "pending",
+  resolveExpiredPairBadgeStatus("expired") === "expired",
+  resolveExpiredPairBadgeStatus("pending") === "pending",
+  resolveExpiredPairBadgeStatus("approved") === "approved",
+  resolveExpiredPairBadgeStatus(null) === "expired",
 ];
 assert(
   badgeCases.every(Boolean),

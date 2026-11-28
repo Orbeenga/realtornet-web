@@ -54,7 +54,6 @@ import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDial
 import { useGatedAction } from "@/hooks/useGatedAction";
 import { declineRequestKind, emptyGate1Context } from "@/lib/gate-registry";
 import {
-  hasExpiredHistory,
   resolveInvitationPendingAgencyText,
   resolveInviteeName,
   resolveJoinRequestReactivationTrace,
@@ -699,18 +698,6 @@ export function AgencyMembersClient() {
     Boolean(agencyId) && blockedAgents.length > 0,
   );
 
-  // U-022d/U-026 parity: per-member history for the Expired join-request tab
-  const expiredRequests = joinRequestsQuery.data?.filter(hasExpiredHistory) ?? [];
-  const expiredHistoryQueries = useAgencyMembershipHistories(
-    agencyId,
-    expiredRequests.map((r) => r.user_id),
-    Boolean(agencyId) && expiredRequests.length > 0,
-  );
-  // Keyed by request id so each grouped Expired section resolves its own
-  // narrative timeline (replaces the pre-grouping positional index).
-  const expiredHistoryByRequestId = new Map(
-    expiredRequests.map((request, index) => [request.join_request_id, expiredHistoryQueries[index]?.data ?? []] as const),
-  );
   // Rejected-tab appeal rows (Revoked mechanism): per-member history for
   // rejected applicants, mirroring every sibling tab. User set matches the
   // rejected anchor exactly (users with >=1 rejected row); keyed by user id
@@ -1415,26 +1402,35 @@ export function AgencyMembersClient() {
                   <div className="space-y-4">
                     {expiredCycleGroups.map((group) => {
                       const member = historyMemberById.get(group.userId);
-                      // U-054: one card per applicant with a per-request
-                      // timeline each; the count equals all rows. Sections
-                      // ascend, so the badge reads the last request.
-                      const requestTimelines = group.requests.map((request) => ({
-                        request,
-                        history: resolveExpiredNarrativeTimeline(
-                          expiredHistoryByRequestId.get(request.join_request_id) ?? [],
+                      // U-054: one card, one merged timeline (single reveal),
+                      // one ambient, one action slot — all from the latest
+                      // record (sections ascend, so the last request owns
+                      // them). Rows are expired-lifecycle scoped (U-054 §2).
+                      const history = group.requests.flatMap((request) =>
+                        resolveExpiredNarrativeTimeline(
                           request,
                           { viewerUserId: user?.user_id ?? null, viewerIsApplicant: false },
                         ),
-                        reactivationStage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, false),
-                      }));
-                      const rowTotal = requestTimelines.reduce((n, t) => n + t.history.length, 0);
+                      );
                       const latestRequest = group.requests[group.requests.length - 1];
+                      const latestStage = latestRequest
+                        ? resolveJoinRequestReactivationStage(latestRequest, user?.user_id ?? null, false)
+                        : "terminal";
+                      const ambient = latestRequest
+                        ? resolvePairAmbient({
+                            kind: "reactivation",
+                            viewerIsApplicant: false,
+                            isLatest: true,
+                            stage: latestStage,
+                            seekerName: latestRequest.seeker_name,
+                          })
+                        : null;
                       return (
                       <div key={group.userId} className="rounded-lg border border-border p-4">
                         {/* Rich person header via the shared TimelineHeader SSOT
                             (same identity the History member blocks use). The
-                            badge resolves from the live record (U-021), not a
-                            static per-tab status. */}
+                            badge names the pair's live application standing
+                            (U-021); membership standing rides the qualifier. */}
                         <TimelineHeader
                           entity="person"
                           name={member?.displayName ?? group.seekerName}
@@ -1444,44 +1440,34 @@ export function AgencyMembersClient() {
                           status={member?.status}
                           lastSeen={member?.lastSeen}
                           qualifiers={member?.qualifiers}
-                          applicationStatus={resolveExpiredPairBadgeStatus(latestRequest?.status, member?.status)}
-                          eventCount={rowTotal}
+                          applicationStatus={resolveExpiredPairBadgeStatus(latestRequest?.status)}
+                          eventCount={history.length}
                           href={resolvePersonProfileHref(member?.profileId)}
                         />
-                        {requestTimelines.map(({ request, history, reactivationStage }, sectionIndex) => {
-                          // S-c: the ambient derives from the latest record
-                          // only (sections ascend, so the last section owns
-                          // it); per-request CTAs stay until the step-2 merge.
-                          const ambient = resolvePairAmbient({
-                            kind: "reactivation",
-                            viewerIsApplicant: false,
-                            isLatest: sectionIndex === requestTimelines.length - 1,
-                            stage: reactivationStage,
-                            seekerName: request.seeker_name,
-                          });
-                          return (
-                          <div key={request.join_request_id} className="mt-3 space-y-2">
-                            <MembershipTimeline
-                              tier="rich"
-                              history={history}
-                              showHeader={false}
-                              emptyTitle="No events"
-                              emptyDescription=""
-                            />
-                            {ambient ? (
-                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
-                            ) : null}
-                            {reactivationStage === "initial" ? (
-                              <Button
-                                type="button" size="sm"
-                                onClick={() => reactivationGate.attempt(request.join_request_id)}
-                              >
-                                Reactivate Application
-                              </Button>
-                            ) : null}
+                        {ambient ? (
+                          <div className="mt-3 space-y-2">
+                            <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
                           </div>
-                          );
-                        })}
+                        ) : null}
+                        <div className="mt-3 space-y-2">
+                          <MembershipTimeline
+                            tier="rich"
+                            history={history}
+                            showHeader={false}
+                            emptyTitle="No events"
+                            emptyDescription=""
+                          />
+                        </div>
+                        {latestRequest && latestStage === "initial" ? (
+                          <div className="mt-3 space-y-2">
+                            <Button
+                              type="button" size="sm"
+                              onClick={() => reactivationGate.attempt(latestRequest.join_request_id)}
+                            >
+                              Reactivate Application
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                     );
                     })}

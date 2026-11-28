@@ -1661,93 +1661,77 @@ export function MyJoinRequestsClient() {
               </div>
             ) : (
               expiredRequestGroups.map((group) => {
-                const firstRequest = group.requests[0];
-                // U-054: one card per agency with a per-request timeline
-                // each; the count equals all rows. Sections ascend, so the
-                // badge reads the last request.
-                const requestTimelines = group.requests.map((request) => ({
-                  request,
-                  history: resolveExpiredNarrativeTimeline(
-                    historyQuery.data ?? [],
+                // U-054: one card, one merged timeline (single reveal),
+                // one ambient, one action slot — all from the latest
+                // record (requests ascend, so the last owns them). Rows
+                // are expired-lifecycle scoped (U-054 §2); the cover note
+                // rides its submitted anchor via the shared tier slot.
+                const history = group.requests.flatMap((request) =>
+                  resolveExpiredNarrativeTimeline(
                     request,
                     { viewerUserId: user?.user_id ?? null, viewerIsApplicant: true },
                   ),
-                  reactivationStage: resolveJoinRequestReactivationStage(request, user?.user_id ?? null, true),
-                }));
-                const rowTotal = requestTimelines.reduce((n, t) => n + t.history.length, 0);
+                );
                 const latestRequest = group.requests[group.requests.length - 1];
-                const memberStatus = historyAgencies.find((m) => m.agency_id === group.agencyId)?.status;
+                const latestStage = latestRequest
+                  ? resolveJoinRequestReactivationStage(latestRequest, user?.user_id ?? null, true)
+                  : "terminal";
+                const ambient = resolvePairAmbient({
+                  kind: "reactivation",
+                  viewerIsApplicant: true,
+                  isLatest: latestRequest != null,
+                  stage: latestStage,
+                  agencyName: latestRequest?.agency_name,
+                });
                 return (
                   <Card key={group.agencyId}>
                     <CardBody className="space-y-4">
                       {/* Agency header via the shared TimelineHeader SSOT. The
-                          badge resolves from the live record (U-021), not a
-                          static per-tab status. */}
+                          badge names the pair's live application standing
+                          (U-021). */}
                       <TimelineHeader
                         entity="agency"
                         name={group.agencyName}
-                        verified={firstRequest?.is_verified}
-                        applicationStatus={resolveExpiredPairBadgeStatus(latestRequest?.status, memberStatus)}
-                        eventCount={rowTotal}
+                        verified={group.requests[0]?.is_verified}
+                        applicationStatus={resolveExpiredPairBadgeStatus(latestRequest?.status)}
+                        eventCount={history.length}
                         href={resolveAgencyHref(group.agencyId)}
                       />
-                      {requestTimelines.map(({ request, history, reactivationStage }, sectionIndex) => {
-                        // S-c: the ambient derives from the latest record
-                        // only (sections ascend, so the last section owns
-                        // it); per-request CTAs stay until the step-2 merge.
-                        const ambient = resolvePairAmbient({
-                          kind: "reactivation",
-                          viewerIsApplicant: true,
-                          isLatest: sectionIndex === requestTimelines.length - 1,
-                          stage: reactivationStage,
-                          agencyName: request.agency_name,
-                        });
-                        return (
-                        <div key={request.join_request_id} className="mt-3 space-y-2">
-                          {request.cover_note ? (
-                            <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
-                              <p className="font-medium text-gray-700 dark:text-gray-300">Cover note</p>
-                              <p className="mt-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{request.cover_note}</p>
-                            </div>
-                          ) : null}
-                          <MembershipTimeline
-                            tier="rich"
-                            history={history}
-                            showHeader={false}
-                            emptyTitle="No events"
-                            emptyDescription=""
-                          />
-                          {ambient ? (
-                            <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
-                          ) : null}
-                          {reactivationStage === "agency_requested" ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button" size="sm"
-                                loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                                onClick={() => acceptReactivationGate.attempt(request.join_request_id)}
-                              >
-                                Accept Reactivation
-                              </Button>
-                              <Button
-                                type="button" size="sm" variant="ghost"
-                                loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === request.join_request_id}
-                                onClick={() => void handleRejectReactivation(request.join_request_id)}
-                              >
-                                Reject
-                              </Button>
-                            </div>
-                          ) : reactivationStage === "initial" ? (
-                            <Button
-                              type="button" size="sm"
-                              onClick={() => reactivationGate.attempt(request.join_request_id)}
-                            >
-                              Request Reactivation
-                            </Button>
-                          ) : null}
+                      {ambient ? (
+                        <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                      ) : null}
+                      <MembershipTimeline
+                        tier="rich"
+                        history={history}
+                        showHeader={false}
+                        emptyTitle="No events"
+                        emptyDescription=""
+                      />
+                      {latestRequest && latestStage === "agency_requested" ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button" size="sm"
+                            loading={acceptReactivation.isPending && acceptReactivation.variables === latestRequest.join_request_id}
+                            onClick={() => acceptReactivationGate.attempt(latestRequest.join_request_id)}
+                          >
+                            Accept Reactivation
+                          </Button>
+                          <Button
+                            type="button" size="sm" variant="ghost"
+                            loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === latestRequest.join_request_id}
+                            onClick={() => void handleRejectReactivation(latestRequest.join_request_id)}
+                          >
+                            Reject
+                          </Button>
                         </div>
-                        );
-                      })}
+                      ) : latestRequest && latestStage === "initial" ? (
+                        <Button
+                          type="button" size="sm"
+                          onClick={() => reactivationGate.attempt(latestRequest.join_request_id)}
+                        >
+                          Request Reactivation
+                        </Button>
+                      ) : null}
                     </CardBody>
                   </Card>
                 );
