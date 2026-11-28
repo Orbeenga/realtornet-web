@@ -624,10 +624,6 @@ export type PairAmbientKind =
 export interface PairAmbientInput {
   kind: PairAmbientKind;
   viewerIsApplicant: boolean;
-  /** Latest-only gate (S-c): callers pass whether this call carries the
-      pair's latest record. Non-latest sections resolve null — one ambient
-      per pair, enforced by type, not convention. */
-  isLatest: boolean;
   agencyName?: string | null;
   seekerName?: string | null;
   inviteeName?: string | null;
@@ -646,7 +642,6 @@ export interface PairAmbientInput {
 }
 
 export function resolvePairAmbient(input: PairAmbientInput): { text: string; tone: AmbientTextTone } | null {
-  if (!input.isLatest) return null;
   const agency = input.agencyName ?? "The agency";
   const seeker = input.seekerName ?? "Seeker";
   switch (input.kind) {

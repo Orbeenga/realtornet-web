@@ -714,25 +714,15 @@ assert(
 );
 assert(countDistinctEntities([]) === 0, "empty union counts zero");
 
-// 20. Central pair-ambient dispatcher: one ambient per pair from the
-//     latest record (non-latest resolves null); every kind returns a
-//     single {text, tone}. Moved copy is pinned verbatim; delegated
-//     arms pin equality with their source resolver.
-assert(
-  resolvePairAmbient({
-    kind: "reactivation",
-    viewerIsApplicant: true,
-    isLatest: false,
-    stage: "initial",
-    agencyName: "Beta",
-  }) === null,
-  "non-latest sections resolve no ambient (one per pair)",
-);
+// 20. Central pair-ambient dispatcher: one call per card with the
+//     latest record's fields; every kind returns a single {text, tone}
+//     (single-ambient-per-pair is structural — each card calls once).
+//     Moved copy is pinned verbatim; delegated arms pin equality with
+//     their source resolver.
 assert(
   resolvePairAmbient({
     kind: "pending-awaiting",
     viewerIsApplicant: true,
-    isLatest: true,
     agencyName: "Beta",
   })?.text === "Your reconsideration request is pending a decision from Beta. It's with Beta for a decision.",
   "pending-awaiting copy is verbatim",
@@ -741,7 +731,6 @@ assert(
   resolvePairAmbient({
     kind: "reactivation",
     viewerIsApplicant: true,
-    isLatest: true,
     stage: "initial",
     agencyName: "Beta",
   })?.text === "This application has expired. You can request reactivation, or wait for Beta to reach out.",
@@ -751,7 +740,6 @@ assert(
   resolvePairAmbient({
     kind: "reactivation",
     viewerIsApplicant: true,
-    isLatest: true,
     stage: "agency_requested",
     agencyName: "Beta",
   })?.text === "Beta has requested to reactivate your expired application.",
@@ -761,7 +749,6 @@ assert(
   resolvePairAmbient({
     kind: "reactivation",
     viewerIsApplicant: true,
-    isLatest: true,
     stage: "agency_accepted",
     agencyName: "Beta",
   })?.tone === "success",
@@ -771,7 +758,6 @@ assert(
   resolvePairAmbient({
     kind: "reactivation",
     viewerIsApplicant: false,
-    isLatest: true,
     stage: "seeker_requested",
     seekerName: "Zed",
   })?.text === "Reactivation request from Zed is pending in review requests for a decision.",
@@ -781,26 +767,24 @@ assert(
   resolvePairAmbient({
     kind: "reactivation",
     viewerIsApplicant: false,
-    isLatest: true,
     stage: "terminal",
     seekerName: "Zed",
   }) === null,
   "terminal reactivation stage resolves no ambient",
 );
 assert(
-  resolvePairAmbient({ kind: "terminal", viewerIsApplicant: true, isLatest: true })?.tone === "neutral" &&
-    resolvePairAmbient({ kind: "terminal", viewerIsApplicant: false, isLatest: true })?.tone === "neutral",
+  resolvePairAmbient({ kind: "terminal", viewerIsApplicant: true })?.tone === "neutral" &&
+    resolvePairAmbient({ kind: "terminal", viewerIsApplicant: false })?.tone === "neutral",
   "terminal ambient resolves for both viewers",
 );
 assert(
-  resolvePairAmbient({ kind: "cooldown", viewerIsApplicant: false, isLatest: true, seekerName: "Zed" }) === null,
+  resolvePairAmbient({ kind: "cooldown", viewerIsApplicant: false, seekerName: "Zed" }) === null,
   "cooldown without a date resolves no ambient",
 );
 assert(
   resolvePairAmbient({
     kind: "invitation-rejected",
     viewerIsApplicant: true,
-    isLatest: true,
     agencyName: "Beta",
   })?.text === resolveInvitationRejectedSeekerText({ agencyName: "Beta" }),
   "invitation-rejected delegates to its source copy",
@@ -809,7 +793,6 @@ assert(
   resolvePairAmbient({
     kind: "invitation-expired",
     viewerIsApplicant: false,
-    isLatest: true,
     inviteeName: "Zed",
     invitationStatus: "expired",
   })?.text === resolveInvitationExpiredAgencyText({ name: "Zed" }),
@@ -819,7 +802,6 @@ assert(
   resolvePairAmbient({
     kind: "invitation-expired",
     viewerIsApplicant: false,
-    isLatest: true,
     inviteeName: "Zed",
     invitationStatus: "pending",
     decided: true,
@@ -830,7 +812,6 @@ assert(
   resolvePairAmbient({
     kind: "invitation-withdrawn",
     viewerIsApplicant: true,
-    isLatest: true,
     agencyName: "Beta",
     interestAt: "2026-11-20T10:00:00Z",
   })?.tone === "caution",
@@ -840,7 +821,6 @@ assert(
   resolvePairAmbient({
     kind: "resolved",
     viewerIsApplicant: true,
-    isLatest: true,
     rowKind: "invitation",
     resolution: "accepted",
     agencyName: "Beta",
@@ -857,7 +837,6 @@ assert(
   resolvePairAmbient({
     kind: "cancelled",
     viewerIsApplicant: true,
-    isLatest: true,
     agencyName: "Beta",
   })?.text === "Beta can see your cancelled applications.",
   "cancelled plain ambient is verbatim",

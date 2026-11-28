@@ -80,7 +80,6 @@ import {
   resolveInviteeHeaderQualifiers,
   resolveRejectedInvitationTimeline,
   type ApprovalOriginRow,
-  type MultipathResolution,
 } from "./membershipHistory";
 import {
   MembershipTimeline,
@@ -91,9 +90,7 @@ import {
 } from "@/features/agencies/components/MembershipHistoryList";
 import type {
   AgencyAgentRosterMember,
-  AgencyInvitationResponse,
   AgencyReviewRequestResponse,
-  MembershipTimelineEntry,
 } from "@/types";
 import {
   AgencyOwnerRosterSkeleton,
@@ -391,142 +388,6 @@ interface AgencyHistoryMember {
      through the shared MembershipTimeline/TimelineHeader SSOT. */
   qualifiers?: string[];
   profileId?: number | null;
-}
-
-/* Agency Withdrawn invitation section (per-tab contract, U-054 pair
-   card): one invitation's rows — column timeline (Sent, Withdrawn,
-   Interest) plus terminal interest-path results, then the matrix
-   ambient. Record-only: interest is decided in Review Requests, and
-   proactive reactivate is retired server-side — no buttons. Ambient
-   clears once a result row lands. Pure: the pair card owns the feed. */
-function AgencyWithdrawnInvitationSection({
-  invitation,
-  history,
-  isLatest,
-  multipathResolution,
-}: {
-  invitation: AgencyInvitationResponse;
-  history: MembershipTimelineEntry[];
-  isLatest: boolean;
-  multipathResolution: MultipathResolution | null;
-}) {
-  const decided =
-    invitation.status === "accepted" ||
-    history.some((entry) => entry.action === "reactivation_rejected");
-  const name = resolveInviteeName(invitation);
-  const ambient = multipathResolution
-    ? resolvePairAmbient({
-        kind: "resolved",
-        viewerIsApplicant: false,
-        isLatest,
-        rowKind: "invitation",
-        resolution: multipathResolution,
-        seekerName: name,
-      })
-    : resolvePairAmbient({
-        kind: "invitation-withdrawn",
-        viewerIsApplicant: false,
-        isLatest,
-        inviteeName: name,
-        interestAt: invitation.interest_expressed_at,
-        reactivatedAt: invitation.reactivated_at,
-        decided,
-      });
-  return (
-    <>
-      <div className="mt-2">
-        <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      </div>
-      {ambient ? (
-        <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
-      ) : null}
-    </>
-  );
-}
-
-/* Agency Expired invitation section (per-tab contract, U-054 pair
-   card): one invitation's rows — column timeline (Sent, Expired) plus
-   terminal results, then the matrix ambient. The only CTA is the
-   initial Reactivate request — seeker requests are decided in Review
-   Requests and outstanding agency requests await the invitee. Pure:
-   the pair card owns the feed. */
-function AgencyExpiredInvitationSection({
-  invitation,
-  history,
-  reactivateLoading,
-  onReactivate,
-  isLatest,
-  multipathResolution,
-}: {
-  invitation: AgencyInvitationResponse;
-  history: MembershipTimelineEntry[];
-  reactivateLoading: boolean;
-  onReactivate: () => void;
-  isLatest: boolean;
-  multipathResolution: MultipathResolution | null;
-}) {
-  const decided =
-    invitation.status === "accepted" ||
-    history.some((entry) => entry.action === "reactivation_rejected");
-  const name = resolveInviteeName(invitation);
-  const requestedBy = invitation.reactivation_requested_by;
-  const inviteeId = invitation.invited_user_id;
-  const seekerRequested =
-    invitation.reactivation_requested_at != null &&
-    requestedBy != null &&
-    inviteeId != null &&
-    requestedBy === inviteeId;
-  const agencyRequested =
-    invitation.reactivation_requested_at != null && !seekerRequested;
-  const ambient = multipathResolution
-    ? resolvePairAmbient({
-        kind: "resolved",
-        viewerIsApplicant: false,
-        isLatest,
-        rowKind: "invitation",
-        resolution: multipathResolution,
-        seekerName: name,
-      })
-    : resolvePairAmbient({
-        kind: "invitation-expired",
-        viewerIsApplicant: false,
-        isLatest,
-        inviteeName: name,
-        invitationStatus: invitation.status,
-        requestedAt: invitation.reactivation_requested_at,
-        requestedBy,
-        inviteeId,
-        reactivatedAt: invitation.reactivated_at,
-        decided,
-      });
-  return (
-    <>
-      <div className="mt-2">
-        <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      </div>
-      {ambient ? (
-        <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
-      ) : null}
-      {!multipathResolution &&
-      isLatest &&
-      !decided &&
-      !invitation.reactivated_at &&
-      !seekerRequested &&
-      !agencyRequested &&
-      invitation.status === "expired" ? (
-        <div className="mt-2 space-y-2">
-          <Button
-            type="button"
-            size="sm"
-            loading={reactivateLoading}
-            onClick={onReactivate}
-          >
-            Reactivate Invitation
-          </Button>
-        </div>
-      ) : null}
-    </>
-  );
 }
 
 /* Per-member history group for the agency Membership history tab (Rule 20/22):
@@ -1363,11 +1224,11 @@ export function AgencyMembersClient() {
                         />
                         {(() => {
                           const ambient = cumulative.hasReturningAppealRejection
-                            ? resolvePairAmbient({ kind: "terminal", viewerIsApplicant: false, isLatest: true })
+                            ? resolvePairAmbient({ kind: "terminal", viewerIsApplicant: false })
                             : null;
                           return ambient ? (
                             <div className="mt-3 space-y-2">
-                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
                             </div>
                           ) : null;
                         })()}
@@ -1420,7 +1281,6 @@ export function AgencyMembersClient() {
                         ? resolvePairAmbient({
                             kind: "reactivation",
                             viewerIsApplicant: false,
-                            isLatest: true,
                             stage: latestStage,
                             seekerName: latestRequest.seeker_name,
                           })
@@ -1446,7 +1306,7 @@ export function AgencyMembersClient() {
                         />
                         {ambient ? (
                           <div className="mt-3 space-y-2">
-                            <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                            <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
                           </div>
                         ) : null}
                         <div className="mt-3 space-y-2">
@@ -1522,12 +1382,11 @@ export function AgencyMembersClient() {
                           const ambient = resolvePairAmbient({
                             kind: "cooldown",
                             viewerIsApplicant: false,
-                            isLatest: true,
                             seekerName: group.seekerName,
                             cooldownDate,
                           });
                           return ambient ? (
-                            <div className="mt-2">
+                            <div className="mt-3 space-y-2">
                               <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
                             </div>
                           ) : null;
@@ -2077,29 +1936,28 @@ export function AgencyMembersClient() {
                       };
                     });
                     const rowTotal = invitationTimelines.reduce((n, t) => n + t.history.length, 0);
+                    const ambient = resolvePairAmbient({
+                      kind: "invitation-rejected",
+                      viewerIsApplicant: false,
+                      inviteeName: member?.displayName ?? group.inviteeName,
+                    });
                     return (
                       <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                         <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} applicationStatus="rejected" href={resolvePersonProfileHref(member?.profileId)} />
-                        {invitationTimelines.map(({ invitation, history }, sectionIndex) => {
-                          const ambient = resolvePairAmbient({
-                            kind: "invitation-rejected",
-                            viewerIsApplicant: false,
-                            isLatest: sectionIndex === 0,
-                            inviteeName: resolveInviteeName(invitation),
-                          });
-                          return (
+                        {ambient ? (
+                          <div className="mt-3 space-y-2">
+                            <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+                          </div>
+                        ) : null}
+                        {invitationTimelines.map(({ invitation, history }) => (
                           <div key={invitation.invitation_id} className="mt-3 space-y-2">
                             <MembershipTimeline
                               tier="simple"
                               history={history}
                               showHeader={false}
                             />
-                            {ambient ? (
-                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
-                            ) : null}
                           </div>
-                          );
-                        })}
+                        ))}
                       </div>
                     );
                   })
@@ -2112,10 +1970,11 @@ export function AgencyMembersClient() {
                 ) : (
                   expiredInvitationGroups.map((group) => {
                     const member = group.userId != null ? historyMemberById.get(group.userId) : undefined;
-                    // U-054: one card per invitee with a per-invitation
-                    // section each; the count equals all rows. Sections run
-                    // newest-first, so the badge reads the first row's live
-                    // status (history rows may outlive their tab status).
+                    // U-054: one card per invitee — header, one ambient plus
+                    // one action slot from the latest record, then one
+                    // timeline per invitation, all newest-first. Sections
+                    // run newest-first, so the badge reads the first row's
+                    // live status (history rows may outlive their tab status).
                     const invitationHistories = group.invitations.map((invitation) => {
                       const feed = expiredInvitationEventsById.get(invitation.invitation_id) ?? [];
                       return {
@@ -2128,24 +1987,71 @@ export function AgencyMembersClient() {
                       };
                     });
                     const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
+                    const latest = invitationHistories[0];
+                    const latestDecided = latest != null && (
+                      latest.invitation.status === "accepted" ||
+                      latest.history.some((entry) => entry.action === "reactivation_rejected")
+                    );
+                    const latestSeekerRequested =
+                      latest?.invitation.reactivation_requested_at != null &&
+                      latest?.invitation.reactivation_requested_by != null &&
+                      latest?.invitation.invited_user_id != null &&
+                      latest?.invitation.reactivation_requested_by === latest?.invitation.invited_user_id;
+                    const latestAgencyRequested =
+                      (latest?.invitation.reactivation_requested_at != null) && !latestSeekerRequested;
+                    const ambient = latest?.multipathResolution
+                      ? resolvePairAmbient({
+                          kind: "resolved",
+                          viewerIsApplicant: false,
+                          rowKind: "invitation",
+                          resolution: latest.multipathResolution,
+                          seekerName: member?.displayName ?? group.inviteeName,
+                        })
+                      : resolvePairAmbient({
+                          kind: "invitation-expired",
+                          viewerIsApplicant: false,
+                          inviteeName: member?.displayName ?? group.inviteeName,
+                          invitationStatus: latest?.invitation.status,
+                          requestedAt: latest?.invitation.reactivation_requested_at,
+                          requestedBy: latest?.invitation.reactivation_requested_by,
+                          inviteeId: latest?.invitation.invited_user_id,
+                          reactivatedAt: latest?.invitation.reactivated_at,
+                          decided: latestDecided,
+                        });
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                       <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} applicationStatus={group.invitations[0]?.status} href={resolvePersonProfileHref(member?.profileId)} />
-                      {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
+                      {ambient ? (
+                        <div className="mt-3 space-y-2">
+                          <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+                        </div>
+                      ) : null}
+                      {invitationHistories.map(({ invitation, history }) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
-                          <AgencyExpiredInvitationSection
-                            invitation={invitation}
-                            history={history}
-                            reactivateLoading={
-                              reactivateInvitation.isPending &&
-                              reactivateInvitation.variables === invitation.invitation_id
-                            }
-                            onReactivate={() => void handleReactivateInvitation(invitation.invitation_id)}
-                            isLatest={sectionIndex === 0}
-                            multipathResolution={multipathResolution}
-                          />
+                          <MembershipTimeline tier="simple" history={history} showHeader={false} />
                         </div>
                       ))}
+                      {latest != null &&
+                      latest.multipathResolution == null &&
+                      !latestDecided &&
+                      !latest.invitation.reactivated_at &&
+                      !latestSeekerRequested &&
+                      !latestAgencyRequested &&
+                      latest.invitation.status === "expired" ? (
+                        <div className="mt-3 space-y-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={
+                              reactivateInvitation.isPending &&
+                              reactivateInvitation.variables === latest.invitation.invitation_id
+                            }
+                            onClick={() => void handleReactivateInvitation(latest.invitation.invitation_id)}
+                          >
+                            Reactivate Invitation
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                     );
                   })
@@ -2174,17 +2080,38 @@ export function AgencyMembersClient() {
                       };
                     });
                     const rowTotal = invitationHistories.reduce((n, t) => n + t.history.length, 0);
+                    const latest = invitationHistories[0];
+                    const latestDecided = latest != null && (
+                      latest.invitation.status === "accepted" ||
+                      latest.history.some((entry) => entry.action === "reactivation_rejected")
+                    );
+                    const ambient = latest?.multipathResolution
+                      ? resolvePairAmbient({
+                          kind: "resolved",
+                          viewerIsApplicant: false,
+                          rowKind: "invitation",
+                          resolution: latest.multipathResolution,
+                          seekerName: member?.displayName ?? group.inviteeName,
+                        })
+                      : resolvePairAmbient({
+                          kind: "invitation-withdrawn",
+                          viewerIsApplicant: false,
+                          inviteeName: member?.displayName ?? group.inviteeName,
+                          interestAt: latest?.invitation.interest_expressed_at,
+                          reactivatedAt: latest?.invitation.reactivated_at,
+                          decided: latestDecided,
+                        });
                     return (
                     <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                       <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} applicationStatus={group.invitations[0]?.status} href={resolvePersonProfileHref(member?.profileId)} />
-                      {invitationHistories.map(({ invitation, history, multipathResolution }, sectionIndex) => (
+                      {ambient ? (
+                        <div className="mt-3 space-y-2">
+                          <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+                        </div>
+                      ) : null}
+                      {invitationHistories.map(({ invitation, history }) => (
                         <div key={invitation.invitation_id} className="mt-3 space-y-2">
-                          <AgencyWithdrawnInvitationSection
-                            invitation={invitation}
-                            history={history}
-                            isLatest={sectionIndex === 0}
-                            multipathResolution={multipathResolution}
-                          />
+                          <MembershipTimeline tier="simple" history={history} showHeader={false} />
                         </div>
                       ))}
                     </div>

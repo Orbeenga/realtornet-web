@@ -450,8 +450,10 @@ export function MembershipTimeline({
     originRows == null ? history : annotateApprovalOrigins(history, originRows, history);
 
   if (tier === "simple") {
+    // Newest-first like the rich tier (U-054 §3: all timelines render
+    // newest-first). Emitters still build ascending; display sorts here.
     const sorted = [...entries].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
 
     const visible = sorted.filter((entry) => !isRedundant(entry, sorted));
