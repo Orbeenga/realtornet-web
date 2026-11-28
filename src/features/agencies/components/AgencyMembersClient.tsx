@@ -55,21 +55,12 @@ import { useGatedAction } from "@/hooks/useGatedAction";
 import { declineRequestKind, emptyGate1Context } from "@/lib/gate-registry";
 import {
   hasExpiredHistory,
-  ambientTextToneClass,
-  resolveCooldownAmbient,
-  resolveInvitationExpiredAgencyText,
-  resolveInvitationExpiredOfferedAgencyText,
-  resolveInvitationExpiredRequestedAgencyText,
   resolveInvitationPendingAgencyText,
-  resolveInvitationRejectedAgencyText,
-  resolveInvitationWithdrawnAgencyText,
-  resolveInvitationWithdrawnInterestAgencyText,
   resolveInviteeName,
   resolveJoinRequestReactivationTrace,
   resolveJoinRequestReactivationStage,
-  resolveMultipathResolvedCopy,
+  resolvePairAmbient,
   resolvePriorInvitationContextLine,
-  resolveTerminalReactivationRejectionMessage,
 } from "@/lib/membership-lifecycle-messages";
 import {
   countDistinctEntities,
@@ -81,7 +72,6 @@ import {
   getRevokedMembershipHistory,
   groupAgencyInvitationCycles,
   groupAgencyRequestCycles,
-  pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveCumulativeRequestLifecycleTimeline,
   resolveExpiredNarrativeTimeline,
@@ -95,6 +85,7 @@ import {
 } from "./membershipHistory";
 import {
   MembershipTimeline,
+  PairAmbientText,
   resolvePersonProfileHref,
   TimelineHeader,
   timelineRowBandClass,
@@ -424,31 +415,31 @@ function AgencyWithdrawnInvitationSection({
     invitation.status === "accepted" ||
     history.some((entry) => entry.action === "reactivation_rejected");
   const name = resolveInviteeName(invitation);
-  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
+  const ambient = multipathResolution
+    ? resolvePairAmbient({
+        kind: "resolved",
+        viewerIsApplicant: false,
+        isLatest,
+        rowKind: "invitation",
+        resolution: multipathResolution,
+        seekerName: name,
+      })
+    : resolvePairAmbient({
+        kind: "invitation-withdrawn",
+        viewerIsApplicant: false,
+        isLatest,
+        inviteeName: name,
+        interestAt: invitation.interest_expressed_at,
+        reactivatedAt: invitation.reactivated_at,
+        decided,
+      });
   return (
     <>
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {multipathResolution ? (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {resolveMultipathResolvedCopy({
-            viewerIsApplicant: false,
-            kind: "invitation",
-            resolution: multipathResolution,
-            seekerName: name,
-          })}
-        </p>
-      ) : ambientVisible ? (
-        invitation.interest_expressed_at ? (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {resolveInvitationWithdrawnInterestAgencyText({ name })}
-          </p>
-        ) : (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {resolveInvitationWithdrawnAgencyText({ name })}
-          </p>
-        )
+      {ambient ? (
+        <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
       ) : null}
     </>
   );
@@ -488,45 +479,52 @@ function AgencyExpiredInvitationSection({
     requestedBy === inviteeId;
   const agencyRequested =
     invitation.reactivation_requested_at != null && !seekerRequested;
-  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
+  const ambient = multipathResolution
+    ? resolvePairAmbient({
+        kind: "resolved",
+        viewerIsApplicant: false,
+        isLatest,
+        rowKind: "invitation",
+        resolution: multipathResolution,
+        seekerName: name,
+      })
+    : resolvePairAmbient({
+        kind: "invitation-expired",
+        viewerIsApplicant: false,
+        isLatest,
+        inviteeName: name,
+        invitationStatus: invitation.status,
+        requestedAt: invitation.reactivation_requested_at,
+        requestedBy,
+        inviteeId,
+        reactivatedAt: invitation.reactivated_at,
+        decided,
+      });
   return (
     <>
       <div className="mt-2">
         <MembershipTimeline tier="simple" history={history} showHeader={false} />
       </div>
-      {multipathResolution ? (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {resolveMultipathResolvedCopy({
-            viewerIsApplicant: false,
-            kind: "invitation",
-            resolution: multipathResolution,
-            seekerName: name,
-          })}
-        </p>
-      ) : ambientVisible ? (
-        seekerRequested ? (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredRequestedAgencyText({ name })}
-          </p>
-        ) : agencyRequested ? (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredOfferedAgencyText({ name })}
-          </p>
-        ) : invitation.status === "expired" ? (
-          <div className="mt-2 space-y-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {resolveInvitationExpiredAgencyText({ name })}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              loading={reactivateLoading}
-              onClick={onReactivate}
-            >
-              Reactivate Invitation
-            </Button>
-          </div>
-        ) : null
+      {ambient ? (
+        <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+      ) : null}
+      {!multipathResolution &&
+      isLatest &&
+      !decided &&
+      !invitation.reactivated_at &&
+      !seekerRequested &&
+      !agencyRequested &&
+      invitation.status === "expired" ? (
+        <div className="mt-2 space-y-2">
+          <Button
+            type="button"
+            size="sm"
+            loading={reactivateLoading}
+            onClick={onReactivate}
+          >
+            Reactivate Invitation
+          </Button>
+        </div>
       ) : null}
     </>
   );
@@ -1376,6 +1374,16 @@ export function AgencyMembersClient() {
                           eventCount={cumulative.entries.length + appealRows.length}
                           href={resolvePersonProfileHref(member?.profileId)}
                         />
+                        {(() => {
+                          const ambient = cumulative.hasReturningAppealRejection
+                            ? resolvePairAmbient({ kind: "terminal", viewerIsApplicant: false, isLatest: true })
+                            : null;
+                          return ambient ? (
+                            <div className="mt-3 space-y-2">
+                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                            </div>
+                          ) : null;
+                        })()}
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
                             tier="rich"
@@ -1392,11 +1400,6 @@ export function AgencyMembersClient() {
                             emptyDescription="Rejected join requests will appear here."
                           />
                         </div>
-                        {cumulative.hasReturningAppealRejection ? (
-                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                            {resolveTerminalReactivationRejectionMessage()}
-                          </p>
-                        ) : null}
                       </div>
                       );
                     })}
@@ -1445,7 +1448,18 @@ export function AgencyMembersClient() {
                           eventCount={rowTotal}
                           href={resolvePersonProfileHref(member?.profileId)}
                         />
-                        {requestTimelines.map(({ request, history, reactivationStage }) => (
+                        {requestTimelines.map(({ request, history, reactivationStage }, sectionIndex) => {
+                          // S-c: the ambient derives from the latest record
+                          // only (sections ascend, so the last section owns
+                          // it); per-request CTAs stay until the step-2 merge.
+                          const ambient = resolvePairAmbient({
+                            kind: "reactivation",
+                            viewerIsApplicant: false,
+                            isLatest: sectionIndex === requestTimelines.length - 1,
+                            stage: reactivationStage,
+                            seekerName: request.seeker_name,
+                          });
+                          return (
                           <div key={request.join_request_id} className="mt-3 space-y-2">
                             <MembershipTimeline
                               tier="rich"
@@ -1454,33 +1468,20 @@ export function AgencyMembersClient() {
                               emptyTitle="No events"
                               emptyDescription=""
                             />
-                           {reactivationStage === "agency_accepted" ? (
-                            <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                              Request is pending. Approve in Review Requests.
-                            </p>
-                          ) : reactivationStage === "agency_requested" ? (
-                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              Request is pending a response from {request.seeker_name ?? "the applicant"}.
-                            </p>
-                          ) : reactivationStage === "seeker_requested" ? (
-                            <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                              Reactivation request from {request.seeker_name ?? "Seeker"} is pending in review requests for a decision.
-                            </p>
-                          ) : reactivationStage === "initial" ? (
-                            <div className="space-y-2">
-                              <p className="rounded-lg bg-gray-50 p-2 text-sm text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-                                Application from {request.seeker_name ?? "the applicant"} has expired. Request them to reactivate the application.
-                              </p>
+                            {ambient ? (
+                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                            ) : null}
+                            {reactivationStage === "initial" ? (
                               <Button
                                 type="button" size="sm"
                                 onClick={() => reactivationGate.attempt(request.join_request_id)}
                               >
                                 Reactivate Application
                               </Button>
-                            </div>
-                          ) : null}
+                            ) : null}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                     })}
@@ -1531,19 +1532,20 @@ export function AgencyMembersClient() {
                           eventCount={cumulative.entries.length}
                           href={resolvePersonProfileHref(member?.profileId)}
                         />
-                        {cooldownDate ? (
-                          (() => {
-                            const cooldown = resolveCooldownAmbient({
-                              applicantName: group.seekerName,
-                              cooldownDate,
-                            });
-                            return (
-                              <p className={`mt-2 ${ambientTextToneClass[cooldown.tone]}`}>
-                                {cooldown.text}
-                              </p>
-                            );
-                          })()
-                        ) : null}
+                        {(() => {
+                          const ambient = resolvePairAmbient({
+                            kind: "cooldown",
+                            viewerIsApplicant: false,
+                            isLatest: true,
+                            seekerName: group.seekerName,
+                            cooldownDate,
+                          });
+                          return ambient ? (
+                            <div className="mt-2">
+                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+                            </div>
+                          ) : null;
+                        })()}
                         <div className="mt-3 space-y-2">
                           <MembershipTimeline
                             tier="rich"
@@ -2092,18 +2094,26 @@ export function AgencyMembersClient() {
                     return (
                       <div key={group.key} className="rounded-lg border border-border p-3 text-sm">
                         <TimelineHeader entity="person" name={member?.displayName ?? group.inviteeName} email={member?.email ?? group.inviteeEmail ?? undefined} avatarUrl={member?.avatarUrl} role={member?.role} status={member?.status} lastSeen={member?.lastSeen} qualifiers={resolveInviteeHeaderQualifiers(historyMemberById, group.userId)} eventCount={rowTotal} href={resolvePersonProfileHref(member?.profileId)} />
-                        {invitationTimelines.map(({ invitation, history }) => (
+                        {invitationTimelines.map(({ invitation, history }, sectionIndex) => {
+                          const ambient = resolvePairAmbient({
+                            kind: "invitation-rejected",
+                            viewerIsApplicant: false,
+                            isLatest: sectionIndex === invitationTimelines.length - 1,
+                            inviteeName: resolveInviteeName(invitation),
+                          });
+                          return (
                           <div key={invitation.invitation_id} className="mt-3 space-y-2">
                             <MembershipTimeline
                               tier="simple"
                               history={history}
                               showHeader={false}
                             />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {resolveInvitationRejectedAgencyText({ name: resolveInviteeName(invitation) })}
-                            </p>
+                            {ambient ? (
+                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+                            ) : null}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })

@@ -18,12 +18,14 @@ import {
   resolveInvitationPendingAgencyText,
   resolveInvitationPendingSeekerText,
   resolveInvitationRejectedAgencyText,
+  resolveInvitationRejectedSeekerText,
   resolveInvitationWithdrawnAgencyText,
   resolveInvitationWithdrawnInterestAgencyText,
   resolveInvitationWithdrawnInterestSeekerText,
   resolveInvitationWithdrawnSeekerText,
   resolveInviteeName,
   resolveMultipathResolvedCopy,
+  resolvePairAmbient,
   resolvePriorInvitationContextLine,
 } from "@/lib/membership-lifecycle-messages";
 import {
@@ -35,7 +37,6 @@ import {
   groupMyInvitationCycles,
   isMultipathSupersededReason,
   normalizeInviteeEmail,
-  pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveInvitationColumnTimeline,
@@ -713,14 +714,153 @@ assert(
 );
 assert(countDistinctEntities([]) === 0, "empty union counts zero");
 
-// 20. Pair-section ambient gate (U-054 single bottom slot): a pair with
-//     two qualifying rows renders one ambient, on the latest section.
-const pairAmbientShown = [true, true].map((qualifies, index) =>
-  pairSectionShowsAmbient(index === 1, qualifies),
+// 20. Central pair-ambient dispatcher: one ambient per pair from the
+//     latest record (non-latest resolves null); every kind returns a
+//     single {text, tone}. Moved copy is pinned verbatim; delegated
+//     arms pin equality with their source resolver.
+assert(
+  resolvePairAmbient({
+    kind: "reactivation",
+    viewerIsApplicant: true,
+    isLatest: false,
+    stage: "initial",
+    agencyName: "Beta",
+  }) === null,
+  "non-latest sections resolve no ambient (one per pair)",
 );
 assert(
-  pairAmbientShown.join(",") === "false,true",
-  "pair with two qualifying rows renders one ambient, on the latest",
+  resolvePairAmbient({
+    kind: "pending-awaiting",
+    viewerIsApplicant: true,
+    isLatest: true,
+    agencyName: "Beta",
+  })?.text === "Your reconsideration request is pending a decision from Beta. It's with Beta for a decision.",
+  "pending-awaiting copy is verbatim",
+);
+assert(
+  resolvePairAmbient({
+    kind: "reactivation",
+    viewerIsApplicant: true,
+    isLatest: true,
+    stage: "initial",
+    agencyName: "Beta",
+  })?.text === "This application has expired. You can request reactivation, or wait for Beta to reach out.",
+  "seeker initial reactivation copy is verbatim",
+);
+assert(
+  resolvePairAmbient({
+    kind: "reactivation",
+    viewerIsApplicant: true,
+    isLatest: true,
+    stage: "agency_requested",
+    agencyName: "Beta",
+  })?.text === "Beta has requested to reactivate your expired application.",
+  "seeker offered reactivation copy is verbatim",
+);
+assert(
+  resolvePairAmbient({
+    kind: "reactivation",
+    viewerIsApplicant: true,
+    isLatest: true,
+    stage: "agency_accepted",
+    agencyName: "Beta",
+  })?.tone === "success",
+  "accepted reactivation carries the success tone",
+);
+assert(
+  resolvePairAmbient({
+    kind: "reactivation",
+    viewerIsApplicant: false,
+    isLatest: true,
+    stage: "seeker_requested",
+    seekerName: "Zed",
+  })?.text === "Reactivation request from Zed is pending in review requests for a decision.",
+  "agency requested reactivation copy is verbatim",
+);
+assert(
+  resolvePairAmbient({
+    kind: "reactivation",
+    viewerIsApplicant: false,
+    isLatest: true,
+    stage: "terminal",
+    seekerName: "Zed",
+  }) === null,
+  "terminal reactivation stage resolves no ambient",
+);
+assert(
+  resolvePairAmbient({ kind: "terminal", viewerIsApplicant: true, isLatest: true })?.tone === "neutral" &&
+    resolvePairAmbient({ kind: "terminal", viewerIsApplicant: false, isLatest: true })?.tone === "neutral",
+  "terminal ambient resolves for both viewers",
+);
+assert(
+  resolvePairAmbient({ kind: "cooldown", viewerIsApplicant: false, isLatest: true, seekerName: "Zed" }) === null,
+  "cooldown without a date resolves no ambient",
+);
+assert(
+  resolvePairAmbient({
+    kind: "invitation-rejected",
+    viewerIsApplicant: true,
+    isLatest: true,
+    agencyName: "Beta",
+  })?.text === resolveInvitationRejectedSeekerText({ agencyName: "Beta" }),
+  "invitation-rejected delegates to its source copy",
+);
+assert(
+  resolvePairAmbient({
+    kind: "invitation-expired",
+    viewerIsApplicant: false,
+    isLatest: true,
+    inviteeName: "Zed",
+    invitationStatus: "expired",
+  })?.text === resolveInvitationExpiredAgencyText({ name: "Zed" }),
+  "invitation-expired initial delegates to its source copy",
+);
+assert(
+  resolvePairAmbient({
+    kind: "invitation-expired",
+    viewerIsApplicant: false,
+    isLatest: true,
+    inviteeName: "Zed",
+    invitationStatus: "pending",
+    decided: true,
+  }) === null,
+  "decided invitation rows resolve no ambient",
+);
+assert(
+  resolvePairAmbient({
+    kind: "invitation-withdrawn",
+    viewerIsApplicant: true,
+    isLatest: true,
+    agencyName: "Beta",
+    interestAt: "2026-11-20T10:00:00Z",
+  })?.tone === "caution",
+  "withdrawn interest-pending carries the caution tone",
+);
+assert(
+  resolvePairAmbient({
+    kind: "resolved",
+    viewerIsApplicant: true,
+    isLatest: true,
+    rowKind: "invitation",
+    resolution: "accepted",
+    agencyName: "Beta",
+  })?.text ===
+    resolveMultipathResolvedCopy({
+      viewerIsApplicant: true,
+      kind: "invitation",
+      resolution: "accepted",
+      agencyName: "Beta",
+    }),
+  "resolved delegates to the multipath copy",
+);
+assert(
+  resolvePairAmbient({
+    kind: "cancelled",
+    viewerIsApplicant: true,
+    isLatest: true,
+    agencyName: "Beta",
+  })?.text === "Beta can see your cancelled applications.",
+  "cancelled plain ambient is verbatim",
 );
 
 // 21. Multipath supersession (U-055): the locked marker set matches

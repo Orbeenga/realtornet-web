@@ -12,6 +12,7 @@ import {
   resolveReconsiderationPendingNotice,
   resolveRevokedReviewNotice,
   resolveStatusBadge,
+  type AmbientTextTone,
 } from "@/lib/membership-lifecycle-messages";
 import {
   annotateApprovalOrigins,
@@ -358,6 +359,38 @@ export function TimelineHeader({
   );
 }
 
+/* Shared pair-ambient renderer lives HERE ONLY (canonical component).
+   Every pair card ambient renders through this slot: tone-colored plain
+   text, sized per surface (agency xs, seeker sm — preserved from current
+   usage). Callers pass dispatcher output; no ambient copy, tone, or
+   styling branches inline. */
+const PAIR_AMBIENT_TONE_CLASS: Record<AmbientTextTone, { xs: string; sm: string }> = {
+  neutral: {
+    xs: "text-xs text-gray-500 dark:text-gray-400",
+    sm: "text-sm text-gray-500 dark:text-gray-400",
+  },
+  caution: {
+    xs: "text-xs text-amber-700 dark:text-amber-300",
+    sm: "text-sm text-amber-700 dark:text-amber-300",
+  },
+  success: {
+    xs: "text-xs text-green-700 dark:text-green-300",
+    sm: "text-sm text-green-700 dark:text-green-300",
+  },
+};
+
+export function PairAmbientText({
+  text,
+  tone,
+  size,
+}: {
+  text: string;
+  tone: AmbientTextTone;
+  size: "xs" | "sm";
+}) {
+  return <p className={PAIR_AMBIENT_TONE_CLASS[tone][size]}>{text}</p>;
+}
+
 export function MembershipTimeline({
   history,
   tier,
@@ -601,15 +634,17 @@ export function MembershipTimeline({
         const multipathNoticeBlock =
           multipathResolvedNotice != null && multipathResolution != null ? (
             <div className="mb-2 space-y-1">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {resolveMultipathResolvedCopy({
+              <PairAmbientText
+                text={resolveMultipathResolvedCopy({
                   viewerIsApplicant: multipathResolvedNotice.viewerIsApplicant,
                   kind: "application",
                   resolution: multipathResolution,
                   agencyName: multipathResolvedNotice.agencyName,
                   seekerName: multipathResolvedNotice.seekerName,
                 })}
-              </p>
+                tone="neutral"
+                size="sm"
+              />
             </div>
           ) : null;
 

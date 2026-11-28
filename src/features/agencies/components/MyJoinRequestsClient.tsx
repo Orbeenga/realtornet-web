@@ -8,7 +8,7 @@ import { useGatedAction } from "@/hooks/useGatedAction";
 import { emptyGate1Context, type GateFieldValues } from "@/lib/gate-registry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { AgencyDirectoryClient } from "@/features/agencies/components/AgencyDirectoryClient";
-import { MembershipTimeline, resolveAgencyHref, TimelineHeader } from "@/features/agencies/components/MembershipHistoryList";
+import { MembershipTimeline, PairAmbientText, resolveAgencyHref, TimelineHeader } from "@/features/agencies/components/MembershipHistoryList";
 import { ConfirmDestructiveDialog } from "@/components/ui/ConfirmDestructiveDialog";
 import {
   countDistinctEntities,
@@ -21,7 +21,6 @@ import {
   groupMyInvitationCycles,
   groupMyJoinRequestCycles,
   isMultipathSupersededReason,
-  pairSectionShowsAmbient,
   resolveAcceptedInvitationTimeline,
   resolveAgencyIsVerified,
   resolveCumulativeRequestLifecycleTimeline,
@@ -54,19 +53,10 @@ import {
   useRequestJoinRequestReactivationAsApplicant,
 } from "@/features/agencies/hooks";
 import {
-  ambientTextToneClass,
-  resolveCancelledApplicationAmbient,
-  resolveInvitationExpiredOfferedSeekerText,
-  resolveInvitationExpiredRequestedSeekerText,
-  resolveInvitationExpiredSeekerText,
   resolveInvitationPendingSeekerText,
-  resolveInvitationRejectedSeekerText,
-  resolveInvitationWithdrawnInterestSeekerText,
-  resolveInvitationWithdrawnSeekerText,
   resolveJoinRequestReactivationStage,
   resolveJoinRequestReactivationTrace,
-  resolveMultipathResolvedCopy,
-  resolveTerminalReactivationRejectionMessage,
+  resolvePairAmbient,
 } from "@/lib/membership-lifecycle-messages";
 import { notify } from "@/lib/toast";
 import { ApiError } from "@/lib/api/client";
@@ -182,39 +172,43 @@ function SeekerWithdrawnInvitationSection({
   const decided =
     invitation.status === "accepted" ||
     history.some((entry) => entry.action === "reactivation_rejected");
-  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
+  const ambient = multipathResolution
+    ? resolvePairAmbient({
+        kind: "resolved",
+        viewerIsApplicant: true,
+        isLatest,
+        rowKind: "invitation",
+        resolution: multipathResolution,
+        agencyName: invitation.agency_name,
+      })
+    : resolvePairAmbient({
+        kind: "invitation-withdrawn",
+        viewerIsApplicant: true,
+        isLatest,
+        agencyName: invitation.agency_name,
+        interestAt: invitation.interest_expressed_at,
+        reactivatedAt: invitation.reactivated_at,
+        decided,
+      });
   return (
     <>
       <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      {multipathResolution ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {resolveMultipathResolvedCopy({
-            viewerIsApplicant: true,
-            kind: "invitation",
-            resolution: multipathResolution,
-            agencyName: invitation.agency_name,
-          })}
-        </p>
-      ) : ambientVisible ? (
-        !invitation.interest_expressed_at ? (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {resolveInvitationWithdrawnSeekerText({ agencyName: invitation.agency_name })}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              loading={expressLoading}
-              onClick={onExpressInterest}
-            >
-              Express Interest
-            </Button>
-          </div>
-        ) : (
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-            {resolveInvitationWithdrawnInterestSeekerText({ agencyName: invitation.agency_name })}
-          </p>
-        )
+      {ambient ? (
+        <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+      ) : null}
+      {!multipathResolution &&
+      isLatest &&
+      !decided &&
+      !invitation.reactivated_at &&
+      !invitation.interest_expressed_at ? (
+        <Button
+          type="button"
+          size="sm"
+          loading={expressLoading}
+          onClick={onExpressInterest}
+        >
+          Express Interest
+        </Button>
       ) : null}
     </>
   );
@@ -292,43 +286,46 @@ function SeekerExpiredInvitationSection({
     requestedBy !== inviteeId;
   const ownRequest =
     invitation.reactivation_requested_at != null && !agencyRequested;
-  const ambientVisible = pairSectionShowsAmbient(isLatest, !decided && !invitation.reactivated_at);
+  const ambient = multipathResolution
+    ? resolvePairAmbient({
+        kind: "resolved",
+        viewerIsApplicant: true,
+        isLatest,
+        rowKind: "invitation",
+        resolution: multipathResolution,
+        agencyName: invitation.agency_name,
+      })
+    : resolvePairAmbient({
+        kind: "invitation-expired",
+        viewerIsApplicant: true,
+        isLatest,
+        agencyName: invitation.agency_name,
+        requestedAt: invitation.reactivation_requested_at,
+        requestedBy,
+        inviteeId,
+        reactivatedAt: invitation.reactivated_at,
+        decided,
+      });
   return (
     <>
       <MembershipTimeline tier="simple" history={history} showHeader={false} />
-      {multipathResolution ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {resolveMultipathResolvedCopy({
-            viewerIsApplicant: true,
-            kind: "invitation",
-            resolution: multipathResolution,
-            agencyName: invitation.agency_name,
-          })}
-        </p>
-      ) : ambientVisible ? (
-        agencyRequested ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredOfferedSeekerText({ agencyName: invitation.agency_name })}
-          </p>
-        ) : ownRequest ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {resolveInvitationExpiredRequestedSeekerText({ agencyName: invitation.agency_name })}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {resolveInvitationExpiredSeekerText({ agencyName: invitation.agency_name })}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              loading={requestLoading}
-              onClick={onRequest}
-            >
-              Request Reactivation
-            </Button>
-          </div>
-        )
+      {ambient ? (
+        <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+      ) : null}
+      {!multipathResolution &&
+      isLatest &&
+      !decided &&
+      !invitation.reactivated_at &&
+      !agencyRequested &&
+      !ownRequest ? (
+        <Button
+          type="button"
+          size="sm"
+          loading={requestLoading}
+          onClick={onRequest}
+        >
+          Request Reactivation
+        </Button>
       ) : null}
     </>
   );
@@ -985,18 +982,26 @@ export function MyJoinRequestsClient() {
                     <Card key={group.agencyId}>
                       <CardBody className="space-y-4">
                         <TimelineHeader entity="agency" name={group.agencyName} verified={resolveAgencyIsVerified(memberships, group.agencyId)} eventCount={rowTotal} href={resolveAgencyHref(group.agencyId)} />
-                        {invitationTimelines.map(({ invitation, history }) => (
+                        {invitationTimelines.map(({ invitation, history }, sectionIndex) => {
+                          const ambient = resolvePairAmbient({
+                            kind: "invitation-rejected",
+                            viewerIsApplicant: true,
+                            isLatest: sectionIndex === invitationTimelines.length - 1,
+                            agencyName: invitation.agency_name,
+                          });
+                          return (
                           <div key={invitation.invitation_id} className="mt-3 space-y-2">
                             <MembershipTimeline
                               tier="simple"
                               history={history}
                               showHeader={false}
                             />
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {resolveInvitationRejectedSeekerText({ agencyName: invitation.agency_name })}
-                            </p>
+                            {ambient ? (
+                              <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                            ) : null}
                           </div>
-                        ))}
+                          );
+                        })}
                       </CardBody>
                     </Card>
                   );
@@ -1600,6 +1605,27 @@ export function MyJoinRequestsClient() {
                       eventCount={cumulative.entries.length + appealRows.length}
                       href={resolveAgencyHref(group.agencyId)}
                     />
+                    {(() => {
+                      // One ambient per pair from the latest record: terminal
+                      // pair-state first, else the latest live request's own
+                      // appeal (a group-wide check is provably identical here
+                      // — a live appeal beside a second real row is terminal,
+                      // which suppresses this branch — but latest-only is the
+                      // rule, so the rule is written plainly).
+                      const ambient = cumulative.hasReturningAppealRejection
+                        ? resolvePairAmbient({ kind: "terminal", viewerIsApplicant: true, isLatest: true })
+                        : !cumulative.terminal && latestRequest?.pending_appeal
+                          ? resolvePairAmbient({
+                              kind: "pending-awaiting",
+                              viewerIsApplicant: true,
+                              isLatest: true,
+                              agencyName: group.agencyName,
+                            })
+                          : null;
+                      return ambient ? (
+                        <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                      ) : null;
+                    })()}
                     <MembershipTimeline
                       tier="rich"
                       history={[...cumulative.entries, ...appealRows]}
@@ -1611,25 +1637,14 @@ export function MyJoinRequestsClient() {
                       emptyTitle="No rejected requests"
                       emptyDescription="You have no rejected join requests."
                     />
-                    {cumulative.hasReturningAppealRejection ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {resolveTerminalReactivationRejectionMessage()}
-                      </p>
-                    ) : null}
-                    {!cumulative.terminal && latestRequest ? (
+                    {!cumulative.terminal && latestRequest && !latestRequest.pending_appeal ? (
                       <div className="space-y-3 pt-2">
-                        {hasLiveAppeal ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Your reconsideration request is pending a decision from {latestRequest.agency_name}. It&apos;s with {latestRequest.agency_name} for a decision.
-                          </p>
-                        ) : (
-                          <Button
-                            type="button" size="sm"
-                            onClick={() => reconsiderGate.attempt({ agencyId, joinRequestId: latestRequest.join_request_id })}
-                          >
-                            Request Reconsideration
-                          </Button>
-                        )}
+                        <Button
+                          type="button" size="sm"
+                          onClick={() => reconsiderGate.attempt({ agencyId, joinRequestId: latestRequest.join_request_id })}
+                        >
+                          Request Reconsideration
+                        </Button>
                       </div>
                     ) : null}
                   </CardBody>
@@ -1676,7 +1691,18 @@ export function MyJoinRequestsClient() {
                         eventCount={rowTotal}
                         href={resolveAgencyHref(group.agencyId)}
                       />
-                      {requestTimelines.map(({ request, history, reactivationStage }) => (
+                      {requestTimelines.map(({ request, history, reactivationStage }, sectionIndex) => {
+                        // S-c: the ambient derives from the latest record
+                        // only (sections ascend, so the last section owns
+                        // it); per-request CTAs stay until the step-2 merge.
+                        const ambient = resolvePairAmbient({
+                          kind: "reactivation",
+                          viewerIsApplicant: true,
+                          isLatest: sectionIndex === requestTimelines.length - 1,
+                          stage: reactivationStage,
+                          agencyName: request.agency_name,
+                        });
+                        return (
                         <div key={request.join_request_id} className="mt-3 space-y-2">
                           {request.cover_note ? (
                             <div className="rounded-lg bg-gray-100 p-3 text-sm dark:bg-gray-800/50">
@@ -1691,51 +1717,37 @@ export function MyJoinRequestsClient() {
                             emptyTitle="No events"
                             emptyDescription=""
                           />
-                      {reactivationStage === "agency_accepted" ? (
-                        <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
-                          Request is pending. Find it in the Pending tab.
-                        </p>
-                      ) : reactivationStage === "agency_requested" ? (
-                        <div className="space-y-3">
-                          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            {request.agency_name ?? "The agency"} has requested to reactivate your expired application.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2">
+                          {ambient ? (
+                            <PairAmbientText text={ambient.text} tone={ambient.tone} size="sm" />
+                          ) : null}
+                          {reactivationStage === "agency_requested" ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button" size="sm"
+                                loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
+                                onClick={() => acceptReactivationGate.attempt(request.join_request_id)}
+                              >
+                                Accept Reactivation
+                              </Button>
+                              <Button
+                                type="button" size="sm" variant="ghost"
+                                loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === request.join_request_id}
+                                onClick={() => void handleRejectReactivation(request.join_request_id)}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          ) : reactivationStage === "initial" ? (
                             <Button
                               type="button" size="sm"
-                              loading={acceptReactivation.isPending && acceptReactivation.variables === request.join_request_id}
-                              onClick={() => acceptReactivationGate.attempt(request.join_request_id)}
+                              onClick={() => reactivationGate.attempt(request.join_request_id)}
                             >
-                              Accept Reactivation
+                              Request Reactivation
                             </Button>
-                            <Button
-                              type="button" size="sm" variant="ghost"
-                              loading={rejectReactivation.isPending && rejectReactivation.variables?.requestId === request.join_request_id}
-                              onClick={() => void handleRejectReactivation(request.join_request_id)}
-                            >
-                              Reject
-                            </Button>
-                          </div>
+                          ) : null}
                         </div>
-                      ) : reactivationStage === "seeker_requested" ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Request is pending a response from {request.agency_name ?? "the agency"}.
-                        </p>
-                      ) : reactivationStage === "initial" ? (
-                        <div className="space-y-3">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            This application has expired. You can request reactivation, or wait for {request.agency_name ?? "the agency"} to reach out.
-                          </p>
-                          <Button
-                            type="button" size="sm"
-                            onClick={() => reactivationGate.attempt(request.join_request_id)}
-                          >
-                            Request Reactivation
-                          </Button>
-                        </div>
-                      ) : null}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </CardBody>
                   </Card>
                 );
@@ -1776,13 +1788,16 @@ export function MyJoinRequestsClient() {
                       href={resolveAgencyHref(group.agencyId)}
                     />
                     {(() => {
-                      const ambient = resolveCancelledApplicationAmbient({
+                      const ambient = resolvePairAmbient({
+                        kind: "cancelled",
+                        viewerIsApplicant: true,
+                        isLatest: true,
                         agencyName: group.agencyName,
                         applyAgainDate,
                       });
-                      return (
-                        <p className={ambientTextToneClass[ambient.tone]}>{ambient.text}</p>
-                      );
+                      return ambient ? (
+                        <PairAmbientText text={ambient.text} tone={ambient.tone} size="xs" />
+                      ) : null;
                     })()}
                     <div className="space-y-2">
                       <MembershipTimeline

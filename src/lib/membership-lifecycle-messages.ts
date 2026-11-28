@@ -420,11 +420,12 @@ export function resolveTerminalReactivationRejectionMessage(): string {
    Text and highlight MUST derive from here only — no local hardcoded
    copies in components. */
 
-export type AmbientTextTone = "neutral" | "caution";
+export type AmbientTextTone = "neutral" | "caution" | "success";
 
 export const ambientTextToneClass: Record<AmbientTextTone, string> = {
   neutral: "text-xs text-gray-500 dark:text-gray-400",
   caution: "text-xs text-amber-700 dark:text-amber-300",
+  success: "text-xs text-green-700 dark:text-green-300",
 };
 
 export function resolveCancelledApplicationAmbient(params: {
@@ -597,6 +598,168 @@ export function resolveMultipathResolvedCopy(params: {
   return params.viewerIsApplicant
     ? `This ${params.kind} was resolved in ${tab}. ${params.agencyName ?? "The agency"} ${verb} your membership.`
     : `This ${params.kind} was resolved in ${tab}. ${params.seekerName ?? "This seeker"} is now a member.`;
+}
+
+/* Central pair-ambient dispatcher lives HERE ONLY (Rule 20 SSOT — one
+   module). Every pair card ambient resolves through this function as
+   data: kind + viewer role + latest-record fields in, one {text, tone}
+   (or null) out. Tabs render the result in the single pair-ambient slot
+   and never hardcode ambient copy or branch it inline. Tones: neutral
+   for plain status, caution for awaiting-action, success for resolved.
+   (Invitation Pending rows are exempt by scope ruling: per-row context
+   beside per-row CTAs, still sourced from their shared resolvers.)
+   (Row-level tier notices, e.g. multipath supersession marks, call
+   their resolvers directly — they annotate rows, not the pair slot.) */
+export type PairAmbientKind =
+  | "cancelled"
+  | "cooldown"
+  | "terminal"
+  | "pending-awaiting"
+  | "reactivation"
+  | "invitation-rejected"
+  | "invitation-expired"
+  | "invitation-withdrawn"
+  | "resolved";
+
+export interface PairAmbientInput {
+  kind: PairAmbientKind;
+  viewerIsApplicant: boolean;
+  /** Latest-only gate (S-c): callers pass whether this call carries the
+      pair's latest record. Non-latest sections resolve null — one ambient
+      per pair, enforced by type, not convention. */
+  isLatest: boolean;
+  agencyName?: string | null;
+  seekerName?: string | null;
+  inviteeName?: string | null;
+  applyAgainDate?: Date | string | null;
+  cooldownDate?: Date | string | null;
+  stage?: JoinRequestReactivationStage | null;
+  invitationStatus?: string | null;
+  requestedAt?: string | null;
+  requestedBy?: number | null;
+  inviteeId?: number | null;
+  reactivatedAt?: string | null;
+  interestAt?: string | null;
+  decided?: boolean;
+  rowKind?: MultipathResolvedKind;
+  resolution?: MultipathCopyResolution | null;
+}
+
+export function resolvePairAmbient(input: PairAmbientInput): { text: string; tone: AmbientTextTone } | null {
+  if (!input.isLatest) return null;
+  const agency = input.agencyName ?? "The agency";
+  const seeker = input.seekerName ?? "Seeker";
+  switch (input.kind) {
+    case "cancelled":
+      return resolveCancelledApplicationAmbient({
+        agencyName: input.agencyName,
+        applyAgainDate: input.applyAgainDate,
+      });
+    case "cooldown":
+      if (input.cooldownDate == null) return null;
+      return resolveCooldownAmbient({
+        applicantName: input.seekerName ?? input.agencyName,
+        cooldownDate: input.cooldownDate,
+      });
+    case "terminal":
+      return { text: resolveTerminalReactivationRejectionMessage(), tone: "neutral" };
+    case "pending-awaiting":
+      if (!input.viewerIsApplicant) return null;
+      return {
+        text: `Your reconsideration request is pending a decision from ${agency}. It's with ${agency} for a decision.`,
+        tone: "neutral",
+      };
+    case "reactivation": {
+      if (input.stage == null || input.stage === "terminal") return null;
+      if (input.viewerIsApplicant) {
+        switch (input.stage) {
+          case "agency_accepted":
+            return { text: "Request is pending. Find it in the Pending tab.", tone: "success" };
+          case "agency_requested":
+            return { text: `${agency} has requested to reactivate your expired application.`, tone: "caution" };
+          case "seeker_requested":
+            return { text: `Request is pending a response from ${input.agencyName ?? "the agency"}.`, tone: "neutral" };
+          default:
+            return {
+              text: `This application has expired. You can request reactivation, or wait for ${agency} to reach out.`,
+              tone: "neutral",
+            };
+        }
+      }
+      switch (input.stage) {
+        case "agency_accepted":
+          return { text: "Request is pending. Approve in Review Requests.", tone: "success" };
+        case "agency_requested":
+          return { text: `Request is pending a response from ${input.seekerName ?? "the applicant"}.`, tone: "caution" };
+        case "seeker_requested":
+          return { text: `Reactivation request from ${seeker} is pending in review requests for a decision.`, tone: "caution" };
+        default:
+          return {
+            text: `Application from ${input.seekerName ?? "the applicant"} has expired. Request them to reactivate the application.`,
+            tone: "neutral",
+          };
+      }
+    }
+    case "invitation-rejected":
+      return {
+        text: input.viewerIsApplicant
+          ? resolveInvitationRejectedSeekerText({ agencyName: input.agencyName })
+          : resolveInvitationRejectedAgencyText({ name: input.inviteeName }),
+        tone: "neutral",
+      };
+    case "invitation-expired": {
+      if (input.decided || input.reactivatedAt) return null;
+      const name = input.inviteeName ?? "the invitee";
+      if (input.viewerIsApplicant) {
+        const agencyRequested =
+          input.requestedAt != null && input.requestedBy != null && input.inviteeId != null && input.requestedBy !== input.inviteeId;
+        if (agencyRequested) {
+          return { text: resolveInvitationExpiredOfferedSeekerText({ agencyName: input.agencyName }), tone: "neutral" };
+        }
+        if (input.requestedAt != null) {
+          return { text: resolveInvitationExpiredRequestedSeekerText({ agencyName: input.agencyName }), tone: "neutral" };
+        }
+        return { text: resolveInvitationExpiredSeekerText({ agencyName: input.agencyName }), tone: "neutral" };
+      }
+      const seekerRequested =
+        input.requestedAt != null && input.requestedBy != null && input.inviteeId != null && input.requestedBy === input.inviteeId;
+      if (seekerRequested) {
+        return { text: resolveInvitationExpiredRequestedAgencyText({ name }), tone: "neutral" };
+      }
+      if (input.requestedAt != null) {
+        return { text: resolveInvitationExpiredOfferedAgencyText({ name }), tone: "neutral" };
+      }
+      if (input.invitationStatus === "expired") {
+        return { text: resolveInvitationExpiredAgencyText({ name }), tone: "neutral" };
+      }
+      return null;
+    }
+    case "invitation-withdrawn": {
+      if (input.decided || input.reactivatedAt) return null;
+      if (input.viewerIsApplicant) {
+        return input.interestAt
+          ? { text: resolveInvitationWithdrawnInterestSeekerText({ agencyName: input.agencyName }), tone: "caution" }
+          : { text: resolveInvitationWithdrawnSeekerText({ agencyName: input.agencyName }), tone: "neutral" };
+      }
+      const name = input.inviteeName ?? "the invitee";
+      return input.interestAt
+        ? { text: resolveInvitationWithdrawnInterestAgencyText({ name }), tone: "neutral" }
+        : { text: resolveInvitationWithdrawnAgencyText({ name }), tone: "neutral" };
+    }
+    case "resolved": {
+      if (input.resolution == null) return null;
+      return {
+        text: resolveMultipathResolvedCopy({
+          viewerIsApplicant: input.viewerIsApplicant,
+          kind: input.rowKind ?? "application",
+          resolution: input.resolution,
+          agencyName: input.agencyName,
+          seekerName: input.seekerName,
+        }),
+        tone: "neutral",
+      };
+    }
+  }
 }
 
 // Check 3 (Cancelled reapply only): UI-008 requires the known unblock date
