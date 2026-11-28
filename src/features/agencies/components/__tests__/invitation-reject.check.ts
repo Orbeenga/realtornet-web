@@ -1,7 +1,7 @@
 /**
  * Invitation-reject checks (Tier-1 invitations crossover): the seeker
- * rejected-card sentence comes from the shared invitation resolver
- * (membership-lifecycle-messages.ts), never from inline card copy.
+ * rejected-card sentence resolves through the central pair-ambient
+ * dispatcher (kind invitation-rejected), never from inline card copy.
  *
  * Run: pnpm exec tsx src/features/agencies/components/__tests__/invitation-reject.check.ts
  */
@@ -58,8 +58,8 @@ assert(
   "rejected invitation card offers no Apply Again",
 );
 assert(
-  rejectedBranch.includes("resolveInvitationRejectedSeekerText"),
-  "rejected invitation card uses the shared resolver",
+  rejectedBranch.includes("resolvePairAmbient") && rejectedBranch.includes('kind: "invitation-rejected"'),
+  "rejected invitation card routes ambient through the central dispatcher",
 );
 
 if (failures > 0) {
